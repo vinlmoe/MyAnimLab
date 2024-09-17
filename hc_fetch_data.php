@@ -1,11 +1,10 @@
 <?php
 
 /**
- * Holding Cage Pagination and Search Script
+ * Holding Cage Pagination, Search, Sorting, and Custom Column Script
  * 
- * This script handles fetching and displaying holding cage data with pagination and search functionality. 
- * It generates JSON output containing the table rows and pagination links, which can be dynamically 
- * inserted into an HTML page via JavaScript.
+ * This script handles fetching and displaying holding cage data with pagination, search, sorting, and custom column selection.
+ * It generates JSON output containing the table rows and pagination links, which can be dynamically inserted into an HTML page via JavaScript.
  * 
  */
 
@@ -19,10 +18,7 @@ ini_set('display_errors', 1);
 // Include the database connection file
 require 'dbcon.php';
 
-// Start output buffering
-ob_start();
-
-// Check if the user is not logged in, redirect them to index.php with the current URL for redirection after login
+// Check if the user is not logged in, redirect them to index.php
 if (!isset($_SESSION['username'])) {
     header("Location: index.php");
     exit; // Exit to ensure no further code is executed
@@ -37,59 +33,73 @@ $limit = 10; // Number of entries to show in a page.
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1; // Current page number, default is 1
 $offset = ($page - 1) * $limit; // Calculate offset for the SQL query
 
-// Handle the search filter
+// Handle search filter
 $searchQuery = '';
 if (isset($_GET['search'])) {
-    $searchQuery = mysqli_real_escape_string($con, urldecode($_GET['search'])); // Decode and escape the search parameter
+    $searchQuery = mysqli_real_escape_string($con, urldecode($_GET['search']));
 }
+
+// Handle sorting
+$sortBy = isset($_GET['sortBy']) ? mysqli_real_escape_string($con, $_GET['sortBy']) : 'cage_id';
+$sortOrder = isset($_GET['sortOrder']) && $_GET['sortOrder'] === 'desc' ? 'DESC' : 'ASC';
+
+// Handle custom column selection
+$columns = isset($_GET['columns']) ? explode(',', $_GET['columns']) : [];
 
 // Fetch the distinct cage IDs with pagination
 $query = "SELECT DISTINCT `cage_id` FROM holding";
 if (!empty($searchQuery)) {
-    $query .= " WHERE `cage_id` LIKE '%$searchQuery%'"; // Add search filter to the query if present
+    $query .= " WHERE `cage_id` LIKE '%$searchQuery%'"; // Add search filter if present
 }
-
-$totalResult = mysqli_query($con, $query); // Execute the query to get the total number of records
-$totalRecords = mysqli_num_rows($totalResult); // Get the total number of records
-$totalPages = ceil($totalRecords / $limit); // Calculate the total number of pages
-
-$query .= " LIMIT $limit OFFSET $offset"; // Add pagination to the query
-$result = mysqli_query($con, $query); // Execute the query with pagination
+$query .= " ORDER BY $sortBy $sortOrder LIMIT $limit OFFSET $offset"; // Add sorting and pagination
+$result = mysqli_query($con, $query);
 
 // Generate the table rows
 $tableRows = '';
 while ($row = mysqli_fetch_assoc($result)) {
     $cageID = $row['cage_id']; // Get the cage ID
-    $query = "SELECT * FROM holding WHERE `cage_id` = '$cageID'"; // Fetch all records for the current cage ID
-    $cageResult = mysqli_query($con, $query); // Execute the query
-    $numRows = mysqli_num_rows($cageResult); // Get the number of rows for the cage ID
-    $firstRow = true; // Flag to check if it is the first row for the cage ID
+    $tableRows .= '<tr>';
+    $tableRows .= '<td style="width: 20%;">' . htmlspecialchars($cageID) . '</td>'; // Cage ID
 
-    while ($holdingcage = mysqli_fetch_assoc($cageResult)) {
-        $tableRows .= '<tr>';
-        if ($firstRow) {
-            $tableRows .= '<td style="width: 50%;">' . htmlspecialchars($holdingcage['cage_id']) . '</td>'; // Display cage ID only once per group
-            $firstRow = false;
-        }
-        $tableRows .= '<td class="action-icons" style="width: 50%; white-space: nowrap;">
-                        <a href="hc_view.php?id=' . rawurlencode($holdingcage['cage_id']) . '&page=' . $page . '&search=' . urlencode($searchQuery) . '" class="btn btn-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="View Cage"><i class="fas fa-eye"></i></a>
-                        <a href="manage_tasks.php?id=' . rawurlencode($holdingcage['cage_id']) . '&page=' . $page . '&search=' . urlencode($searchQuery) . '" class="btn btn-secondary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Manage Tasks"><i class="fas fa-tasks"></i></a>';
-                        
-        // Check if the user is an admin or assigned to this cage
-        $assignedUsers = explode(',', $holdingcage['user']);
-        if ($userRole === 'admin' || in_array($currentUserId, $assignedUsers)) {
-            $tableRows .= '<a href="hc_edit.php?id=' . rawurlencode($holdingcage['cage_id']) . '&page=' . $page . '&search=' . urlencode($searchQuery) . '" class="btn btn-secondary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Edit Cage"><i class="fas fa-edit"></i></a>
-                           <a href="#" onclick="confirmDeletion(\'' . htmlspecialchars($holdingcage['cage_id']) . '\')" class="btn btn-danger btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Delete Cage"><i class="fas fa-trash"></i></a>';
-        }
-        $tableRows .= '</td></tr>';
+    // Actions column
+    $tableRows .= '<td class="action-icons" style="width: 80%; white-space: nowrap;">
+                    <a href="hc_view.php?id=' . rawurlencode($cageID) . '" class="btn btn-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="View Cage">
+                        <i class="fas fa-eye"></i>
+                    </a>
+                    <a href="manage_tasks.php?id=' . rawurlencode($cageID) . '" class="btn btn-secondary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Manage Tasks">
+                        <i class="fas fa-tasks"></i>
+                    </a>';
+
+    // Check if the user is an admin or assigned to this cage
+    $queryUserAssignment = "SELECT user FROM holding WHERE `cage_id` = '$cageID'";
+    $userAssignmentResult = mysqli_query($con, $queryUserAssignment);
+    $userAssignmentRow = mysqli_fetch_assoc($userAssignmentResult);
+    $assignedUsers = explode(',', $userAssignmentRow['user']);
+    if ($userRole === 'admin' || in_array($currentUserId, $assignedUsers)) {
+        $tableRows .= '<a href="hc_edit.php?id=' . rawurlencode($cageID) . '" class="btn btn-secondary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Edit Cage">
+                            <i class="fas fa-edit"></i>
+                       </a>
+                       <a href="#" onclick="confirmDeletion(\'' . htmlspecialchars($cageID) . '\')" class="btn btn-danger btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Delete Cage">
+                            <i class="fas fa-trash"></i>
+                       </a>';
     }
+    $tableRows .= '</td></tr>';
 }
 
 // Generate the pagination links
+$totalQuery = "SELECT COUNT(DISTINCT `cage_id`) AS total FROM holding";
+$totalResult = mysqli_query($con, $totalQuery);
+$totalRecords = mysqli_fetch_assoc($totalResult)['total'];
+$totalPages = ceil($totalRecords / $limit);
+
 $paginationLinks = '';
 for ($i = 1; $i <= $totalPages; $i++) {
-    $activeClass = ($i == $page) ? 'active' : ''; // Highlight the active page
-    $paginationLinks .= '<li class="page-item ' . $activeClass . '"><a class="page-link" href="javascript:void(0);" onclick="fetchData(' . $i . ', \'' . htmlspecialchars($searchQuery, ENT_QUOTES) . '\')">' . $i . '</a></li>';
+    $activeClass = ($i == $page) ? 'active' : '';
+    $paginationLinks .= '<li class="page-item ' . $activeClass . '">
+                            <a class="page-link" href="javascript:void(0);" onclick="fetchData(' . $i . ', \'' . htmlspecialchars($searchQuery, ENT_QUOTES) . '\')">
+                                ' . $i . '
+                            </a>
+                         </li>';
 }
 
 // Clear the output buffer and avoid any unexpected output before JSON
