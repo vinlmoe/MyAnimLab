@@ -144,6 +144,10 @@ require 'header.php';
                             <a href="maintenance.php?from=hc_dash" class="btn btn-warning btn-icon" data-toggle="tooltip" data-placement="top" title="Cage Maintenance">
                                 <i class="fas fa-wrench"></i>
                             </a>
+                            <!-- Manage Tasks Overview button with tooltip -->
+                            <a href="manage_tasks_overview.php" class="btn btn-secondary btn-icon" data-toggle="tooltip" data-placement="top" title="Manage Tasks Overview">
+                                <i class="fas fa-tasks"></i>
+                            </a>
                         </div>
                     </div>
 
@@ -161,7 +165,7 @@ require 'header.php';
                             <select id="optionalFieldSelect" class="form-control" onchange="fetchData(1, document.getElementById('searchInput').value)">
                                 <option value="">None</option>
                                 <option value="age">Age</option>
-                                <option value="strain_id">Strain ID</option>
+                                <option value="strain">Strain</option>
                                 <option value="iacuc">IACUC</option>
                                 <option value="qty">Quantity</option>
                                 <option value="sex">Sex</option>
@@ -283,7 +287,7 @@ require 'header.php';
                 var thOptional = document.createElement('th');
                 thOptional.style.width = '30%';
                 var headerText = selectedField.replace('_', ' ').toUpperCase();
-                var sortField = selectedField === 'age' ? 'dob' : selectedField;
+                var sortField = getSortField(selectedField);
                 thOptional.innerHTML = '<a href="#" onclick="sortTable(\'' + sortField + '\')">' + headerText + '</a>';
                 tableHeaderRow.appendChild(thOptional);
             }
@@ -293,6 +297,24 @@ require 'header.php';
             thAction.style.width = selectedField ? '40%' : '50%';
             thAction.textContent = 'Action';
             tableHeaderRow.appendChild(thAction);
+        }
+
+        // Function to map selectedField to sortField
+        function getSortField(selectedField) {
+            switch (selectedField) {
+                case 'age':
+                    return 'dob';
+                case 'strain':
+                    return 'strain';
+                case 'iacuc':
+                    return 'iacuc_codes';
+                case 'qty':
+                    return 'quantity';
+                case 'sex':
+                    return 'sex';
+                default:
+                    return 'cage_id';
+            }
         }
 
         // Sorting function

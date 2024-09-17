@@ -76,7 +76,7 @@ switch ($field) {
         // Subquery to count the number of mice per cage
         $fieldsToSelect .= ", (
             SELECT COUNT(*)
-            FROM mouse m
+            FROM mice m
             WHERE m.cage_id = h.cage_id
         ) AS quantity";
         break;
