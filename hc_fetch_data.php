@@ -169,10 +169,16 @@ while ($row = $result->fetch_assoc()) {
 
     // Add action buttons
     $tableRows .= '<td>';
+    // View Cage button
     $tableRows .= '<a href="hc_view.php?id=' . urlencode($row['cage_id']) . '" class="btn btn-info btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="View Cage">';
     $tableRows .= '<i class="fas fa-eye"></i></a>';
+    // Manage Tasks button
+    $tableRows .= '<a href="manage_tasks.php?id=' . urlencode($row['cage_id']) . '" class="btn btn-secondary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Manage Tasks">';
+    $tableRows .= '<i class="fas fa-tasks"></i></a>';
+    // Edit Cage button
     $tableRows .= '<a href="hc_edit.php?id=' . urlencode($row['cage_id']) . '" class="btn btn-secondary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Edit Cage">';
     $tableRows .= '<i class="fas fa-edit"></i></a>';
+    // Delete Cage button
     $tableRows .= '<a href="#" onclick="confirmDeletion(\'' . htmlspecialchars($row['cage_id']) . '\')" class="btn btn-danger btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Delete Cage">';
     $tableRows .= '<i class="fas fa-trash-alt"></i></a>';
     $tableRows .= '</td>';
