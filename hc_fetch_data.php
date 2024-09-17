@@ -49,30 +49,39 @@ $sortField = isset($_GET['sortField']) ? $_GET['sortField'] : 'cage_id';
 $sortOrder = isset($_GET['sortOrder']) && strtoupper($_GET['sortOrder']) === 'DESC' ? 'DESC' : 'ASC';
 
 // Validate sortField to prevent SQL injection
-$allowedSortFields = ['cage_id', 'dob', 'strain', 'iacuc', 'quantity', 'sex'];
+$allowedSortFields = ['cage_id', 'dob', 'strain', 'iacuc_codes', 'quantity', 'sex'];
 if (!in_array($sortField, $allowedSortFields)) {
     $sortField = 'cage_id';
 }
 
 // Prepare the SQL query
-$fieldsToSelect = "cage_id";
+$fieldsToSelect = "h.cage_id";
 
-// Include additional field if selected
 switch ($field) {
     case 'age':
-        $fieldsToSelect .= ", dob";
+        $fieldsToSelect .= ", h.dob";
         break;
     case 'strain':
-        $fieldsToSelect .= ", strain";
+        $fieldsToSelect .= ", h.strain";
         break;
     case 'iacuc':
-        $fieldsToSelect .= ", iacuc";
+        // Subquery to get concatenated IACUC codes
+        $fieldsToSelect .= ", (
+            SELECT GROUP_CONCAT(ci.iacuc_id SEPARATOR ', ')
+            FROM cage_iacuc ci
+            WHERE ci.cage_id = h.cage_id
+        ) AS iacuc_codes";
         break;
     case 'qty':
-        $fieldsToSelect .= ", quantity";
+        // Subquery to count the number of mice per cage
+        $fieldsToSelect .= ", (
+            SELECT COUNT(*)
+            FROM mouse m
+            WHERE m.cage_id = h.cage_id
+        ) AS quantity";
         break;
     case 'sex':
-        $fieldsToSelect .= ", sex";
+        $fieldsToSelect .= ", h.sex";
         break;
     default:
         // Do nothing
@@ -80,12 +89,12 @@ switch ($field) {
 }
 
 // Prepare the base query for counting total records
-$countQuery = "SELECT COUNT(DISTINCT cage_id) as total FROM holding";
+$countQuery = "SELECT COUNT(DISTINCT h.cage_id) as total FROM holding h";
 $params = [];
 $types = '';
 
 if (!empty($search)) {
-    $countQuery .= " WHERE cage_id LIKE ?";
+    $countQuery .= " WHERE h.cage_id LIKE ?";
     $params[] = $searchParam;
     $types .= 's';
 }
@@ -100,15 +109,15 @@ $totalRecords = $countResult->fetch_assoc()['total'];
 $totalPages = ceil($totalRecords / $limit);
 
 // Prepare the main query
-$mainQuery = "SELECT DISTINCT $fieldsToSelect FROM holding";
-$params = [];
-$types = '';
+$mainQuery = "SELECT $fieldsToSelect FROM holding h";
 
 if (!empty($search)) {
-    $mainQuery .= " WHERE cage_id LIKE ?";
+    $mainQuery .= " WHERE h.cage_id LIKE ?";
     $params[] = $searchParam;
     $types .= 's';
 }
+
+$mainQuery .= " GROUP BY h.cage_id";
 
 // Add ORDER BY clause
 $mainQuery .= " ORDER BY $sortField $sortOrder";
@@ -148,14 +157,14 @@ while ($row = $result->fetch_assoc()) {
                     $additionalData = 'Unknown';
                 }
                 break;
-            case 'strain_id':
+            case 'strain':
                 $additionalData = htmlspecialchars($row['strain']);
                 break;
             case 'iacuc':
-                $additionalData = htmlspecialchars($row['iacuc']);
+                $additionalData = htmlspecialchars($row['iacuc_codes'] ?? 'N/A');
                 break;
             case 'qty':
-                $additionalData = htmlspecialchars($row['quantity']);
+                $additionalData = htmlspecialchars($row['quantity'] ?? '0');
                 break;
             case 'sex':
                 $additionalData = htmlspecialchars(ucfirst($row['sex']));
