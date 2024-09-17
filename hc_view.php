@@ -124,17 +124,17 @@ if (isset($_GET['id'])) {
 
             $ageComponents = [];
             if ($ageInterval->y > 0) {
-                $ageComponents[] = $ageInterval->y . ' Years';
+                $ageComponents[] = $ageInterval->y . ' Year(s)';
             }
             if ($ageInterval->m > 0) {
-                $ageComponents[] = $ageInterval->m . ' Months';
+                $ageComponents[] = $ageInterval->m . ' Month(s)';
             }
             if ($ageInterval->d > 0) {
-                $ageComponents[] = $ageInterval->d . ' Days';
+                $ageComponents[] = $ageInterval->d . ' Day(s)';
             }
             if (empty($ageComponents)) {
                 // If the age is less than a day
-                $ageComponents[] = '0 Days';
+                $ageComponents[] = '0 Day';
             }
             $ageString = implode(' ', $ageComponents);
         } else {
