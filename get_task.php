@@ -9,17 +9,10 @@
  */
 
 // Start the session to use session variables
-require 'session_config.php';
+session_start();
 
 // Include the database connection file
 require 'dbcon.php';
-
-// Check if the user is logged in
-if (!isset($_SESSION['name'])) {
-    header('Content-Type: application/json');
-    echo json_encode(['error' => 'Authentication required.']);
-    exit;
-}
 
 // Initialize the response array
 $response = [];

@@ -10,7 +10,7 @@
  * 
  */
 
-require 'session_config.php';
+session_start();
 require 'dbcon.php';  // Include database connection file
 require 'config.php';  // Include configuration file
 require 'vendor/autoload.php';  // Include PHPMailer autoload file
@@ -161,27 +161,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
 
         // Retrieve and sanitize user input
-        $name = trim($_POST['name'] ?? '');
-        $username = filter_input(INPUT_POST, 'email', FILTER_VALIDATE_EMAIL);
+        $name = filter_input(INPUT_POST, 'name', FILTER_SANITIZE_STRING);
+        $username = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL);
         $password = $_POST['password'];
-        $confirm_password = $_POST['confirm_password'] ?? '';
-        $position = trim($_POST['position'] ?? '');
-
-        // Check passwords match
-        if ($password !== $confirm_password) {
-            $_SESSION['resultMessage'] = "Passwords do not match. Please try again.";
-            $con->close();
-            header("Location: " . $_SERVER["PHP_SELF"]);
-            exit;
-        }
-
-        // Validate email format
-        if (!$username) {
-            $_SESSION['resultMessage'] = "Please enter a valid email address.";
-            $con->close();
-            header("Location: " . $_SERVER["PHP_SELF"]);
-            exit;
-        }
+        $position = filter_input(INPUT_POST, 'position', FILTER_SANITIZE_STRING);
         $role = "user";
         $status = "pending";
         $email_verified = 0; // Explicitly set to integer 0
@@ -252,19 +235,22 @@ unset($_SESSION['resultMessage']);  // Clear the message from session
     <link rel="manifest" href="manifest.json" crossorigin="use-credentials">
 
     <!-- Bootstrap and Google Font -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap" rel="stylesheet">
     <style>
         .container {
-            max-width: 900px;
-            margin-top: 50px;
-            margin-bottom: 50px;
+            max-width: 600px;
+            margin-top: 200px;
+            margin-bottom: 200px;
             padding: 20px;
-            border: 1px solid var(--bs-border-color);
+            border: 1px solid #ccc;
             border-radius: 5px;
-            background-color: var(--bs-tertiary-bg);
+            background-color: #f9f9f9;
         }
 
+        .form-group {
+            margin-bottom: 15px;
+        }
 
         .btn {
             display: block;
@@ -280,7 +266,7 @@ unset($_SESSION['resultMessage']);  // Clear the message from session
         }
 
         .note {
-            color: var(--bs-secondary-color);
+            color: #888;
             font-size: 12px;
         }
 
@@ -289,8 +275,8 @@ unset($_SESSION['resultMessage']);  // Clear the message from session
             flex-wrap: wrap;
             justify-content: center;
             align-items: center;
-            background-color: var(--bs-dark);
-            color: var(--bs-white);
+            background-color: #343a40;
+            color: white;
             padding: 1rem;
             text-align: center;
             margin: 0;
@@ -329,12 +315,12 @@ unset($_SESSION['resultMessage']);  // Clear the message from session
             }
 
             .container {
-                max-width: 500px;
+                max-width: 350px;
                 margin: 0 auto;
                 padding: 20px;
-                border: 1px solid var(--bs-border-color);
+                border: 1px solid #ccc;
                 border-radius: 5px;
-                background-color: var(--bs-tertiary-bg);
+                background-color: #f9f9f9;
             }
         }
     </style>
@@ -361,11 +347,11 @@ unset($_SESSION['resultMessage']);  // Clear the message from session
                 <label for="honeypot">Keep this field blank</label>
                 <input type="text" id="honeypot" name="honeypot">
             </div>
-            <div class="mb-3">
+            <div class="form-group">
                 <label for="name">Name</label>
                 <input type="text" class="form-control" id="name" name="name" required>
             </div>
-            <div class="mb-3">
+            <div class="form-group">
                 <label for="position">Position</label>
                 <select class="form-control" id="position" name="position" required>
                     <option value="" disabled selected>Select Position</option>
@@ -377,23 +363,18 @@ unset($_SESSION['resultMessage']);  // Clear the message from session
                     <option value="Undergraduate">Undergraduate</option>
                     <option value="Laboratory Technician">Laboratory Technician</option>
                     <option value="Research Associate">Research Associate</option>
-                    <option value="Vivarium Manager">Vivarium Manager</option>
+                    <option value="Lab Manager">Lab Manager</option>
                     <option value="Animal Care Technician">Animal Care Technician</option>
                     <option value="Interns and Volunteers">Interns and Volunteers</option>
                 </select>
             </div>
-            <div class="mb-3">
+            <div class="form-group">
                 <label for="email">Email Address <span class="note">(Your email address will be your username for login)</span></label>
                 <input type="email" class="form-control" id="email" name="email" required>
             </div>
-            <div class="mb-3">
+            <div class="form-group">
                 <label for="password">Password</label>
                 <input type="password" class="form-control" id="password" name="password" required>
-            </div>
-            <div class="mb-3">
-                <label for="confirm_password">Confirm Password</label>
-                <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
-                <div id="passwordMismatch" class="text-danger small mt-1" style="display: none;">Passwords do not match.</div>
             </div>
 
             <!-- Conditionally include Cloudflare Turnstile widget -->
@@ -403,29 +384,10 @@ unset($_SESSION['resultMessage']);  // Clear the message from session
             <?php } ?>
 
             <br>
-            <button type="submit" class="btn btn-primary" name="signup" id="registerBtn">Register</button>
+            <button type="submit" class="btn btn-primary" name="signup">Register</button>
             <br>
             <a href="index.php" class="btn btn-secondary">Go Back</a>
         </form>
-        <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            var pw = document.getElementById('password');
-            var cpw = document.getElementById('confirm_password');
-            var msg = document.getElementById('passwordMismatch');
-            var btn = document.getElementById('registerBtn');
-            function check() {
-                if (cpw.value && pw.value !== cpw.value) {
-                    msg.style.display = 'block';
-                    btn.disabled = true;
-                } else {
-                    msg.style.display = 'none';
-                    btn.disabled = false;
-                }
-            }
-            pw.addEventListener('input', check);
-            cpw.addEventListener('input', check);
-        });
-        </script>
         <br>
 
         <!-- Display the result message if any -->

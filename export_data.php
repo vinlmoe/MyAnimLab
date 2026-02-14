@@ -10,7 +10,7 @@
  */
 
 // Start the session to use session variables
-require 'session_config.php';
+session_start();
 
 // Include the database connection file
 include 'dbcon.php';

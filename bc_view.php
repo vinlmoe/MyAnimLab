@@ -10,7 +10,7 @@
  */
 
 // Start a new session or resume the existing session
-require 'session_config.php';
+session_start();
 
 // Include the database connection file
 require 'dbcon.php';
@@ -41,7 +41,7 @@ if (isset($_GET['id'])) {
     $id = mysqli_real_escape_string($con, $_GET['id']);
 
     // Fetch the breeding cage record with the specified ID
-    $query = "SELECT b.*, c.remarks AS remarks, pi.initials AS pi_initials, pi.name AS pi_name, c.room, c.rack
+    $query = "SELECT b.*, c.remarks AS remarks, pi.initials AS pi_initials, pi.name AS pi_name
           FROM breeding b
           LEFT JOIN cages c ON b.cage_id = c.cage_id
           LEFT JOIN users pi ON c.pi_name = pi.id
@@ -164,26 +164,31 @@ require 'header.php';
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>View Breeding Cage | <?php echo htmlspecialchars($labName); ?></title>
 
     <script>
-        // Function to display a QR code in an inline modal
+        // Function to display a QR code popup for the cage
         function showQrCodePopup(cageId) {
-            var baseUrl = <?php echo json_encode($url); ?>;
-            var pageUrl = 'https://' + baseUrl + '/bc_view.php?id=' + encodeURIComponent(cageId);
-            var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(pageUrl);
-
-            document.getElementById('qrTitle').textContent = 'QR Code for Cage ' + cageId;
-            document.getElementById('qrImage').src = qrUrl;
-            document.getElementById('qrOverlay').style.display = 'block';
-            document.getElementById('qrForm').style.display = 'block';
-        }
-
-        function closeQrCodePopup() {
-            document.getElementById('qrOverlay').style.display = 'none';
-            document.getElementById('qrForm').style.display = 'none';
+            var popup = window.open("", "QR Code for Cage " + cageId, "width=400,height=400");
+            var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://' + $url + '/bc_view.php?id=' + cageId;
+            var htmlContent = `
+            <html>
+            <head>
+                <title>QR Code for Cage ${cageId}</title>
+                <style>
+                    body { font-family: Arial, sans-serif; text-align: center; padding-top: 40px; }
+                    h1 { color: #333; }
+                    img { margin-top: 20px; }
+                </style>
+            </head>
+            <body>
+                <h1>QR Code for Cage ${cageId}</h1>
+                <img src="${qrUrl}" alt="QR Code for Cage ${cageId}" />
+            </body>
+            </html>
+        `;
+            popup.document.write(htmlContent);
+            popup.document.close();
         }
 
         // Function to navigate back to the previous page
@@ -193,474 +198,315 @@ require 'header.php';
             const search = urlParams.get('search') || '';
             window.location.href = 'bc_dash.php?page=' + page + '&search=' + encodeURIComponent(search);
         }
-
-        // Information Completeness Calculation
-        document.addEventListener('DOMContentLoaded', function() {
-            const fields = {
-                critical: ['male-id', 'female-id'],
-                important: ['pi', 'cross', 'iacuc', 'user'],
-                useful: ['male-dob', 'female-dob']
-            };
-
-            let totalFields = 0;
-            let filledFields = 0;
-            let missingCritical = [];
-            let missingImportant = [];
-            let missingUseful = [];
-
-            // Count critical fields
-            fields.critical.forEach(fieldId => {
-                totalFields++;
-                const field = document.getElementById(fieldId + '-data');
-                if (field && field.dataset.value) {
-                    filledFields++;
-                } else {
-                    const label = fieldId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-                    missingCritical.push(label);
-                }
-            });
-
-            // Count important fields
-            fields.important.forEach(fieldId => {
-                totalFields++;
-                const field = document.getElementById(fieldId + '-data');
-                if (field && field.dataset.value) {
-                    filledFields++;
-                } else {
-                    const label = fieldId === 'pi' ? 'PI Name' : (fieldId.charAt(0).toUpperCase() + fieldId.slice(1));
-                    missingImportant.push(label);
-                }
-            });
-
-            // Count useful fields
-            fields.useful.forEach(fieldId => {
-                totalFields++;
-                const field = document.getElementById(fieldId + '-data');
-                if (field && field.dataset.value) {
-                    filledFields++;
-                } else {
-                    const label = fieldId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-                    missingUseful.push(label);
-                }
-            });
-
-            const percentage = Math.round((filledFields / totalFields) * 100);
-
-            // Only show alert if not 100% complete
-            if (percentage < 100) {
-                const alert = document.getElementById('completeness-alert');
-                const bar = document.getElementById('completeness-bar');
-                const percentageText = document.getElementById('completeness-percentage');
-                const missingFieldsDiv = document.getElementById('missing-fields');
-
-                // Update percentage
-                bar.style.width = percentage + '%';
-                bar.setAttribute('aria-valuenow', percentage);
-                bar.textContent = percentage + '%';
-                percentageText.textContent = percentage + '%';
-
-                // Change bar and alert color based on completion
-                bar.classList.remove('bg-danger', 'bg-warning', 'bg-success');
-                alert.classList.remove('alert-danger', 'alert-warning', 'alert-success');
-                if (percentage < 50) {
-                    bar.classList.add('bg-danger');
-                    alert.classList.add('alert-danger');
-                } else if (percentage < 80) {
-                    bar.classList.add('bg-warning');
-                    alert.classList.add('alert-warning');
-                } else {
-                    bar.classList.add('bg-success');
-                    alert.classList.add('alert-success');
-                }
-
-                // Show missing fields
-                let missingText = '';
-                if (missingCritical.length > 0) {
-                    missingText += '<strong class="text-danger">Critical fields missing:</strong> ' + missingCritical.join(', ') + '<br>';
-                }
-                if (missingImportant.length > 0) {
-                    missingText += '<strong class="text-warning">Important fields missing:</strong> ' + missingImportant.join(', ') + '<br>';
-                }
-                if (missingUseful.length > 0) {
-                    missingText += '<strong class="text-muted">Useful fields missing:</strong> ' + missingUseful.join(', ');
-                }
-
-                missingFieldsDiv.innerHTML = missingText;
-                alert.style.display = 'block';
-            }
-        });
     </script>
 
     <style>
+        body {
+            background: none !important;
+            background-color: transparent !important;
+        }
+
         .container {
-            max-width: 900px;
-            padding: 20px 15px;
+            max-width: 800px;
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
             margin: auto;
         }
 
-        /* Section Cards */
-        .section-card {
-            background-color: var(--bs-tertiary-bg);
-            border: 1px solid var(--bs-border-color);
-            border-radius: 10px;
-            padding: 24px;
-            margin-bottom: 20px;
+        .table-wrapper {
+            padding: 10px;
         }
 
-        .section-header {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 18px;
-            padding-bottom: 12px;
-            border-bottom: 1px solid var(--bs-border-color);
-        }
-
-        .section-header > i {
-            font-size: 1.1rem;
-            color: var(--bs-primary);
-            width: 22px;
-            text-align: center;
-        }
-
-        .section-header h5 {
-            margin: 0;
-            font-weight: 600;
-            font-size: 1.05rem;
-        }
-
-        .section-header .action-buttons {
-            margin-left: auto;
-        }
-
-        /* Details Table (key-value pairs) */
-        .details-table {
+        .table-wrapper table {
             width: 100%;
-            border-collapse: collapse;
+            border: 1px solid #000;
+            border-collapse: separate;
+            border-spacing: 0;
         }
 
-        .details-table th,
-        .details-table td {
-            padding: 10px 14px;
-            border-bottom: 1px solid var(--bs-border-color);
-            vertical-align: middle;
-            font-size: 0.92rem;
-        }
-
-        .details-table th {
-            width: 35%;
-            font-weight: 600;
-            color: var(--bs-body-color);
-            background-color: var(--bs-tertiary-bg);
-            text-transform: none;
-            letter-spacing: 0;
+        .table-wrapper th,
+        .table-wrapper td {
+            border: 1px solid gray;
+            padding: 8px;
             text-align: left;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
         }
 
-        .details-table td {
-            color: var(--bs-secondary-color);
+        .table-wrapper th:nth-child(1),
+        .table-wrapper td:nth-child(1) {
+            width: 30%;
         }
 
-        .details-table td a {
-            color: var(--bs-primary);
+        .table-wrapper th:nth-child(2),
+        .table-wrapper td:nth-child(2) {
+            width: 70%;
         }
 
-        .details-table tr:last-child th,
-        .details-table tr:last-child td {
-            border-bottom: none;
+        .remarks-column {
+            max-width: 400px;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
         }
 
-        /* Note app */
+        span {
+            font-size: 12pt;
+            line-height: 1;
+            display: inline-block;
+        }
+
         .note-app-container {
             margin-top: 20px;
             padding: 20px;
-            background-color: var(--bs-tertiary-bg);
-            border: 1px solid var(--bs-border-color);
-            border-radius: 10px;
+            background-color: #e9ecef;
+            border-radius: 8px;
         }
 
-        /* Popup */
-        .popup-form {
-            display: none;
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background-color: var(--bs-body-bg);
-            padding: 20px;
-            border: 1px solid var(--bs-border-color);
-            z-index: 1000;
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
-            border-radius: 10px;
-            width: 80%;
-            max-width: 800px;
-            max-height: 90vh;
-            overflow-y: auto;
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
-        .popup-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 999;
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-icon {
+            width: 30px;
+            height: 30px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+
+        .btn-icon i {
+            font-size: 16px;
+            margin: 0;
+        }
+
+        @media (max-width: 768px) {
+
+            .table-wrapper th,
+            .table-wrapper td {
+                padding: 12px 8px;
+            }
+
+            .table-wrapper th,
+            .table-wrapper td {
+                text-align: center;
+            }
         }
     </style>
-    <!-- Font Awesome loaded via header.php -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
 
 <body>
 
     <div class="container content mt-4">
-
-        <!-- Cage Details Section -->
-        <div class="section-card">
-            <div class="section-header">
-                <i class="fas fa-venus-mars"></i>
-                <h5>Breeding Cage <?= htmlspecialchars($breedingcage['cage_id']); ?></h5>
+        <div class="card">
+            <div class="card-header">
+                <h4>View Breeding Cage <?= htmlspecialchars($breedingcage['cage_id']); ?></h4>
                 <div class="action-buttons">
-                    <a href="javascript:void(0);" onclick="goBack()" class="btn btn-secondary btn-sm" data-bs-toggle="tooltip" data-bs-placement="top" title="Go Back">
+                    <a href="javascript:void(0);" onclick="goBack()" class="btn btn-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Go Back">
                         <i class="fas fa-arrow-circle-left"></i>
                     </a>
-                    <a href="bc_edit.php?id=<?= rawurlencode($breedingcage['cage_id']); ?>" class="btn btn-warning btn-sm" data-bs-toggle="tooltip" data-bs-placement="top" title="Edit Cage">
+                    <a href="bc_edit.php?id=<?= rawurlencode($breedingcage['cage_id']); ?>" class="btn btn-secondary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Edit Cage">
                         <i class="fas fa-edit"></i>
                     </a>
-                    <a href="bc_addn.php?clone=<?= rawurlencode($breedingcage['cage_id']); ?>" class="btn btn-success btn-sm" data-bs-toggle="tooltip" data-bs-placement="top" title="Duplicate Cage">
-                        <i class="fas fa-clone"></i>
-                    </a>
-                    <a href="manage_tasks.php?id=<?= rawurlencode($breedingcage['cage_id']); ?>" class="btn btn-info btn-sm" data-bs-toggle="tooltip" data-bs-placement="top" title="Manage Tasks">
+                    <!-- Button to mange tasks for the cage -->
+                    <a href="manage_tasks.php?id=<?= rawurlencode($breedingcage['cage_id']); ?>" class="btn btn-secondary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Manage Tasks">
                         <i class="fas fa-tasks"></i>
                     </a>
-                    <a href="javascript:void(0);" onclick="showQrCodePopup(<?= htmlspecialchars(json_encode($breedingcage['cage_id'])); ?>)" class="btn btn-primary btn-sm" data-bs-toggle="tooltip" data-bs-placement="top" title="QR Code">
+                    <a href="javascript:void(0);" onclick="showQrCodePopup('<?= rawurlencode($breedingcage['cage_id']); ?>')" class="btn btn-success btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="QR Code">
                         <i class="fas fa-qrcode"></i>
                     </a>
-                    <a href="javascript:void(0);" onclick="window.print()" class="btn btn-secondary btn-sm" data-bs-toggle="tooltip" data-bs-placement="top" title="Print Cage">
+                    <a href="javascript:void(0);" onclick="window.print()" class="btn btn-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Print Cage">
                         <i class="fas fa-print"></i>
                     </a>
                 </div>
             </div>
-
-            <!-- Information Completeness Indicator -->
-            <div id="completeness-alert" class="alert" style="display: none; margin-bottom: 20px;">
-                <strong>Information Completeness:</strong> <span id="completeness-percentage">0%</span>
-                <div class="progress mt-2" style="height: 20px;">
-                    <div id="completeness-bar" class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
-                </div>
-                <div id="missing-fields" class="mt-2"></div>
-            </div>
-
-            <table class="details-table" id="mouseTable">
-                <tr>
-                    <th>Cage #</th>
-                    <td><?= htmlspecialchars($breedingcage['cage_id']); ?></td>
-                </tr>
-                <tr>
-                    <th>PI Name</th>
-                    <td id="pi-data" data-value="<?= !empty($breedingcage['pi_name']) && $breedingcage['pi_name'] !== 'NA' ? '1' : ''; ?>"><?= htmlspecialchars($breedingcage['pi_initials'] . ' [' . $breedingcage['pi_name'] . ']'); ?></td>
-                </tr>
-                <tr>
-                    <th>Room</th>
-                    <td><?= htmlspecialchars($breedingcage['room'] ?? ''); ?></td>
-                </tr>
-                <tr>
-                    <th>Rack</th>
-                    <td><?= htmlspecialchars($breedingcage['rack'] ?? ''); ?></td>
-                </tr>
-                <tr>
-                    <th>Cross</th>
-                    <td id="cross-data" data-value="<?= !empty($breedingcage['cross']) ? '1' : ''; ?>"><?= htmlspecialchars($breedingcage['cross']); ?></td>
-                </tr>
-                <tr>
-                    <th>IACUC</th>
-                    <td id="iacuc-data" data-value="<?= !empty($iacucLinks) ? '1' : ''; ?>"><?= $iacucDisplayString; ?></td>
-                </tr>
-                <tr>
-                    <th>User</th>
-                    <td id="user-data" data-value="<?= !empty($userIds) ? '1' : ''; ?>"><?= $userDisplayString; ?></td>
-                </tr>
-                <tr>
-                    <th>Male ID</th>
-                    <td id="male-id-data" data-value="<?= !empty($breedingcage['male_id']) ? '1' : ''; ?>"><?= htmlspecialchars($breedingcage['male_id']); ?></td>
-                </tr>
-                <tr>
-                    <th>Male Genotype</th>
-                    <td><?= htmlspecialchars($breedingcage['male_genotype'] ?? ''); ?></td>
-                </tr>
-                <tr>
-                    <th>Male DOB</th>
-                    <td id="male-dob-data" data-value="<?= !empty($breedingcage['male_dob']) ? '1' : ''; ?>"><?= htmlspecialchars($breedingcage['male_dob']); ?></td>
-                </tr>
-                <tr>
-                    <th>Male Source / Parent Cage</th>
-                    <td><?= htmlspecialchars($breedingcage['male_parent_cage'] ?? ''); ?></td>
-                </tr>
-                <tr>
-                    <th>Female ID</th>
-                    <td id="female-id-data" data-value="<?= !empty($breedingcage['female_id']) ? '1' : ''; ?>"><?= htmlspecialchars($breedingcage['female_id']); ?></td>
-                </tr>
-                <tr>
-                    <th>Female Genotype</th>
-                    <td><?= htmlspecialchars($breedingcage['female_genotype'] ?? ''); ?></td>
-                </tr>
-                <tr>
-                    <th>Female DOB</th>
-                    <td id="female-dob-data" data-value="<?= !empty($breedingcage['female_dob']) ? '1' : ''; ?>"><?= htmlspecialchars($breedingcage['female_dob']); ?></td>
-                </tr>
-                <tr>
-                    <th>Female Source / Parent Cage</th>
-                    <td><?= htmlspecialchars($breedingcage['female_parent_cage'] ?? ''); ?></td>
-                </tr>
-                <tr>
-                    <th>Remarks</th>
-                    <td><?= htmlspecialchars($breedingcage['remarks']); ?></td>
-                </tr>
-            </table>
-        </div>
-
-        <!-- Files Section -->
-        <div class="section-card">
-            <div class="section-header">
-                <i class="fas fa-file-alt"></i>
-                <h5>Files</h5>
-            </div>
-            <div class="table-responsive">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>File Name</th>
-                            <th style="width: 80px;">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php
-                        $hasFiles = false;
-                        while ($file = $files->fetch_assoc()) :
-                            $hasFiles = true;
-                        ?>
-                            <tr>
-                                <td><?= htmlspecialchars($file['file_name']); ?></td>
-                                <td><div class="action-buttons"><a href="<?= htmlspecialchars($file['file_path']); ?>" download="<?= htmlspecialchars($file['file_name']); ?>" class="btn btn-sm btn-primary" title="Download"><i class="fas fa-cloud-download-alt"></i></a></div></td>
-                            </tr>
-                        <?php endwhile; ?>
-                        <?php if (!$hasFiles) : ?>
-                            <tr><td colspan="2" class="text-muted text-center">No files uploaded</td></tr>
-                        <?php endif; ?>
-                    </tbody>
+            <br>
+            <div class="table-wrapper">
+                <table class="table table-bordered" id="mouseTable">
+                    <tr>
+                        <th>Cage #:</th>
+                        <td><?= htmlspecialchars($breedingcage['cage_id']); ?></td>
+                    </tr>
+                    <tr>
+                        <th>PI Name</th>
+                        <td><?= htmlspecialchars($breedingcage['pi_initials'] . ' [' . $breedingcage['pi_name'] . ']'); ?></td>
+                    </tr>
+                    <tr>
+                        <th>Cross</th>
+                        <td><?= htmlspecialchars($breedingcage['cross']); ?></td>
+                    </tr>
+                    <tr>
+                        <th>IACUC</th>
+                        <td><?= $iacucDisplayString; ?></td>
+                    </tr>
+                    <tr>
+                        <th>User</th>
+                        <td><?= $userDisplayString; ?></td>
+                    </tr>
+                    <tr>
+                        <th>Male ID</th>
+                        <td><?= htmlspecialchars($breedingcage['male_id']); ?></td>
+                    </tr>
+                    <tr>
+                        <th>Male DOB</th>
+                        <td><?= htmlspecialchars($breedingcage['male_dob']); ?></td>
+                    </tr>
+                    <tr>
+                        <th>Female ID</th>
+                        <td><?= htmlspecialchars($breedingcage['female_id']); ?></td>
+                    </tr>
+                    <tr>
+                        <th>Female DOB</th>
+                        <td><?= htmlspecialchars($breedingcage['female_dob']); ?></td>
+                    </tr>
+                    <tr>
+                        <th>Remarks</th>
+                        <td class="remarks-column"><?= htmlspecialchars($breedingcage['remarks']); ?></td>
+                    </tr>
                 </table>
-            </div>
-        </div>
 
-        <!-- Litter Details Section -->
-        <div class="section-card">
-            <div class="section-header">
-                <i class="fas fa-paw"></i>
-                <h5>Litter Details</h5>
-            </div>
-            <?php
-            $hasLitters = false;
-            while ($litter = mysqli_fetch_assoc($litters)) :
-                $hasLitters = true;
-            ?>
-                <table class="details-table" style="margin-bottom: 16px;">
-                    <tbody>
-                        <tr>
-                            <th>DOM</th>
-                            <td><?= htmlspecialchars($litter['dom'] ?? ''); ?></td>
-                        </tr>
-                        <tr>
-                            <th>Litter DOB</th>
-                            <td><?= htmlspecialchars($litter['litter_dob'] ?? ''); ?></td>
-                        </tr>
-                        <tr>
-                            <th>Pups Alive</th>
-                            <td><?= htmlspecialchars($litter['pups_alive'] ?? ''); ?></td>
-                        </tr>
-                        <tr>
-                            <th>Pups Dead</th>
-                            <td><?= htmlspecialchars($litter['pups_dead'] ?? ''); ?></td>
-                        </tr>
-                        <tr>
-                            <th>Pups Male</th>
-                            <td><?= htmlspecialchars($litter['pups_male'] ?? ''); ?></td>
-                        </tr>
-                        <tr>
-                            <th>Pups Female</th>
-                            <td><?= htmlspecialchars($litter['pups_female'] ?? ''); ?></td>
-                        </tr>
-                        <tr>
-                            <th>Remarks</th>
-                            <td><?= htmlspecialchars($litter['remarks'] ?? ''); ?></td>
-                        </tr>
-                    </tbody>
-                </table>
-            <?php endwhile; ?>
-            <?php if (!$hasLitters) : ?>
-                <p class="text-muted mb-0">No litter records found for this cage.</p>
-            <?php endif; ?>
-        </div>
+                <!-- Separator -->
+                <hr class="mt-4 mb-4" style="border-top: 3px solid #000;">
 
-        <!-- Maintenance Log Section -->
-        <div class="section-card">
-            <div class="section-header">
-                <i class="fas fa-clipboard-list"></i>
-                <h5>Maintenance Log</h5>
-                <div class="action-buttons">
-                    <a href="maintenance.php?from=bc_dash" class="btn btn-warning btn-sm" data-bs-toggle="tooltip" data-bs-placement="top" title="Add Maintenance Record">
-                        <i class="fas fa-wrench"></i>
-                    </a>
-                    <a href="bc_edit.php?id=<?= rawurlencode($breedingcage['cage_id']); ?>" class="btn btn-warning btn-sm" data-bs-toggle="tooltip" data-bs-placement="top" title="Edit Cage">
-                        <i class="fas fa-edit"></i>
-                    </a>
-                </div>
-            </div>
-            <?php if ($maintenanceLogs->num_rows > 0) : ?>
-                <div class="table-responsive">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>User</th>
-                                <th>Comment</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php while ($log = $maintenanceLogs->fetch_assoc()) : ?>
+                <!-- Display Files Section -->
+                <div class="card mt-4">
+
+                    <div class="card-header">
+                        <h4>Manage Files</h4>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
                                 <tr>
-                                    <td><?= htmlspecialchars($log['timestamp'] ?? ''); ?></td>
-                                    <td><?= htmlspecialchars($log['user_name'] ?? 'Unknown'); ?></td>
-                                    <td><?= htmlspecialchars($log['comments'] ?? 'No comment'); ?></td>
+                                    <th>File Name</th>
+                                    <th>Actions</th>
                                 </tr>
-                            <?php endwhile; ?>
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                <?php while ($file = $files->fetch_assoc()) : ?>
+                                    <tr>
+                                        <td><?= htmlspecialchars($file['file_name']); ?></td>
+                                        <td><a href="<?= htmlspecialchars($file['file_path']); ?>" download="<?= htmlspecialchars($file['file_name']); ?>" class="btn btn-sm btn-outline-primary"><i class="fas fa-cloud-download-alt"></i></a></td>
+                                    </tr>
+                                <?php endwhile; ?>
+                            </tbody>
+                        </table>
+                    </div>
+
+
                 </div>
-            <?php else : ?>
-                <p class="text-muted mb-0">No maintenance records found for this cage.</p>
-            <?php endif; ?>
+
+                <!-- Litter Details Section -->
+                <div class="card mt-4">
+
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0">Litter Details - <?= htmlspecialchars($id) ?>
+                        </h4>
+                    </div>
+
+                    <?php while ($litter = mysqli_fetch_assoc($litters)) : ?>
+                        <div class="table-wrapper">
+                            <table class="table table-bordered">
+                                <tbody>
+                                    <tr>
+                                        <th>DOM</th>
+                                        <td><?= htmlspecialchars($litter['dom'] ?? ''); ?></td>
+                                    </tr>
+                                    <tr>
+                                        <th>Litter DOB</th>
+                                        <td><?= htmlspecialchars($litter['litter_dob'] ?? ''); ?></td>
+                                    </tr>
+                                    <tr>
+                                        <th>Pups Alive</th>
+                                        <td><?= htmlspecialchars($litter['pups_alive'] ?? ''); ?></td>
+                                    </tr>
+                                    <tr>
+                                        <th>Pups Dead</th>
+                                        <td><?= htmlspecialchars($litter['pups_dead'] ?? ''); ?></td>
+                                    </tr>
+                                    <tr>
+                                        <th>Pups Male</th>
+                                        <td><?= htmlspecialchars($litter['pups_male'] ?? ''); ?></td>
+                                    </tr>
+                                    <tr>
+                                        <th>Pups Female</th>
+                                        <td><?= htmlspecialchars($litter['pups_female'] ?? ''); ?></td>
+                                    </tr>
+                                    <tr>
+                                        <th>Remarks</th>
+                                        <td class="remarks-column"><?= htmlspecialchars($litter['remarks'] ?? ''); ?></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    <?php endwhile; ?>
+
+                </div>
+
+
+                <div class="card mt-4">
+                    <div class="card-header d-flex flex-column flex-md-row justify-content-between">
+                        <h4>Maintenance Log for Cage ID: <?= htmlspecialchars($id ?? 'Unknown'); ?></h4>
+                        <div class="action-icons mt-3 mt-md-0">
+                            <!-- Maintenance button with tooltip -->
+                            <a href="maintenance.php?from=bc_dash" class="btn btn-warning btn-icon" data-toggle="tooltip" data-placement="top" title="Add Maintenance Record">
+                                <i class="fas fa-wrench"></i>
+                            </a>
+                            <a href="bc_edit.php?id=<?= rawurlencode($breedingcage['cage_id']); ?>" class="btn btn-secondary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Edit Cage">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <?php if ($maintenanceLogs->num_rows > 0) : ?>
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 25%;">Date</th>
+                                            <th style="width: 25%;">User</th>
+                                            <th style="width: 50%;">Comment</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php while ($log = $maintenanceLogs->fetch_assoc()) : ?>
+                                            <tr>
+                                                <td style="width: 25%;"><?= htmlspecialchars($log['timestamp'] ?? ''); ?></td>
+                                                <td style="width: 25%;"><?= htmlspecialchars($log['user_name'] ?? 'Unknown'); ?></td>
+                                                <td style="width: 50%;"><?= htmlspecialchars($log['comments'] ?? 'No comment'); ?></td>
+                                            </tr>
+                                        <?php endwhile; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php else : ?>
+                            <p>No maintenance records found for this cage.</p>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+
+            </div>
         </div>
 
-        <!-- Notes Section -->
+        <!-- Note App Highlight -->
         <div class="note-app-container">
             <?php include 'nt_app.php'; ?>
         </div>
     </div>
 
+    <br>
     <?php include 'footer.php'; ?>
-
-    <!-- QR Code Modal -->
-    <div class="popup-overlay" id="qrOverlay" onclick="closeQrCodePopup()"></div>
-    <div class="popup-form" id="qrForm" style="max-width: 400px; text-align: center;">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-            <h4 id="qrTitle" class="mb-0">QR Code</h4>
-            <button type="button" class="btn-close" onclick="closeQrCodePopup()" aria-label="Close"></button>
-        </div>
-        <img id="qrImage" src="" alt="QR Code" style="margin: 15px 0; max-width: 200px;">
-        <br>
-        <button type="button" class="btn btn-secondary" onclick="closeQrCodePopup()">Close</button>
-    </div>
 
 </body>
 

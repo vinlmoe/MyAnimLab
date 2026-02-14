@@ -96,21 +96,24 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
     <link rel="manifest" href="manifest.json" crossorigin="use-credentials">
 
     <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
     <!-- Google Font: Poppins -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap" rel="stylesheet">
 
     <style>
         .container {
-            max-width: 900px;
-            margin-top: 50px;
-            margin-bottom: 50px;
+            max-width: 600px;
+            margin-top: 300px;
+            margin-bottom: 300px;
             padding: 20px;
-            border: 1px solid var(--bs-border-color);
+            border: 1px solid #ccc;
             border-radius: 5px;
-            background-color: var(--bs-tertiary-bg);
+            background-color: #f9f9f9;
         }
 
+        .form-group {
+            margin-bottom: 15px;
+        }
 
         .btn {
             display: block;
@@ -129,9 +132,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
             text-align: center;
             margin-top: 15px;
             padding: 10px;
-            background-color: var(--bs-success-bg-subtle);
-            border: 1px solid var(--bs-success-border-subtle);
-            color: var(--bs-success-text-emphasis);
+            background-color: #dff0d8;
+            border: 1px solid #3c763d;
+            color: #3c763d;
             border-radius: 5px;
         }
 
@@ -140,8 +143,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
             flex-wrap: wrap;
             justify-content: center;
             align-items: center;
-            background-color: var(--bs-dark);
-            color: var(--bs-white);
+            background-color: #343a40;
+            color: white;
             padding: 1rem;
             text-align: center;
             margin: 0;
@@ -203,13 +206,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
             <input type="hidden" id="token" name="token" value="<?= htmlspecialchars($_GET['token']); ?>">
 
             <!-- New Password Field -->
-            <div class="mb-3">
+            <div class="form-group">
                 <label for="new_password">New Password</label>
                 <input type="password" class="form-control" id="new_password" name="new_password" required>
             </div>
 
             <!-- Confirm Password Field -->
-            <div class="mb-3">
+            <div class="form-group">
                 <label for="confirm_password">Confirm Password</label>
                 <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
             </div>

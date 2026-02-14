@@ -9,13 +9,10 @@
  */
 
 // Start a new session or resume the existing session
-require 'session_config.php';
+session_start();
 
 // Include the database connection
 require 'dbcon.php';
-
-// Include the activity log helper
-require_once 'log_activity.php';
 
 // Disable error display in production (errors logged to server logs)
 error_reporting(E_ALL);
@@ -52,7 +49,7 @@ if (isset($_GET['id'])) {
     $id = mysqli_real_escape_string($con, $_GET['id']);
 
     // Fetch the breeding cage record with the specified ID including PI name details
-    $query = "SELECT b.*, c.remarks AS remarks, c.pi_name AS pi_name, c.room, c.rack
+    $query = "SELECT b.*, c.remarks AS remarks, c.pi_name AS pi_name
           FROM breeding b
           LEFT JOIN cages c ON b.cage_id = c.cage_id
           WHERE b.cage_id = ?";
@@ -134,77 +131,39 @@ if (isset($_GET['id'])) {
             }
 
             /// Retrieve and sanitize form data
-            $cage_id = trim($_POST['cage_id']);
-            $new_cage_id = trim($_POST['new_cage_id']);
-            $pi_name = trim($_POST['pi_name']);
-            $room = !empty($_POST['room']) ? trim($_POST['room']) : null;
-            $rack = !empty($_POST['rack']) ? trim($_POST['rack']) : null;
-            $cross = trim($_POST['cross']);
+            $cage_id = trim(mysqli_real_escape_string($con, $_POST['cage_id']));
+            $pi_name = mysqli_real_escape_string($con, $_POST['pi_name']);
+            $cross = mysqli_real_escape_string($con, $_POST['cross']);
             $iacuc = isset($_POST['iacuc']) ? $_POST['iacuc'] : []; // Array of selected IACUC values
             $users = isset($_POST['user']) ? $_POST['user'] : []; // Array of selected users
-            $male_id = trim($_POST['male_id']);
-            $female_id = trim($_POST['female_id']);
-            $male_dob = trim($_POST['male_dob']);
-            $female_dob = trim($_POST['female_dob']);
-            $male_genotype = !empty($_POST['male_genotype']) ? trim($_POST['male_genotype']) : null;
-            $male_parent_cage = !empty($_POST['male_parent_cage']) ? trim($_POST['male_parent_cage']) : null;
-            $female_genotype = !empty($_POST['female_genotype']) ? trim($_POST['female_genotype']) : null;
-            $female_parent_cage = !empty($_POST['female_parent_cage']) ? trim($_POST['female_parent_cage']) : null;
-            $remarks = trim($_POST['remarks']);
+            $male_id = mysqli_real_escape_string($con, $_POST['male_id']);
+            $female_id = mysqli_real_escape_string($con, $_POST['female_id']);
+            $male_dob = mysqli_real_escape_string($con, $_POST['male_dob']);
+            $female_dob = mysqli_real_escape_string($con, $_POST['female_dob']);
+            $remarks = mysqli_real_escape_string($con, $_POST['remarks']);
 
             // Begin transaction
             $con->begin_transaction();
 
             try {
-                // Handle cage ID change if new_cage_id differs from current cage_id
-                $cageIdChanged = false;
-                $oldCageId = $cage_id;
-                if ($new_cage_id !== $cage_id) {
-                    // Check if the new cage_id already exists
-                    $checkDup = $con->prepare("SELECT cage_id FROM cages WHERE cage_id = ?");
-                    $checkDup->bind_param("s", $new_cage_id);
-                    $checkDup->execute();
-                    $dupResult = $checkDup->get_result();
-                    if ($dupResult->num_rows > 0) {
-                        $checkDup->close();
-                        throw new Exception("Cage ID '" . htmlspecialchars($new_cage_id) . "' already exists. Please choose a different ID.");
-                    }
-                    $checkDup->close();
-
-                    // Update cage_id in cages table (ON UPDATE CASCADE propagates to all related tables)
-                    $updateCageIdQuery = $con->prepare("UPDATE cages SET cage_id = ? WHERE cage_id = ?");
-                    $updateCageIdQuery->bind_param("ss", $new_cage_id, $cage_id);
-                    $updateCageIdQuery->execute();
-                    $updateCageIdQuery->close();
-
-                    $cageIdChanged = true;
-                    $cage_id = $new_cage_id;
-                }
-
                 // Update cages table
-                $updateCageQuery = $con->prepare("UPDATE cages SET
-                                pi_name = ?,
-                                remarks = ?,
-                                room = ?,
-                                rack = ?
+                $updateCageQuery = $con->prepare("UPDATE cages SET 
+                                pi_name = ?, 
+                                remarks = ? 
                                 WHERE cage_id = ?");
-                $updateCageQuery->bind_param("sssss", $pi_name, $remarks, $room, $rack, $cage_id);
+                $updateCageQuery->bind_param("sss", $pi_name, $remarks, $cage_id);
                 $updateCageQuery->execute();
                 $updateCageQuery->close();
 
                 // Update breeding table
-                $updateBreedingQuery = $con->prepare("UPDATE breeding SET
-                                    `cross` = ?,
-                                    male_id = ?,
-                                    female_id = ?,
-                                    male_dob = ?,
-                                    female_dob = ?,
-                                    male_genotype = ?,
-                                    male_parent_cage = ?,
-                                    female_genotype = ?,
-                                    female_parent_cage = ?
+                $updateBreedingQuery = $con->prepare("UPDATE breeding SET 
+                                    `cross` = ?, 
+                                    male_id = ?, 
+                                    female_id = ?, 
+                                    male_dob = ?, 
+                                    female_dob = ? 
                                     WHERE cage_id = ?");
-                $updateBreedingQuery->bind_param("ssssssssss", $cross, $male_id, $female_id, $male_dob, $female_dob, $male_genotype, $male_parent_cage, $female_genotype, $female_parent_cage, $cage_id);
+                $updateBreedingQuery->bind_param("ssssss", $cross, $male_id, $female_id, $male_dob, $female_dob, $cage_id);
                 $updateBreedingQuery->execute();
                 $updateBreedingQuery->close();
 
@@ -241,7 +200,7 @@ if (isset($_GET['id'])) {
 
                     for ($i = 0; $i < count($logIds); $i++) {
                         $edit_log_id = intval($logIds[$i]);
-                        $edit_comment = trim($logComments[$i]);
+                        $edit_comment = trim(mysqli_real_escape_string($con, $logComments[$i]));
 
                         $updateLogQuery = "UPDATE maintenance SET comments = ? WHERE id = ?";
                         $stmtUpdateLog = $con->prepare($updateLogQuery);
@@ -266,13 +225,7 @@ if (isset($_GET['id'])) {
                 // Commit transaction
                 $con->commit();
 
-                // Log activity
-                log_activity($con, 'edit', 'cage', $cage_id, 'Cage details updated');
-                if ($cageIdChanged) {
-                    log_activity($con, 'rename', 'cage', $cage_id, 'Cage renamed from ' . $oldCageId);
-                }
-
-                $_SESSION['message'] = ($cageIdChanged ? "Cage ID changed from '$oldCageId' to '$cage_id'. " : '') . 'Entry updated successfully.';
+                $_SESSION['message'] = 'Entry updated successfully.';
             } catch (Exception $e) {
                 // Rollback transaction on error
                 $con->rollback();
@@ -348,14 +301,14 @@ if (isset($_GET['id'])) {
             if (isset($_POST['dom']) && isset($_POST['litter_dob'])) {
                 // Iterate over each new litter entry
                 for ($i = 0; $i < count($_POST['dom']); $i++) {
-                    $dom_i = trim($_POST['dom'][$i]);
-                    $litter_dob_i = trim($_POST['litter_dob'][$i]);
+                    $dom_i = mysqli_real_escape_string($con, $_POST['dom'][$i]);
+                    $litter_dob_i = mysqli_real_escape_string($con, $_POST['litter_dob'][$i]);
                     $pups_alive_i = !empty($_POST['pups_alive'][$i]) ? intval($_POST['pups_alive'][$i]) : 0;
                     $pups_dead_i = !empty($_POST['pups_dead'][$i]) ? intval($_POST['pups_dead'][$i]) : 0;
                     $pups_male_i = !empty($_POST['pups_male'][$i]) ? intval($_POST['pups_male'][$i]) : 0;
                     $pups_female_i = !empty($_POST['pups_female'][$i]) ? intval($_POST['pups_female'][$i]) : 0;
-                    $remarks_litter_i = trim($_POST['remarks_litter'][$i]);
-                    $litter_id_i = isset($_POST['litter_id'][$i]) ? trim($_POST['litter_id'][$i]) : '';
+                    $remarks_litter_i = mysqli_real_escape_string($con, $_POST['remarks_litter'][$i]);
+                    $litter_id_i = isset($_POST['litter_id'][$i]) ? mysqli_real_escape_string($con, $_POST['litter_id'][$i]) : '';
 
                     // If litter_id exists, update the entry
                     if (!empty($litter_id_i)) {
@@ -518,9 +471,6 @@ require 'header.php';
         document.addEventListener('DOMContentLoaded', function() {
             // Function to validate date
             function validateDate(dateString) {
-                // Allow empty dates since date fields are now optional
-                if (!dateString || dateString.trim() === '') return true;
-
                 const regex = /^\d{4}-\d{2}-\d{2}$/;
                 if (!dateString.match(regex)) return false;
 
@@ -661,114 +611,6 @@ require 'header.php';
             }
         }
 
-        // Information Completeness Tracking
-        $(document).ready(function() {
-            function calculateCompleteness() {
-                const fields = {
-                    critical: ['male_id', 'female_id'],
-                    important: ['pi_name', 'cross', 'iacuc', 'user'],
-                    useful: ['male_dob', 'female_dob']
-                };
-
-                let totalFields = 0;
-                let filledFields = 0;
-                let missingCritical = [];
-                let missingImportant = [];
-                let missingUseful = [];
-
-                // Count critical fields
-                fields.critical.forEach(fieldId => {
-                    totalFields++;
-                    const field = document.getElementById(fieldId);
-                    if (field && field.value && field.value.trim() !== '') {
-                        filledFields++;
-                    } else {
-                        const label = fieldId.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-                        missingCritical.push(label);
-                    }
-                });
-
-                // Count important fields
-                fields.important.forEach(fieldId => {
-                    totalFields++;
-                    const field = document.getElementById(fieldId);
-                    if (field) {
-                        if (field.multiple) {
-                            // For Select2 multiselect
-                            const selectedValues = $(field).val();
-                            if (selectedValues && selectedValues.length > 0 && selectedValues[0] !== '') {
-                                filledFields++;
-                            } else {
-                                const label = fieldId.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-                                missingImportant.push(label);
-                            }
-                        } else if (field.value && field.value.trim() !== '') {
-                            filledFields++;
-                        } else {
-                            const label = fieldId.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-                            missingImportant.push(label);
-                        }
-                    }
-                });
-
-                // Count useful fields
-                fields.useful.forEach(fieldId => {
-                    totalFields++;
-                    const field = document.getElementById(fieldId);
-                    if (field && field.value && field.value.trim() !== '') {
-                        filledFields++;
-                    } else {
-                        const label = fieldId.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-                        missingUseful.push(label);
-                    }
-                });
-
-                const percentage = Math.round((filledFields / totalFields) * 100);
-
-                // Update completeness bar
-                $('#completeness-bar').css('width', percentage + '%');
-                $('#completeness-bar').attr('aria-valuenow', percentage);
-                $('#completeness-bar').text(percentage + '%');
-                $('#completeness-percentage').text(percentage + '%');
-
-                // Change bar color based on completion
-                $('#completeness-bar').removeClass('bg-danger bg-warning bg-success');
-                if (percentage < 50) {
-                    $('#completeness-bar').addClass('bg-danger');
-                } else if (percentage < 80) {
-                    $('#completeness-bar').addClass('bg-warning');
-                } else {
-                    $('#completeness-bar').addClass('bg-success');
-                }
-
-                // Show missing fields
-                let missingText = '';
-                if (missingCritical.length > 0) {
-                    missingText += '<strong class="text-danger">Critical fields missing:</strong> ' + missingCritical.join(', ') + '<br>';
-                }
-                if (missingImportant.length > 0) {
-                    missingText += '<strong class="text-warning">Important fields missing:</strong> ' + missingImportant.join(', ') + '<br>';
-                }
-                if (missingUseful.length > 0) {
-                    missingText += '<strong class="text-muted">Useful fields missing:</strong> ' + missingUseful.join(', ');
-                }
-
-                if (percentage === 100) {
-                    missingText = '<strong class="text-success">✓ All information complete!</strong>';
-                }
-
-                $('#missing-fields').html(missingText);
-                $('#completeness-alert').show();
-            }
-
-            // Calculate on page load
-            calculateCompleteness();
-
-            // Recalculate when fields change
-            $('form input, form select, form textarea').on('change keyup', calculateCompleteness);
-            $('#user, #iacuc').on('select2:select select2:unselect', calculateCompleteness);
-        });
-
     </script>
 
     <title>Edit Breeding Cage | <?php echo htmlspecialchars($labName); ?></title>
@@ -782,8 +624,8 @@ require 'header.php';
 
     <style>
         .container {
-            max-width: 900px;
-            background-color: var(--bs-tertiary-bg);
+            max-width: 800px;
+            background-color: #f8f9fa;
             padding: 20px;
             border-radius: 8px;
             margin-top: 20px;
@@ -801,6 +643,18 @@ require 'header.php';
         .table-wrapper {
             margin-bottom: 50px;
             overflow-x: auto;
+        }
+
+        .table-wrapper table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table-wrapper th,
+        .table-wrapper td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
         }
 
         .card-header {
@@ -842,7 +696,7 @@ require 'header.php';
         }
 
         .warning-text {
-            color: var(--bs-danger);
+            color: #dc3545;
             font-size: 14px;
         }
 
@@ -884,11 +738,11 @@ require 'header.php';
                         <div class="action-buttons">
                             <!-- Button to go back to the previous page -->
                             <!-- Button to go back to the previous page -->
-                            <a href="javascript:void(0);" onclick="goBack()" class="btn btn-primary btn-sm btn-icon" data-bs-toggle="tooltip" data-bs-placement="top" title="Go Back">
+                            <a href="javascript:void(0);" onclick="goBack()" class="btn btn-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Go Back">
                                 <i class="fas fa-arrow-circle-left"></i>
                             </a>
                             <!-- Button to save the form -->
-                            <a href="javascript:void(0);" onclick="document.getElementById('editForm').submit();" class="btn btn-success btn-sm btn-icon" data-bs-toggle="tooltip" data-bs-placement="top" title="Save">
+                            <a href="javascript:void(0);" onclick="document.getElementById('editForm').submit();" class="btn btn-success btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Save">
                                 <i class="fas fa-save"></i>
                             </a>
                         </div>
@@ -896,34 +750,18 @@ require 'header.php';
 
                     <div class="card-body">
                     <form id="editForm" method="POST" action="bc_edit.php?id=<?= $id; ?>&<?= getCurrentUrlParams(); ?>" enctype="multipart/form-data">
-                            <p class="warning-text">Only <span class="required-asterisk">Cage ID</span> is required. Other fields can be completed here.</p>
-
-                            <!-- Information Completeness Indicator -->
-                            <div id="completeness-alert" class="alert alert-warning" style="display: none; margin-bottom: 20px;">
-                                <strong>Information Completeness:</strong> <span id="completeness-percentage">0%</span>
-                                <div class="progress mt-2" style="height: 20px;">
-                                    <div id="completeness-bar" class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
-                                </div>
-                                <div id="missing-fields" class="mt-2"></div>
-                            </div>
-
+                            <p class="warning-text">Fields marked with <span class="required-asterisk">*</span> are required.</p>
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
 
                             <div class="mb-3">
-                                <label for="cage_id" class="form-label">Current Cage ID</label>
-                                <input type="text" class="form-control" id="cage_id" name="cage_id" value="<?= htmlspecialchars($breedingcage['cage_id']); ?>" readonly>
-                            </div>
-                            <div class="mb-3">
-                                <label for="new_cage_id" class="form-label">New Cage ID <span class="required-asterisk">*</span></label>
-                                <input type="text" class="form-control" id="new_cage_id" name="new_cage_id" value="<?= htmlspecialchars($breedingcage['cage_id']); ?>" required style="border: 2px solid #0d6efd;">
-                                <small class="form-text text-muted">Change the cage ID if needed.</small>
+                                <label for="cage_id" class="form-label">Cage ID <span class="required-asterisk">*</span></label>
+                                <input type="text" class="form-control" id="cage_id" name="cage_id" value="<?= htmlspecialchars($breedingcage['cage_id']); ?>" readonly required>
                             </div>
 
                             <div class="mb-3">
-                                <label for="pi_name" class="form-label">PI Name <span class="badge bg-info">Important</span></label>
-                                <select class="form-control" id="pi_name" name="pi_name" data-field-type="important">
+                                <label for="pi_name" class="form-label">PI Name <span class="required-asterisk">*</span></label>
+                                <select class="form-control" id="pi_name" name="pi_name" required>
                                     <!-- Display the currently selected PI, with the option to disable if "Unknown PI" -->
-                                    <option value="">Select PI</option>
                                     <option value="<?= htmlspecialchars($selectedPiId); ?>" <?= ($piDisplay === 'Unknown PI') ? 'disabled' : '' ?> selected>
                                         <?= htmlspecialchars($piDisplay); ?>
                                     </option>
@@ -939,23 +777,13 @@ require 'header.php';
                             </div>
 
                             <div class="mb-3">
-                                <label for="room" class="form-label">Room</label>
-                                <input type="text" class="form-control" id="room" name="room" value="<?= htmlspecialchars($breedingcage['room'] ?? ''); ?>">
+                                <label for="cross" class="form-label">Cross <span class="required-asterisk">*</span></label>
+                                <input type="text" class="form-control" id="cross" name="cross" value="<?= htmlspecialchars($breedingcage['cross']); ?>" required>
                             </div>
 
                             <div class="mb-3">
-                                <label for="rack" class="form-label">Rack</label>
-                                <input type="text" class="form-control" id="rack" name="rack" value="<?= htmlspecialchars($breedingcage['rack'] ?? ''); ?>">
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="cross" class="form-label">Cross <span class="badge bg-info">Important</span></label>
-                                <input type="text" class="form-control" id="cross" name="cross" value="<?= htmlspecialchars($breedingcage['cross']); ?>" data-field-type="important">
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="iacuc" class="form-label">IACUC <span class="badge bg-info">Important</span></label>
-                                <select class="form-control" id="iacuc" name="iacuc[]" multiple data-field-type="important">
+                                <label for="iacuc" class="form-label">IACUC</label>
+                                <select class="form-control" id="iacuc" name="iacuc[]" multiple>
                                     <option value="" disabled>Select IACUC</option>
                                     <?php
                                     // Check if there are any IACUC values from the database
@@ -977,8 +805,8 @@ require 'header.php';
                             </div>
 
                             <div class="mb-3">
-                                <label for="user" class="form-label">User <span class="badge bg-info">Important</span></label>
-                                <select class="form-control" id="user" name="user[]" multiple data-field-type="important">
+                                <label for="user" class="form-label">User <span class="required-asterisk">*</span></label>
+                                <select class="form-control" id="user" name="user[]" multiple required>
                                     <?php
                                     // Populate the dropdown with options from the database
                                     while ($userRow = $userResult->fetch_assoc()) {
@@ -993,43 +821,23 @@ require 'header.php';
                             </div>
 
                             <div class="mb-3">
-                                <label for="male_id" class="form-label">Male ID <span class="badge bg-warning">Critical</span></label>
-                                <input type="text" class="form-control" id="male_id" name="male_id" value="<?= htmlspecialchars($breedingcage['male_id']); ?>" data-field-type="critical">
+                                <label for="male_id" class="form-label">Male ID <span class="required-asterisk">*</span></label>
+                                <input type="text" class="form-control" id="male_id" name="male_id" value="<?= htmlspecialchars($breedingcage['male_id']); ?>" required>
                             </div>
 
                             <div class="mb-3">
-                                <label for="female_id" class="form-label">Female ID <span class="badge bg-warning">Critical</span></label>
-                                <input type="text" class="form-control" id="female_id" name="female_id" value="<?= htmlspecialchars($breedingcage['female_id']); ?>" data-field-type="critical">
+                                <label for="female_id" class="form-label">Female ID <span class="required-asterisk">*</span></label>
+                                <input type="text" class="form-control" id="female_id" name="female_id" value="<?= htmlspecialchars($breedingcage['female_id']); ?>" required>
                             </div>
 
                             <div class="mb-3">
-                                <label for="male_genotype" class="form-label">Male Genotype</label>
-                                <input type="text" class="form-control" id="male_genotype" name="male_genotype" value="<?= htmlspecialchars($breedingcage['male_genotype'] ?? ''); ?>">
+                                <label for="male_dob" class="form-label">Male DOB <span class="required-asterisk">*</span></label>
+                                <input type="date" class="form-control" id="male_dob" name="male_dob" value="<?= htmlspecialchars($breedingcage['male_dob']); ?>" required min="1900-01-01">
                             </div>
 
                             <div class="mb-3">
-                                <label for="male_dob" class="form-label">Male DOB <span class="badge bg-secondary">Useful</span></label>
-                                <input type="date" class="form-control" id="male_dob" name="male_dob" value="<?= htmlspecialchars($breedingcage['male_dob']); ?>" min="1900-01-01" data-field-type="useful">
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="male_parent_cage" class="form-label">Male Source / Parent Cage</label>
-                                <input type="text" class="form-control" id="male_parent_cage" name="male_parent_cage" placeholder="e.g. Jax Lab, cage ID, or other source" value="<?= htmlspecialchars($breedingcage['male_parent_cage'] ?? ''); ?>">
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="female_genotype" class="form-label">Female Genotype</label>
-                                <input type="text" class="form-control" id="female_genotype" name="female_genotype" value="<?= htmlspecialchars($breedingcage['female_genotype'] ?? ''); ?>">
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="female_dob" class="form-label">Female DOB <span class="badge bg-secondary">Useful</span></label>
-                                <input type="date" class="form-control" id="female_dob" name="female_dob" value="<?= htmlspecialchars($breedingcage['female_dob']); ?>" min="1900-01-01" data-field-type="useful">
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="female_parent_cage" class="form-label">Female Source / Parent Cage</label>
-                                <input type="text" class="form-control" id="female_parent_cage" name="female_parent_cage" placeholder="e.g. Jax Lab, cage ID, or other source" value="<?= htmlspecialchars($breedingcage['female_parent_cage'] ?? ''); ?>">
+                                <label for="female_dob" class="form-label">Female DOB <span class="required-asterisk">*</span></label>
+                                <input type="date" class="form-control" id="female_dob" name="female_dob" value="<?= htmlspecialchars($breedingcage['female_dob']); ?>" required min="1900-01-01">
                             </div>
 
                             <div class="mb-3">
@@ -1038,7 +846,7 @@ require 'header.php';
                             </div>
 
                             <!-- Separator -->
-                            <hr class="mt-4 mb-4" style="border-top: 3px solid var(--bs-border-color);">
+                            <hr class="mt-4 mb-4" style="border-top: 3px solid #000;">
 
                             <!-- Display Files Section -->
                             <div class="card mt-4">
@@ -1092,7 +900,7 @@ require 'header.php';
                             <div class="card mt-4">
                                 <div class="card-header d-flex justify-content-between align-items-center">
                                     <h4 class="mb-0">Litter Details - <?= htmlspecialchars($id) ?>
-                                        <button type="button" class="btn btn-primary btn-icon" onclick="addLitter()" data-bs-toggle="tooltip" data-bs-placement="top" title="Add New Litter Data">
+                                        <button type="button" class="btn btn-primary btn-icon" onclick="addLitter()" data-toggle="tooltip" data-placement="top" title="Add New Litter Data">
                                             <i class="fas fa-plus"></i>
                                         </button>
                                     </h4>
@@ -1101,7 +909,7 @@ require 'header.php';
                                 <div class="card-body" id="litterEntries">
                                     <?php while ($litter = mysqli_fetch_assoc($litters)) : ?>
                                         <div class="litter-entry">
-                                            <hr class="mt-4 mb-4" style="border-top: 3px solid var(--bs-border-color);">
+                                            <hr class="mt-4 mb-4" style="border-top: 3px solid #000;">
                                             <div class="mb-3">
                                                 <label for="dom[]" class="form-label">DOM <span class="required-asterisk">*</span></label>
                                                 <input type="date" class="form-control" name="dom[]" value="<?= htmlspecialchars($litter['dom']); ?>" required min="1900-01-01">
@@ -1148,7 +956,7 @@ require 'header.php';
                                     <h4>Maintenance Log for Cage ID: <?= htmlspecialchars($id ?? 'Unknown'); ?></h4>
                                     <div class="action-icons mt-3 mt-md-0">
                                         <!-- Maintenance button with tooltip -->
-                                        <a href="maintenance.php?from=bc_dash" class="btn btn-warning btn-icon" data-bs-toggle="tooltip" data-bs-placement="top" title="Add Maintenance Record">
+                                        <a href="maintenance.php?from=bc_dash" class="btn btn-warning btn-icon" data-toggle="tooltip" data-placement="top" title="Add Maintenance Record">
                                             <i class="fas fa-wrench"></i>
                                         </a>
                                     </div>

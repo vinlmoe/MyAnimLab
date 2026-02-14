@@ -10,7 +10,9 @@
 
 
 // Start or resume the session
-require 'session_config.php';
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Include the database connection file
 require 'dbcon.php';
@@ -54,6 +56,11 @@ $result = $stmt->get_result();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sticky Notes</title>
     <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+        }
+
         .sticky-notes-container {
             display: flex;
             flex-wrap: wrap;
@@ -74,7 +81,6 @@ $result = $stmt->get_result();
             flex-direction: column;
             justify-content: space-between;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            color: #212529;
         }
 
         .sticky-note::before {
@@ -95,11 +101,11 @@ $result = $stmt->get_result();
         }
 
         .timestamp {
-            color: var(--bs-secondary-color);
+            color: #888;
         }
 
         .userid {
-            color: var(--bs-primary);
+            color: blue;
         }
 
         .close-btn,
@@ -141,8 +147,8 @@ $result = $stmt->get_result();
             left: 50%;
             transform: translate(-50%, -50%);
             padding: 20px;
-            background-color: var(--bs-body-bg);
-            border: 1px solid var(--bs-border-color);
+            background-color: #fff;
+            border: 1px solid #ccc;
             border-radius: 8px;
             z-index: 1000;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
@@ -164,7 +170,7 @@ $result = $stmt->get_result();
             display: flex;
             flex-direction: column;
             width: 380px;
-            border: 1px solid var(--bs-border-color);
+            border: 1px solid #ddd;
             border-radius: 4px;
             padding: 8px;
             overflow-y: hidden;
@@ -176,7 +182,6 @@ $result = $stmt->get_result();
             margin-bottom: 10px;
             resize: none;
             background-color: #fff8b3;
-            color: #212529;
         }
 
         #addNoteForm button,
@@ -193,45 +198,33 @@ $result = $stmt->get_result();
             background-color: #45a049;
         }
 
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+        }
+
+        .alert-success {
+            color: #3c763d;
+            background-color: #dff0d8;
+            border-color: #d6e9c6;
+        }
+
+        .alert-danger {
+            color: #a94442;
+            background-color: #f2dede;
+            border-color: #ebccd1;
+        }
+
         .char-count {
             font-size: 12px;
-            color: var(--bs-secondary-color);
+            color: #888;
             margin-bottom: 10px;
             text-align: right;
         }
-
-        /* Dark mode overrides for sticky notes */
-        [data-bs-theme="dark"] .sticky-note {
-            background-color: #3a3520;
-            border-color: #5a4f2a;
-            color: #dee2e6;
-        }
-
-        [data-bs-theme="dark"] .sticky-note .timestamp {
-            color: #adb5bd;
-        }
-
-        [data-bs-theme="dark"] .sticky-note .userid {
-            color: #6ea8fe;
-        }
-
-        [data-bs-theme="dark"] .sticky-note .close-btn,
-        [data-bs-theme="dark"] .sticky-note .edit-btn {
-            color: #adb5bd;
-        }
-
-        [data-bs-theme="dark"] .sticky-note .close-btn:hover,
-        [data-bs-theme="dark"] .sticky-note .edit-btn:hover {
-            color: #dee2e6;
-        }
-
-        [data-bs-theme="dark"] #note_text,
-        [data-bs-theme="dark"] #edit_note_text {
-            background-color: #3a3520;
-            color: #dee2e6;
-        }
     </style>
-    <!-- jQuery loaded via header.php -->
+    <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
 </head>
 
 <body>
