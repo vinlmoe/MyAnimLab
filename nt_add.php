@@ -12,7 +12,9 @@
 include_once("dbcon.php");
 
 // Start or resume the session if not already started
-require 'session_config.php';
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Check if the user is logged in
 if (!isset($_SESSION['username'])) {

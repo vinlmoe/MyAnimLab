@@ -7,15 +7,11 @@
 -->
 
 <style>
-    html {
-        margin: 0;
-        padding: 0;
-    }
-
+    html,
     body {
         margin: 0;
         padding: 0;
-        min-height: 100vh;
+        height: 100%;
         display: flex;
         flex-direction: column;
     }
@@ -32,7 +28,6 @@
         box-sizing: border-box;
         height: 60px;
         width: 100%;
-        margin-top: auto;
     }
 
     .footer-text {

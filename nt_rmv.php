@@ -13,7 +13,9 @@
 include_once("dbcon.php");
 
 // Start or resume the session if not already started
-require 'session_config.php';
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Initialize response array
 $response = ['success' => false, 'message' => 'Invalid request.'];

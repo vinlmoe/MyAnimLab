@@ -158,21 +158,24 @@ function handlePasswordReset($con, $email, $url) {
     <link rel="manifest" href="manifest.json" crossorigin="use-credentials">
 
     <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
     <!-- Google Font: Poppins -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap" rel="stylesheet">
 
     <style>
         .container {
-            max-width: 900px;
-            margin-top: 20px;
-            margin-bottom: 20px;
-            padding: 20px;
-            border: 1px solid var(--bs-border-color);
+            max-width: 600px;
+            margin-top: 300px;
+            margin-bottom: 300px;
+            padding: 50px;
+            border: 1px solid #ccc;
             border-radius: 5px;
-            background-color: var(--bs-tertiary-bg);
+            background-color: #f9f9f9;
         }
 
+        .form-group {
+            margin-bottom: 15px;
+        }
 
         .btn {
             display: block;
@@ -191,9 +194,9 @@ function handlePasswordReset($con, $email, $url) {
             text-align: center;
             margin-top: 15px;
             padding: 10px;
-            background-color: var(--bs-success-bg-subtle);
-            border: 1px solid var(--bs-success-border-subtle);
-            color: var(--bs-success-text-emphasis);
+            background-color: #dff0d8;
+            border: 1px solid #3c763d;
+            color: #3c763d;
             border-radius: 5px;
         }
 
@@ -202,8 +205,8 @@ function handlePasswordReset($con, $email, $url) {
             flex-wrap: wrap;
             justify-content: center;
             align-items: center;
-            background-color: var(--bs-dark);
-            color: var(--bs-white);
+            background-color: #343a40;
+            color: white;
             padding: 1rem;
             text-align: center;
             margin: 0;
@@ -240,7 +243,7 @@ function handlePasswordReset($con, $email, $url) {
         }
 
         .warning-text {
-            color: var(--bs-danger);
+            color: #dc3545;
             font-size: 14px;
         }
 
@@ -255,12 +258,12 @@ function handlePasswordReset($con, $email, $url) {
             }
 
             .container {
-                max-width: 500px;
+                max-width: 350px;
                 margin: 0 auto;
                 padding: 20px;
-                border: 1px solid var(--bs-border-color);
+                border: 1px solid #ccc;
                 border-radius: 5px;
-                background-color: var(--bs-tertiary-bg);
+                background-color: #f9f9f9;
             }
         }
     </style>
@@ -286,7 +289,7 @@ function handlePasswordReset($con, $email, $url) {
         <p class="warning-text">Fields marked with <span class="required-asterisk">*</span> are required.</p>
         <br>
         <form method="POST" action="">
-            <div class="mb-3">
+            <div class="form-group">
                 <label for="email">Email Address <span class="required-asterisk">*</span></label>
                 <input type="email" class="form-control" id="email" name="email" required>
             </div>

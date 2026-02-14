@@ -9,13 +9,10 @@
  */
 
 // Start a new session or resume the existing session
-require 'session_config.php';
+session_start();
 
 // Include the database connection file
 require 'dbcon.php';
-
-// Include the activity log helper
-require_once 'log_activity.php';
 
 // Check if the user is logged in and has admin role
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
@@ -35,13 +32,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         die('CSRF token validation failed');
     }
 
-    $username = trim($_POST['username'] ?? '');
-    $action = trim($_POST['action'] ?? '');
+    $username = filter_input(INPUT_POST, 'username', FILTER_SANITIZE_STRING);
+    $action = filter_input(INPUT_POST, 'action', FILTER_SANITIZE_STRING);
 
     // Initialize query variables
     $query = "";
 
-    // Determine the action to take: approve, set to pending, delete user, set role to admin, vivarium_manager, or user
+    // Determine the action to take: approve, set to pending, delete user, set role to admin or user
     switch ($action) {
         case 'approve':
             $query = "UPDATE users SET status='approved' WHERE username=?";
@@ -54,9 +51,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             break;
         case 'admin':
             $query = "UPDATE users SET role='admin' WHERE username=?";
-            break;
-        case 'vivarium_manager':
-            $query = "UPDATE users SET role='vivarium_manager' WHERE username=?";
             break;
         case 'user':
             $query = "UPDATE users SET role='user' WHERE username=?";
@@ -72,11 +66,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             mysqli_stmt_bind_param($statement, "s", $username);
             mysqli_stmt_execute($statement);
             mysqli_stmt_close($statement);
-
-            // Log role changes
-            if (in_array($action, ['admin', 'vivarium_manager', 'user'])) {
-                log_activity($con, 'role_change', 'user', $username, "Changed role to $action");
-            }
         } else {
             // Log error and handle it gracefully
             error_log("Database error: " . mysqli_error($con));
@@ -85,18 +74,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Pagination settings
-$records_per_page = 10;
-$current_page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
-$offset = ($current_page - 1) * $records_per_page;
-
-// Count total users
-$count_result = mysqli_query($con, "SELECT COUNT(*) as total FROM users");
-$total_records = mysqli_fetch_assoc($count_result)['total'];
-$total_pages = ceil($total_records / $records_per_page);
-
-// Fetch users with pagination
-$userquery = "SELECT * FROM users ORDER BY name ASC LIMIT $records_per_page OFFSET $offset";
+// Fetch all users from the database
+$userquery = "SELECT * FROM users";
 $userresult = mysqli_query($con, $userquery);
 
 // Include the header file
@@ -114,7 +93,7 @@ mysqli_close($con);
     <title>User Management | <?php echo htmlspecialchars($labName); ?></title>
 
     <!-- Bootstrap CSS -->
-    <!-- Bootstrap 5.3 loaded via header.php -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous">
 
     <!-- Inline CSS for styling -->
     <style>
@@ -128,9 +107,18 @@ mysqli_close($con);
             align-items: center;
         }
 
-        /* Action button styles handled by unified styles in header.php */
+        .action-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+
+        .action-buttons .btn {
+            flex: 1 1 auto;
+        }
 
         @media (max-width: 576px) {
+
             .table th,
             .table td {
                 display: block;
@@ -143,42 +131,14 @@ mysqli_close($con);
 
             .table tr {
                 margin-bottom: 15px;
-                display: block;
-                border: 1px solid var(--bs-border-color);
-                border-radius: 8px;
-                padding: 10px;
-            }
-
-            .table td {
-                border: none;
-                padding: 6px 10px;
-                position: relative;
-                padding-left: 40%;
-                text-align: left;
             }
 
             .table td::before {
                 content: attr(data-label);
                 font-weight: bold;
                 text-transform: uppercase;
-                position: absolute;
-                left: 10px;
-                width: 35%;
-                white-space: nowrap;
-                font-size: 0.8rem;
-                color: var(--bs-body-color);
-            }
-
-            .table td[data-label="Actions"] {
-                padding-left: 10px;
-            }
-
-            .table td[data-label="Actions"]::before {
-                display: none;
-            }
-
-            .table td[data-label="Actions"] .action-buttons {
-                justify-content: flex-start;
+                margin-bottom: 5px;
+                display: block;
             }
         }
     </style>
@@ -196,20 +156,9 @@ mysqli_close($con);
 </head>
 
 <body>
-    <div class="container mt-4 content" style="max-width: 900px;">
+    <div class="container mt-4 content">
         <div class="main-content">
             <h1 class="text-center">User Management</h1>
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <div></div>
-                <small class="text-muted">
-                    <?php if ($total_records > 0): ?>
-                        Showing <?= $offset + 1; ?> - <?= min($offset + $records_per_page, $total_records); ?>
-                        of <?= $total_records; ?> users
-                    <?php else: ?>
-                        No users found
-                    <?php endif; ?>
-                </small>
-            </div>
             <div class="table-responsive">
                 <table class="table table-striped">
                     <thead>
@@ -242,13 +191,8 @@ mysqli_close($con);
 
                                         <?php if ($row['role'] === 'user') { ?>
                                             <button type="submit" class="btn btn-warning btn-sm" name="action" value="admin" title="Make Admin"><i class="fas fa-user-shield"></i></button>
-                                            <button type="submit" class="btn btn-info btn-sm" name="action" value="vivarium_manager" title="Make Vivarium Manager"><i class="fas fa-flask"></i></button>
                                         <?php } elseif ($row['role'] == 'admin') { ?>
                                             <button type="submit" class="btn btn-info btn-sm" name="action" value="user" title="Make User"><i class="fas fa-user"></i></button>
-                                            <button type="submit" class="btn btn-info btn-sm" name="action" value="vivarium_manager" title="Make Vivarium Manager"><i class="fas fa-flask"></i></button>
-                                        <?php } elseif ($row['role'] == 'vivarium_manager') { ?>
-                                            <button type="submit" class="btn btn-warning btn-sm" name="action" value="admin" title="Make Admin"><i class="fas fa-user-shield"></i></button>
-                                            <button type="submit" class="btn btn-secondary btn-sm" name="action" value="user" title="Make User"><i class="fas fa-user"></i></button>
                                         <?php } ?>
 
                                         <button type="submit" class="btn btn-danger btn-sm" name="action" value="delete" title="Delete User"><i class="fas fa-trash"></i></button>
@@ -260,31 +204,6 @@ mysqli_close($con);
 
                 </table>
             </div>
-
-            <!-- Pagination -->
-            <?php if ($total_pages > 1): ?>
-                <nav aria-label="User pagination" class="mt-3">
-                    <ul class="pagination justify-content-center">
-                        <?php if ($current_page > 1): ?>
-                            <li class="page-item">
-                                <a class="page-link" href="?page=<?= $current_page - 1; ?>">Previous</a>
-                            </li>
-                        <?php endif; ?>
-
-                        <?php for ($i = max(1, $current_page - 2); $i <= min($total_pages, $current_page + 2); $i++): ?>
-                            <li class="page-item <?= $i == $current_page ? 'active' : ''; ?>">
-                                <a class="page-link" href="?page=<?= $i; ?>"><?= $i; ?></a>
-                            </li>
-                        <?php endfor; ?>
-
-                        <?php if ($current_page < $total_pages): ?>
-                            <li class="page-item">
-                                <a class="page-link" href="?page=<?= $current_page + 1; ?>">Next</a>
-                            </li>
-                        <?php endif; ?>
-                    </ul>
-                </nav>
-            <?php endif; ?>
         </div>
     </div>
 

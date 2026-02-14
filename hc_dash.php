@@ -10,7 +10,7 @@
  */
 
 // Start a new session or resume the existing session
-require 'session_config.php';
+session_start();
 
 // Include the database connection file
 require 'dbcon.php';
@@ -35,78 +35,41 @@ require 'header.php';
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <!-- FontAwesome for icons -->
-    <!-- Font Awesome loaded via header.php -->
-    <!-- Bootstrap 5 CSS is already loaded via header.php -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <!-- Bootstrap for tooltips and styling -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
 
     <script>
-        // State variables for pagination, sorting, and archive filtering
-        var currentLimit = 10;
-        var currentSort = 'asc';
-        var showArchived = '0';
-
         // Initialize tooltips when the document is ready
-        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-          return new bootstrap.Tooltip(tooltipTriggerEl)
-        })
+        $(document).ready(function() {
+            $('[data-toggle="tooltip"]').tooltip();
+        });
 
-        // Confirm archive function with a dialog
+        // Confirm deletion function with a dialog
         function confirmDeletion(id) {
-            var confirmArchive = confirm("Are you sure you want to archive cage '" + id + "'?");
-            if (confirmArchive) {
-                window.location.href = "hc_drop.php?id=" + id + "&action=archive&confirm=true";
-            }
-        }
-
-        // Confirm restore function
-        function confirmRestore(id) {
-            var confirmAction = confirm("Restore cage '" + id + "' back to active?");
-            if (confirmAction) {
-                window.location.href = "hc_drop.php?id=" + id + "&action=restore&confirm=true";
-            }
-        }
-
-        // Confirm permanent delete function
-        function confirmPermanentDelete(id) {
-            var confirmAction = confirm("PERMANENTLY delete cage '" + id + "' and ALL related data?\n\nThis action CANNOT be undone.");
-            if (confirmAction) {
-                var doubleConfirm = confirm("Are you absolutely sure? This will permanently remove all data for cage '" + id + "'.");
-                if (doubleConfirm) {
-                    window.location.href = "hc_drop.php?id=" + id + "&action=permanent_delete&confirm=true";
-                }
+            var confirmDelete = confirm("Are you sure you want to delete cage - '" + id + "' and related mouse data?");
+            if (confirmDelete) {
+                window.location.href = "hc_drop.php?id=" + id + "&confirm=true"; // Redirect to deletion script
             }
         }
 
         // Fetch data function to load data dynamically
         function fetchData(page = 1, search = '') {
             var xhr = new XMLHttpRequest();
-            var url = 'hc_fetch_data.php?page=' + page
-                + '&search=' + encodeURIComponent(search)
-                + '&limit=' + currentLimit
-                + '&sort=' + currentSort
-                + '&show_archived=' + showArchived;
-            xhr.open('GET', url, true);
+            xhr.open('GET', 'hc_fetch_data.php?page=' + page + '&search=' + encodeURIComponent(search), true);
             xhr.onload = function() {
                 if (xhr.status === 200) {
                     try {
                         var response = JSON.parse(xhr.responseText);
                         if (response.tableRows && response.paginationLinks) {
-                            document.getElementById('tableBody').innerHTML = response.tableRows;
-                            document.getElementById('paginationLinks').innerHTML = response.paginationLinks;
-                            document.getElementById('searchInput').value = search;
+                            document.getElementById('tableBody').innerHTML = response.tableRows; // Insert table rows
+                            document.getElementById('paginationLinks').innerHTML = response.paginationLinks; // Insert pagination links
+                            document.getElementById('searchInput').value = search; // Preserve search input
 
-                            // Re-initialize tooltips on dynamically loaded content
-                            document.querySelectorAll('#tableBody [data-bs-toggle="tooltip"]').forEach(function(el) {
-                                new bootstrap.Tooltip(el);
-                            });
-
-                            // Update the URL with all current parameters
+                            // Update the URL with the current page and search query
                             const newUrl = new URL(window.location.href);
                             newUrl.searchParams.set('page', page);
                             newUrl.searchParams.set('search', search);
-                            newUrl.searchParams.set('limit', currentLimit);
-                            newUrl.searchParams.set('sort', currentSort);
-                            newUrl.searchParams.set('show_archived', showArchived);
                             window.history.replaceState({
                                 path: newUrl.href
                             }, '', newUrl.href);
@@ -126,52 +89,10 @@ require 'header.php';
             xhr.send();
         }
 
-        // Change page size and re-fetch from page 1
-        function changeLimit(newLimit) {
-            currentLimit = parseInt(newLimit);
-            var searchQuery = document.getElementById('searchInput').value;
-            fetchData(1, searchQuery);
-        }
-
-        // Toggle sort order and re-fetch
-        function toggleSort() {
-            currentSort = (currentSort === 'asc') ? 'desc' : 'asc';
-            // Update sort icon
-            var icon = document.getElementById('sortIcon');
-            if (currentSort === 'asc') {
-                icon.className = 'fas fa-sort-alpha-down';
-            } else {
-                icon.className = 'fas fa-sort-alpha-up';
-            }
-            var searchQuery = document.getElementById('searchInput').value;
-            fetchData(1, searchQuery);
-        }
-
-        // Toggle archive view and re-fetch
-        function toggleArchive() {
-            showArchived = (showArchived === '0') ? '1' : '0';
-            var btn = document.getElementById('archiveToggleBtn');
-            if (showArchived === '1') {
-                btn.innerHTML = '<i class="fas fa-box-open me-1"></i> Show Active';
-                btn.classList.remove('btn-outline-secondary');
-                btn.classList.add('btn-outline-warning');
-            } else {
-                btn.innerHTML = '<i class="fas fa-archive me-1"></i> Show Archived';
-                btn.classList.remove('btn-outline-warning');
-                btn.classList.add('btn-outline-secondary');
-            }
-            var searchQuery = document.getElementById('searchInput').value;
-            fetchData(1, searchQuery);
-        }
-
-        // Search function with debounce to avoid excessive requests
-        var searchTimeout = null;
+        // Search function to initiate data fetch based on search query
         function searchCages() {
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(function() {
-                var searchQuery = document.getElementById('searchInput').value;
-                fetchData(1, searchQuery);
-            }, 300);
+            var searchQuery = document.getElementById('searchInput').value;
+            fetchData(1, searchQuery);
         }
 
         // Fetch initial data when the DOM content is loaded
@@ -179,27 +100,9 @@ require 'header.php';
             const urlParams = new URLSearchParams(window.location.search);
             const page = urlParams.get('page') || 1;
             const search = urlParams.get('search') || '';
-            currentLimit = parseInt(urlParams.get('limit')) || 10;
-            currentSort = urlParams.get('sort') || 'asc';
-            showArchived = urlParams.get('show_archived') || '0';
-
-            // Sync UI controls with URL params
-            document.getElementById('pageSizeSelect').value = currentLimit;
-
-            var icon = document.getElementById('sortIcon');
-            if (currentSort === 'desc') {
-                icon.className = 'fas fa-sort-alpha-up';
-            }
-
-            if (showArchived === '1') {
-                var btn = document.getElementById('archiveToggleBtn');
-                btn.innerHTML = '<i class="fas fa-box-open me-1"></i> Show Active';
-                btn.classList.remove('btn-outline-secondary');
-                btn.classList.add('btn-outline-warning');
-            }
-
             fetchData(page, search);
         });
+
     </script>
 
 
@@ -214,8 +117,8 @@ require 'header.php';
         }
 
         .container {
-            max-width: 900px;
-            background-color: var(--bs-tertiary-bg);
+            max-width: 800px;
+            background-color: #f8f9fa;
             padding: 20px;
             border-radius: 8px;
             margin-top: 20px;
@@ -227,7 +130,44 @@ require 'header.php';
             overflow-x: auto;
         }
 
-        /* Action icon/button styles handled by unified styles in header.php */
+        .table-wrapper table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table-wrapper th,
+        .table-wrapper td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        .btn-sm {
+            margin-right: 5px;
+        }
+
+        .btn-icon {
+            width: 30px;
+            height: 30px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+
+        .btn-icon i {
+            font-size: 16px;
+            margin: 0;
+        }
+
+        .action-icons a {
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+
+        .action-icons a:last-child {
+            margin-right: 0;
+        }
 
         @media (max-width: 768px) {
 
@@ -252,15 +192,15 @@ require 'header.php';
                         <h4>Holding Cage Dashboard</h4>
                         <div class="action-icons mt-3 mt-md-0">
                             <!-- Add new cage button with tooltip -->
-                            <a href="hc_addn.php" class="btn btn-primary btn-icon" data-bs-toggle="tooltip" data-bs-placement="top" title="Add New Cage">
+                            <a href="hc_addn.php" class="btn btn-primary btn-icon" data-toggle="tooltip" data-placement="top" title="Add New Cage">
                                 <i class="fas fa-plus"></i>
                             </a>
                             <!-- Print cage card button with tooltip -->
-                            <a href="hc_slct_crd.php" class="btn btn-success btn-icon" data-bs-toggle="tooltip" data-bs-placement="top" title="Print Cage Card">
+                            <a href="hc_slct_crd.php" class="btn btn-success btn-icon" data-toggle="tooltip" data-placement="top" title="Print Cage Card">
                                 <i class="fas fa-print"></i>
                             </a>
                             <!-- Maintenance button with tooltip -->
-                            <a href="maintenance.php?from=hc_dash" class="btn btn-warning btn-icon" data-bs-toggle="tooltip" data-bs-placement="top" title="Cage Maintenance">
+                            <a href="maintenance.php?from=hc_dash" class="btn btn-warning btn-icon" data-toggle="tooltip" data-placement="top" title="Cage Maintenance">
                                 <i class="fas fa-wrench"></i>
                             </a>
                         </div>
@@ -274,31 +214,12 @@ require 'header.php';
                             <button class="btn btn-primary" type="button" onclick="searchCages()">Search</button>
                         </div>
 
-                        <!-- Controls row: page size, sort toggle, archive toggle -->
-                        <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-                            <div class="d-flex align-items-center">
-                                <label for="pageSizeSelect" class="form-label mb-0 me-2 text-nowrap" style="font-size: 0.875rem;">Show</label>
-                                <select id="pageSizeSelect" class="form-select form-select-sm" style="width: auto;" onchange="changeLimit(this.value)">
-                                    <option value="10">10</option>
-                                    <option value="20">20</option>
-                                    <option value="30">30</option>
-                                    <option value="50">50</option>
-                                </select>
-                            </div>
-                            <button class="btn btn-sm btn-outline-primary" onclick="toggleSort()" title="Toggle sort order">
-                                <i id="sortIcon" class="fas fa-sort-alpha-down"></i> Sort
-                            </button>
-                            <button id="archiveToggleBtn" class="btn btn-sm btn-outline-secondary" onclick="toggleArchive()">
-                                <i class="fas fa-archive me-1"></i> Show Archived
-                            </button>
-                        </div>
-
                         <div class="table-wrapper" id="tableContainer">
-                            <table class="table" id="mouseTable">
+                            <table class="table table-bordered" id="mouseTable">
                                 <thead>
                                     <tr>
-                                        <th>Cage ID</th>
-                                        <th style="width: 220px;">Action</th>
+                                        <th style="width: 50%;">Cage ID</th>
+                                        <th style="width: 50%;">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody id="tableBody">
@@ -320,7 +241,10 @@ require 'header.php';
     </div>
     <?php include 'footer.php'; ?> <!-- Include footer file -->
 
-    <!-- Bootstrap 5 JS and jQuery already loaded via header.php -->
+    <!-- Bootstrap and jQuery for tooltips -->
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
 </body>
 
 </html>
