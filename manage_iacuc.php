@@ -9,7 +9,7 @@
  * 
  */
 
-session_start(); // Start the session to use session variables
+require 'session_config.php'; // Start the session to use session variables
 require 'dbcon.php'; // Include database connection
 require 'header.php'; // Include the header for consistent page structure
 
@@ -144,8 +144,8 @@ $iacucResult = $con->query($iacucQuery);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Manage IACUC</title>
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Bootstrap 5.3 loaded via header.php -->
+    <!-- Font Awesome loaded via header.php -->
     <style>
         /* Popup Form Styles */
         .popup-form {
@@ -154,11 +154,14 @@ $iacucResult = $con->query($iacucQuery);
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background-color: white;
+            background-color: var(--bs-body-bg);
             padding: 20px;
-            border: 2px solid #000;
+            border: 1px solid var(--bs-border-color);
             z-index: 1000;
-            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            max-height: 90vh;
+            overflow-y: auto;
             width: 80%;
             max-width: 800px;
         }
@@ -174,16 +177,10 @@ $iacucResult = $con->query($iacucQuery);
             z-index: 999;
         }
 
-        /* Button and Form Layout */
-        .table-actions,
-        .action-buttons,
+        /* Action button styles handled by unified styles in header.php */
         .form-buttons {
             display: flex;
             gap: 10px;
-        }
-
-        .table-actions {
-            justify-content: flex-start;
         }
 
         .form-buttons {
@@ -235,7 +232,7 @@ $iacucResult = $con->query($iacucQuery);
                 display: flex;
                 justify-content: space-between;
                 padding: 10px;
-                border: 1px solid #dee2e6;
+                border: 1px solid var(--bs-border-color);
             }
 
             .table td::before {
@@ -246,33 +243,39 @@ $iacucResult = $con->query($iacucQuery);
                 display: block;
             }
 
-            .table-actions,
-            .action-buttons {
-                flex-direction: column;
-            }
-
-            .table-actions button,
-            .action-buttons .btn {
-                width: 100%;
-                margin-bottom: 10px;
-            }
-
-            .table-actions {
-                gap: 10px;
-                flex-wrap: wrap;
-            }
+            /* Mobile action button styles handled by unified styles in header.php */
         }
 
         .table {
             width: 100%;
+            table-layout: auto;
+        }
+
+        /* Column widths */
+        .table th:nth-child(1),
+        .table td:nth-child(1) {
+            width: 80px;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        .table th:nth-child(3),
+        .table td:nth-child(3) {
+            width: 130px;
+            text-align: center;
+        }
+
+        .table th:nth-child(4),
+        .table td:nth-child(4) {
+            width: 120px;
         }
     </style>
 
 </head>
 
 <body>
-    <div class="container content mt-5">
-        <h2>Manage IACUC</h2>
+    <div class="container mt-4 content" style="max-width: 900px;">
+        <h1 class="text-center">Manage IACUC</h1>
         <?php if (isset($_SESSION['message'])) : ?>
             <div class="alert alert-info">
                 <?= $_SESSION['message']; ?>
@@ -291,15 +294,15 @@ $iacucResult = $con->query($iacucQuery);
             <h4 id="formTitle">Add New IACUC</h4>
             <form action="manage_iacuc.php" method="post" enctype="multipart/form-data">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                <div class="form-group">
+                <div class="mb-3">
                     <label for="iacuc_id">IACUC ID <span class="required-asterisk">*</span></label>
                     <input type="text" name="iacuc_id" id="iacuc_id" class="form-control" required>
                 </div>
-                <div class="form-group">
+                <div class="mb-3">
                     <label for="iacuc_title">Title <span class="required-asterisk">*</span></label>
                     <input type="text" name="iacuc_title" id="iacuc_title" class="form-control" required>
                 </div>
-                <div class="form-group">
+                <div class="mb-3">
                     <label for="iacuc_file">Upload File</label>
                     <input type="file" name="iacuc_file" id="iacuc_file" class="form-control">
                     <div id="existingFile" style="margin-top: 10px;"></div>
@@ -315,7 +318,7 @@ $iacucResult = $con->query($iacucQuery);
 
         <!-- Display existing IACUC records -->
         <h3>Existing IACUC Records</h3>
-        <table class="table table-bordered">
+        <table class="table">
             <thead>
                 <tr>
                     <th>ID</th>

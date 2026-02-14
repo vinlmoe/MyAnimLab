@@ -9,7 +9,7 @@
  * The script uses PHP sessions for message handling and includes basic input sanitization for security.
  */
 ob_start();
-session_start();
+require 'session_config.php';
 
 // Check if the user is logged in
 if (!isset($_SESSION['name'])) {
@@ -45,16 +45,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         die('CSRF token validation failed');
     }
 
-    $title = htmlspecialchars($_POST['title']);
-    $description = htmlspecialchars($_POST['description']);
+    $title = trim($_POST['title']);
+    $description = trim($_POST['description']);
     $assignedBy = $currentUserId;
-    $assignedTo = htmlspecialchars(implode(',', $_POST['assigned_to'] ?? []));
-    $recurrenceType = htmlspecialchars($_POST['recurrence_type']);
-    $dayOfWeek = !empty($_POST['day_of_week']) ? htmlspecialchars($_POST['day_of_week']) : null;
+    $assignedTo = implode(',', $_POST['assigned_to'] ?? []);
+    $recurrenceType = trim($_POST['recurrence_type']);
+    $dayOfWeek = !empty($_POST['day_of_week']) ? trim($_POST['day_of_week']) : null;
     $dayOfMonth = !empty($_POST['day_of_month']) ? (int)$_POST['day_of_month'] : null;
-    $timeOfDay = htmlspecialchars($_POST['time_of_day']);
-    $status = htmlspecialchars($_POST['status']);
-    $cageId = empty($_POST['cage_id']) ? NULL : htmlspecialchars($_POST['cage_id']);
+    $timeOfDay = trim($_POST['time_of_day']);
+    $status = trim($_POST['status']);
+    $cageId = empty($_POST['cage_id']) ? NULL : trim($_POST['cage_id']);
     $reminder_id = null;
 
     // Determine the action to perform (add, edit, or delete)
@@ -68,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         $stmt->close();
     } elseif (isset($_POST['edit'])) {
-        $id = htmlspecialchars($_POST['id']);
+        $id = (int)$_POST['id'];
         $stmt = $con->prepare("UPDATE reminders SET cage_id = ?, title = ?, description = ?, assigned_to = ?, recurrence_type = ?, day_of_week = ?, day_of_month = ?, time_of_day = ?, status = ? WHERE id = ?");
         $stmt->bind_param("sssisssssi", $cageId, $title, $description, $assignedTo, $recurrenceType, $dayOfWeek, $dayOfMonth, $timeOfDay, $status, $id);
         if ($stmt->execute()) {
@@ -78,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         $stmt->close();
     } elseif (isset($_POST['delete'])) {
-        $id = htmlspecialchars($_POST['id']);
+        $id = (int)$_POST['id'];
         $stmt = $con->prepare("DELETE FROM reminders WHERE id = ?");
         $stmt->bind_param("i", $id);
         if ($stmt->execute()) {
@@ -115,9 +115,9 @@ ob_end_flush(); // Flush the output buffer
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Manage Reminders</title>
     <!-- Include necessary styles and scripts -->
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <!-- Bootstrap 5.3 loaded via header.php -->
+    <!-- Font Awesome loaded via header.php -->
+    <!-- Select2 CSS loaded via header.php -->
     <style>
         /* Popup and Overlay Styles */
         .popup-form,
@@ -127,9 +127,10 @@ ob_end_flush(); // Flush the output buffer
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background-color: white;
+            background-color: var(--bs-body-bg);
             padding: 20px;
-            border: 1px solid #ccc;
+            border: 1px solid var(--bs-border-color);
+            border-radius: 10px;
             z-index: 1000;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
             width: 80%;
@@ -190,95 +191,28 @@ ob_end_flush(); // Flush the output buffer
         }
 
         .form-control[readonly] {
-            background-color: #e9ecef;
+            background-color: var(--bs-tertiary-bg);
             cursor: not-allowed;
         }
 
-        /* Table Styles */
-        .table-responsive {
-            overflow-x: auto;
-        }
-
+        /* Table Styles (base styles from header.php) */
         .table {
-            width: 100%;
-            table-layout: fixed;
-            border-collapse: collapse;
-            box-shadow: none;
-            border: 2px solid #ffffff;
-        }
-
-        .table th,
-        .table td {
-            border: 1px solid #ffffff;
-            padding: 10px;
-            text-align: left;
-            vertical-align: middle;
-        }
-
-        .table thead {
-            background-color: #343a40;
-            color: #ffffff;
-            border-bottom: 2px solid #ffffff;
-        }
-
-        .table thead th {
-            padding: 10px;
-            font-weight: bold;
-            text-align: center;
-            border-top: 2px solid #ffffff;
-            border-left: 2px solid #ffffff;
-            border-right: 2px solid #ffffff;
-            border-bottom: 2px solid #ffffff;
+            table-layout: auto;
         }
 
         /* Specific Column Widths */
         .table th:nth-child(1),
         .table td:nth-child(1) {
-            width: 10%;
-        }
-
-        .table th:nth-child(2),
-        .table td:nth-child(2) {
-            width: 20%;
-        }
-
-        .table th:nth-child(3),
-        .table td:nth-child(3) {
-            width: 20%;
-        }
-
-        .table th:nth-child(4),
-        .table td:nth-child(4) {
-            width: 20%;
+            width: 60px;
+            text-align: center;
         }
 
         .table th:nth-child(5),
         .table td:nth-child(5) {
-            width: 10%;
+            width: 160px;
         }
 
-        .table th:nth-child(6),
-        .table td:nth-child(6) {
-            width: 20%;
-        }
-
-        /* Action Buttons */
-        .table-actions,
-        .action-buttons {
-            display: flex;
-            gap: 10px;
-            flex-wrap: nowrap;
-        }
-
-        .table-actions {
-            border: none !important;
-        }
-
-        .table-actions button,
-        .action-buttons .btn {
-            width: 100%;
-            margin-bottom: 10px;
-        }
+        /* Action button styles handled by unified styles in header.php */
 
         @media (max-width: 576px) {
             .table thead {
@@ -293,7 +227,7 @@ ob_end_flush(); // Flush the output buffer
             .table tbody tr {
                 display: block;
                 margin-bottom: 15px;
-                border-bottom: 1px solid #dee2e6;
+                border-bottom: 1px solid var(--bs-border-color);
                 padding-bottom: 15px;
             }
 
@@ -317,14 +251,11 @@ ob_end_flush(); // Flush the output buffer
                 padding-right: 10px;
                 white-space: nowrap;
                 font-weight: bold;
-                color: #343a40;
+                color: var(--bs-body-color);
                 text-align: left;
             }
 
-            .table-actions {
-                flex-direction: column;
-                flex-wrap: wrap;
-            }
+            /* Mobile action button styles handled by unified styles in header.php */
         }
 
         .pr-0 {
@@ -363,9 +294,10 @@ ob_end_flush(); // Flush the output buffer
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background-color: white;
+            background-color: var(--bs-body-bg);
             padding: 20px;
-            border: 1px solid #ccc;
+            border: 1px solid var(--bs-border-color);
+            border-radius: 10px;
             z-index: 1001;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
             width: 80%;
@@ -374,7 +306,7 @@ ob_end_flush(); // Flush the output buffer
             max-height: 90vh;
         }
 
-        #viewPopupForm .form-group {
+        #viewPopupForm .mb-3 {
             margin-bottom: 15px;
         }
 
@@ -383,7 +315,7 @@ ob_end_flush(); // Flush the output buffer
         }
 
         #viewPopupForm p {
-            background-color: #f8f9fa;
+            background-color: var(--bs-tertiary-bg);
             padding: 10px;
             border-radius: 5px;
         }
@@ -391,12 +323,12 @@ ob_end_flush(); // Flush the output buffer
 </head>
 
 <body>
-    <div class="container content mt-5">
+    <div class="container mt-4 content" style="max-width: 900px;">
         <?php include('message.php'); ?>
-        <h2>Manage Reminders</h2>
+        <h1 class="text-center">Manage Reminders</h1>
         <?php if (isset($_SESSION['message'])) : ?>
             <div class="alert alert-info">
-                <?= $_SESSION['message']; ?>
+                <?= htmlspecialchars($_SESSION['message']); ?>
                 <?php unset($_SESSION['message']); ?>
             </div>
         <?php endif; ?>
@@ -409,21 +341,22 @@ ob_end_flush(); // Flush the output buffer
         <!-- Popup form for adding and editing reminders -->
         <div class="popup-overlay" id="popupOverlay"></div>
         <div class="popup-form" id="popupForm">
+            <button type="button" class="popup-close-btn" id="closePopupBtn" aria-label="Close">&times;</button>
             <h4 id="formTitle">Add New Reminder</h4>
             <form id="reminderForm" action="manage_reminder.php" method="post">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                 <input type="hidden" name="id" id="id">
-                <div class="form-group">
+                <div class="mb-3">
                     <label for="title">Title <span class="required-asterisk">*</span></label>
                     <input type="text" name="title" id="title" class="form-control" maxlength="100" required>
                     <small id="titleCounter" class="form-text text-muted">0/100 characters used</small>
                 </div>
-                <div class="form-group">
+                <div class="mb-3">
                     <label for="description">Description <span class="required-asterisk">*</span></label>
                     <textarea name="description" id="description" class="form-control" rows="3" maxlength="500" required></textarea>
                     <small id="descriptionCounter" class="form-text text-muted">0/500 characters used</small>
                 </div>
-                <div class="form-group">
+                <div class="mb-3">
                     <label for="assigned_to">Assigned To <span class="required-asterisk">*</span></label>
                     <select name="assigned_to[]" id="assigned_to" class="form-control" multiple required>
                         <?php foreach ($users as $userId => $name) : ?>
@@ -431,7 +364,7 @@ ob_end_flush(); // Flush the output buffer
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div class="form-group">
+                <div class="mb-3">
                     <label>Recurrence Type <span class="required-asterisk">*</span></label>
                     <select name="recurrence_type" id="recurrence_type" class="form-control" required>
                         <option value="daily">Daily</option>
@@ -439,7 +372,7 @@ ob_end_flush(); // Flush the output buffer
                         <option value="monthly">Monthly</option>
                     </select>
                 </div>
-                <div class="form-group" id="weeklyOptions" style="display: none;">
+                <div class="mb-3" id="weeklyOptions" style="display: none;">
                     <label for="day_of_week">Day of the Week <span class="required-asterisk">*</span></label>
                     <select name="day_of_week" id="day_of_week" class="form-control">
                         <option value="">Select Day</option>
@@ -452,22 +385,22 @@ ob_end_flush(); // Flush the output buffer
                         <option value="Sunday">Sunday</option>
                     </select>
                 </div>
-                <div class="form-group" id="monthlyOptions" style="display: none;">
+                <div class="mb-3" id="monthlyOptions" style="display: none;">
                     <label for="day_of_month">Day of the Month (1-28) <span class="required-asterisk">*</span></label>
                     <input type="number" name="day_of_month" id="day_of_month" class="form-control" min="1" max="28">
                 </div>
-                <div class="form-group">
+                <div class="mb-3">
                     <label for="time_of_day">Time of Day <span class="required-asterisk">*</span></label>
                     <input type="time" name="time_of_day" id="time_of_day" class="form-control" required>
                 </div>
-                <div class="form-group">
+                <div class="mb-3">
                     <label>Status <span class="required-asterisk">*</span></label>
                     <select name="status" id="status" class="form-control" required>
                         <option value="active">Active</option>
                         <option value="inactive">Inactive</option>
                     </select>
                 </div>
-                <div class="form-group">
+                <div class="mb-3">
                     <label for="cage_id">Cage ID</label>
                     <select name="cage_id" id="cage_id" class="form-control">
                         <option value="">Select Cage</option>
@@ -487,32 +420,33 @@ ob_end_flush(); // Flush the output buffer
         <!-- Popup form for viewing reminders -->
         <div class="popup-overlay" id="viewPopupOverlay"></div>
         <div class="popup-form" id="viewPopupForm">
+            <button type="button" class="popup-close-btn" id="closeViewPopupBtn" aria-label="Close">&times;</button>
             <h4>View Reminder Details</h4>
-            <div class="form-group">
+            <div class="mb-3">
                 <label>Title:</label>
                 <p id="viewTitle"></p>
             </div>
-            <div class="form-group">
+            <div class="mb-3">
                 <label>Description:</label>
                 <p id="viewDescription"></p>
             </div>
-            <div class="form-group">
+            <div class="mb-3">
                 <label>Assigned To:</label>
                 <p id="viewAssignedTo"></p>
             </div>
-            <div class="form-group">
+            <div class="mb-3">
                 <label>Recurrence Type:</label>
                 <p id="viewRecurrenceType"></p>
             </div>
-            <div class="form-group">
+            <div class="mb-3">
                 <label>Time of Day:</label>
                 <p id="viewTimeOfDay"></p>
             </div>
-            <div class="form-group">
+            <div class="mb-3">
                 <label>Status:</label>
                 <p id="viewStatus"></p>
             </div>
-            <div class="form-group">
+            <div class="mb-3">
                 <label>Cage ID:</label>
                 <p id="viewCageId"></p>
             </div>
@@ -535,6 +469,14 @@ ob_end_flush(); // Flush the output buffer
                     </tr>
                 </thead>
                 <tbody>
+                    <?php if ($reminderResult->num_rows === 0): ?>
+                        <tr>
+                            <td colspan="5" class="text-center py-4">
+                                <i class="fas fa-bell-slash fa-3x text-muted d-block mb-2"></i>
+                                <p class="text-muted mb-0">No reminders found. Click "Add New Reminder" to create one.</p>
+                            </td>
+                        </tr>
+                    <?php endif; ?>
                     <?php while ($row = $reminderResult->fetch_assoc()) : ?>
                         <tr>
                             <td data-label="ID"><?= htmlspecialchars($row['id']); ?></td>
@@ -578,7 +520,7 @@ ob_end_flush(); // Flush the output buffer
     </div>
 
     <!-- Include necessary scripts -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- jQuery loaded via header.php -->
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script>
         // Map PHP users array to JavaScript
@@ -588,7 +530,8 @@ ob_end_flush(); // Flush the output buffer
         $(document).ready(function() {
             $('#assigned_to').select2({
                 placeholder: "Select users",
-                allowClear: true
+                allowClear: true,
+                dropdownParent: $('#popupForm')
             });
 
             // Show/hide recurrence options based on selected recurrence type
@@ -621,9 +564,15 @@ ob_end_flush(); // Flush the output buffer
             });
 
             // Close the form
-            $('#cancelButton').on('click', function() {
+            $('#cancelButton, #closePopupBtn').on('click', function() {
                 $('#popupOverlay').hide();
                 $('#popupForm').hide();
+            });
+
+            // Close view popup
+            $('#closeViewPopupBtn').on('click', function() {
+                $('#viewPopupOverlay').hide();
+                $('#viewPopupForm').hide();
             });
 
             // Close the form when clicking outside

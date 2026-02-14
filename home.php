@@ -10,7 +10,7 @@
  */
 
 // Start a new session or resume the existing session
-session_start();
+require 'session_config.php';
 
 // Include the database connection file
 require 'dbcon.php';
@@ -21,14 +21,24 @@ if (!isset($_SESSION['name'])) {
     exit;
 }
 
-// Fetch the counts for holding and breeding cages
-$holdingCountResult = $con->query("SELECT COUNT(*) AS count FROM holding");
+// Fetch the counts for holding and breeding cages (active vs archived)
+$holdingCountResult = $con->query("SELECT
+    COUNT(*) AS total,
+    SUM(CASE WHEN c.status = 'active' THEN 1 ELSE 0 END) AS active,
+    SUM(CASE WHEN c.status = 'archived' THEN 1 ELSE 0 END) AS archived
+    FROM holding h INNER JOIN cages c ON h.cage_id = c.cage_id");
 $holdingCountRow = $holdingCountResult->fetch_assoc();
-$holdingCount = $holdingCountRow['count'];
+$holdingCount = $holdingCountRow['active'] ?? 0;
+$holdingArchived = $holdingCountRow['archived'] ?? 0;
 
-$matingCountResult = $con->query("SELECT COUNT(*) AS count FROM breeding");
+$matingCountResult = $con->query("SELECT
+    COUNT(*) AS total,
+    SUM(CASE WHEN c.status = 'active' THEN 1 ELSE 0 END) AS active,
+    SUM(CASE WHEN c.status = 'archived' THEN 1 ELSE 0 END) AS archived
+    FROM breeding b INNER JOIN cages c ON b.cage_id = c.cage_id");
 $matingCountRow = $matingCountResult->fetch_assoc();
-$matingCount = $matingCountRow['count'];
+$matingCount = $matingCountRow['active'] ?? 0;
+$matingArchived = $matingCountRow['archived'] ?? 0;
 
 // Fetch the task stats for the logged-in user
 $userId = $_SESSION['user_id'];
@@ -82,7 +92,7 @@ require 'header.php';
         }
 
         .main-content {
-            max-width: 800px;
+            max-width: 900px;
             margin: 0 auto;
             padding: 20px;
             box-sizing: border-box;
@@ -101,9 +111,7 @@ require 'header.php';
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
             <strong><i class="fas fa-exclamation-triangle"></i> Security Warning:</strong> You are using the default admin account.
             For security reasons, please create a new admin user and delete this default account immediately.
-            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                <span aria-hidden="true">&times;</span>
-            </button>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
         <?php endif; ?>
 
@@ -112,7 +120,7 @@ require 'header.php';
             <!-- Welcome message with user information -->
             <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
                 <h2>Welcome, <?php echo htmlspecialchars($_SESSION['name']); ?>
-                    <span style="font-size: smaller; color: #555; border-bottom: 2px solid #ccc; padding: 0 5px;">
+                    <span style="font-size: smaller; color: var(--bs-secondary-color); border-bottom: 2px solid var(--bs-border-color); padding: 0 5px;">
                         [<?php echo htmlspecialchars($_SESSION['position']); ?>]
                     </span>
                 </h2>
@@ -131,7 +139,10 @@ require 'header.php';
                                 </div>
                                 <div class="card-body">
                                     <h5 class="card-title"><?php echo $holdingCount; ?></h5>
-                                    <p class="card-text">Total Entries</p>
+                                    <p class="card-text">Active Cages</p>
+                                    <?php if ($holdingArchived > 0): ?>
+                                    <small class="text-muted"><a href="hc_dash.php?show_archived=1"><?php echo $holdingArchived; ?> archived</a></small>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         </div>
@@ -143,7 +154,10 @@ require 'header.php';
                                 </div>
                                 <div class="card-body">
                                     <h5 class="card-title"><?php echo $matingCount; ?></h5>
-                                    <p class="card-text">Total Entries</p>
+                                    <p class="card-text">Active Cages</p>
+                                    <?php if ($matingArchived > 0): ?>
+                                    <small class="text-muted"><a href="bc_dash.php?show_archived=1"><?php echo $matingArchived; ?> archived</a></small>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         </div>

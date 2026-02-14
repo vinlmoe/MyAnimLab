@@ -9,7 +9,7 @@
  */
 
 // Start a new session or resume the existing session
-session_start();
+require 'session_config.php';
 
 // Include the database connection file
 require 'dbcon.php';
@@ -71,7 +71,7 @@ require 'header.php';
     <title>IOT Sensors | <?php echo htmlspecialchars($labName); ?></title>
 
     <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous">
+    <!-- Bootstrap 5.3 loaded via header.php -->
 
     <!-- Inline CSS for styling -->
     <style>
@@ -99,7 +99,7 @@ require 'header.php';
 </head>
 
 <body>
-    <div class="container mt-4 content">
+    <div class="container mt-4 content" style="max-width: 900px;">
         <!-- Section for Room 1 IOT Sensors -->
         <?php if (!empty($r1_temp) || !empty($r1_humi) || !empty($r1_illu) || !empty($r1_pres)) : ?>
             <div class="row mb-4">
@@ -147,6 +147,37 @@ require 'header.php';
 
     <!-- Include the footer file -->
     <?php include 'footer.php'; ?>
+
+    <!-- Toggle Grafana iframe theme with dark mode -->
+    <script>
+    (function() {
+        function updateIframeThemes() {
+            var isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+            document.querySelectorAll('iframe.iframe').forEach(function(iframe) {
+                var src = iframe.getAttribute('src');
+                if (src) {
+                    var newSrc = isDark
+                        ? src.replace('theme=light', 'theme=dark')
+                        : src.replace('theme=dark', 'theme=light');
+                    if (newSrc !== src) {
+                        iframe.setAttribute('src', newSrc);
+                    }
+                }
+            });
+        }
+
+        // Watch for dark mode toggle
+        var observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(m) {
+                if (m.attributeName === 'data-bs-theme') updateIframeThemes();
+            });
+        });
+        observer.observe(document.documentElement, { attributes: true });
+
+        // Initial check
+        document.addEventListener('DOMContentLoaded', updateIframeThemes);
+    })();
+    </script>
 </body>
 
 </html>

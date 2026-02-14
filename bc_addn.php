@@ -11,10 +11,13 @@
  */
 
 // Start a new session or resume the existing session
-session_start();
+require 'session_config.php';
 
 // Include the database connection file
 require 'dbcon.php';
+
+// Include the activity log helper
+require_once 'log_activity.php';
 
 // Check if the user is not logged in, redirect them to index.php with the current URL for redirection after login
 if (!isset($_SESSION['username'])) {
@@ -28,6 +31,16 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
+// Get current user's ID for auto-selection
+$currentUserQuery = "SELECT id FROM users WHERE username = ?";
+$currentUserStmt = $con->prepare($currentUserQuery);
+$currentUserStmt->bind_param("s", $_SESSION['username']);
+$currentUserStmt->execute();
+$currentUserResult = $currentUserStmt->get_result();
+$currentUser = $currentUserResult->fetch_assoc();
+$currentUserId = $currentUser['id'] ?? null;
+$currentUserStmt->close();
+
 // Query to retrieve users with initials and names
 $userQuery = "SELECT id, initials, name FROM users WHERE status = 'approved'";
 $userResult = $con->query($userQuery);
@@ -36,9 +49,60 @@ $userResult = $con->query($userQuery);
 $piQuery = "SELECT id, initials, name FROM users WHERE position = 'Principal Investigator' AND status = 'approved'";
 $piResult = $con->query($piQuery);
 
+// Store PI results in array for auto-selection logic
+$piOptions = [];
+while ($row = $piResult->fetch_assoc()) {
+    $piOptions[] = $row;
+}
+$piResult->data_seek(0); // Reset pointer for form display
+
 // Query to retrieve IACUC values
 $iacucQuery = "SELECT iacuc_id, iacuc_title FROM iacuc";
 $iacucResult = $con->query($iacucQuery);
+
+// Clone cage data if clone parameter is provided
+$cloneData = null;
+$cloneUsers = [];
+$cloneIacuc = [];
+if (isset($_GET['clone'])) {
+    $cloneId = $_GET['clone'];
+
+    $cloneQuery = "SELECT b.*, c.pi_name, c.remarks, c.room, c.rack
+                   FROM breeding b
+                   LEFT JOIN cages c ON b.cage_id = c.cage_id
+                   WHERE b.cage_id = ?";
+    $cloneStmt = $con->prepare($cloneQuery);
+    $cloneStmt->bind_param("s", $cloneId);
+    $cloneStmt->execute();
+    $cloneResult = $cloneStmt->get_result();
+    if ($cloneResult->num_rows === 1) {
+        $cloneData = $cloneResult->fetch_assoc();
+    }
+    $cloneStmt->close();
+
+    // Fetch associated users and IACUC
+    if ($cloneData) {
+        $cuQuery = "SELECT user_id FROM cage_users WHERE cage_id = ?";
+        $cuStmt = $con->prepare($cuQuery);
+        $cuStmt->bind_param("s", $cloneId);
+        $cuStmt->execute();
+        $cuResult = $cuStmt->get_result();
+        while ($row = $cuResult->fetch_assoc()) {
+            $cloneUsers[] = $row['user_id'];
+        }
+        $cuStmt->close();
+
+        $ciQuery = "SELECT iacuc_id FROM cage_iacuc WHERE cage_id = ?";
+        $ciStmt = $con->prepare($ciQuery);
+        $ciStmt->bind_param("s", $cloneId);
+        $ciStmt->execute();
+        $ciResult = $ciStmt->get_result();
+        while ($row = $ciResult->fetch_assoc()) {
+            $cloneIacuc[] = $row['iacuc_id'];
+        }
+        $ciStmt->close();
+    }
+}
 
 // Check if the form is submitted
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -48,16 +112,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         die('CSRF token validation failed');
     }
 
-    // Retrieve and sanitize form data
+    // Retrieve and sanitize form data (only cage_id is required)
     $cage_id = trim($_POST['cage_id']);
-    $pi_id = $_POST['pi_name'];
-    $cross = $_POST['cross'];
+    $pi_id = !empty($_POST['pi_name']) ? $_POST['pi_name'] : null;
+    $room = !empty($_POST['room']) ? trim($_POST['room']) : null;
+    $rack = !empty($_POST['rack']) ? trim($_POST['rack']) : null;
+    $cross = !empty($_POST['cross']) ? $_POST['cross'] : null;
     $iacuc_ids = $_POST['iacuc'] ?? [];
     $user_ids = $_POST['user'] ?? [];
-    $male_id = $_POST['male_id'];
-    $female_id = $_POST['female_id'];
-    $male_dob = $_POST['male_dob'];
-    $female_dob = $_POST['female_dob'];
+    $male_id = !empty($_POST['male_id']) ? $_POST['male_id'] : null;
+    $female_id = !empty($_POST['female_id']) ? $_POST['female_id'] : null;
+    $male_dob = !empty($_POST['male_dob']) ? $_POST['male_dob'] : null;
+    $female_dob = !empty($_POST['female_dob']) ? $_POST['female_dob'] : null;
+    $male_genotype = !empty($_POST['male_genotype']) ? trim($_POST['male_genotype']) : null;
+    $male_parent_cage = !empty($_POST['male_parent_cage']) ? trim($_POST['male_parent_cage']) : null;
+    $female_genotype = !empty($_POST['female_genotype']) ? trim($_POST['female_genotype']) : null;
+    $female_parent_cage = !empty($_POST['female_parent_cage']) ? trim($_POST['female_parent_cage']) : null;
     $remarks = $_POST['remarks'];
 
     // Check if the cage_id already exists in the cages table
@@ -71,17 +141,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['message'] = "Cage ID '$cage_id' already exists. Please use a different Cage ID.";
     } else {
         // Insert into the cages table
-        $insert_cage_query = $con->prepare("INSERT INTO cages (`cage_id`, `pi_name`, `remarks`) VALUES (?, ?, ?)");
-        $insert_cage_query->bind_param("sss", $cage_id, $pi_id, $remarks);
+        $insert_cage_query = $con->prepare("INSERT INTO cages (`cage_id`, `pi_name`, `remarks`, `room`, `rack`) VALUES (?, ?, ?, ?, ?)");
+        $insert_cage_query->bind_param("sssss", $cage_id, $pi_id, $remarks, $room, $rack);
 
         // Insert into the breeding table
-        $insert_breeding_query = $con->prepare("INSERT INTO breeding (`cage_id`, `cross`, `male_id`, `female_id`, `male_dob`, `female_dob`) VALUES (?, ?, ?, ?, ?, ?)");
-        $insert_breeding_query->bind_param("ssssss", $cage_id, $cross, $male_id, $female_id, $male_dob, $female_dob);
+        $insert_breeding_query = $con->prepare("INSERT INTO breeding (`cage_id`, `cross`, `male_id`, `female_id`, `male_dob`, `female_dob`, `male_genotype`, `male_parent_cage`, `female_genotype`, `female_parent_cage`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $insert_breeding_query->bind_param("ssssssssss", $cage_id, $cross, $male_id, $female_id, $male_dob, $female_dob, $male_genotype, $male_parent_cage, $female_genotype, $female_parent_cage);
 
         // Execute the statements and check if they were successful
         if ($insert_cage_query->execute() && $insert_breeding_query->execute()) {
             // Set a success message
             $_SESSION['message'] = "New breeding cage added successfully.";
+
+            // Log activity
+            log_activity($con, 'create', 'cage', $cage_id, 'Created breeding cage');
 
             // Insert IACUC associations
             foreach ($iacuc_ids as $iacuc_id) {
@@ -171,8 +244,8 @@ require 'header.php';
 
     <style>
         .container {
-            max-width: 800px;
-            background-color: #f8f9fa;
+            max-width: 900px;
+            background-color: var(--bs-tertiary-bg);
             padding: 20px;
             border-radius: 8px;
             margin: auto;
@@ -187,7 +260,7 @@ require 'header.php';
         }
 
         .warning-text {
-            color: #dc3545;
+            color: var(--bs-danger);
             font-size: 14px;
         }
 
@@ -300,6 +373,9 @@ require 'header.php';
         document.addEventListener('DOMContentLoaded', function() {
             // Function to validate date
             function validateDate(dateString) {
+                // Allow empty dates since date fields are now optional
+                if (!dateString || dateString.trim() === '') return true;
+
                 const regex = /^\d{4}-\d{2}-\d{2}$/;
                 if (!dateString.match(regex)) return false;
 
@@ -392,6 +468,108 @@ require 'header.php';
                     return $result;
                 }
             });
+
+            // Information Completeness Tracking
+            function calculateCompleteness() {
+                const fields = {
+                    critical: ['male_id', 'female_id'],
+                    important: ['pi_name', 'cross', 'iacuc', 'user'],
+                    useful: ['male_dob', 'female_dob']
+                };
+
+                let totalFields = 0;
+                let filledFields = 0;
+                let missingCritical = [];
+                let missingImportant = [];
+                let missingUseful = [];
+
+                // Count critical fields
+                fields.critical.forEach(fieldId => {
+                    totalFields++;
+                    const field = document.getElementById(fieldId);
+                    if (field && field.value && field.value.trim() !== '') {
+                        filledFields++;
+                    } else {
+                        missingCritical.push(field ? field.previousElementSibling.textContent.split(' ')[0] + ' ' + field.previousElementSibling.textContent.split(' ')[1] : fieldId);
+                    }
+                });
+
+                // Count important fields
+                fields.important.forEach(fieldId => {
+                    totalFields++;
+                    const field = document.getElementById(fieldId);
+                    if (field) {
+                        if (field.multiple) {
+                            // For Select2 multiselect
+                            const selectedValues = $(field).val();
+                            if (selectedValues && selectedValues.length > 0 && selectedValues[0] !== '') {
+                                filledFields++;
+                            } else {
+                                missingImportant.push(field.previousElementSibling.textContent.split(' ')[0]);
+                            }
+                        } else if (field.value && field.value.trim() !== '') {
+                            filledFields++;
+                        } else {
+                            missingImportant.push(field.previousElementSibling.textContent.split(' ')[0]);
+                        }
+                    }
+                });
+
+                // Count useful fields
+                fields.useful.forEach(fieldId => {
+                    totalFields++;
+                    const field = document.getElementById(fieldId);
+                    if (field && field.value && field.value.trim() !== '') {
+                        filledFields++;
+                    } else {
+                        missingUseful.push(field ? field.previousElementSibling.textContent.split(' ')[0] + ' ' + field.previousElementSibling.textContent.split(' ')[1] : fieldId);
+                    }
+                });
+
+                const percentage = Math.round((filledFields / totalFields) * 100);
+
+                // Update completeness bar
+                $('#completeness-bar').css('width', percentage + '%');
+                $('#completeness-bar').attr('aria-valuenow', percentage);
+                $('#completeness-bar').text(percentage + '%');
+                $('#completeness-percentage').text(percentage + '%');
+
+                // Change bar color based on completion
+                $('#completeness-bar').removeClass('bg-danger bg-warning bg-success');
+                if (percentage < 50) {
+                    $('#completeness-bar').addClass('bg-danger');
+                } else if (percentage < 80) {
+                    $('#completeness-bar').addClass('bg-warning');
+                } else {
+                    $('#completeness-bar').addClass('bg-success');
+                }
+
+                // Show missing fields
+                let missingText = '';
+                if (missingCritical.length > 0) {
+                    missingText += '<strong class="text-danger">Critical fields missing:</strong> ' + missingCritical.join(', ') + '<br>';
+                }
+                if (missingImportant.length > 0) {
+                    missingText += '<strong class="text-warning">Important fields missing:</strong> ' + missingImportant.join(', ') + '<br>';
+                }
+                if (missingUseful.length > 0) {
+                    missingText += '<strong class="text-muted">Useful fields missing:</strong> ' + missingUseful.join(', ');
+                }
+
+                if (percentage === 100) {
+                    missingText = '<strong class="text-success">✓ All information complete!</strong>';
+                }
+
+                $('#missing-fields').html(missingText);
+                $('#completeness-alert').show();
+            }
+
+            // Calculate on page load
+            calculateCompleteness();
+
+            // Recalculate when fields change
+            $('form input, form select, form textarea').on('change keyup', calculateCompleteness);
+            $('#user, #iacuc').on('select2:select select2:unselect', calculateCompleteness);
         });
     </script>
 </head>
@@ -400,13 +578,21 @@ require 'header.php';
 
     <div class="container content mt-4">
 
-        <h4>Add New Breeding Cage</h4>
+        <h4>Add New Breeding Cage<?php if ($cloneData): ?> <small class="text-muted">(Cloning from <?= htmlspecialchars($_GET['clone']); ?>)</small><?php endif; ?></h4>
 
         <?php include('message.php'); ?>
 
-        <p class="warning-text">Fields marked with <span class="required-asterisk">*</span> are required.</p>
+        <p class="warning-text">Only <span class="required-asterisk">Cage ID</span> is required. Other fields can be added later.</p>
 
-        <form method="POST">
+        <div id="completeness-alert" class="alert alert-warning" style="display: none;">
+            <strong>Information Completeness:</strong> <span id="completeness-percentage">0%</span>
+            <div class="progress mt-2" style="height: 20px;">
+                <div id="completeness-bar" class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+            </div>
+            <div id="missing-fields" class="mt-2"></div>
+        </div>
+
+        <form method="POST" id="cage-form">
 
             <!-- CSRF token field -->
             <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
@@ -417,29 +603,48 @@ require 'header.php';
             </div>
 
             <div class="mb-3">
-                <label for="pi_name" class="form-label">PI Name <span class="required-asterisk">*</span></label>
-                <select class="form-control" id="pi_name" name="pi_name" required>
-                    <option value="" disabled selected>Select PI</option>
+                <label for="pi_name" class="form-label">PI Name</label>
+                <select class="form-control" id="pi_name" name="pi_name" data-field-type="important">
+                    <option value="">Select PI</option>
                     <?php
                     // Populate dropdown with options from the database
-                    while ($row = $piResult->fetch_assoc()) {
+                    // Auto-select if only one PI exists, or use cloneData if cloning
+                    $isFirst = true;
+                    $shouldAutoSelect = (count($piOptions) === 1);
+                    foreach ($piOptions as $row) {
                         $pi_id = htmlspecialchars($row['id']);
                         $pi_initials = htmlspecialchars($row['initials']);
                         $pi_name = htmlspecialchars($row['name']);
-                        echo "<option value='$pi_id'>$pi_initials [$pi_name]</option>";
+                        if ($cloneData) {
+                            $selected = ($cloneData['pi_name'] == $row['id']) ? 'selected' : '';
+                        } else {
+                            $selected = ($shouldAutoSelect || ($isFirst && count($piOptions) > 0)) ? 'selected' : '';
+                        }
+                        echo "<option value='$pi_id' $selected>$pi_initials [$pi_name]</option>";
+                        $isFirst = false;
                     }
                     ?>
                 </select>
             </div>
 
             <div class="mb-3">
-                <label for="cross" class="form-label">Cross <span class="required-asterisk">*</span></label>
-                <input type="text" class="form-control" id="cross" name="cross" required>
+                <label for="room" class="form-label">Room</label>
+                <input type="text" class="form-control" id="room" name="room" value="<?= htmlspecialchars($cloneData['room'] ?? ''); ?>">
             </div>
 
             <div class="mb-3">
-                <label for="iacuc" class="form-label">IACUC</label>
-                <select class="form-control" id="iacuc" name="iacuc[]" multiple>
+                <label for="rack" class="form-label">Rack</label>
+                <input type="text" class="form-control" id="rack" name="rack" value="<?= htmlspecialchars($cloneData['rack'] ?? ''); ?>">
+            </div>
+
+            <div class="mb-3">
+                <label for="cross" class="form-label">Cross <span class="badge bg-info">Important</span></label>
+                <input type="text" class="form-control" id="cross" name="cross" data-field-type="important" value="<?= htmlspecialchars($cloneData['cross'] ?? ''); ?>">
+            </div>
+
+            <div class="mb-3">
+                <label for="iacuc" class="form-label">IACUC <span class="badge bg-info">Important</span></label>
+                <select class="form-control" id="iacuc" name="iacuc[]" multiple data-field-type="important">
                     <option value="" disabled>Select IACUC</option>
                     <?php
                     // Populate the dropdown with IACUC values from the database
@@ -447,50 +652,77 @@ require 'header.php';
                         $iacuc_id = htmlspecialchars($iacucRow['iacuc_id']);
                         $iacuc_title = htmlspecialchars($iacucRow['iacuc_title']);
                         $truncated_title = strlen($iacuc_title) > 40 ? substr($iacuc_title, 0, 40) . '...' : $iacuc_title;
-                        echo "<option value='$iacuc_id' title='$iacuc_title'>$iacuc_id | $truncated_title</option>";
+                        $iacucSelected = in_array($iacucRow['iacuc_id'], $cloneIacuc) ? 'selected' : '';
+                        echo "<option value='$iacuc_id' title='$iacuc_title' $iacucSelected>$iacuc_id | $truncated_title</option>";
                     }
                     ?>
                 </select>
             </div>
 
             <div class="mb-3">
-                <label for="user" class="form-label">User <span class="required-asterisk">*</span></label>
-                <select class="form-control" id="user" name="user[]" multiple required>
+                <label for="user" class="form-label">User <span class="badge bg-info">Important</span></label>
+                <select class="form-control" id="user" name="user[]" multiple data-field-type="important">
                     <?php
                     // Populate the dropdown with options from the database
+                    // Auto-select current user, or use cloneUsers if cloning
                     while ($userRow = $userResult->fetch_assoc()) {
                         $user_id = htmlspecialchars($userRow['id']);
                         $initials = htmlspecialchars($userRow['initials']);
                         $name = htmlspecialchars($userRow['name']);
-                        echo "<option value='$user_id'>$initials [$name]</option>";
+                        if ($cloneData) {
+                            $selected = in_array($userRow['id'], $cloneUsers) ? 'selected' : '';
+                        } else {
+                            $selected = ($currentUserId && $user_id == $currentUserId) ? 'selected' : '';
+                        }
+                        echo "<option value='$user_id' $selected>$initials [$name]</option>";
                     }
                     ?>
                 </select>
             </div>
 
             <div class="mb-3">
-                <label for="male_id" class="form-label">Male ID <span class="required-asterisk">*</span></label>
-                <input type="text" class="form-control" id="male_id" name="male_id" required>
+                <label for="male_id" class="form-label">Male ID <span class="badge bg-warning">Critical</span></label>
+                <input type="text" class="form-control" id="male_id" name="male_id" data-field-type="critical" value="<?= htmlspecialchars($cloneData['male_id'] ?? ''); ?>">
             </div>
 
             <div class="mb-3">
-                <label for="female_id" class="form-label">Female ID <span class="required-asterisk">*</span></label>
-                <input type="text" class="form-control" id="female_id" name="female_id" required>
+                <label for="female_id" class="form-label">Female ID <span class="badge bg-warning">Critical</span></label>
+                <input type="text" class="form-control" id="female_id" name="female_id" data-field-type="critical" value="<?= htmlspecialchars($cloneData['female_id'] ?? ''); ?>">
             </div>
 
             <div class="mb-3">
-                <label for="male_dob" class="form-label">Male DOB <span class="required-asterisk">*</span></label>
-                <input type="date" class="form-control" id="male_dob" name="male_dob" required min="1900-01-01">
+                <label for="male_genotype" class="form-label">Male Genotype</label>
+                <input type="text" class="form-control" id="male_genotype" name="male_genotype" value="<?= htmlspecialchars($cloneData['male_genotype'] ?? ''); ?>">
             </div>
 
             <div class="mb-3">
-                <label for="female_dob" class="form-label">Female DOB <span class="required-asterisk">*</span></label>
-                <input type="date" class="form-control" id="female_dob" name="female_dob" required min="1900-01-01">
+                <label for="male_dob" class="form-label">Male DOB <span class="badge bg-secondary">Useful</span></label>
+                <input type="date" class="form-control" id="male_dob" name="male_dob" min="1900-01-01" data-field-type="useful" value="<?= htmlspecialchars($cloneData['male_dob'] ?? ''); ?>">
+            </div>
+
+            <div class="mb-3">
+                <label for="male_parent_cage" class="form-label">Male Source / Parent Cage</label>
+                <input type="text" class="form-control" id="male_parent_cage" name="male_parent_cage" placeholder="e.g. Jax Lab, cage ID, or other source" value="<?= htmlspecialchars($cloneData['male_parent_cage'] ?? ''); ?>">
+            </div>
+
+            <div class="mb-3">
+                <label for="female_genotype" class="form-label">Female Genotype</label>
+                <input type="text" class="form-control" id="female_genotype" name="female_genotype" value="<?= htmlspecialchars($cloneData['female_genotype'] ?? ''); ?>">
+            </div>
+
+            <div class="mb-3">
+                <label for="female_dob" class="form-label">Female DOB <span class="badge bg-secondary">Useful</span></label>
+                <input type="date" class="form-control" id="female_dob" name="female_dob" min="1900-01-01" data-field-type="useful" value="<?= htmlspecialchars($cloneData['female_dob'] ?? ''); ?>">
+            </div>
+
+            <div class="mb-3">
+                <label for="female_parent_cage" class="form-label">Female Source / Parent Cage</label>
+                <input type="text" class="form-control" id="female_parent_cage" name="female_parent_cage" placeholder="e.g. Jax Lab, cage ID, or other source" value="<?= htmlspecialchars($cloneData['female_parent_cage'] ?? ''); ?>">
             </div>
 
             <div class="mb-3">
                 <label for="remarks" class="form-label">Remarks</label>
-                <textarea class="form-control" id="remarks" name="remarks" oninput="adjustTextareaHeight(this)"></textarea>
+                <textarea class="form-control" id="remarks" name="remarks" oninput="adjustTextareaHeight(this)"><?= htmlspecialchars($cloneData['remarks'] ?? ''); ?></textarea>
             </div>
 
             <!-- Litter Data Section -->

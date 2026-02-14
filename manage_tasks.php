@@ -11,7 +11,7 @@
  */
 
 ob_start(); // Start output buffering
-session_start(); // Start the session to use session variables
+require 'session_config.php'; // Start the session to use session variables
 require 'header.php'; // Include header file
 require 'dbcon.php'; // Include database connection
 
@@ -66,13 +66,13 @@ function scheduleEmail($task_id, $recipients, $subject, $body, $scheduledAt)
     $stmt->bind_param("issss", $task_id, $recipientList, $subject, $body, $scheduledAt);
 
     if ($stmt->execute()) {
+        $stmt->close();
         return true;
     } else {
         error_log("Error scheduling email: " . $stmt->error);
+        $stmt->close();
         return false;
     }
-
-    $stmt->close();
 }
 
 // Fetch users for the dropdown
@@ -87,13 +87,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         die('CSRF token validation failed');
     }
 
-    $title = htmlspecialchars($_POST['title']);
-    $description = htmlspecialchars($_POST['description']);
-    $assignedBy = htmlspecialchars($_POST['assigned_by_id']);
-    $assignedTo = htmlspecialchars(implode(',', $_POST['assigned_to'] ?? []));
-    $status = htmlspecialchars($_POST['status']);
-    $completionDate = !empty($_POST['completion_date']) ? htmlspecialchars($_POST['completion_date']) : NULL;
-    $cageId = empty($_POST['cage_id']) ? NULL : htmlspecialchars($_POST['cage_id']);
+    $title = trim($_POST['title']);
+    $description = trim($_POST['description']);
+    $assignedBy = $_POST['assigned_by_id'];
+    $assignedTo = implode(',', $_POST['assigned_to'] ?? []);
+    $status = $_POST['status'];
+    $completionDate = !empty($_POST['completion_date']) ? $_POST['completion_date'] : NULL;
+    $cageId = empty($_POST['cage_id']) ? NULL : $_POST['cage_id'];
     $taskAction = '';
     $task_id = null; // Initialize task_id variable
 
@@ -108,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             redirectToPage("Error: " . $stmt->error);
         }
     } elseif (isset($_POST['edit'])) {
-        $id = htmlspecialchars($_POST['id']);
+        $id = intval($_POST['id']);
         $stmt = $con->prepare("UPDATE tasks SET title = ?, description = ?, assigned_by = ?, assigned_to = ?, status = ?, completion_date = ?, cage_id = ? WHERE id = ?");
         $stmt->bind_param("sssssssi", $title, $description, $assignedBy, $assignedTo, $status, $completionDate, $cageId, $id);
         if ($stmt->execute()) {
@@ -118,7 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             redirectToPage("Error: " . $stmt->error);
         }
     } elseif (isset($_POST['delete'])) {
-        $id = htmlspecialchars($_POST['id']);
+        $id = intval($_POST['id']);
 
         // Fetch task details before deletion for email notification
         $taskQuery = $con->prepare("SELECT title, description, assigned_by, assigned_to, status, completion_date, cage_id FROM tasks WHERE id = ?");
@@ -214,34 +214,93 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
 
 // Fetch tasks for display
-$search = htmlspecialchars($_GET['search'] ?? '');
-$cageIdFilter = htmlspecialchars($_GET['id'] ?? '');
-$filter = htmlspecialchars($_GET['filter'] ?? '');
+$search = $_GET['search'] ?? '';
+$cageIdFilter = $_GET['id'] ?? '';
+$filter = $_GET['filter'] ?? '';
 
-// Construct the task query with search and filter options
-$taskQueries = "SELECT * FROM tasks WHERE 1";
+// Pagination settings
+$records_per_page = 10;
+$current_page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+$offset = ($current_page - 1) * $records_per_page;
+
+// Construct the task query with search and filter options using prepared statements
+$taskWhere = "WHERE 1";
+$params = [];
+$types = '';
+
 if ($search) {
-    $taskQueries .= " AND (title LIKE '%$search%' OR assigned_by LIKE '%$search%' OR assigned_to LIKE '%$search%' OR status LIKE '%$search%' OR cage_id LIKE '%$search%')";
+    $taskWhere .= " AND (title LIKE ? OR assigned_by LIKE ? OR assigned_to LIKE ? OR status LIKE ? OR cage_id LIKE ?)";
+    $searchParam = '%' . $search . '%';
+    $params = array_merge($params, [$searchParam, $searchParam, $searchParam, $searchParam, $searchParam]);
+    $types .= 'sssss';
 }
 
 if ($filter == 'assigned_by_me') {
-    $taskQueries .= " AND assigned_by = '$currentUserId'";
+    $taskWhere .= " AND assigned_by = ?";
+    $params[] = $currentUserId;
+    $types .= 'i';
 } elseif ($filter == 'assigned_to_me') {
-    $taskQueries .= " AND FIND_IN_SET('$currentUserId', assigned_to)";
+    $taskWhere .= " AND FIND_IN_SET(?, assigned_to)";
+    $params[] = $currentUserId;
+    $types .= 'i';
 } elseif (!$isAdmin) {
-    $taskQueries .= " AND (assigned_by = '$currentUserId' OR FIND_IN_SET('$currentUserId', assigned_to))";
+    $taskWhere .= " AND (assigned_by = ? OR FIND_IN_SET(?, assigned_to))";
+    $params[] = $currentUserId;
+    $params[] = $currentUserId;
+    $types .= 'ii';
 }
 
 if ($cageIdFilter) {
-    $taskQueries .= " AND cage_id = '$cageIdFilter'";
+    $taskWhere .= " AND cage_id = ?";
+    $params[] = $cageIdFilter;
+    $types .= 's';
 }
 
-$taskResult = $con->query($taskQueries);
+// Count total records for pagination
+$countQuery = "SELECT COUNT(*) as total FROM tasks $taskWhere";
+if (!empty($params)) {
+    $countStmt = $con->prepare($countQuery);
+    $countStmt->bind_param($types, ...$params);
+    $countStmt->execute();
+    $total_records = $countStmt->get_result()->fetch_assoc()['total'];
+    $countStmt->close();
+} else {
+    $total_records = $con->query($countQuery)->fetch_assoc()['total'];
+}
+$total_pages = ceil($total_records / $records_per_page);
+
+// Fetch tasks with LIMIT/OFFSET
+$taskQuery = "SELECT * FROM tasks $taskWhere ORDER BY creation_date DESC LIMIT ? OFFSET ?";
+$paginatedParams = array_merge($params, [$records_per_page, $offset]);
+$paginatedTypes = $types . 'ii';
+
+$taskStmt = $con->prepare($taskQuery);
+if (!empty($paginatedParams)) {
+    $taskStmt->bind_param($paginatedTypes, ...$paginatedParams);
+}
+$taskStmt->execute();
+$taskResult = $taskStmt->get_result();
 
 // Fetch cages for the dropdown
 $cageQuery = "SELECT cage_id FROM cages";
 $cageResult = $con->query($cageQuery);
 $cages = $cageResult ? array_column($cageResult->fetch_all(MYSQLI_ASSOC), 'cage_id') : [];
+
+/**
+ * Build a query string preserving current GET parameters with optional overrides.
+ */
+function buildTaskQueryString($overrides = []) {
+    $params = [
+        'search' => $_GET['search'] ?? '',
+        'filter' => $_GET['filter'] ?? '',
+        'id' => $_GET['id'] ?? '',
+        'page' => $_GET['page'] ?? 1,
+    ];
+    $params = array_merge($params, $overrides);
+    // Remove empty params to keep URL clean
+    $params = array_filter($params, function($v) { return $v !== '' && $v !== null; });
+    return http_build_query($params);
+}
 
 ob_end_flush(); // Flush the output buffer
 ?>
@@ -253,9 +312,9 @@ ob_end_flush(); // Flush the output buffer
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Manage Tasks</title>
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <!-- Bootstrap 5.3 loaded via header.php -->
+    <!-- Font Awesome loaded via header.php -->
+    <!-- Select2 CSS loaded via header.php -->
     <style>
         /* Popup and Overlay Styles */
         .popup-form,
@@ -265,11 +324,12 @@ ob_end_flush(); // Flush the output buffer
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background-color: white;
+            background-color: var(--bs-body-bg);
             padding: 20px;
-            border: 1px solid #ccc;
+            border: 1px solid var(--bs-border-color);
             z-index: 1000;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
             width: 80%;
             max-width: 800px;
             overflow-y: auto;
@@ -328,103 +388,44 @@ ob_end_flush(); // Flush the output buffer
         }
 
         .form-control[readonly] {
-            background-color: #e9ecef;
+            background-color: var(--bs-tertiary-bg);
             cursor: not-allowed;
         }
 
-        /* Table Styles */
-        .table-responsive {
-            overflow-x: auto;
-        }
-
+        /* Table Styles (base styles from header.php) */
         .table {
-            width: 100%;
-            table-layout: fixed;
-            border-collapse: collapse;
-            box-shadow: none;
-            border: 2px solid #ffffff;
-        }
-
-        .table th,
-        .table td {
-            border: 1px solid #ffffff;
-            padding: 10px;
-            text-align: left;
-            vertical-align: middle;
-        }
-
-        .table thead {
-            background-color: #343a40;
-            color: #ffffff;
-            border-bottom: 2px solid #ffffff;
-        }
-
-        .table thead th {
-            padding: 10px;
-            font-weight: bold;
-            text-align: center;
-            border-top: 2px solid #ffffff;
-            border-left: 2px solid #ffffff;
-            border-right: 2px solid #ffffff;
-            border-bottom: 2px solid #ffffff;
+            table-layout: auto;
         }
 
         /* Specific Column Widths */
         .table th:nth-child(1),
         .table td:nth-child(1) {
-            width: 10%;
-        }
-
-        .table th:nth-child(2),
-        .table td:nth-child(2) {
-            width: 30%;
-        }
-
-        .table th:nth-child(3),
-        .table td:nth-child(3) {
-            width: 20%;
-        }
-
-        .table th:nth-child(4),
-        .table td:nth-child(4) {
-            width: 20%;
+            width: 60px;
+            text-align: center;
         }
 
         .table th:nth-child(5),
         .table td:nth-child(5) {
-            width: 20%;
+            width: 160px;
         }
 
-        /* Status Colors */
-        .status-pending {
-            background-color: #f8d7da;
+        /* Status Colors - applied to status cell only */
+        .status-pending td:nth-child(4) {
+            color: var(--bs-danger);
+            font-weight: 500;
         }
 
-        .status-in-progress {
-            background-color: #fff3cd;
+        .status-in-progress td:nth-child(4) {
+            color: var(--bs-warning);
+            font-weight: 500;
         }
 
-        .status-completed {
-            background-color: #d4edda;
+        .status-completed td:nth-child(4) {
+            color: var(--bs-success);
+            font-weight: 500;
         }
 
-        /* Action Buttons */
-        .table-actions,
-        .action-buttons {
-            display: flex;
-            gap: 10px;
-            flex-wrap: nowrap;
-        }
-
-        .table-actions {
-            border: none !important;
-        }
-
-        .table-actions button,
-        .action-buttons .btn {
-            width: 100%;
-            margin-bottom: 10px;
-        }
+        /* Action button styles handled by unified styles in header.php */
 
         @media (max-width: 576px) {
             .table thead {
@@ -439,7 +440,7 @@ ob_end_flush(); // Flush the output buffer
             .table tbody tr {
                 display: block;
                 margin-bottom: 15px;
-                border-bottom: 1px solid #dee2e6;
+                border-bottom: 1px solid var(--bs-border-color);
                 padding-bottom: 15px;
             }
 
@@ -463,14 +464,11 @@ ob_end_flush(); // Flush the output buffer
                 padding-right: 10px;
                 white-space: nowrap;
                 font-weight: bold;
-                color: #343a40;
+                color: var(--bs-body-color);
                 text-align: left;
             }
 
-            .table-actions {
-                flex-direction: column;
-                flex-wrap: wrap;
-            }
+            /* Mobile action button styles handled by unified styles in header.php */
         }
 
         .pr-0 {
@@ -481,28 +479,20 @@ ob_end_flush(); // Flush the output buffer
             padding-left: 0 !important;
         }
 
-        .form-control {
-            border-top-right-radius: 0;
-            border-bottom-right-radius: 0;
-        }
-
-        .btn-primary {
-            border-top-left-radius: 0;
-            border-bottom-left-radius: 0;
-        }
+        /* Search row uses g-2 grid - no border radius overrides needed */
     </style>
 </head>
 
 <body>
-    <div class="container content mt-5">
+    <div class="container mt-4 content" style="max-width: 900px;">
 
         <!-- Include message for user notifications -->
         <?php include('message.php'); ?>
 
-        <h2>Manage Tasks <?= $cageIdFilter ? 'for Cage ' . htmlspecialchars($cageIdFilter) : ''; ?></h2>
+        <h1 class="text-center">Manage Tasks <?= $cageIdFilter ? 'for Cage ' . htmlspecialchars($cageIdFilter) : ''; ?></h1>
         <?php if (isset($_SESSION['message'])) : ?>
             <div class="alert alert-info">
-                <?= $_SESSION['message']; ?>
+                <?= htmlspecialchars($_SESSION['message']); ?>
                 <?php unset($_SESSION['message']); ?>
             </div>
         <?php endif; ?>
@@ -524,48 +514,59 @@ ob_end_flush(); // Flush the output buffer
 
         <!-- Search form -->
         <form method="GET" class="mb-4">
-            <div class="row">
-                <div class="col-10 pr-0">
+            <?php if ($cageIdFilter): ?>
+                <input type="hidden" name="id" value="<?= htmlspecialchars($cageIdFilter); ?>">
+            <?php endif; ?>
+            <div class="row g-2">
+                <div class="col">
                     <input type="text" name="search" class="form-control" placeholder="Search tasks..." value="<?= htmlspecialchars($search); ?>">
                 </div>
-                <div class="col-2 pl-0">
-                    <button type="submit" class="btn btn-primary w-100">Search</button>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-primary">Search</button>
                 </div>
+                <?php if ($search || $filter): ?>
+                    <div class="col-auto">
+                        <a href="manage_tasks.php<?= $cageIdFilter ? '?id=' . urlencode($cageIdFilter) : ''; ?>" class="btn btn-outline-secondary"><i class="fas fa-times"></i> Clear</a>
+                    </div>
+                <?php endif; ?>
             </div>
-            <div class="form-check form-check-inline mt-2">
-                <input class="form-check-input" type="radio" name="filter" id="assignedByMe" value="assigned_by_me" <?= $filter == 'assigned_by_me' ? 'checked' : ''; ?>>
-                <label class="form-check-label" for="assignedByMe">Assigned by Me</label>
-            </div>
-            <div class="form-check form-check-inline">
-                <input class="form-check-input" type="radio" name="filter" id="assignedToMe" value="assigned_to_me" <?= $filter == 'assigned_to_me' ? 'checked' : ''; ?>>
-                <label class="form-check-label" for="assignedToMe">Assigned to Me</label>
+            <div class="mt-2">
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="filter" id="assignedByMe" value="assigned_by_me" <?= $filter == 'assigned_by_me' ? 'checked' : ''; ?>>
+                    <label class="form-check-label" for="assignedByMe">Assigned by Me</label>
+                </div>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="filter" id="assignedToMe" value="assigned_to_me" <?= $filter == 'assigned_to_me' ? 'checked' : ''; ?>>
+                    <label class="form-check-label" for="assignedToMe">Assigned to Me</label>
+                </div>
             </div>
         </form>
 
         <!-- Popup form for adding and editing tasks -->
         <div class="popup-overlay" id="popupOverlay"></div>
         <div class="popup-form" id="popupForm">
+            <button type="button" class="popup-close-btn" id="closePopupBtn" aria-label="Close">&times;</button>
             <h4 id="formTitle">Add New Task</h4>
             <form id="taskForm" action="manage_tasks.php" method="post">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                 <input type="hidden" name="id" id="id">
-                <div class="form-group">
+                <div class="mb-3">
                     <label for="title">Title <span class="required-asterisk">*</span></label>
                     <input type="text" name="title" id="title" class="form-control" maxlength="100" required>
                     <small id="titleCounter" class="form-text text-muted">0/100 characters used</small>
                 </div>
 
-                <div class="form-group">
+                <div class="mb-3">
                     <label for="description">Description/Update <span class="required-asterisk">*</span></label>
                     <textarea name="description" id="description" class="form-control" rows="3" maxlength="500" required></textarea>
                     <small id="descriptionCounter" class="form-text text-muted">0/500 characters used</small>
                 </div>
-                <div class="form-group">
+                <div class="mb-3">
                     <label for="assigned_by">Assigned By <span class="required-asterisk">*</span></label>
                     <input type="text" name="assigned_by" id="assigned_by" class="form-control" readonly>
                     <input type="hidden" name="assigned_by_id" id="assigned_by_id">
                 </div>
-                <div class="form-group">
+                <div class="mb-3">
                     <label for="assigned_to">Assigned To <span class="required-asterisk">*</span></label>
                     <select name="assigned_to[]" id="assigned_to" class="form-control" multiple required>
                         <?php foreach ($users as $userId => $name) : ?>
@@ -573,7 +574,7 @@ ob_end_flush(); // Flush the output buffer
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div class="form-group">
+                <div class="mb-3">
                     <label>Status <span class="required-asterisk">*</span></label>
                     <div class="radio-group">
                         <label><input type="radio" name="status" value="Pending" required> Pending</label>
@@ -581,11 +582,11 @@ ob_end_flush(); // Flush the output buffer
                         <label><input type="radio" name="status" value="Completed"> Completed</label>
                     </div>
                 </div>
-                <div class="form-group">
+                <div class="mb-3">
                     <label for="completion_date">Completion Date</label>
                     <input type="date" name="completion_date" id="completion_date" class="form-control">
                 </div>
-                <div class="form-group">
+                <div class="mb-3">
                     <label for="cage_id">Cage ID</label>
                     <select name="cage_id" id="cage_id" class="form-control">
                         <option value="">Select Cage</option>
@@ -605,13 +606,24 @@ ob_end_flush(); // Flush the output buffer
         <!-- Popup form for viewing tasks -->
         <div class="popup-overlay" id="viewPopupOverlay"></div>
         <div class="view-popup-form" id="viewPopupForm">
+            <button type="button" class="popup-close-btn" id="closeViewPopupBtn" aria-label="Close">&times;</button>
             <h4 id="viewFormTitle">View Task Details</h4>
             <div id="viewTaskDetails"></div>
             <button type="button" class="btn btn-secondary mt-3" id="closeViewFormButton">Close</button>
         </div>
 
         <!-- Table for displaying tasks -->
-        <h3>Existing Tasks</h3>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h3 class="mb-0">Existing Tasks</h3>
+            <small class="text-muted">
+                <?php if ($total_records > 0): ?>
+                    Showing <?= $offset + 1; ?> - <?= min($offset + $records_per_page, $total_records); ?>
+                    of <?= $total_records; ?> tasks
+                <?php else: ?>
+                    No tasks found
+                <?php endif; ?>
+            </small>
+        </div>
         <div class="table-responsive">
             <table class="table">
                 <thead>
@@ -624,6 +636,13 @@ ob_end_flush(); // Flush the output buffer
                     </tr>
                 </thead>
                 <tbody>
+                    <?php if ($total_records == 0): ?>
+                        <tr>
+                            <td colspan="5" class="text-center py-4">
+                                <p class="text-muted mb-0">No tasks found.</p>
+                            </td>
+                        </tr>
+                    <?php endif; ?>
                     <?php while ($row = $taskResult->fetch_assoc()) : ?>
                         <tr class="status-<?= strtolower(str_replace(' ', '-', $row['status'])); ?>">
                             <td data-label="ID"><?= htmlspecialchars($row['id']); ?></td>
@@ -650,19 +669,45 @@ ob_end_flush(); // Flush the output buffer
             </table>
         </div>
 
+        <!-- Pagination -->
+        <?php if ($total_pages > 1): ?>
+            <nav aria-label="Task pagination" class="mt-3">
+                <ul class="pagination justify-content-center">
+                    <?php if ($current_page > 1): ?>
+                        <li class="page-item">
+                            <a class="page-link" href="?<?= buildTaskQueryString(['page' => $current_page - 1]); ?>">Previous</a>
+                        </li>
+                    <?php endif; ?>
+
+                    <?php for ($i = max(1, $current_page - 2); $i <= min($total_pages, $current_page + 2); $i++): ?>
+                        <li class="page-item <?= $i == $current_page ? 'active' : ''; ?>">
+                            <a class="page-link" href="?<?= buildTaskQueryString(['page' => $i]); ?>"><?= $i; ?></a>
+                        </li>
+                    <?php endfor; ?>
+
+                    <?php if ($current_page < $total_pages): ?>
+                        <li class="page-item">
+                            <a class="page-link" href="?<?= buildTaskQueryString(['page' => $current_page + 1]); ?>">Next</a>
+                        </li>
+                    <?php endif; ?>
+                </ul>
+            </nav>
+        <?php endif; ?>
+
     </div>
 
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- jQuery loaded via header.php -->
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script>
         // Embed the PHP-encoded JSON into a JavaScript variable
         const users = <?= json_encode($users); ?>;
-        const cageIdFilter = '<?= $cageIdFilter; ?>';
+        const cageIdFilter = <?= json_encode($cageIdFilter); ?>;
 
         $(document).ready(function() {
             $('#assigned_to').select2({
                 placeholder: "Select users",
-                allowClear: true
+                allowClear: true,
+                dropdownParent: $('#popupForm')
             });
 
             // Ensure the form closes when clicking outside
@@ -683,15 +728,13 @@ ob_end_flush(); // Flush the output buffer
                 openForm();
             });
 
-            // Attach click event to the cancel button
-            $('#cancelButton').on('click', function() {
-                console.log('Cancel button clicked');
+            // Attach click event to the cancel and close buttons
+            $('#cancelButton, #closePopupBtn').on('click', function() {
                 closeForm();
             });
 
             // Attach click event to the close view form button
-            $('#closeViewFormButton').on('click', function() {
-                console.log('Close view form button clicked');
+            $('#closeViewFormButton, #closeViewPopupBtn').on('click', function() {
                 closeViewForm();
             });
 

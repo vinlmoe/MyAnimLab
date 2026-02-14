@@ -10,7 +10,7 @@
  * 
  */
 
-session_start();
+require 'session_config.php';
 require 'dbcon.php'; // Database connection
 require 'config.php'; // Configuration file for email settings
 require 'header.php'; // Include the header file
@@ -106,9 +106,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_profile'])) {
     }
 
     $newUsername = filter_input(INPUT_POST, 'username', FILTER_SANITIZE_EMAIL);
-    $name = filter_input(INPUT_POST, 'name', FILTER_SANITIZE_STRING);
-    $initials = filter_input(INPUT_POST, 'initials', FILTER_SANITIZE_STRING);
-    $position = filter_input(INPUT_POST, 'position', FILTER_SANITIZE_STRING);
+    $name = trim($_POST['name'] ?? '');
+    $initials = trim($_POST['initials'] ?? '');
+    $position = trim($_POST['position'] ?? '');
 
     // Check if the email address (username) has changed
     $emailChanged = ($newUsername !== $username);
@@ -234,85 +234,64 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
     <title>User Profile</title>
     <style>
         .container {
-            max-width: 800px;
+            max-width: 900px;
             margin-top: 50px;
             margin-bottom: 50px;
             padding: 20px;
-            border: 1px solid #ccc;
+            border: 1px solid var(--bs-border-color);
             border-radius: 5px;
-            background-color: #f9f9f9;
+            background-color: var(--bs-tertiary-bg);
         }
 
-        .form-group {
-            margin-bottom: 15px;
-        }
 
-        .btn1 {
+
+        .btn-profile {
             display: block;
             width: 100%;
             padding: 10px;
-            border: none;
-            border-radius: 3px;
-            cursor: pointer;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 500;
         }
 
-        .btn1:hover {
-            background-color: #0056b3;
-        }
-
-        .result-message {
-            text-align: center;
-            margin-top: 15px;
-            padding: 10px;
-            background-color: #dff0d8;
-            border: 1px solid #3c763d;
-            color: #3c763d;
-            border-radius: 5px;
-        }
-
+        .result-message,
         .update-message {
             text-align: center;
             margin-top: 15px;
             padding: 10px;
-            background-color: #dff0d8;
-            border: 1px solid #3c763d;
-            color: #3c763d;
             border-radius: 5px;
         }
 
         .note {
             font-size: 0.9em;
-            color: #555;
+            color: var(--bs-secondary-color);
             text-align: center;
             margin-top: 10px;
         }
 
         .note1 {
-            color: #888;
+            color: var(--bs-secondary-color);
             font-size: 12px;
         }
     </style>
 </head>
 
 <body>
-    <div class="container content">
-        <br>
-        <h2>User Profile</h2>
-        <br>
-        <br>
+    <div class="container mt-4 content">
+        <h1 class="text-center">User Profile</h1>
         <form method="POST" action="">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-            <div class="form-group">
+            <div class="mb-3">
                 <label for="name">Name</label>
                 <input type="text" class="form-control" id="name" name="name" value="<?php echo htmlspecialchars($user['name']); ?>" required>
             </div>
             <br>
-            <div class="form-group">
+            <div class="mb-3">
                 <label for="initials">Initials <span class="note1">(Your Initials will be displayed in Cage Card)</span></label>
                 <input type="text" class="form-control" id="initials" name="initials" value="<?php echo htmlspecialchars($user['initials']); ?>" maxlength="3" required>
             </div>
             <br>
-            <div class="form-group">
+            <div class="mb-3">
                 <label for="position">Position</label>
                 <select class="form-control" id="position" name="position">
                     <option value="" disabled>Select Position</option>
@@ -324,38 +303,36 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
                     <option value="Undergraduate" <?php echo ($user['position'] == 'Undergraduate') ? 'selected' : ''; ?>>Undergraduate</option>
                     <option value="Laboratory Technician" <?php echo ($user['position'] == 'Laboratory Technician') ? 'selected' : ''; ?>>Laboratory Technician</option>
                     <option value="Research Associate" <?php echo ($user['position'] == 'Research Associate') ? 'selected' : ''; ?>>Research Associate</option>
-                    <option value="Lab Manager" <?php echo ($user['position'] == 'Lab Manager') ? 'selected' : ''; ?>>Lab Manager</option>
+                    <option value="Vivarium Manager" <?php echo ($user['position'] == 'Vivarium Manager') ? 'selected' : ''; ?>>Vivarium Manager</option>
                     <option value="Animal Care Technician" <?php echo ($user['position'] == 'Animal Care Technician') ? 'selected' : ''; ?>>Animal Care Technician</option>
                     <option value="Interns and Volunteers" <?php echo ($user['position'] == 'Interns and Volunteers') ? 'selected' : ''; ?>>Interns and Volunteers</option>
                 </select>
             </div>
             <br>
             <?php if ($demo !== "yes") : ?>
-                <div class="form-group">
+                <div class="mb-3">
                     <label for="username">Email Address</label>
                     <input type="email" class="form-control" id="username" name="username" value="<?php echo htmlspecialchars($user['username']); ?>" required>
                 </div>
             <?php endif; ?>
             <br>
-            <button type="submit" class="btn1 btn-primary" name="update_profile">Update Profile</button>
+            <button type="submit" class="btn btn-primary btn-profile" name="update_profile">Update Profile</button>
         </form>
-        <br>
+
         <?php if ($updateMessage) {
-            echo "<p class='update-message'>$updateMessage</p>";
+            echo "<div class='alert alert-success text-center'>" . htmlspecialchars($updateMessage) . "</div>";
         } ?>
-        <br>
-        <br>
-        <br>
-        <br>
+
+        <hr class="my-4">
+
         <h2>Request Password Change</h2>
-        <br>
         <br>
         <form method="POST" action="">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-            <button type="submit" class="btn1 btn-warning" name="reset">Request Password Change</button>
+            <button type="submit" class="btn btn-warning btn-profile" name="reset">Request Password Change</button>
         </form>
         <?php if ($resultMessage) {
-            echo "<p class='result-message'>$resultMessage</p>";
+            echo "<div class='alert alert-success text-center'>" . htmlspecialchars($resultMessage) . "</div>";
         } ?>
         <br>
         <p class="note">In order to reflect the changes everywhere, please log out and log back in.</p>

@@ -11,7 +11,7 @@
  */
 
 // Start a new session or resume the existing session
-session_start();
+require 'session_config.php';
 
 // Disable error display in production (errors logged to server logs)
 error_reporting(E_ALL);
@@ -33,46 +33,63 @@ if (!isset($_SESSION['username'])) {
 $userRole = $_SESSION['role'];
 $currentUserId = $_SESSION['user_id'];
 
-// Pagination variables
-$limit = 10; // Number of entries to show in a page
+// Validate and set dynamic limit (page size)
+$allowedLimits = [10, 20, 30, 50];
+$limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
+if (!in_array($limit, $allowedLimits)) {
+    $limit = 10; // Default to 10 if invalid value
+}
+
+// Validate and set sort direction
+$sort = isset($_GET['sort']) && strtolower($_GET['sort']) === 'desc' ? 'DESC' : 'ASC';
+
+// Determine whether to show archived cages
+$showArchived = isset($_GET['show_archived']) && $_GET['show_archived'] === '1';
+$cageStatus = $showArchived ? 'archived' : 'active';
+
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1; // Current page number, default to 1
 $offset = ($page - 1) * $limit; // Offset for the SQL query
 
 // Handle the search filter
 $searchQuery = '';
 if (isset($_GET['search'])) {
-    $searchQuery = mysqli_real_escape_string($con, urldecode($_GET['search'])); // Decode and escape the search parameter
+    $searchQuery = $_GET['search']; // PHP auto-decodes GET parameters; prepared statements handle escaping
 }
 
 // Fetch the distinct cage IDs with pagination using prepared statements
+// JOIN with cages table to filter by status
 if (!empty($searchQuery)) {
     $searchPattern = '%' . $searchQuery . '%';
     // Query with search filter
-    $totalQuery = "SELECT DISTINCT `cage_id` FROM breeding WHERE `cage_id` LIKE ?";
+    $totalQuery = "SELECT DISTINCT b.`cage_id` FROM breeding b INNER JOIN cages c ON b.cage_id = c.cage_id WHERE c.status = ? AND b.`cage_id` LIKE ?";
     $stmtTotal = $con->prepare($totalQuery);
-    $stmtTotal->bind_param("s", $searchPattern);
+    $stmtTotal->bind_param("ss", $cageStatus, $searchPattern);
     $stmtTotal->execute();
     $totalResult = $stmtTotal->get_result();
     $totalRecords = $totalResult->num_rows;
     $totalPages = ceil($totalRecords / $limit);
     $stmtTotal->close();
 
-    // Query with pagination
-    $query = "SELECT DISTINCT `cage_id` FROM breeding WHERE `cage_id` LIKE ? LIMIT ? OFFSET ?";
+    // Query with pagination and sort
+    $query = "SELECT DISTINCT b.`cage_id` FROM breeding b INNER JOIN cages c ON b.cage_id = c.cage_id WHERE c.status = ? AND b.`cage_id` LIKE ? ORDER BY b.`cage_id` $sort LIMIT ? OFFSET ?";
     $stmt = $con->prepare($query);
-    $stmt->bind_param("sii", $searchPattern, $limit, $offset);
+    $stmt->bind_param("ssii", $cageStatus, $searchPattern, $limit, $offset);
     $stmt->execute();
     $result = $stmt->get_result();
 } else {
     // Query without search filter
-    $totalQuery = "SELECT DISTINCT `cage_id` FROM breeding";
-    $totalResult = mysqli_query($con, $totalQuery);
-    $totalRecords = mysqli_num_rows($totalResult);
+    $totalQuery = "SELECT DISTINCT b.`cage_id` FROM breeding b INNER JOIN cages c ON b.cage_id = c.cage_id WHERE c.status = ?";
+    $stmtTotal = $con->prepare($totalQuery);
+    $stmtTotal->bind_param("s", $cageStatus);
+    $stmtTotal->execute();
+    $totalResult = $stmtTotal->get_result();
+    $totalRecords = $totalResult->num_rows;
     $totalPages = ceil($totalRecords / $limit);
+    $stmtTotal->close();
 
-    $query = "SELECT DISTINCT `cage_id` FROM breeding LIMIT ? OFFSET ?";
+    $query = "SELECT DISTINCT b.`cage_id` FROM breeding b INNER JOIN cages c ON b.cage_id = c.cage_id WHERE c.status = ? ORDER BY b.`cage_id` $sort LIMIT ? OFFSET ?";
     $stmt = $con->prepare($query);
-    $stmt->bind_param("ii", $limit, $offset);
+    $stmt->bind_param("sii", $cageStatus, $limit, $offset);
     $stmt->execute();
     $result = $stmt->get_result();
 }
@@ -93,18 +110,29 @@ while ($row = mysqli_fetch_assoc($result)) {
     while ($breedingcage = mysqli_fetch_assoc($cageResult)) {
         $tableRows .= '<tr>';
         if ($firstRow) {
-            $tableRows .= '<td style="width: 50%;">' . htmlspecialchars($breedingcage['cage_id']) . '</td>'; // Display cage ID only once per group
+            $tableRows .= '<td>' . htmlspecialchars($breedingcage['cage_id']) . '</td>'; // Display cage ID only once per group
             $firstRow = false;
         }
-        $tableRows .= '<td class="action-icons" style="width: 50%; white-space: nowrap;">
-                        <a href="bc_view.php?id=' . rawurlencode($breedingcage['cage_id']) . '&page=' . $page . '&search=' . urlencode($searchQuery) . '" class="btn btn-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="View Cage"><i class="fas fa-eye"></i></a>
-                        <a href="manage_tasks.php?id=' . rawurlencode($breedingcage['cage_id']) . '&page=' . $page . '&search=' . urlencode($searchQuery) . '" class="btn btn-secondary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Manage Tasks"><i class="fas fa-tasks"></i></a>';
-                        
-        // Check if the user is an admin or assigned to this cage
-        $assignedUsers = explode(',', $breedingcage['user']);
-        if ($userRole === 'admin' || in_array($currentUserId, $assignedUsers)) {
-            $tableRows .= '<a href="bc_edit.php?id=' . rawurlencode($breedingcage['cage_id']) . '&page=' . $page . '&search=' . urlencode($searchQuery) . '" class="btn btn-secondary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Edit Cage"><i class="fas fa-edit"></i></a>
-                           <a href="#" onclick="confirmDeletion(\'' . htmlspecialchars($breedingcage['cage_id']) . '\')" class="btn btn-danger btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Delete Cage"><i class="fas fa-trash"></i></a>';
+        $tableRows .= '<td class="action-icons" style="white-space: nowrap;">
+                        <a href="bc_view.php?id=' . rawurlencode($breedingcage['cage_id']) . '&page=' . $page . '&search=' . urlencode($searchQuery) . '" class="btn btn-primary btn-sm" data-bs-toggle="tooltip" data-bs-placement="top" title="View"><i class="fas fa-eye"></i></a>
+                        <a href="manage_tasks.php?id=' . rawurlencode($breedingcage['cage_id']) . '&page=' . $page . '&search=' . urlencode($searchQuery) . '" class="btn btn-info btn-sm" data-bs-toggle="tooltip" data-bs-placement="top" title="Tasks"><i class="fas fa-tasks"></i></a>';
+
+        // Check if the user is an admin or assigned to this cage via cage_users table
+        $assignedCheck = $con->prepare("SELECT 1 FROM cage_users WHERE cage_id = ? AND user_id = ?");
+        $assignedCheck->bind_param("si", $breedingcage['cage_id'], $currentUserId);
+        $assignedCheck->execute();
+        $isAssigned = $assignedCheck->get_result()->num_rows > 0;
+        $assignedCheck->close();
+        if ($userRole === 'admin' || $isAssigned) {
+            if ($showArchived) {
+                // Archived view: show Restore and Permanently Delete buttons
+                $tableRows .= '<a href="#" onclick="confirmRestore(\'' . htmlspecialchars($breedingcage['cage_id']) . '\')" class="btn btn-success btn-sm" data-bs-toggle="tooltip" data-bs-placement="top" title="Restore"><i class="fas fa-undo"></i></a>
+                               <a href="#" onclick="confirmPermanentDelete(\'' . htmlspecialchars($breedingcage['cage_id']) . '\')" class="btn btn-danger btn-sm" data-bs-toggle="tooltip" data-bs-placement="top" title="Delete Forever"><i class="fas fa-trash"></i></a>';
+            } else {
+                // Active view: show Edit and Archive buttons
+                $tableRows .= '<a href="bc_edit.php?id=' . rawurlencode($breedingcage['cage_id']) . '&page=' . $page . '&search=' . urlencode($searchQuery) . '" class="btn btn-warning btn-sm" data-bs-toggle="tooltip" data-bs-placement="top" title="Edit"><i class="fas fa-edit"></i></a>
+                               <a href="#" onclick="confirmDeletion(\'' . htmlspecialchars($breedingcage['cage_id']) . '\')" class="btn btn-danger btn-sm" data-bs-toggle="tooltip" data-bs-placement="top" title="Archive"><i class="fas fa-archive"></i></a>';
+            }
         }
         $tableRows .= '</td></tr>';
     }

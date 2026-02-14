@@ -8,10 +8,13 @@
  */
 
 // Start a new session or resume the existing session
-session_start();
+require 'session_config.php';
 
 // Include the database connection file
 require 'dbcon.php';
+
+// Include the activity log helper
+require_once 'log_activity.php';
 
 // Disable error display in production (errors logged to server logs)
 error_reporting(E_ALL);
@@ -80,9 +83,9 @@ if (isset($_GET['id'])) {
     $id = $_GET['id'];
 
     // Fetch the holding cage record with the specified ID including PI name details
-    $query = "SELECT h.*, c.pi_name AS pi_name, c.quantity, c.remarks
+    $query = "SELECT h.*, c.pi_name AS pi_name, c.quantity, c.remarks, c.room, c.rack
               FROM holding h
-              LEFT JOIN cages c ON h.cage_id = c.cage_id 
+              LEFT JOIN cages c ON h.cage_id = c.cage_id
               WHERE h.cage_id = ?";
     $stmt = $con->prepare($query);
     $stmt->bind_param("s", $id);
@@ -155,41 +158,76 @@ if (isset($_GET['id'])) {
             }
 
             // Retrieve and sanitize form data
-            $cage_id = trim(mysqli_real_escape_string($con, $_POST['cage_id']));
-            $pi_name = mysqli_real_escape_string($con, $_POST['pi_name']);
-            $strain = mysqli_real_escape_string($con, $_POST['strain']);
-            $iacuc = isset($_POST['iacuc']) ? array_map(function ($value) use ($con) {
-                return mysqli_real_escape_string($con, $value);
-            }, $_POST['iacuc']) : [];
-            $users = isset($_POST['user']) ? array_map(function ($user_id) use ($con) {
-                return mysqli_real_escape_string($con, trim($user_id));
-            }, $_POST['user']) : [];
-            $dob = mysqli_real_escape_string($con, $_POST['dob']);
-            $sex = mysqli_real_escape_string($con, $_POST['sex']);
-            $parent_cg = mysqli_real_escape_string($con, $_POST['parent_cg']);
-            $remarks = mysqli_real_escape_string($con, $_POST['remarks']);
+            $cage_id = trim($_POST['cage_id']);
+            $new_cage_id = trim($_POST['new_cage_id']);
+            $pi_name = trim($_POST['pi_name']);
+            $room = !empty($_POST['room']) ? trim($_POST['room']) : null;
+            $rack = !empty($_POST['rack']) ? trim($_POST['rack']) : null;
+            $strain = trim($_POST['strain']);
+            if ($strain === 'custom') {
+                $strain = !empty($_POST['custom_strain']) ? trim($_POST['custom_strain']) : null;
+            }
+            $cage_genotype = !empty($_POST['cage_genotype']) ? trim($_POST['cage_genotype']) : null;
+            $iacuc = isset($_POST['iacuc']) ? array_map('trim', $_POST['iacuc']) : [];
+            $users = isset($_POST['user']) ? array_map('trim', $_POST['user']) : [];
+            $dob = trim($_POST['dob']);
+            $sex = trim($_POST['sex']);
+            $parent_cg = trim($_POST['parent_cg']);
+            $remarks = trim($_POST['remarks']);
+
+            // Handle cage ID change if new_cage_id differs from current cage_id
+            $cageIdChanged = false;
+            $oldCageId = $cage_id;
+            if ($new_cage_id !== $cage_id) {
+                // Check if the new cage_id already exists
+                $checkDup = $con->prepare("SELECT cage_id FROM cages WHERE cage_id = ?");
+                $checkDup->bind_param("s", $new_cage_id);
+                $checkDup->execute();
+                $dupResult = $checkDup->get_result();
+                if ($dupResult->num_rows > 0) {
+                    $checkDup->close();
+                    $_SESSION['message'] = "Cage ID '" . htmlspecialchars($new_cage_id) . "' already exists. Please choose a different ID.";
+                    header("Location: hc_edit.php?id=" . urlencode($cage_id) . "&" . getCurrentUrlParams());
+                    exit();
+                }
+                $checkDup->close();
+
+                // Update cage_id in cages table (ON UPDATE CASCADE propagates to all related tables)
+                $updateCageIdQuery = $con->prepare("UPDATE cages SET cage_id = ? WHERE cage_id = ?");
+                $updateCageIdQuery->bind_param("ss", $new_cage_id, $cage_id);
+                $updateCageIdQuery->execute();
+                $updateCageIdQuery->close();
+
+                $cageIdChanged = true;
+                $cage_id = $new_cage_id;
+            }
+
+            $_SESSION['message'] = ($cageIdChanged ? "Cage ID changed from '$oldCageId' to '$cage_id'. " : '') . 'Entry updated successfully.';
 
             // Update query for holding table
             $updateQueryHolding = "UPDATE holding SET
                                     `strain` = ?,
                                     `dob` = ?,
                                     `sex` = ?,
-                                    `parent_cg` = ?
+                                    `parent_cg` = ?,
+                                    `genotype` = ?
                                     WHERE `cage_id` = ?";
 
             $stmtHolding = $con->prepare($updateQueryHolding);
-            $stmtHolding->bind_param("sssss", $strain, $dob, $sex, $parent_cg, $cage_id);
+            $stmtHolding->bind_param("ssssss", $strain, $dob, $sex, $parent_cg, $cage_genotype, $cage_id);
             $resultHolding = $stmtHolding->execute();
             $stmtHolding->close();
 
             // Update query for cages table
             $updateQueryCages = "UPDATE cages SET
                                  `pi_name` = ?,
-                                 `remarks` = ?
+                                 `remarks` = ?,
+                                 `room` = ?,
+                                 `rack` = ?
                                  WHERE `cage_id` = ?";
 
             $stmtCages = $con->prepare($updateQueryCages);
-            $stmtCages->bind_param("iss", $pi_name, $remarks, $cage_id);
+            $stmtCages->bind_param("issss", $pi_name, $remarks, $room, $rack, $cage_id);
             $resultCages = $stmtCages->execute();
             $stmtCages->close();
 
@@ -231,10 +269,10 @@ if (isset($_GET['id'])) {
 
             // Handle existing and new mouse records
             for ($i = 0; $i < count($mouse_ids); $i++) {
-                $mouse_id = mysqli_real_escape_string($con, $mouse_ids[$i]);
-                $genotype = mysqli_real_escape_string($con, $genotypes[$i]);
-                $note = mysqli_real_escape_string($con, $notes[$i]);
-                $existing_mouse_id = isset($existing_mouse_ids[$i]) ? mysqli_real_escape_string($con, $existing_mouse_ids[$i]) : null;
+                $mouse_id = trim($mouse_ids[$i]);
+                $genotype = trim($genotypes[$i]);
+                $note = trim($notes[$i]);
+                $existing_mouse_id = isset($existing_mouse_ids[$i]) ? trim($existing_mouse_ids[$i]) : null;
 
                 if (!empty($mouse_id)) {
                     if ($existing_mouse_id) {
@@ -289,7 +327,7 @@ if (isset($_GET['id'])) {
 
                 for ($i = 0; $i < count($logIds); $i++) {
                     $edit_log_id = intval($logIds[$i]);
-                    $edit_comment = trim(mysqli_real_escape_string($con, $logComments[$i]));
+                    $edit_comment = trim($logComments[$i]);
 
                     $updateLogQuery = "UPDATE maintenance SET comments = ? WHERE id = ?";
                     $stmtUpdateLog = $con->prepare($updateLogQuery);
@@ -298,7 +336,7 @@ if (isset($_GET['id'])) {
                     $stmtUpdateLog->close();
                 }
 
-                $_SESSION['message'] = 'Maintenance logs updated successfully.';
+                $_SESSION['message'] .= ' Maintenance logs updated successfully.';
             }
 
             // Process maintenance logs deletion
@@ -367,6 +405,12 @@ if (isset($_GET['id'])) {
                 }
             }
 
+            // Log activity
+            log_activity($con, 'edit', 'cage', $cage_id, 'Cage details updated');
+            if ($cageIdChanged) {
+                log_activity($con, 'rename', 'cage', $cage_id, 'Cage renamed from ' . $oldCageId);
+            }
+
             // Redirect to the same page to prevent resubmission on refresh
             header("Location: hc_dash.php?" . getCurrentUrlParams());
             exit();
@@ -416,7 +460,7 @@ require 'header.php';
     <title>Edit Holding Cage | <?php echo htmlspecialchars($labName); ?></title>
 
     <!-- Include Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous">
+    <!-- Bootstrap 5.3 loaded via header.php -->
 
     <!-- Include Select2 CSS -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-beta.1/css/select2.min.css" rel="stylesheet">
@@ -426,8 +470,8 @@ require 'header.php';
 
     <style>
         .container {
-            max-width: 800px;
-            background-color: #f8f9fa;
+            max-width: 900px;
+            background-color: var(--bs-tertiary-bg);
             padding: 20px;
             border-radius: 8px;
             margin-top: 20px;
@@ -445,11 +489,6 @@ require 'header.php';
         .table-wrapper {
             margin-bottom: 50px;
             overflow-x: auto;
-        }
-
-        .table-wrapper table {
-            width: 100%;
-            border-collapse: collapse;
         }
 
         .card-header {
@@ -498,7 +537,7 @@ require 'header.php';
         }
 
         .warning-text {
-            color: #dc3545;
+            color: var(--bs-danger);
             font-size: 14px;
         }
 
@@ -628,6 +667,9 @@ require 'header.php';
 
             // Function to validate date
             function validateDate(dateString) {
+                // Allow empty dates since DOB is now optional
+                if (!dateString || dateString.trim() === '') return true;
+
                 const regex = /^\d{4}-\d{2}-\d{2}$/;
                 if (!dateString.match(regex)) return false;
 
@@ -675,6 +717,16 @@ require 'header.php';
             $('#strain').select2({
                 placeholder: "Select Strain",
                 allowClear: true
+            });
+
+            // Show/hide custom strain input based on strain selection
+            $('#strain').on('change', function() {
+                if ($(this).val() === 'custom') {
+                    $('#custom_strain_div').show();
+                } else {
+                    $('#custom_strain_div').hide();
+                    $('#custom_strain').val('');
+                }
             });
 
             $('#iacuc').select2({
@@ -735,6 +787,110 @@ require 'header.php';
             }
         }
 
+        // Information Completeness Tracking
+        $(document).ready(function() {
+            function calculateCompleteness() {
+                const fields = {
+                    critical: ['dob', 'sex'],
+                    important: ['pi_name', 'strain', 'iacuc', 'user'],
+                    useful: ['parent_cg']
+                };
+
+                let totalFields = 0;
+                let filledFields = 0;
+                let missingCritical = [];
+                let missingImportant = [];
+                let missingUseful = [];
+
+                // Count critical fields
+                fields.critical.forEach(fieldId => {
+                    totalFields++;
+                    const field = document.getElementById(fieldId);
+                    if (field && field.value && field.value.trim() !== '') {
+                        filledFields++;
+                    } else {
+                        missingCritical.push(field ? field.previousElementSibling.textContent.split(' ')[0] : fieldId);
+                    }
+                });
+
+                // Count important fields
+                fields.important.forEach(fieldId => {
+                    totalFields++;
+                    const field = document.getElementById(fieldId);
+                    if (field) {
+                        if (field.multiple) {
+                            // For Select2 multiselect
+                            const selectedValues = $(field).val();
+                            if (selectedValues && selectedValues.length > 0 && selectedValues[0] !== '') {
+                                filledFields++;
+                            } else {
+                                missingImportant.push(field.previousElementSibling.textContent.split(' ')[0]);
+                            }
+                        } else if (field.value && field.value.trim() !== '') {
+                            filledFields++;
+                        } else {
+                            missingImportant.push(field.previousElementSibling.textContent.split(' ')[0]);
+                        }
+                    }
+                });
+
+                // Count useful fields
+                fields.useful.forEach(fieldId => {
+                    totalFields++;
+                    const field = document.getElementById(fieldId);
+                    if (field && field.value && field.value.trim() !== '') {
+                        filledFields++;
+                    } else {
+                        missingUseful.push(field ? field.previousElementSibling.textContent.split(' ')[0] + ' ' + (field.previousElementSibling.textContent.split(' ')[1] || '') : fieldId);
+                    }
+                });
+
+                const percentage = Math.round((filledFields / totalFields) * 100);
+
+                // Update completeness bar
+                $('#completeness-bar').css('width', percentage + '%');
+                $('#completeness-bar').attr('aria-valuenow', percentage);
+                $('#completeness-bar').text(percentage + '%');
+                $('#completeness-percentage').text(percentage + '%');
+
+                // Change bar color based on completion
+                $('#completeness-bar').removeClass('bg-danger bg-warning bg-success');
+                if (percentage < 50) {
+                    $('#completeness-bar').addClass('bg-danger');
+                } else if (percentage < 80) {
+                    $('#completeness-bar').addClass('bg-warning');
+                } else {
+                    $('#completeness-bar').addClass('bg-success');
+                }
+
+                // Show missing fields
+                let missingText = '';
+                if (missingCritical.length > 0) {
+                    missingText += '<strong class="text-danger">Critical fields missing:</strong> ' + missingCritical.join(', ') + '<br>';
+                }
+                if (missingImportant.length > 0) {
+                    missingText += '<strong class="text-warning">Important fields missing:</strong> ' + missingImportant.join(', ') + '<br>';
+                }
+                if (missingUseful.length > 0) {
+                    missingText += '<strong class="text-muted">Useful fields missing:</strong> ' + missingUseful.join(', ');
+                }
+
+                if (percentage === 100) {
+                    missingText = '<strong class="text-success">✓ All information complete!</strong>';
+                }
+
+                $('#missing-fields').html(missingText);
+                $('#completeness-alert').show();
+            }
+
+            // Calculate on page load
+            calculateCompleteness();
+
+            // Recalculate when fields change
+            $('form input, form select, form textarea').on('change keyup', calculateCompleteness);
+            $('#user, #iacuc, #strain').on('select2:select select2:unselect', calculateCompleteness);
+        });
+
     </script>
 
 </head>
@@ -749,11 +905,11 @@ require 'header.php';
                         <h4>Edit Holding Cage</h4>
                         <div class="action-buttons">
                             <!-- Button to go back to the previous page -->
-                            <a href="javascript:void(0);" onclick="goBack()" class="btn btn-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Go Back">
+                            <a href="javascript:void(0);" onclick="goBack()" class="btn btn-primary btn-sm btn-icon" data-bs-toggle="tooltip" data-bs-placement="top" title="Go Back">
                                 <i class="fas fa-arrow-circle-left"></i>
                             </a>
                             <!-- Button to save the form -->
-                            <a href="javascript:void(0);" onclick="document.getElementById('editForm').submit();" class="btn btn-success btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Save">
+                            <a href="javascript:void(0);" onclick="document.getElementById('editForm').submit();" class="btn btn-success btn-sm btn-icon" data-bs-toggle="tooltip" data-bs-placement="top" title="Save">
                                 <i class="fas fa-save"></i>
                             </a>
                         </div>
@@ -761,20 +917,35 @@ require 'header.php';
 
                     <div class="card-body">
                     <form id="editForm" method="POST" action="hc_edit.php?id=<?= $id; ?>&<?= getCurrentUrlParams(); ?>" enctype="multipart/form-data">
-                            <p class="warning-text">Fields marked with <span class="required-asterisk">*</span> are required.</p>
+                            <p class="warning-text">Only <span class="required-asterisk">Cage ID</span> is required. Other fields can be completed here.</p>
+
+                            <!-- Information Completeness Indicator -->
+                            <div id="completeness-alert" class="alert alert-warning" style="display: none; margin-bottom: 20px;">
+                                <strong>Information Completeness:</strong> <span id="completeness-percentage">0%</span>
+                                <div class="progress mt-2" style="height: 20px;">
+                                    <div id="completeness-bar" class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                                </div>
+                                <div id="missing-fields" class="mt-2"></div>
+                            </div>
+
                             <input type="hidden" id="mice_to_delete" name="mice_to_delete" value="">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
 
                             <div class="mb-3">
-                                <label for="cage_id" class="form-label">Cage ID <span class="required-asterisk">*</span></label>
-                                <input type="text" class="form-control" id="cage_id" name="cage_id" value="<?= htmlspecialchars($holdingcage['cage_id']); ?>" readonly required>
+                                <label for="cage_id" class="form-label">Current Cage ID</label>
+                                <input type="text" class="form-control" id="cage_id" name="cage_id" value="<?= htmlspecialchars($holdingcage['cage_id']); ?>" readonly>
+                            </div>
+                            <div class="mb-3">
+                                <label for="new_cage_id" class="form-label">New Cage ID <span class="required-asterisk">*</span></label>
+                                <input type="text" class="form-control" id="new_cage_id" name="new_cage_id" value="<?= htmlspecialchars($holdingcage['cage_id']); ?>" required style="border: 2px solid #0d6efd;">
+                                <small class="form-text text-muted">Change the cage ID if needed.</small>
                             </div>
 
                             <div class="mb-3">
-                                <label for="pi_name" class="form-label">PI Name <span class="required-asterisk">*</span></label>
-                                <select class="form-control" id="pi_name" name="pi_name" required>
+                                <label for="pi_name" class="form-label">PI Name</label>
+                                <select class="form-control" id="pi_name" name="pi_name" data-field-type="important">
                                     <!-- Display a placeholder option for selection -->
-                                    <option value="" disabled>Select PI</option>
+                                    <option value="">Select PI</option>
                                     <?php while ($row = $piResult->fetch_assoc()) : ?>
                                         <option value="<?= htmlspecialchars($row['id']); ?>" <?= ($row['id'] == $selectedPiId) ? 'selected' : ''; ?>>
                                             <?= htmlspecialchars($row['initials']) . ' [' . htmlspecialchars($row['name']) . ']'; ?>
@@ -784,12 +955,23 @@ require 'header.php';
                             </div>
 
                             <div class="mb-3">
-                                <label for="strain" class="form-label">Strain <span class="required-asterisk">*</span></label>
-                                <select class="form-control" id="strain" name="strain" required>
-                                    <option value="" disabled <?= empty($holdingcage['strain']) ? 'selected' : ''; ?>>Select Strain</option>
+                                <label for="room" class="form-label">Room</label>
+                                <input type="text" class="form-control" id="room" name="room" value="<?= htmlspecialchars($holdingcage['room'] ?? ''); ?>">
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="rack" class="form-label">Rack</label>
+                                <input type="text" class="form-control" id="rack" name="rack" value="<?= htmlspecialchars($holdingcage['rack'] ?? ''); ?>">
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="strain" class="form-label">Strain <span class="badge bg-info">Important</span></label>
+                                <select class="form-control" id="strain" name="strain" data-field-type="important">
+                                    <option value="" <?= empty($holdingcage['strain']) ? 'selected' : ''; ?>>None / Not Applicable</option>
                                     <?php
                                     // Initialize a flag to check if the current strain exists in the options
                                     $strainExists = false;
+                                    $isCustomStrain = false;
 
                                     // Populate the dropdown with options
                                     foreach ($strainOptions as $option) {
@@ -803,18 +985,25 @@ require 'header.php';
                                         echo "<option value='$value' $selected>$option</option>";
                                     }
 
-                                    // If the current strain is not in the list, add it as a separate option
+                                    // If the current strain is not in the list and not empty, it's a custom strain
                                     if (!$strainExists && !empty($holdingcage['strain'])) {
+                                        $isCustomStrain = true;
                                         $currentStrainId = htmlspecialchars($holdingcage['strain']);
-                                        echo "<option value='$currentStrainId' disabled selected>$currentStrainId | Unknown Strain</option>";
+                                        echo "<option value='$currentStrainId' selected>$currentStrainId (Custom)</option>";
                                     }
                                     ?>
+                                    <option value="custom" <?= $isCustomStrain ? '' : ''; ?>>Custom</option>
                                 </select>
                             </div>
 
+                            <div class="mb-3" id="custom_strain_div" style="display: <?= $isCustomStrain ? 'block' : 'none'; ?>;">
+                                <label for="custom_strain" class="form-label">Custom Strain Name</label>
+                                <input type="text" class="form-control" id="custom_strain" name="custom_strain" value="<?= $isCustomStrain ? htmlspecialchars($holdingcage['strain']) : ''; ?>">
+                            </div>
+
                             <div class="mb-3">
-                                <label for="iacuc" class="form-label">IACUC</label>
-                                <select class="form-control" id="iacuc" name="iacuc[]" multiple>
+                                <label for="iacuc" class="form-label">IACUC <span class="badge bg-info">Important</span></label>
+                                <select class="form-control" id="iacuc" name="iacuc[]" multiple data-field-type="important">
                                     <option value="" disabled>Select IACUC</option>
                                     <?php
                                     if ($iacucResult->num_rows > 0) {
@@ -834,8 +1023,8 @@ require 'header.php';
                             </div>
 
                             <div class="mb-3">
-                                <label for="user" class="form-label">User <span class="required-asterisk">*</span></label>
-                                <select class="form-control" id="user" name="user[]" multiple required>
+                                <label for="user" class="form-label">User <span class="badge bg-info">Important</span></label>
+                                <select class="form-control" id="user" name="user[]" multiple data-field-type="important">
                                     <?php
                                     // Populate the dropdown with options from the database
                                     while ($userRow = $userResult->fetch_assoc()) {
@@ -850,22 +1039,27 @@ require 'header.php';
                             </div>
 
                             <div class="mb-3">
-                                <label for="dob" class="form-label">DOB <span class="required-asterisk">*</span></label>
-                                <input type="date" class="form-control" id="dob" name="dob" value="<?= htmlspecialchars($holdingcage['dob']); ?>" required min="1900-01-01">
+                                <label for="dob" class="form-label">DOB <span class="badge bg-warning">Critical</span></label>
+                                <input type="date" class="form-control" id="dob" name="dob" value="<?= htmlspecialchars($holdingcage['dob']); ?>" min="1900-01-01" data-field-type="critical">
                             </div>
 
                             <div class="mb-3">
-                                <label for="sex" class="form-label">Sex <span class="required-asterisk">*</span></label>
-                                <select class="form-control" id="sex" name="sex" required>
-                                    <option value="" disabled <?= empty($holdingcage['sex']) ? 'selected' : ''; ?>>Select Sex</option>
+                                <label for="sex" class="form-label">Sex <span class="badge bg-warning">Critical</span></label>
+                                <select class="form-control" id="sex" name="sex" data-field-type="critical">
+                                    <option value="">Select Sex</option>
                                     <option value="Male" <?= $holdingcage['sex'] === 'male' ? 'selected' : ''; ?>>Male</option>
                                     <option value="Female" <?= $holdingcage['sex'] === 'female' ? 'selected' : ''; ?>>Female</option>
                                 </select>
                             </div>
 
                             <div class="mb-3">
-                                <label for="parent_cg" class="form-label">Parent Cage <span class="required-asterisk">*</span></label>
-                                <input type="text" class="form-control" id="parent_cg" name="parent_cg" value="<?= htmlspecialchars($holdingcage['parent_cg']); ?>" required>
+                                <label for="parent_cg" class="form-label">Parent Cage <span class="badge bg-secondary">Useful</span></label>
+                                <input type="text" class="form-control" id="parent_cg" name="parent_cg" value="<?= htmlspecialchars($holdingcage['parent_cg']); ?>" data-field-type="useful">
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="cage_genotype" class="form-label">Genotype</label>
+                                <input type="text" class="form-control" id="cage_genotype" name="cage_genotype" value="<?= htmlspecialchars($holdingcage['genotype'] ?? ''); ?>">
                             </div>
 
                             <div class="mb-3">
@@ -874,7 +1068,7 @@ require 'header.php';
                             </div>
 
                             <!-- Separator -->
-                            <hr class="mt-4 mb-4" style="border-top: 3px solid #000;">
+                            <hr class="mt-4 mb-4" style="border-top: 3px solid var(--bs-border-color);">
 
                             <!-- HTML Form Section for Mouse Fields -->
                             <div id="mouse_fields_container">
@@ -914,7 +1108,7 @@ require 'header.php';
                             </div>
 
                             <!-- Separator -->
-                            <hr class="mt-4 mb-4" style="border-top: 3px solid #000;">
+                            <hr class="mt-4 mb-4" style="border-top: 3px solid var(--bs-border-color);">
 
                             <!-- Display Files Section -->
                             <div class="card mt-4">
@@ -966,7 +1160,7 @@ require 'header.php';
 
                             <br>
                             <!-- Separator -->
-                            <hr class="mt-4 mb-4" style="border-top: 3px solid #000;">
+                            <hr class="mt-4 mb-4" style="border-top: 3px solid var(--bs-border-color);">
 
 
                             <div class="card-body">
@@ -974,7 +1168,7 @@ require 'header.php';
                                     <h4>Maintenance Log for Cage ID: <?= htmlspecialchars($id ?? 'Unknown'); ?></h4>
                                     <div class="action-icons mt-3 mt-md-0">
                                         <!-- Maintenance button with tooltip -->
-                                        <a href="maintenance.php?from=hc_dash" class="btn btn-warning btn-icon" data-toggle="tooltip" data-placement="top" title="Add Maintenance Record">
+                                        <a href="maintenance.php?from=hc_dash" class="btn btn-warning btn-icon" data-bs-toggle="tooltip" data-bs-placement="top" title="Add Maintenance Record">
                                             <i class="fas fa-wrench"></i>
                                         </a>
                                     </div>
