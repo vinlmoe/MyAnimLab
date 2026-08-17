@@ -15,6 +15,7 @@ session_start();
 
 // Include the database connection file
 require 'dbcon.php';
+require 'animal_lib.php';
 
 // Check if the user is not logged in, redirect them to index.php with the current URL for redirection after login
 if (!isset($_SESSION['username'])) {
@@ -40,6 +41,10 @@ $piResult = $con->query($piQuery);
 $iacucQuery = "SELECT iacuc_id, iacuc_title FROM iacuc";
 $iacucResult = $con->query($iacucQuery);
 
+// Query to retrieve animal lines (used to assign the breeders' unique animal_uid)
+$lineQuery = "SELECT id, code, species, name FROM animal_lines ORDER BY code";
+$lineResult = $con->query($lineQuery);
+
 // Check if the form is submitted
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -48,40 +53,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         die('CSRF token validation failed');
     }
 
-    // Retrieve and sanitize form data
-    $cage_id = trim($_POST['cage_id']);
+    // Retrieve and sanitize form data (cage_id is never submitted: it's auto-generated below)
     $pi_id = $_POST['pi_name'];
     $cross = $_POST['cross'];
     $iacuc_ids = $_POST['iacuc'] ?? [];
     $user_ids = $_POST['user'] ?? [];
-    $male_id = $_POST['male_id'];
-    $female_id = $_POST['female_id'];
-    $male_dob = $_POST['male_dob'];
-    $female_dob = $_POST['female_dob'];
+    $line_id = !empty($_POST['line_id']) ? (int) $_POST['line_id'] : null;
+    $male_count = max(0, (int) ($_POST['male_count'] ?? 0));
+    $female_count = max(0, (int) ($_POST['female_count'] ?? 0));
     $remarks = $_POST['remarks'];
 
-    // Check if the cage_id already exists in the cages table
-    $check_query = $con->prepare("SELECT * FROM cages WHERE cage_id = ?");
-    $check_query->bind_param("s", $cage_id);
-    $check_query->execute();
-    $check_result = $check_query->get_result();
-
-    if ($check_result->num_rows > 0) {
-        // Set an error message if cage_id already exists
-        $_SESSION['message'] = "Cage ID '$cage_id' already exists. Please use a different Cage ID.";
+    if (!$line_id) {
+        $_SESSION['message'] = "Please select an animal line.";
+    } elseif ($male_count + $female_count === 0) {
+        $_SESSION['message'] = "Enter at least one male or female breeder to create.";
     } else {
-        // Insert into the cages table
-        $insert_cage_query = $con->prepare("INSERT INTO cages (`cage_id`, `pi_name`, `remarks`) VALUES (?, ?, ?)");
-        $insert_cage_query->bind_param("sss", $cage_id, $pi_id, $remarks);
+        mysqli_begin_transaction($con);
 
-        // Insert into the breeding table
-        $insert_breeding_query = $con->prepare("INSERT INTO breeding (`cage_id`, `cross`, `male_id`, `female_id`, `male_dob`, `female_dob`) VALUES (?, ?, ?, ?, ?, ?)");
-        $insert_breeding_query->bind_param("ssssss", $cage_id, $cross, $male_id, $female_id, $male_dob, $female_dob);
+        try {
+            // cage_id is fully automatic — never entered manually.
+            $cage_id = allocate_cage_id($con);
 
-        // Execute the statements and check if they were successful
-        if ($insert_cage_query->execute() && $insert_breeding_query->execute()) {
+            // Insert into the cages table
+            $insert_cage_query = $con->prepare("INSERT INTO cages (`cage_id`, `pi_name`, `remarks`) VALUES (?, ?, ?)");
+            $insert_cage_query->bind_param("sss", $cage_id, $pi_id, $remarks);
+            $insert_cage_query->execute();
+
+            // Insert into the breeding table
+            $insert_breeding_query = $con->prepare("INSERT INTO breeding (`cage_id`, `cross`) VALUES (?, ?)");
+            $insert_breeding_query->bind_param("ss", $cage_id, $cross);
+            $insert_breeding_query->execute();
+            $breeding_id = $con->insert_id;
+
+            // Generate the breeders as real animal records and link them to
+            // this breeding cage via breeding_animals (a cage can hold
+            // several males and females at once).
+            $counts = ['male' => $male_count, 'female' => $female_count];
+            foreach ($counts as $sex => $count) {
+                for ($i = 0; $i < $count; $i++) {
+                    $animal_uid = allocate_animal_uid($con, $line_id);
+
+                    $insert_mouse_query = $con->prepare("INSERT INTO mice (cage_id, line_id, animal_uid, sex) VALUES (?, ?, ?, ?)");
+                    $insert_mouse_query->bind_param("siss", $cage_id, $line_id, $animal_uid, $sex);
+                    $insert_mouse_query->execute();
+                    $new_animal_id = $con->insert_id;
+                    $insert_mouse_query->close();
+
+                    $insert_breeding_animal_query = $con->prepare("INSERT INTO breeding_animals (breeding_id, animal_id, sex) VALUES (?, ?, ?)");
+                    $insert_breeding_animal_query->bind_param("iis", $breeding_id, $new_animal_id, $sex);
+                    $insert_breeding_animal_query->execute();
+                    $insert_breeding_animal_query->close();
+
+                    log_animal_movement($con, $new_animal_id, null, $cage_id, $_SESSION['user_id'] ?? null);
+                    log_animal_event($con, $new_animal_id, 'created', ['cage_id' => $cage_id, 'animal_uid' => $animal_uid, 'sex' => $sex], $_SESSION['user_id'] ?? null);
+                }
+            }
+
+            $cage_quantity = $male_count + $female_count;
+            $update_qty_query = $con->prepare("UPDATE cages SET quantity = ? WHERE cage_id = ?");
+            $update_qty_query->bind_param("is", $cage_quantity, $cage_id);
+            $update_qty_query->execute();
+            $update_qty_query->close();
+
             // Set a success message
-            $_SESSION['message'] = "New breeding cage added successfully.";
+            $_SESSION['message'] = "New breeding cage $cage_id added successfully.";
 
             // Insert IACUC associations
             foreach ($iacuc_ids as $iacuc_id) {
@@ -98,6 +133,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $insert_cage_user_query->execute();
                 $insert_cage_user_query->close();
             }
+
+            log_activity($con, 'create', 'cage', $cage_id, "Breeding cage created with $male_count male(s) and $female_count female(s).", $_SESSION['user_id'] ?? null);
 
             // Process litter data insertion if provided
             if (isset($_POST['dom'])) {
@@ -135,18 +172,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $insert_litter_query->close();
                 }
             }
-        } else {
-            // Set an error message if the cage insertion failed
+
+            mysqli_commit($con);
+
+            $insert_cage_query->close();
+            $insert_breeding_query->close();
+        } catch (Exception $e) {
+            mysqli_rollback($con);
             $_SESSION['message'] = "Failed to add new breeding cage.";
         }
-
-        // Close the prepared statements for cage and breeding data
-        $insert_cage_query->close();
-        $insert_breeding_query->close();
     }
-
-    // Close the check query prepared statement
-    $check_query->close();
 
     // Redirect back to the main page
     header("Location: bc_dash.php");
@@ -369,6 +404,14 @@ require 'header.php';
                 });
                 if (!isValid) {
                     event.preventDefault(); // Prevent form submission if any date is invalid
+                    return;
+                }
+
+                const maleCount = parseInt(document.getElementById('male_count').value || '0', 10);
+                const femaleCount = parseInt(document.getElementById('female_count').value || '0', 10);
+                if (maleCount + femaleCount <= 0) {
+                    event.preventDefault();
+                    alert('Enter at least one male or female breeder to create.');
                 }
             });
         });
@@ -377,6 +420,11 @@ require 'header.php';
         $(document).ready(function() {
             $('#user').select2({
                 placeholder: "Select User(s)",
+                allowClear: true
+            });
+
+            $('#line_id').select2({
+                placeholder: "Select Line",
                 allowClear: true
             });
 
@@ -405,16 +453,12 @@ require 'header.php';
         <?php include('message.php'); ?>
 
         <p class="warning-text">Fields marked with <span class="required-asterisk">*</span> are required.</p>
+        <p class="text-muted">The Cage ID and each breeder's ID are generated automatically — nothing to type.</p>
 
         <form method="POST">
 
             <!-- CSRF token field -->
             <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
-
-            <div class="mb-3">
-                <label for="cage_id" class="form-label">Cage ID <span class="required-asterisk">*</span></label>
-                <input type="text" class="form-control" id="cage_id" name="cage_id" required>
-            </div>
 
             <div class="mb-3">
                 <label for="pi_name" class="form-label">PI Name <span class="required-asterisk">*</span></label>
@@ -469,23 +513,29 @@ require 'header.php';
             </div>
 
             <div class="mb-3">
-                <label for="male_id" class="form-label">Male ID <span class="required-asterisk">*</span></label>
-                <input type="text" class="form-control" id="male_id" name="male_id" required>
+                <label for="line_id" class="form-label">Line <span class="required-asterisk">*</span></label>
+                <select class="form-control" id="line_id" name="line_id" required>
+                    <option value="" disabled selected>Select Line</option>
+                    <?php
+                    while ($lineRow = $lineResult->fetch_assoc()) {
+                        $lid = htmlspecialchars($lineRow['id']);
+                        $lcode = htmlspecialchars($lineRow['code']);
+                        $lname = htmlspecialchars($lineRow['name']);
+                        echo "<option value='$lid'>$lcode - $lname</option>";
+                    }
+                    ?>
+                </select>
             </div>
 
-            <div class="mb-3">
-                <label for="female_id" class="form-label">Female ID <span class="required-asterisk">*</span></label>
-                <input type="text" class="form-control" id="female_id" name="female_id" required>
-            </div>
-
-            <div class="mb-3">
-                <label for="male_dob" class="form-label">Male DOB <span class="required-asterisk">*</span></label>
-                <input type="date" class="form-control" id="male_dob" name="male_dob" required min="1900-01-01">
-            </div>
-
-            <div class="mb-3">
-                <label for="female_dob" class="form-label">Female DOB <span class="required-asterisk">*</span></label>
-                <input type="date" class="form-control" id="female_dob" name="female_dob" required min="1900-01-01">
+            <div class="row">
+                <div class="col mb-3">
+                    <label for="male_count" class="form-label">Number of Male Breeders <span class="required-asterisk">*</span></label>
+                    <input type="number" class="form-control" id="male_count" name="male_count" min="0" value="0" required>
+                </div>
+                <div class="col mb-3">
+                    <label for="female_count" class="form-label">Number of Female Breeders <span class="required-asterisk">*</span></label>
+                    <input type="number" class="form-control" id="female_count" name="female_count" min="0" value="0" required>
+                </div>
             </div>
 
             <div class="mb-3">

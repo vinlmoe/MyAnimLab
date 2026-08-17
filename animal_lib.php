@@ -30,6 +30,30 @@ function allocate_animal_uid(mysqli $con, int $lineId): string
     return $uid;
 }
 
+// Allocate the next cage_id (e.g. P-00001) and bump the singleton counter.
+// Must be called inside a transaction already started by the caller. Cage
+// IDs are never entered manually.
+function allocate_cage_id(mysqli $con): string
+{
+    $stmt = $con->prepare("SELECT next_seq FROM cage_sequence WHERE id = 1 FOR UPDATE");
+    $stmt->execute();
+    $result = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$result) {
+        throw new Exception("Cage sequence not initialized.");
+    }
+
+    $seq = (int) $result['next_seq'];
+    $cageId = 'P-' . str_pad((string) $seq, 5, '0', STR_PAD_LEFT);
+
+    $update = $con->prepare("UPDATE cage_sequence SET next_seq = next_seq + 1 WHERE id = 1");
+    $update->execute();
+    $update->close();
+
+    return $cageId;
+}
+
 // Record an audit trail entry for an animal.
 function log_animal_event(mysqli $con, int $animalId, string $eventType, array $payload = [], ?int $userId = null): void
 {
