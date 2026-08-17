@@ -1,0 +1,13 @@
+FROM php:8.2-apache
+
+RUN docker-php-ext-install mysqli \
+    && a2enmod rewrite
+
+COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
+COPY docker/local-entrypoint.sh /usr/local/bin/myvivarium-entrypoint
+
+RUN chmod +x /usr/local/bin/myvivarium-entrypoint
+
+WORKDIR /var/www/html
+ENTRYPOINT ["myvivarium-entrypoint"]
+CMD ["apache2-foreground"]

@@ -31,6 +31,25 @@ MyVivarium is an online platform designed to manage your vivarium effectively. I
 
 ## Installation
 
+### Local test session (Docker)
+
+The local stack uses an isolated MySQL database and enables the demo banner. It does
+not connect to a production database or SMTP server.
+
+1. Install and start Docker Desktop.
+2. From the repository root, start the session:
+
+   ```bash
+   docker compose up --build
+   ```
+
+3. Open <http://localhost:8080> and sign in with:
+   - Email: `admin@myvivarium.online`
+   - Password: `P@ssw0rd`
+
+Stop the session with `docker compose down`. To reset all local test data and reload
+the schema, use `docker compose down -v`, then start it again.
+
 ### 1. DigitalOcean One-Click Install (Recommended for Ease of Use)
 
 [![DigitalOcean Referral Badge](https://web-platforms.sfo2.cdn.digitaloceanspaces.com/WWW/Badge%203.svg)](https://www.digitalocean.com/?refcode=fdb1aa3adb7d&utm_campaign=Referral_Invite&utm_medium=Referral_Program&utm_source=badge)
@@ -300,4 +319,3 @@ We welcome contributions to improve MyVivarium. Please follow these steps to con
 
 ## License
 This project is licensed under the LGPL License - see the [LICENSE](LICENSE) file for details.
-
