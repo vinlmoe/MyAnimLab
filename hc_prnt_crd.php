@@ -244,7 +244,7 @@ if (isset($_GET['id'])) {
                             </td>
                             <td style="width:40%;">
                                 <span style="font-weight: bold; padding:3px; text-transform: uppercase;">Parent Cage:</span>
-                                <span><?= htmlspecialchars($holdingcage["parent_cg"]); ?></span>
+                                <span><?= htmlspecialchars($holdingcage["parent_cg"] ?? ''); ?></span>
                             </td>
                         </tr>
                     </table>
