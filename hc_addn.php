@@ -178,6 +178,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
+            log_activity($con, 'create', 'cage', $cage_id, 'Holding cage created with ' . $qty . ' animal(s).', $_SESSION['user_id'] ?? null);
+
             // Commit the transaction
             mysqli_commit($con);
 
