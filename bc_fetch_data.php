@@ -48,7 +48,7 @@ if (isset($_GET['search'])) {
 if (!empty($searchQuery)) {
     $searchPattern = '%' . $searchQuery . '%';
     // Query with search filter
-    $totalQuery = "SELECT DISTINCT `cage_id` FROM breeding WHERE `cage_id` LIKE ?";
+    $totalQuery = "SELECT DISTINCT breeding.`cage_id` FROM breeding JOIN cages ON cages.cage_id = breeding.cage_id WHERE cages.status = 'active' AND breeding.`cage_id` LIKE ?";
     $stmtTotal = $con->prepare($totalQuery);
     $stmtTotal->bind_param("s", $searchPattern);
     $stmtTotal->execute();
@@ -58,19 +58,19 @@ if (!empty($searchQuery)) {
     $stmtTotal->close();
 
     // Query with pagination
-    $query = "SELECT DISTINCT `cage_id` FROM breeding WHERE `cage_id` LIKE ? LIMIT ? OFFSET ?";
+    $query = "SELECT DISTINCT breeding.`cage_id` FROM breeding JOIN cages ON cages.cage_id = breeding.cage_id WHERE cages.status = 'active' AND breeding.`cage_id` LIKE ? LIMIT ? OFFSET ?";
     $stmt = $con->prepare($query);
     $stmt->bind_param("sii", $searchPattern, $limit, $offset);
     $stmt->execute();
     $result = $stmt->get_result();
 } else {
     // Query without search filter
-    $totalQuery = "SELECT DISTINCT `cage_id` FROM breeding";
+    $totalQuery = "SELECT DISTINCT breeding.`cage_id` FROM breeding JOIN cages ON cages.cage_id = breeding.cage_id WHERE cages.status = 'active'";
     $totalResult = mysqli_query($con, $totalQuery);
     $totalRecords = mysqli_num_rows($totalResult);
     $totalPages = ceil($totalRecords / $limit);
 
-    $query = "SELECT DISTINCT `cage_id` FROM breeding LIMIT ? OFFSET ?";
+    $query = "SELECT DISTINCT breeding.`cage_id` FROM breeding JOIN cages ON cages.cage_id = breeding.cage_id WHERE cages.status = 'active' LIMIT ? OFFSET ?";
     $stmt = $con->prepare($query);
     $stmt->bind_param("ii", $limit, $offset);
     $stmt->execute();

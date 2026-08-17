@@ -48,3 +48,33 @@ function log_animal_movement(mysqli $con, int $animalId, ?string $fromCageId, st
     $stmt->execute();
     $stmt->close();
 }
+
+// Generic audit trail entry, covering any entity (animal, cage, trial,
+// protocol, experiment, user...), not just animals.
+function log_activity(mysqli $con, string $action, string $entityType, ?string $entityId, ?string $details = null, ?int $userId = null): void
+{
+    $ip = $_SERVER['REMOTE_ADDR'] ?? null;
+    $stmt = $con->prepare("INSERT INTO activity_log (user_id, action, entity_type, entity_id, details, ip_address) VALUES (?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param("isssss", $userId, $action, $entityType, $entityId, $details, $ip);
+    $stmt->execute();
+    $stmt->close();
+}
+
+// Create an in-app notification for a user (e.g. an endpoint/point-limite alert).
+function create_notification(mysqli $con, int $userId, string $title, ?string $message = null, ?string $link = null, string $type = 'system'): void
+{
+    $stmt = $con->prepare("INSERT INTO notifications (user_id, title, message, link, type) VALUES (?, ?, ?, ?, ?)");
+    $stmt->bind_param("issss", $userId, $title, $message, $link, $type);
+    $stmt->execute();
+    $stmt->close();
+}
+
+// Notify every admin user (used for endpoint alerts when there's no specific
+// experiment-assignee list to target).
+function notify_admins(mysqli $con, string $title, ?string $message = null, ?string $link = null, string $type = 'system'): void
+{
+    $result = $con->query("SELECT id FROM users WHERE role = 'admin' AND status = 'approved'");
+    while ($row = $result->fetch_assoc()) {
+        create_notification($con, (int) $row['id'], $title, $message, $link, $type);
+    }
+}
