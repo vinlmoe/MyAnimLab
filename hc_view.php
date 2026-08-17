@@ -427,10 +427,6 @@ require 'header.php';
                         <td><?= htmlspecialchars($ageString); ?></td>
                     </tr>
                     <tr>
-                        <th>Sex</th>
-                        <td><?= htmlspecialchars(ucfirst($holdingcage['sex'])); ?></td>
-                    </tr>
-                    <tr>
                         <th>Parent Cage</th>
                         <td><?= htmlspecialchars($holdingcage['parent_cg'] ?? ''); ?></td>
                     </tr>
@@ -442,22 +438,24 @@ require 'header.php';
 
                 <?php if (!empty($mice)) : ?>
                     <?php foreach ($mice as $index => $mouse) : ?>
-                        <h4>Mouse #<?= $index + 1; ?></h4>
+                        <h4>Animal #<?= $index + 1; ?></h4>
                         <table class="table table-bordered">
                             <tr>
-                                <th>Mouse ID</th>
+                                <th>Animal UID</th>
+                                <th>Sex</th>
                                 <th>Genotype</th>
                                 <th>Notes</th>
                             </tr>
                             <tr>
-                                <td><?= htmlspecialchars($mouse['mouse_id']); ?></td>
-                                <td><?= htmlspecialchars($mouse['genotype']); ?></td>
-                                <td><?= htmlspecialchars($mouse['notes']); ?></td>
+                                <td><?= htmlspecialchars($mouse['animal_uid'] ?? ''); ?></td>
+                                <td><?= htmlspecialchars(!empty($mouse['sex']) ? ucfirst($mouse['sex']) : 'Not specified'); ?></td>
+                                <td><?= htmlspecialchars($mouse['genotype'] ?? ''); ?></td>
+                                <td><?= htmlspecialchars($mouse['notes'] ?? ''); ?></td>
                             </tr>
                         </table>
                     <?php endforeach; ?>
                 <?php else : ?>
-                    <p>No mice data available for this cage.</p>
+                    <p>No animal data available for this cage.</p>
                 <?php endif; ?>
             </div>
 
