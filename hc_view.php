@@ -432,7 +432,7 @@ require 'header.php';
                     </tr>
                     <tr>
                         <th>Parent Cage</th>
-                        <td><?= htmlspecialchars($holdingcage['parent_cg']); ?></td>
+                        <td><?= htmlspecialchars($holdingcage['parent_cg'] ?? ''); ?></td>
                     </tr>
                     <tr>
                         <th>Remarks</th>

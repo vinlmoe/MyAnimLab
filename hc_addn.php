@@ -2,9 +2,10 @@
 
 /**
  * Add New Holding Cage Script
- * 
- * This script handles the creation of new holding cages and includes functionalities to dynamically add or remove mouse data.
- * 
+ *
+ * Creates a new holding cage and bulk-generates its animals from a male/female
+ * count on a single shared line. cage_id and each animal's animal_uid are
+ * both fully automatic (never entered manually).
  */
 
 // Start a new session or resume the existing session
@@ -42,7 +43,7 @@ $iacucResult = $con->query($iacucQuery);
 $strainQuery = "SELECT str_id, str_name, str_aka FROM strains";
 $strainResult = $con->query($strainQuery);
 
-// Query to retrieve animal lines (used to assign each new animal a unique animal_uid)
+// Query to retrieve animal lines (used to assign the whole cage's animals a unique animal_uid)
 $lineQuery = "SELECT id, code, species, name FROM animal_lines ORDER BY code";
 $lineResult = $con->query($lineQuery);
 
@@ -78,82 +79,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         die('CSRF token validation failed');
     }
 
-    // Retrieve form data
-    $cage_id = trim(mysqli_real_escape_string($con, $_POST['cage_id']));
+    // Retrieve form data (cage_id is never submitted: it's auto-generated below)
     $pi_name = mysqli_real_escape_string($con, $_POST['pi_name']);
     $strain = mysqli_real_escape_string($con, $_POST['strain']);
     $iacuc = isset($_POST['iacuc']) ? mysqli_real_escape_string($con, implode(',', $_POST['iacuc'])) : '';
     $user = isset($_POST['user']) ? implode(',', array_map('trim', $_POST['user'])) : '';
     $dob = mysqli_real_escape_string($con, $_POST['dob']);
-    $sex = mysqli_real_escape_string($con, $_POST['sex']);
-    $parent_cg = mysqli_real_escape_string($con, $_POST['parent_cg']);
+    $line_id = !empty($_POST['line_id']) ? (int) $_POST['line_id'] : null;
+    $genotype = mysqli_real_escape_string($con, $_POST['genotype'] ?? '');
     $remarks = mysqli_real_escape_string($con, $_POST['remarks']);
-    $mouse_data = [];
+    $male_count = max(0, (int) ($_POST['male_count'] ?? 0));
+    $female_count = max(0, (int) ($_POST['female_count'] ?? 0));
 
-    // Collect mouse data
-    $mouse_ids = $_POST['mouse_id'] ?? [];
-    $genotypes = $_POST['genotype'] ?? [];
-    $notes = $_POST['notes'] ?? [];
-    $line_ids = $_POST['line_id'] ?? [];
+    $qty = $male_count + $female_count;
 
-    for ($i = 0; $i < count($mouse_ids); $i++) {
-        $mouse_id = $mouse_ids[$i];
-        $genotype = $genotypes[$i];
-        $note = $notes[$i];
-        $line_id = isset($line_ids[$i]) && $line_ids[$i] !== '' ? (int) $line_ids[$i] : null;
-
-        if (!empty(trim($mouse_id))) {
-            $mouse_data[] = [
-                'mouse_id' => mysqli_real_escape_string($con, $mouse_id),
-                'genotype' => mysqli_real_escape_string($con, $genotype),
-                'notes' => mysqli_real_escape_string($con, $note),
-                'line_id' => $line_id,
-            ];
-        }
-    }
-
-    $qty = count($mouse_data); // Calculate the quantity based on the number of mouse records
-
-    // Check if the cage_id already exists in the cages table
-    $check_query = "SELECT * FROM cages WHERE cage_id = ?";
-    $check_stmt = $con->prepare($check_query);
-    $check_stmt->bind_param("s", $cage_id);
-    $check_stmt->execute();
-    $check_result = $check_stmt->get_result();
-
-    if (mysqli_num_rows($check_result) > 0) {
-        // Cage_id already exists, throw an error
-        $_SESSION['message'] = "Cage ID '$cage_id' already exists. Please use a different Cage ID.";
+    if (!$line_id) {
+        $_SESSION['message'] = "Please select an animal line.";
+    } elseif ($qty === 0) {
+        $_SESSION['message'] = "Enter at least one male or female to create.";
     } else {
         // Start a transaction
         mysqli_begin_transaction($con);
 
         try {
+            // cage_id is fully automatic — never entered manually.
+            $cage_id = allocate_cage_id($con);
+
             // Insert data into cages table
             $query1 = "INSERT INTO cages (cage_id, pi_name, quantity, remarks) VALUES (?, ?, ?, ?)";
             $stmt = $con->prepare($query1);
             $stmt->bind_param("siss", $cage_id, $pi_name, $qty, $remarks);
             $stmt->execute();
 
-            // Insert data into holding table
-            $query2 = "INSERT INTO holding (cage_id, strain, dob, sex, parent_cg) VALUES (?, ?, ?, ?, ?)";
+            // Insert data into holding table (parent_cg is no longer collected:
+            // real lineage, when it exists, is tracked via animal_parentage instead)
+            $query2 = "INSERT INTO holding (cage_id, strain, dob) VALUES (?, ?, ?)";
             $stmt2 = $con->prepare($query2);
-            $stmt2->bind_param("sssss", $cage_id, $strain, $dob, $sex, $parent_cg);
+            $stmt2->bind_param("sss", $cage_id, $strain, $dob);
             $stmt2->execute();
 
-            // Insert mouse/animal data into mice table, assigning each animal a
-            // unique animal_uid derived from its line (e.g. RSD-0002)
-            foreach ($mouse_data as $mouse) {
-                $animal_uid = $mouse['line_id'] ? allocate_animal_uid($con, $mouse['line_id']) : null;
+            // Bulk-generate the animals: each gets its own unique animal_uid
+            // from the chosen line, and the sex assigned by the requested counts.
+            $counts = ['male' => $male_count, 'female' => $female_count];
+            foreach ($counts as $sex => $count) {
+                for ($i = 0; $i < $count; $i++) {
+                    $animal_uid = allocate_animal_uid($con, $line_id);
 
-                $query3 = "INSERT INTO mice (cage_id, line_id, animal_uid, mouse_id, genotype, notes) VALUES (?, ?, ?, ?, ?, ?)";
-                $stmt3 = $con->prepare($query3);
-                $stmt3->bind_param("sissss", $cage_id, $mouse['line_id'], $animal_uid, $mouse['mouse_id'], $mouse['genotype'], $mouse['notes']);
-                $stmt3->execute();
-                $new_animal_id = $con->insert_id;
+                    $query3 = "INSERT INTO mice (cage_id, line_id, animal_uid, sex, genotype) VALUES (?, ?, ?, ?, ?)";
+                    $stmt3 = $con->prepare($query3);
+                    $stmt3->bind_param("sisss", $cage_id, $line_id, $animal_uid, $sex, $genotype);
+                    $stmt3->execute();
+                    $new_animal_id = $con->insert_id;
 
-                log_animal_movement($con, $new_animal_id, null, $cage_id, $_SESSION['user_id'] ?? null);
-                log_animal_event($con, $new_animal_id, 'created', ['cage_id' => $cage_id, 'animal_uid' => $animal_uid], $_SESSION['user_id'] ?? null);
+                    log_animal_movement($con, $new_animal_id, null, $cage_id, $_SESSION['user_id'] ?? null);
+                    log_animal_event($con, $new_animal_id, 'created', ['cage_id' => $cage_id, 'animal_uid' => $animal_uid, 'sex' => $sex], $_SESSION['user_id'] ?? null);
+                }
             }
 
             // Insert data into cage_iacuc table
@@ -178,12 +158,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            log_activity($con, 'create', 'cage', $cage_id, 'Holding cage created with ' . $qty . ' animal(s).', $_SESSION['user_id'] ?? null);
+            log_activity($con, 'create', 'cage', $cage_id, "Holding cage created with $male_count male(s) and $female_count female(s).", $_SESSION['user_id'] ?? null);
 
             // Commit the transaction
             mysqli_commit($con);
 
-            $_SESSION['message'] = "New holding cage added successfully.";
+            $_SESSION['message'] = "New holding cage $cage_id added successfully.";
         } catch (Exception $e) {
             // Rollback the transaction in case of an error
             mysqli_rollback($con);
@@ -191,7 +171,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // Close the prepared statement
-        $stmt->close();
+        if (isset($stmt)) $stmt->close();
         if (isset($stmt2)) $stmt2->close();
         if (isset($stmt3)) $stmt3->close();
         if (isset($stmt4)) $stmt4->close();
@@ -258,13 +238,6 @@ require 'header.php';
         .select2-container--default .select2-selection--single .select2-selection__arrow {
             height: 35px;
         }
-
-        .button-group {
-            display: flex;
-            gap: 10px;
-            /* Adjust the gap as needed */
-            margin-top: 10px;
-        }
     </style>
 
     <script>
@@ -294,75 +267,6 @@ require 'header.php';
         // Function to go back to the previous page
         function goBack() {
             window.history.back();
-        }
-
-        // Define a counter to keep track of the mouse fields
-        let mouseFieldCounter = 0;
-
-        // Animal line <option> markup, injected into each dynamically added mouse field
-        const lineOptionsHTML = <?php
-                                    $lineOptions = [];
-                                    $lineResult->data_seek(0);
-                                    while ($lineRow = $lineResult->fetch_assoc()) {
-                                        $lid = htmlspecialchars($lineRow['id']);
-                                        $lcode = htmlspecialchars($lineRow['code']);
-                                        $lname = htmlspecialchars($lineRow['name']);
-                                        $lineOptions[] = "<option value='$lid'>$lcode - $lname</option>";
-                                    }
-                                    echo json_encode(implode('', $lineOptions));
-                                    ?>;
-
-        // Function to dynamically add new mouse fields
-        function addMouseField() {
-            const mouseContainer = document.getElementById('mouse_fields_container');
-
-            // Increment the counter
-            mouseFieldCounter++;
-
-            // Create new mouse field HTML
-            const mouseFieldHTML = `
-    <div id="mouse_fields_${mouseFieldCounter}" class="mouse-field">
-        <br>
-        <h4>Mouse #${mouseFieldCounter}</h4>
-        <div class="mb-3">
-            <label for="line_id_${mouseFieldCounter}" class="form-label">Line <span class="required-asterisk">*</span></label>
-            <select class="form-control" id="line_id_${mouseFieldCounter}" name="line_id[]" required>
-                <option value="" disabled selected>Select Line</option>
-                ${lineOptionsHTML}
-            </select>
-        </div>
-        <div class="mb-3">
-            <label for="mouse_id_${mouseFieldCounter}" class="form-label">Mouse ID / Tag</label>
-            <input type="text" class="form-control" id="mouse_id_${mouseFieldCounter}" name="mouse_id[]">
-        </div>
-
-        <div class="mb-3">
-            <label for="genotype_${mouseFieldCounter}" class="form-label">Genotype</label>
-            <input type="text" class="form-control" id="genotype_${mouseFieldCounter}" name="genotype[]">
-        </div>
-
-        <div class="mb-3">
-            <label for="notes_${mouseFieldCounter}" class="form-label">Maintenance Notes</label>
-            <textarea class="form-control" id="notes_${mouseFieldCounter}" name="notes[]" oninput="adjustTextareaHeight(this)"></textarea>
-        </div>
-
-        <div class="button-group">
-            <button type="button" class="btn btn-danger btn-icon" onclick="removeMouseField(${mouseFieldCounter})">
-                <i class="fas fa-trash"></i>
-            </button>
-        </div>
-    </div>`;
-
-            // Add new mouse field to the container
-            mouseContainer.insertAdjacentHTML('beforeend', mouseFieldHTML);
-        }
-
-        // Function to remove mouse fields
-        function removeMouseField(mouseIndex) {
-            const mouseField = document.getElementById(`mouse_fields_${mouseIndex}`);
-            if (mouseField) {
-                mouseField.remove(); // Remove the field from the DOM
-            }
         }
 
         // Function to adjust the height of textareas dynamically
@@ -406,14 +310,22 @@ require 'header.php';
                 }
             });
 
-            // Prevent form submission if the date is invalid
+            // Prevent form submission if the date is invalid, or if both counts are zero
             form.addEventListener('submit', function(event) {
                 const dobValue = dobInput.value;
                 if (!validateDate(dobValue)) {
-                    event.preventDefault(); // Prevent form submission
+                    event.preventDefault();
                     warningText.textContent = 'Invalid Date. Please enter a valid date.';
                     warningText.style.display = 'block';
                     dobInput.focus();
+                    return;
+                }
+
+                const maleCount = parseInt(document.getElementById('male_count').value || '0', 10);
+                const femaleCount = parseInt(document.getElementById('female_count').value || '0', 10);
+                if (maleCount + femaleCount <= 0) {
+                    event.preventDefault();
+                    alert('Enter at least one male or female to create.');
                 }
             });
         });
@@ -426,6 +338,11 @@ require 'header.php';
 
             $('#strain').select2({
                 placeholder: "Select Strain",
+                allowClear: true
+            });
+
+            $('#line_id').select2({
+                placeholder: "Select Line",
                 allowClear: true
             });
 
@@ -454,16 +371,12 @@ require 'header.php';
         <?php include('message.php'); ?>
 
         <p class="warning-text">Fields marked with <span class="required-asterisk">*</span> are required.</p>
+        <p class="text-muted">The Cage ID and each animal's ID are generated automatically — nothing to type.</p>
 
         <form method="POST">
 
             <!-- CSRF token field -->
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-
-            <div class="mb-3">
-                <label for="cage_id" class="form-label">Cage ID <span class="required-asterisk">*</span></label>
-                <input type="text" class="form-control" id="cage_id" name="cage_id" required>
-            </div>
 
             <div class="mb-3">
                 <label for="pi_name" class="form-label">PI Name <span class="required-asterisk">*</span></label>
@@ -476,6 +389,22 @@ require 'header.php';
                         $pi_initials = htmlspecialchars($row['initials']);
                         $pi_name = htmlspecialchars($row['name']);
                         echo "<option value='$pi_id'>$pi_initials [$pi_name]</option>";
+                    }
+                    ?>
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <label for="line_id" class="form-label">Line <span class="required-asterisk">*</span></label>
+                <select class="form-control" id="line_id" name="line_id" required>
+                    <option value="" disabled selected>Select Line</option>
+                    <?php
+                    $lineResult->data_seek(0);
+                    while ($lineRow = $lineResult->fetch_assoc()) {
+                        $lid = htmlspecialchars($lineRow['id']);
+                        $lcode = htmlspecialchars($lineRow['code']);
+                        $lname = htmlspecialchars($lineRow['name']);
+                        echo "<option value='$lid'>$lcode - $lname</option>";
                     }
                     ?>
                 </select>
@@ -531,17 +460,19 @@ require 'header.php';
             </div>
 
             <div class="mb-3">
-                <label for="sex" class="form-label">Sex <span class="required-asterisk">*</span></label>
-                <select class="form-control" id="sex" name="sex" required>
-                    <option value="" disabled selected>Select Sex</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                </select>
+                <label for="genotype" class="form-label">Genotype</label>
+                <input type="text" class="form-control" id="genotype" name="genotype" placeholder="Applies to all animals created in this cage">
             </div>
 
-            <div class="mb-3">
-                <label for="parent_cg" class="form-label">Parent Cage <span class="required-asterisk">*</span></label>
-                <input type="text" class="form-control" id="parent_cg" name="parent_cg" required>
+            <div class="row">
+                <div class="col mb-3">
+                    <label for="male_count" class="form-label">Number of Males <span class="required-asterisk">*</span></label>
+                    <input type="number" class="form-control" id="male_count" name="male_count" min="0" value="0" required>
+                </div>
+                <div class="col mb-3">
+                    <label for="female_count" class="form-label">Number of Females <span class="required-asterisk">*</span></label>
+                    <input type="number" class="form-control" id="female_count" name="female_count" min="0" value="0" required>
+                </div>
             </div>
 
             <div class="mb-3">
@@ -549,19 +480,6 @@ require 'header.php';
                 <textarea class="form-control" id="remarks" name="remarks" oninput="adjustTextareaHeight(this)"></textarea>
             </div>
 
-            <!-- HTML Form Section for Mouse Fields -->
-            <div id="mouse_fields_container">
-                <!-- Mouse fields will be added here dynamically -->
-            </div>
-
-            <!-- Button to add new mouse fields -->
-            <div class="button-group">
-                <button type="button" class="btn btn-primary btn-icon" onclick="addMouseField()">
-                    <i class="fas fa-plus"></i> Add Mouse
-                </button>
-            </div>
-
-            <br>
             <br>
 
             <button type="submit" class="btn btn-primary">Add Cage</button>
