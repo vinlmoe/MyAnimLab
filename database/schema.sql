@@ -76,7 +76,7 @@ CREATE TABLE `holding` (
   `strain` varchar(255) DEFAULT NULL,
   `dob` date NOT NULL,
   `sex` enum('male', 'female') DEFAULT NULL,
-  `parent_cg` varchar(255) NOT NULL,
+  `parent_cg` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`cage_id`) REFERENCES `cages` (`cage_id`) ON UPDATE CASCADE,
   FOREIGN KEY (`strain`) REFERENCES `strains` (`str_id`) ON DELETE SET NULL
@@ -87,10 +87,10 @@ CREATE TABLE `breeding` (
   `id` int NOT NULL AUTO_INCREMENT,
   `cage_id` varchar(255) NOT NULL,
   `cross` varchar(255) NOT NULL,
-  `male_id` varchar(255) NOT NULL,
-  `female_id` varchar(255) NOT NULL,
-  `male_dob` date NOT NULL,
-  `female_dob` date NOT NULL,
+  `male_id` varchar(255) DEFAULT NULL,
+  `female_id` varchar(255) DEFAULT NULL,
+  `male_dob` date DEFAULT NULL,
+  `female_dob` date DEFAULT NULL,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`cage_id`) REFERENCES `cages` (`cage_id`) ON UPDATE CASCADE
 );
@@ -145,14 +145,26 @@ CREATE TABLE `animal_lines` (
   PRIMARY KEY (`id`)
 );
 
+-- Singleton counter used to auto-generate every cage_id (P-00001, P-00002, ...).
+-- Cage IDs are never entered manually; allocate_cage_id() in animal_lib.php
+-- locks this row (SELECT ... FOR UPDATE) before incrementing it.
+CREATE TABLE `cage_sequence` (
+  `id` tinyint NOT NULL DEFAULT 1,
+  `next_seq` int NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id`)
+);
+
+INSERT INTO `cage_sequence` (`id`, `next_seq`) VALUES (1, 1);
+
 -- Table for storing mouse/animal information related to cages
 CREATE TABLE `mice` (
   `id` int NOT NULL AUTO_INCREMENT,
   `cage_id` varchar(255) DEFAULT NULL,
   `line_id` int DEFAULT NULL,
   `animal_uid` varchar(50) DEFAULT NULL UNIQUE,
-  `mouse_id` varchar(255) NOT NULL,
-  `genotype` varchar(255) NOT NULL,
+  `mouse_id` varchar(255) DEFAULT NULL,
+  `sex` ENUM('male','female') DEFAULT NULL,
+  `genotype` varchar(255) DEFAULT NULL,
   `notes` text DEFAULT NULL,
   `status` ENUM('active','sacrificed','transferred_out','archived') NOT NULL DEFAULT 'active',
   `exit_date` date DEFAULT NULL,

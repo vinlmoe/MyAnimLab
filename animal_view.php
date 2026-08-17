@@ -99,7 +99,7 @@ $statusBadge = [
 <html lang="en">
 
 <head>
-    <title>Animal <?= htmlspecialchars($animal['animal_uid'] ?? $animal['mouse_id']); ?> | <?php echo htmlspecialchars($labName); ?></title>
+    <title>Animal <?= htmlspecialchars($animal['animal_uid'] ?? $animal['mouse_id'] ?? ('#' . $animal['id'])); ?> | <?php echo htmlspecialchars($labName); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         .container {
@@ -115,7 +115,7 @@ $statusBadge = [
 <body>
     <div class="container mt-4 content">
         <h4>
-            Animal <?= htmlspecialchars($animal['animal_uid'] ?? $animal['mouse_id']); ?>
+            Animal <?= htmlspecialchars($animal['animal_uid'] ?? $animal['mouse_id'] ?? ('#' . $animal['id'])); ?>
             <span class="badge bg-<?= $statusBadge; ?>"><?= htmlspecialchars($animal['status']); ?></span>
             <?php if ($animal['status'] === 'active') : ?>
                 <a href="animal_transfer.php" class="btn btn-sm btn-outline-primary">Transfer</a>
@@ -130,9 +130,10 @@ $statusBadge = [
             <div class="card-body">
                 <h5 class="card-title">Identity</h5>
                 <p><strong>Line:</strong> <?= htmlspecialchars($animal['line_code'] ? "{$animal['line_code']} - {$animal['line_name']} ({$animal['species']})" : 'N/A'); ?></p>
-                <p><strong>Tag / mouse_id:</strong> <?= htmlspecialchars($animal['mouse_id']); ?></p>
-                <p><strong>Genotype:</strong> <?= htmlspecialchars($animal['genotype']); ?></p>
-                <p><strong>Current cage:</strong> <?= htmlspecialchars($animal['cage_id']); ?></p>
+                <p><strong>Sex:</strong> <?= htmlspecialchars($animal['sex'] ?? 'N/A'); ?></p>
+                <p><strong>Tag / mouse_id:</strong> <?= htmlspecialchars($animal['mouse_id'] ?? 'N/A'); ?></p>
+                <p><strong>Genotype:</strong> <?= htmlspecialchars($animal['genotype'] ?? 'N/A'); ?></p>
+                <p><strong>Current cage:</strong> <?= htmlspecialchars($animal['cage_id'] ?? 'N/A'); ?></p>
                 <?php if ($animal['status'] !== 'active') : ?>
                     <p><strong>Exit date:</strong> <?= htmlspecialchars($animal['exit_date'] ?? 'N/A'); ?></p>
                     <p><strong>Exit reason:</strong> <?= htmlspecialchars($animal['exit_reason'] ?? 'N/A'); ?></p>
