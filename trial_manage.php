@@ -13,8 +13,6 @@ if (!isset($_SESSION['username'])) {
     exit;
 }
 
-require 'header.php';
-
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
@@ -56,6 +54,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header("Location: trial_manage.php");
     exit();
 }
+
+// Render the shared header only after request handling. Including it before the
+// POST redirect sends HTML output and prevents PHP from modifying headers.
+require 'header.php';
 
 $trials = $con->query("SELECT * FROM trials ORDER BY created_at DESC");
 $iacucList = $con->query("SELECT iacuc_id, iacuc_title FROM iacuc");
