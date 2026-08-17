@@ -17,6 +17,7 @@ session_start();
 
 // Include the database connection
 require 'dbcon.php';
+require 'animal_lib.php';
 
 // Check if the user is not logged in, redirect them to index.php
 if (!isset($_SESSION['username'])) {
@@ -73,10 +74,33 @@ if (isset($_GET['id'], $_GET['confirm']) && $_GET['confirm'] == 'true') {
     }
 
     try {
-        // Delete records from all related tables
+        // Archive animals instead of deleting them: their record (identity,
+        // cage history, parentage, experimentation) must remain traceable
+        // even after they leave the facility via a cage removal.
+        $archiveReason = $_GET['reason'] ?? 'Cage ' . $id . ' removed.';
+        $animalsStmt = mysqli_prepare($con, "SELECT id FROM mice WHERE cage_id = ? AND status = 'active'");
+        mysqli_stmt_bind_param($animalsStmt, "s", $id);
+        mysqli_stmt_execute($animalsStmt);
+        $animalIds = [];
+        $animalsResult = mysqli_stmt_get_result($animalsStmt);
+        while ($row = mysqli_fetch_assoc($animalsResult)) {
+            $animalIds[] = (int) $row['id'];
+        }
+        mysqli_stmt_close($animalsStmt);
+
+        $archiveStmt = mysqli_prepare($con, "UPDATE mice SET status = 'archived', exit_date = CURDATE(), exit_reason = ? WHERE id = ?");
+        foreach ($animalIds as $animalId) {
+            mysqli_stmt_bind_param($archiveStmt, "si", $archiveReason, $animalId);
+            mysqli_stmt_execute($archiveStmt);
+            log_animal_event($con, $animalId, 'status_change', ['status' => 'archived', 'reason' => $archiveReason], $currentUserId);
+        }
+        mysqli_stmt_close($archiveStmt);
+
+        // Delete records from all related tables (mice is intentionally
+        // excluded: animal rows are archived above, never deleted, so their
+        // traceability history stays queryable after the cage is removed)
         $tables = [
             'holding' => 'cage_id',
-            'mice' => 'cage_id',
             'files' => 'cage_id',
             'notes' => 'cage_id',
             'cage_iacuc' => 'cage_id',

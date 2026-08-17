@@ -192,6 +192,17 @@ if (isset($settings['r2_pres'])) {
                 </ul>
             </div>
 
+            <!-- Dropdown for Animals / Experimentation -->
+            <div class="dropdown">
+                <button class="btn btn-primary dropdown-toggle" type="button" id="animalsMenuButton" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fas fa-paw"></i> Animals
+                </button>
+                <ul class="dropdown-menu" aria-labelledby="animalsMenuButton">
+                    <li><a class="dropdown-item" href="animal_transfer.php">Transfer Animal</a></li>
+                    <li><a class="dropdown-item" href="trial_manage.php">Trials / Protocols / Experiments</a></li>
+                </ul>
+            </div>
+
             <!-- Dropdown for Settings -->
             <div class="dropdown">
                 <button class="btn btn-primary dropdown-toggle" type="button" id="settingsMenuButton" data-bs-toggle="dropdown" aria-expanded="false">
@@ -208,6 +219,7 @@ if (isset($settings['r2_pres'])) {
                         echo '<li><a class="dropdown-item" href="manage_users.php">Manage Users</a></li>';
                         echo '<li><a class="dropdown-item" href="manage_iacuc.php">Manage IACUC</a></li>';
                         echo '<li><a class="dropdown-item" href="manage_strain.php">Manage Strain</a></li>';
+                        echo '<li><a class="dropdown-item" href="manage_animal_lines.php">Manage Animal Lines</a></li>';
                         echo '<li><a class="dropdown-item" href="manage_lab.php">Manage Lab</a></li>';
                         echo '<li><a class="dropdown-item" href="export_data.php">Export CSV</a></li>';
                         echo '<li><a class="dropdown-item" href="export_for_v2.php"><i class="fas fa-file-export me-1"></i> Export for V2 Migration</a></li>';
