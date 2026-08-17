@@ -203,6 +203,17 @@ if (isset($settings['r2_pres'])) {
                 </ul>
             </div>
 
+            <!-- Notification Bell -->
+            <div class="dropdown">
+                <button class="btn btn-primary position-relative" type="button" id="notifBellButton" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fas fa-bell"></i>
+                    <span id="notifBadge" class="badge rounded-pill bg-danger" style="display:none; position:absolute; top:-5px; right:-5px;">0</span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end" id="notifDropdown" aria-labelledby="notifBellButton" style="min-width: 320px; max-height: 400px; overflow-y: auto;">
+                    <li><span class="dropdown-item-text text-muted">Loading...</span></li>
+                </ul>
+            </div>
+
             <!-- Dropdown for Settings -->
             <div class="dropdown">
                 <button class="btn btn-primary dropdown-toggle" type="button" id="settingsMenuButton" data-bs-toggle="dropdown" aria-expanded="false">
@@ -235,6 +246,56 @@ if (isset($settings['r2_pres'])) {
     <!-- Bootstrap and jQuery JS -->
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p" crossorigin="anonymous"></script>
+
+    <?php if (isset($_SESSION['username'])) : ?>
+    <script>
+        function loadNotifications() {
+            fetch('get_notifications.php')
+                .then(r => r.json())
+                .then(data => {
+                    const badge = document.getElementById('notifBadge');
+                    const list = document.getElementById('notifDropdown');
+                    if (!badge || !list) return;
+
+                    if (data.unread_count > 0) {
+                        badge.style.display = 'inline-block';
+                        badge.textContent = data.unread_count;
+                    } else {
+                        badge.style.display = 'none';
+                    }
+
+                    list.innerHTML = '';
+                    if (!data.notifications || data.notifications.length === 0) {
+                        list.innerHTML = '<li><span class="dropdown-item-text text-muted">No notifications</span></li>';
+                        return;
+                    }
+
+                    data.notifications.forEach(n => {
+                        const li = document.createElement('li');
+                        const link = n.link ? n.link : '#';
+                        li.innerHTML = `<a class="dropdown-item ${n.is_read ? '' : 'fw-bold'}" href="${link}" onclick="markNotificationRead(${n.id})">
+                            ${n.title}<br><small class="text-muted">${n.message ?? ''}</small>
+                        </a>`;
+                        list.appendChild(li);
+                    });
+                })
+                .catch(() => {});
+        }
+
+        function markNotificationRead(id) {
+            fetch('mark_notification.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id })
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            loadNotifications();
+            setInterval(loadNotifications, 60000);
+        });
+    </script>
+    <?php endif; ?>
 </body>
 
 </html>

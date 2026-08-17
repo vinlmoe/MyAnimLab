@@ -102,6 +102,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'observed_at' => $observedAt,
             'reasons' => $breachedMessages,
         ], $currentUserId);
+        log_activity($con, 'endpoint_alert', 'animal', (string) $ea['animal_id'], implode(' | ', $breachedMessages), $currentUserId);
+        notify_admins(
+            $con,
+            "Endpoint reached: {$ea['animal_uid']}",
+            "Experiment {$ea['experiment_number']} ({$ea['protocol_number']}): " . implode(' | ', $breachedMessages),
+            "animal_view.php?id={$ea['animal_id']}",
+            'endpoint_alert'
+        );
         $_SESSION['message'] = "Saved. ENDPOINT REACHED: " . implode(' | ', $breachedMessages);
     } else {
         $_SESSION['message'] = "Follow-up saved.";

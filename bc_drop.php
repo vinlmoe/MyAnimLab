@@ -16,6 +16,7 @@ session_start();
 
 // Include the database connection
 require 'dbcon.php';
+require 'animal_lib.php';
 
 // Check if the user is not logged in, redirect them to index.php with the current URL for redirection after login
 if (!isset($_SESSION['username'])) {
@@ -70,18 +71,34 @@ if (isset($_GET['id'], $_GET['confirm']) && $_GET['confirm'] == 'true') {
     }
 
     try {
-        // Delete records from all related tables
+        // Archive any active animals housed in this breeding cage instead of
+        // losing them, same as hc_drop.php.
+        $archiveReason = $_GET['reason'] ?? 'Breeding cage ' . $id . ' removed.';
+        $animalsStmt = mysqli_prepare($con, "SELECT id FROM mice WHERE cage_id = ? AND status = 'active'");
+        mysqli_stmt_bind_param($animalsStmt, "s", $id);
+        mysqli_stmt_execute($animalsStmt);
+        $animalIds = [];
+        $animalsResult = mysqli_stmt_get_result($animalsStmt);
+        while ($row = mysqli_fetch_assoc($animalsResult)) {
+            $animalIds[] = (int) $row['id'];
+        }
+        mysqli_stmt_close($animalsStmt);
+
+        $archiveAnimalStmt = mysqli_prepare($con, "UPDATE mice SET status = 'archived', exit_date = CURDATE(), exit_reason = ? WHERE id = ?");
+        foreach ($animalIds as $animalId) {
+            mysqli_stmt_bind_param($archiveAnimalStmt, "si", $archiveReason, $animalId);
+            mysqli_stmt_execute($archiveAnimalStmt);
+            log_animal_event($con, $animalId, 'status_change', ['status' => 'archived', 'reason' => $archiveReason], $currentUserId);
+        }
+        mysqli_stmt_close($archiveAnimalStmt);
+
+        // Drop active assignments; breeding/litters/files/notes/maintenance
+        // stay attached to the now-archived cage for full traceability.
         $tables = [
-            'breeding' => 'cage_id',
-            'litters' => 'cage_id',
-            'files' => 'cage_id',
-            'notes' => 'cage_id',
             'cage_iacuc' => 'cage_id',
             'cage_users' => 'cage_id',
             'tasks' => 'cage_id',
-            'maintenance' => 'cage_id',
             'reminders' => 'cage_id',
-            'cages' => 'cage_id'
         ];
 
         foreach ($tables as $table => $column) {
@@ -97,11 +114,19 @@ if (isset($_GET['id'], $_GET['confirm']) && $_GET['confirm'] == 'true') {
             }
         }
 
+        // Archive the cage itself instead of deleting it.
+        $archiveCageStmt = mysqli_prepare($con, "UPDATE cages SET status = 'archived' WHERE cage_id = ?");
+        mysqli_stmt_bind_param($archiveCageStmt, "s", $id);
+        mysqli_stmt_execute($archiveCageStmt);
+        mysqli_stmt_close($archiveCageStmt);
+
+        log_activity($con, 'archive', 'cage', $id, $archiveReason, $currentUserId);
+
         // Commit the transaction
         mysqli_commit($con);
 
         // Set a success message in the session
-        $_SESSION['message'] = 'Cage ' . $id . ' and related data deleted successfully.';
+        $_SESSION['message'] = 'Cage ' . $id . ' archived successfully.';
     } catch (Exception $e) {
         // Roll back the transaction
         mysqli_rollback($con);

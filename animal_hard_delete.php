@@ -1,0 +1,129 @@
+<?php
+
+/**
+ * Admin-only, controlled permanent deletion of an animal record.
+ *
+ * This is the one deliberate exception to "never physically delete an
+ * animal": requires the admin role, requires retyping the animal_uid to
+ * confirm, and writes to activity_log *before* the DELETE so the audit
+ * trail survives even though the row itself won't.
+ */
+
+session_start();
+require 'dbcon.php';
+require 'animal_lib.php';
+
+if (!isset($_SESSION['username'])) {
+    header("Location: index.php");
+    exit;
+}
+
+if (($_SESSION['role'] ?? '') !== 'admin') {
+    $_SESSION['message'] = 'Access denied. Only admins can permanently delete animal records.';
+    header("Location: home.php");
+    exit;
+}
+
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
+$currentUserId = $_SESSION['user_id'] ?? null;
+$animalId = (int) ($_GET['id'] ?? $_POST['animal_id'] ?? 0);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+        die('CSRF token validation failed');
+    }
+
+    $confirmUid = trim($_POST['confirm_uid'] ?? '');
+
+    $stmt = $con->prepare("SELECT animal_uid FROM mice WHERE id = ?");
+    $stmt->bind_param("i", $animalId);
+    $stmt->execute();
+    $animal = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$animal) {
+        $_SESSION['message'] = "Animal not found.";
+        header("Location: home.php");
+        exit;
+    }
+
+    if ($confirmUid !== $animal['animal_uid']) {
+        $_SESSION['message'] = "Confirmation text did not match the animal ID. Nothing was deleted.";
+        header("Location: animal_hard_delete.php?id=$animalId");
+        exit;
+    }
+
+    mysqli_begin_transaction($con);
+    try {
+        // Written before the delete so the audit trail survives it.
+        log_activity($con, 'hard_delete', 'animal', (string) $animalId, "Permanently deleted {$animal['animal_uid']}", $currentUserId);
+
+        $del = $con->prepare("DELETE FROM mice WHERE id = ?");
+        $del->bind_param("i", $animalId);
+        $del->execute();
+        $del->close();
+
+        mysqli_commit($con);
+        $_SESSION['message'] = "Animal {$animal['animal_uid']} permanently deleted.";
+    } catch (Exception $e) {
+        mysqli_rollback($con);
+        $_SESSION['message'] = "Error deleting animal: " . $e->getMessage();
+    }
+
+    header("Location: home.php");
+    exit;
+}
+
+require 'header.php';
+
+$stmt = $con->prepare("SELECT id, animal_uid, status FROM mice WHERE id = ?");
+$stmt->bind_param("i", $animalId);
+$stmt->execute();
+$animal = $stmt->get_result()->fetch_assoc();
+
+if (!$animal) {
+    echo "<div class='container mt-4'><div class='alert alert-danger'>Animal not found.</div></div>";
+    require 'footer.php';
+    exit;
+}
+?>
+
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>Permanently Delete Animal | <?php echo htmlspecialchars($labName); ?></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+
+<body>
+    <div class="container mt-4 content" style="max-width: 600px;">
+        <h4 class="text-danger">Permanently Delete Animal <?= htmlspecialchars($animal['animal_uid']); ?></h4>
+        <div class="alert alert-danger">
+            This action is irreversible and bypasses the normal traceability rule (records are otherwise never
+            deleted, only archived/sacrificed). Only use this for genuine data-entry errors, not for normal
+            end-of-life tracking — use <a href="animal_sacrifice.php?id=<?= (int) $animal['id']; ?>">Sacrifice</a> for that.
+        </div>
+
+        <?php include('message.php'); ?>
+
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+            <input type="hidden" name="animal_id" value="<?= (int) $animal['id']; ?>">
+            <div class="mb-3">
+                <label class="form-label">Type <code><?= htmlspecialchars($animal['animal_uid']); ?></code> to confirm</label>
+                <input type="text" class="form-control" name="confirm_uid" required autocomplete="off">
+            </div>
+            <button type="submit" class="btn btn-danger" onclick="return confirm('This is permanent. Continue?');">Permanently Delete</button>
+            <a href="animal_view.php?id=<?= (int) $animal['id']; ?>" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+
+    <br>
+    <?php require 'footer.php'; ?>
+</body>
+
+</html>
