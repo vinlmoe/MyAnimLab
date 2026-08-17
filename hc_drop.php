@@ -96,19 +96,15 @@ if (isset($_GET['id'], $_GET['confirm']) && $_GET['confirm'] == 'true') {
         }
         mysqli_stmt_close($archiveStmt);
 
-        // Delete records from all related tables (mice is intentionally
-        // excluded: animal rows are archived above, never deleted, so their
-        // traceability history stays queryable after the cage is removed)
+        // Drop active assignments that don't need to survive the cage being
+        // taken out of service (mice, holding, notes, files, maintenance are
+        // intentionally excluded: they stay attached to the now-archived
+        // cage so its history remains fully traceable)
         $tables = [
-            'holding' => 'cage_id',
-            'files' => 'cage_id',
-            'notes' => 'cage_id',
             'cage_iacuc' => 'cage_id',
             'cage_users' => 'cage_id',
             'tasks' => 'cage_id',
-            'maintenance' => 'cage_id',
             'reminders' => 'cage_id',
-            'cages' => 'cage_id'
         ];
 
         foreach ($tables as $table => $column) {
@@ -124,11 +120,20 @@ if (isset($_GET['id'], $_GET['confirm']) && $_GET['confirm'] == 'true') {
             }
         }
 
+        // Archive the cage itself instead of deleting it, so its full
+        // history (mice, notes, maintenance) stays queryable.
+        $archiveCageStmt = mysqli_prepare($con, "UPDATE cages SET status = 'archived' WHERE cage_id = ?");
+        mysqli_stmt_bind_param($archiveCageStmt, "s", $id);
+        mysqli_stmt_execute($archiveCageStmt);
+        mysqli_stmt_close($archiveCageStmt);
+
+        log_activity($con, 'archive', 'cage', $id, $archiveReason, $currentUserId);
+
         // Commit the transaction
         mysqli_commit($con);
 
         // Set a success message in the session
-        $_SESSION['message'] = 'Cage ' . $id . ' and related data deleted successfully.';
+        $_SESSION['message'] = 'Cage ' . $id . ' archived successfully.';
     } catch (Exception $e) {
         // Roll back the transaction
         mysqli_rollback($con);

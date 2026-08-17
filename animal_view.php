@@ -5,7 +5,7 @@
  *
  * Displays an animal's identity, current cage, full cage movement history,
  * parentage, and experimentation history. Stays accessible after the animal
- * has died or left the facility (status becomes deceased/transferred_out/archived,
+ * has died or left the facility (status becomes sacrificed/transferred_out/archived,
  * the row itself is never deleted).
  */
 
@@ -89,7 +89,7 @@ $events = $events->get_result();
 
 $statusBadge = [
     'active' => 'success',
-    'deceased' => 'dark',
+    'sacrificed' => 'dark',
     'transferred_out' => 'secondary',
     'archived' => 'secondary',
 ][$animal['status']] ?? 'secondary';
@@ -117,6 +117,13 @@ $statusBadge = [
         <h4>
             Animal <?= htmlspecialchars($animal['animal_uid'] ?? $animal['mouse_id']); ?>
             <span class="badge bg-<?= $statusBadge; ?>"><?= htmlspecialchars($animal['status']); ?></span>
+            <?php if ($animal['status'] === 'active') : ?>
+                <a href="animal_transfer.php" class="btn btn-sm btn-outline-primary">Transfer</a>
+                <a href="animal_sacrifice.php?id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-danger">Sacrifice</a>
+            <?php endif; ?>
+            <?php if (($_SESSION['role'] ?? '') === 'admin') : ?>
+                <a href="animal_hard_delete.php?id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-dark">Permanently Delete (admin)</a>
+            <?php endif; ?>
         </h4>
 
         <div class="card">

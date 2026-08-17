@@ -31,6 +31,9 @@ CREATE TABLE `cages` (
   `pi_name` int DEFAULT NULL,
   `quantity` int DEFAULT NULL,
   `remarks` text DEFAULT NULL,
+  `status` ENUM('active','archived') NOT NULL DEFAULT 'active',
+  `room` varchar(255) DEFAULT NULL,
+  `rack` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`cage_id`),
   FOREIGN KEY (`pi_name`) REFERENCES `users` (`id`) ON DELETE SET NULL
 );
@@ -151,7 +154,7 @@ CREATE TABLE `mice` (
   `mouse_id` varchar(255) NOT NULL,
   `genotype` varchar(255) NOT NULL,
   `notes` text DEFAULT NULL,
-  `status` ENUM('active','deceased','transferred_out','archived') NOT NULL DEFAULT 'active',
+  `status` ENUM('active','sacrificed','transferred_out','archived') NOT NULL DEFAULT 'active',
   `exit_date` date DEFAULT NULL,
   `exit_reason` text DEFAULT NULL,
   PRIMARY KEY (`id`),
@@ -367,6 +370,38 @@ CREATE TABLE `maintenance` (
   PRIMARY KEY (`id`),
   FOREIGN KEY (`cage_id`) REFERENCES `cages` (`cage_id`) ON UPDATE CASCADE,
   FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+);
+
+-- Table for in-app notifications (e.g. endpoint/point-limite alerts)
+CREATE TABLE `notifications` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `message` text DEFAULT NULL,
+  `link` varchar(255) DEFAULT NULL,
+  `type` ENUM('reminder','task','system','endpoint_alert') NOT NULL DEFAULT 'system',
+  `is_read` tinyint(1) NOT NULL DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_notifications_user` (`user_id`, `is_read`, `created_at`),
+  FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+);
+
+-- Generic activity/audit log, covering every entity type (not just animals)
+CREATE TABLE `activity_log` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `user_id` int DEFAULT NULL,
+  `action` varchar(50) NOT NULL,
+  `entity_type` varchar(50) NOT NULL,
+  `entity_id` varchar(255) DEFAULT NULL,
+  `details` text DEFAULT NULL,
+  `ip_address` varchar(45) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_activity_log_user` (`user_id`),
+  KEY `idx_activity_log_entity` (`entity_type`, `entity_id`),
+  KEY `idx_activity_log_created` (`created_at`),
+  FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 );
 
 -- Table for storing system settings

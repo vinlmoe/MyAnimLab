@@ -37,7 +37,7 @@ ALTER TABLE `mice` ADD CONSTRAINT `fk_mice_cage` FOREIGN KEY (`cage_id`) REFEREN
 ALTER TABLE `mice`
   ADD COLUMN `line_id` int DEFAULT NULL AFTER `cage_id`,
   ADD COLUMN `animal_uid` varchar(50) DEFAULT NULL AFTER `line_id`,
-  ADD COLUMN `status` ENUM('active','deceased','transferred_out','archived') NOT NULL DEFAULT 'active' AFTER `notes`,
+  ADD COLUMN `status` ENUM('active','sacrificed','transferred_out','archived') NOT NULL DEFAULT 'active' AFTER `notes`,
   ADD COLUMN `exit_date` date DEFAULT NULL AFTER `status`,
   ADD COLUMN `exit_reason` text DEFAULT NULL AFTER `exit_date`,
   ADD CONSTRAINT `fk_mice_line` FOREIGN KEY (`line_id`) REFERENCES `animal_lines` (`id`) ON DELETE SET NULL;
