@@ -12,6 +12,7 @@ session_start();
 
 // Include the database connection file
 require 'dbcon.php';
+require 'animal_lib.php';
 
 // Check if the user is not logged in, redirect them to index.php with the current URL for redirection after login
 if (!isset($_SESSION['username'])) {
@@ -40,6 +41,10 @@ $iacucResult = $con->query($iacucQuery);
 // Query to retrieve strain details including common names
 $strainQuery = "SELECT str_id, str_name, str_aka FROM strains";
 $strainResult = $con->query($strainQuery);
+
+// Query to retrieve animal lines (used to assign each new animal a unique animal_uid)
+$lineQuery = "SELECT id, code, species, name FROM animal_lines ORDER BY code";
+$lineResult = $con->query($lineQuery);
 
 // Initialize an array to hold all options
 $strainOptions = [];
@@ -89,17 +94,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $mouse_ids = $_POST['mouse_id'] ?? [];
     $genotypes = $_POST['genotype'] ?? [];
     $notes = $_POST['notes'] ?? [];
+    $line_ids = $_POST['line_id'] ?? [];
 
     for ($i = 0; $i < count($mouse_ids); $i++) {
         $mouse_id = $mouse_ids[$i];
         $genotype = $genotypes[$i];
         $note = $notes[$i];
+        $line_id = isset($line_ids[$i]) && $line_ids[$i] !== '' ? (int) $line_ids[$i] : null;
 
         if (!empty(trim($mouse_id))) {
             $mouse_data[] = [
                 'mouse_id' => mysqli_real_escape_string($con, $mouse_id),
                 'genotype' => mysqli_real_escape_string($con, $genotype),
-                'notes' => mysqli_real_escape_string($con, $note)
+                'notes' => mysqli_real_escape_string($con, $note),
+                'line_id' => $line_id,
             ];
         }
     }
@@ -133,12 +141,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt2->bind_param("sssss", $cage_id, $strain, $dob, $sex, $parent_cg);
             $stmt2->execute();
 
-            // Insert mouse data into mouse table
+            // Insert mouse/animal data into mice table, assigning each animal a
+            // unique animal_uid derived from its line (e.g. RSD-0002)
             foreach ($mouse_data as $mouse) {
-                $query3 = "INSERT INTO mice (cage_id, mouse_id, genotype, notes) VALUES (?, ?, ?, ?)";
+                $animal_uid = $mouse['line_id'] ? allocate_animal_uid($con, $mouse['line_id']) : null;
+
+                $query3 = "INSERT INTO mice (cage_id, line_id, animal_uid, mouse_id, genotype, notes) VALUES (?, ?, ?, ?, ?, ?)";
                 $stmt3 = $con->prepare($query3);
-                $stmt3->bind_param("ssss", $cage_id, $mouse['mouse_id'], $mouse['genotype'], $mouse['notes']);
+                $stmt3->bind_param("sissss", $cage_id, $mouse['line_id'], $animal_uid, $mouse['mouse_id'], $mouse['genotype'], $mouse['notes']);
                 $stmt3->execute();
+                $new_animal_id = $con->insert_id;
+
+                log_animal_movement($con, $new_animal_id, null, $cage_id, $_SESSION['user_id'] ?? null);
+                log_animal_event($con, $new_animal_id, 'created', ['cage_id' => $cage_id, 'animal_uid' => $animal_uid], $_SESSION['user_id'] ?? null);
             }
 
             // Insert data into cage_iacuc table
@@ -282,6 +297,19 @@ require 'header.php';
         // Define a counter to keep track of the mouse fields
         let mouseFieldCounter = 0;
 
+        // Animal line <option> markup, injected into each dynamically added mouse field
+        const lineOptionsHTML = <?php
+                                    $lineOptions = [];
+                                    $lineResult->data_seek(0);
+                                    while ($lineRow = $lineResult->fetch_assoc()) {
+                                        $lid = htmlspecialchars($lineRow['id']);
+                                        $lcode = htmlspecialchars($lineRow['code']);
+                                        $lname = htmlspecialchars($lineRow['name']);
+                                        $lineOptions[] = "<option value='$lid'>$lcode - $lname</option>";
+                                    }
+                                    echo json_encode(implode('', $lineOptions));
+                                    ?>;
+
         // Function to dynamically add new mouse fields
         function addMouseField() {
             const mouseContainer = document.getElementById('mouse_fields_container');
@@ -295,7 +323,14 @@ require 'header.php';
         <br>
         <h4>Mouse #${mouseFieldCounter}</h4>
         <div class="mb-3">
-            <label for="mouse_id_${mouseFieldCounter}" class="form-label">Mouse ID</label>
+            <label for="line_id_${mouseFieldCounter}" class="form-label">Line <span class="required-asterisk">*</span></label>
+            <select class="form-control" id="line_id_${mouseFieldCounter}" name="line_id[]" required>
+                <option value="" disabled selected>Select Line</option>
+                ${lineOptionsHTML}
+            </select>
+        </div>
+        <div class="mb-3">
+            <label for="mouse_id_${mouseFieldCounter}" class="form-label">Mouse ID / Tag</label>
             <input type="text" class="form-control" id="mouse_id_${mouseFieldCounter}" name="mouse_id[]">
         </div>
 
