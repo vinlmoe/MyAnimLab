@@ -14,6 +14,7 @@ session_start();
 
 // Include the database connection file
 require 'dbcon.php';
+require 'animal_lib.php';
 
 // Check if the user is logged in, redirect to login page if not logged in
 if (!isset($_SESSION['name'])) {
@@ -59,6 +60,11 @@ if ($totalTasks == 0) {
 }
 
 // Include the header file
+// Daily round progress: today, and cages missed yesterday.
+$roundCages = array_column(active_cages($con), 'cage_id');
+$seenToday = count(array_intersect($roundCages, array_keys(cage_checks_for_date($con, date('Y-m-d')))));
+$missedYesterday = count(array_diff($roundCages, array_keys(cage_checks_for_date($con, date('Y-m-d', strtotime('-1 day'))))));
+
 require 'header.php';
 ?>
 
@@ -105,6 +111,22 @@ require 'header.php';
                 <span aria-hidden="true">&times;</span>
             </button>
         </div>
+        <?php endif; ?>
+
+        <?php if ($roundCages) : ?>
+            <div class="alert <?= $seenToday === count($roundCages) ? 'alert-success' : 'alert-warning'; ?> d-flex justify-content-between align-items-center flex-wrap" id="dailyRoundStatus">
+                <span>
+                    <i class="fas fa-clipboard-check"></i> <strong>Daily round:</strong>
+                    <?= $seenToday; ?> / <?= count($roundCages); ?> cage(s) seen today.
+                    <?php if ($missedYesterday) : ?>
+                        <a href="daily_round.php?date=<?= date('Y-m-d', strtotime('-1 day')); ?>" class="text-danger fw-bold"><?= $missedYesterday; ?> cage(s) missed yesterday.</a>
+                    <?php endif; ?>
+                </span>
+                <span>
+                    <a href="daily_round.php?hide_seen=1" class="btn btn-sm btn-primary">Start / continue the round</a>
+                    <a href="qr_scan.php" class="btn btn-sm btn-success"><i class="fas fa-qrcode"></i> Scan</a>
+                </span>
+            </div>
         <?php endif; ?>
 
         <br>

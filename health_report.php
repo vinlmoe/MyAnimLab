@@ -26,6 +26,9 @@ if (empty($_SESSION['csrf_token'])) {
 $currentUserId = $_SESSION['user_id'] ?? null;
 $currentUserName = $_SESSION['name'] ?? null;
 $animalId = (int) ($_GET['animal_id'] ?? $_POST['animal_id'] ?? 0);
+// Reached from the daily round or a cage check: record how, and go back there after.
+$via = in_array($_GET['via'] ?? $_POST['via'] ?? '', ['round', 'qr', 'cage_page'], true) ? ($_GET['via'] ?? $_POST['via']) : 'auto';
+$returnUrl = safe_check_return($_GET['return'] ?? $_POST['return'] ?? null);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
@@ -54,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if (!isset(HEALTH_CATEGORIES[$category]) || !isset(HEALTH_SEVERITIES[$severity]) || $description === '') {
         $_SESSION['message'] = "Please fill in the category, severity and description.";
-        header("Location: health_report.php?animal_id=$animalId");
+        header("Location: health_report.php?" . http_build_query(['animal_id' => $animalId, 'via' => $via, 'return' => $returnUrl]));
         exit;
     }
 
@@ -79,6 +82,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $upd->execute();
         $upd->close();
 
+        // A health report means the cage was seen today (with an issue).
+        if ($animal['cage_id']) {
+            record_cage_check($con, $animal['cage_id'], 'health_report', 'issue', $via, "$animalLabel: " . HEALTH_CATEGORIES[$category], $reportId, $currentUserId, $currentUserName);
+        }
+
         log_animal_event($con, $animalId, 'health_report', [
             'report_id' => $reportId,
             'category' => $category,
@@ -95,7 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         mysqli_commit($con);
         $_SESSION['message'] = "Health issue #$reportId recorded for $animalLabel.";
-        header("Location: health_report_view.php?id=$reportId");
+        header("Location: " . ($returnUrl ?? "health_report_view.php?id=$reportId"));
         exit;
     } catch (Exception $e) {
         mysqli_rollback($con);
@@ -148,6 +156,8 @@ require 'header.php';
 
         <form method="POST" class="card card-body">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>">
+            <input type="hidden" name="via" value="<?= htmlspecialchars($via); ?>">
+            <input type="hidden" name="return" value="<?= htmlspecialchars($returnUrl ?? ''); ?>">
 
             <div class="mb-3">
                 <label class="form-label fw-bold" for="animal_id">Animal <span class="required-asterisk">*</span></label>
@@ -161,7 +171,7 @@ require 'header.php';
                         <?php if ($animal['status'] !== 'active') : ?>
                             <span class="badge bg-secondary"><?= htmlspecialchars($animal['status']); ?></span>
                         <?php endif; ?>
-                        · <a href="health_report.php" class="small">change animal</a>
+                        · <a href="health_report.php?<?= htmlspecialchars(http_build_query(['via' => $via, 'return' => $returnUrl])); ?>" class="small">change animal</a>
                     </div>
                 <?php else : ?>
                     <select class="form-select" id="animal_id" name="animal_id" required>

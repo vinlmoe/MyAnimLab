@@ -14,6 +14,7 @@ session_start();
 
 // Include the database connection file
 require 'dbcon.php';
+require 'animal_lib.php';
 
 // Check if the user is not logged in, redirect them to index.php with the current URL for redirection after login
 if (!isset($_SESSION['username'])) {
@@ -307,6 +308,21 @@ require 'header.php';
 <body>
 
     <div class="container content mt-4">
+        <?php
+        // Daily check banner: printed cage QR codes open this page.
+        $cageTodayChecks = cage_checks_for_date($con, date('Y-m-d'))[$breedingcage['cage_id']] ?? [];
+        ?>
+        <div class="alert <?= $cageTodayChecks ? 'alert-success' : 'alert-warning'; ?> d-flex justify-content-between align-items-center flex-wrap mb-3" id="dailyCheckBanner">
+            <span>
+                <strong>Daily check:</strong>
+                <?php if ($cageTodayChecks) : ?>
+                    seen today <?php foreach ($cageTodayChecks as $chk) echo cage_check_badge($chk); ?>
+                <?php else : ?>
+                    this cage has not been seen yet today.
+                <?php endif; ?>
+            </span>
+            <a href="cage_check.php?<?= htmlspecialchars(http_build_query(['id' => $breedingcage['cage_id'], 'via' => 'cage_page'])); ?>" class="btn btn-success btn-sm"><i class="fas fa-clipboard-check"></i> Validate daily check</a>
+        </div>
         <div class="card">
             <div class="card-header">
                 <h4>View Breeding Cage <?= htmlspecialchars($breedingcage['cage_id']); ?></h4>
@@ -354,19 +370,19 @@ require 'header.php';
                     </tr>
                     <tr>
                         <th>Male ID</th>
-                        <td><?= htmlspecialchars($breedingcage['male_id']); ?></td>
+                        <td><?= htmlspecialchars($breedingcage['male_id'] ?? ''); ?></td>
                     </tr>
                     <tr>
                         <th>Male DOB</th>
-                        <td><?= htmlspecialchars($breedingcage['male_dob']); ?></td>
+                        <td><?= htmlspecialchars($breedingcage['male_dob'] ?? ''); ?></td>
                     </tr>
                     <tr>
                         <th>Female ID</th>
-                        <td><?= htmlspecialchars($breedingcage['female_id']); ?></td>
+                        <td><?= htmlspecialchars($breedingcage['female_id'] ?? ''); ?></td>
                     </tr>
                     <tr>
                         <th>Female DOB</th>
-                        <td><?= htmlspecialchars($breedingcage['female_dob']); ?></td>
+                        <td><?= htmlspecialchars($breedingcage['female_dob'] ?? ''); ?></td>
                     </tr>
                     <tr>
                         <th>Remarks</th>

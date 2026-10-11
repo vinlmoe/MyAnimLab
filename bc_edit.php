@@ -49,7 +49,7 @@ if (isset($_GET['id'])) {
     $id = mysqli_real_escape_string($con, $_GET['id']);
 
     // Fetch the breeding cage record with the specified ID including PI name details
-    $query = "SELECT b.*, c.remarks AS remarks, c.pi_name AS pi_name
+    $query = "SELECT b.*, c.remarks AS remarks, c.pi_name AS pi_name, c.room, c.rack
           FROM breeding b
           LEFT JOIN cages c ON b.cage_id = c.cage_id
           WHERE b.cage_id = ?";
@@ -136,10 +136,12 @@ if (isset($_GET['id'])) {
             $cross = mysqli_real_escape_string($con, $_POST['cross']);
             $iacuc = isset($_POST['iacuc']) ? $_POST['iacuc'] : []; // Array of selected IACUC values
             $users = isset($_POST['user']) ? $_POST['user'] : []; // Array of selected users
-            $male_id = mysqli_real_escape_string($con, $_POST['male_id']);
-            $female_id = mysqli_real_escape_string($con, $_POST['female_id']);
-            $male_dob = mysqli_real_escape_string($con, $_POST['male_dob']);
-            $female_dob = mysqli_real_escape_string($con, $_POST['female_dob']);
+            // Legacy single-breeder fields: optional since breeders are real animals
+            // (breeding_animals), so empty values are stored as NULL.
+            $male_id = trim($_POST['male_id'] ?? '') ?: null;
+            $female_id = trim($_POST['female_id'] ?? '') ?: null;
+            $male_dob = trim($_POST['male_dob'] ?? '') ?: null;
+            $female_dob = trim($_POST['female_dob'] ?? '') ?: null;
             $remarks = mysqli_real_escape_string($con, $_POST['remarks']);
 
             // Begin transaction
@@ -154,6 +156,14 @@ if (isset($_GET['id'])) {
                 $updateCageQuery->bind_param("sss", $pi_name, $remarks, $cage_id);
                 $updateCageQuery->execute();
                 $updateCageQuery->close();
+
+                // Room / rack locate the cage for the daily round.
+                $room = trim($_POST['room'] ?? '') ?: null;
+                $rack = trim($_POST['rack'] ?? '') ?: null;
+                $stmtLoc = $con->prepare("UPDATE cages SET room = ?, rack = ? WHERE cage_id = ?");
+                $stmtLoc->bind_param("sss", $room, $rack, $cage_id);
+                $stmtLoc->execute();
+                $stmtLoc->close();
 
                 // Update breeding table
                 $updateBreedingQuery = $con->prepare("UPDATE breeding SET 
@@ -821,23 +831,39 @@ require 'header.php';
                             </div>
 
                             <div class="mb-3">
-                                <label for="male_id" class="form-label">Male ID <span class="required-asterisk">*</span></label>
-                                <input type="text" class="form-control" id="male_id" name="male_id" value="<?= htmlspecialchars($breedingcage['male_id']); ?>" required>
+                                <label for="male_id" class="form-label">Male ID (legacy, optional)</label>
+                                <input type="text" class="form-control" id="male_id" name="male_id" value="<?= htmlspecialchars($breedingcage['male_id'] ?? ''); ?>">
                             </div>
 
                             <div class="mb-3">
-                                <label for="female_id" class="form-label">Female ID <span class="required-asterisk">*</span></label>
-                                <input type="text" class="form-control" id="female_id" name="female_id" value="<?= htmlspecialchars($breedingcage['female_id']); ?>" required>
+                                <label for="female_id" class="form-label">Female ID (legacy, optional)</label>
+                                <input type="text" class="form-control" id="female_id" name="female_id" value="<?= htmlspecialchars($breedingcage['female_id'] ?? ''); ?>">
                             </div>
 
                             <div class="mb-3">
-                                <label for="male_dob" class="form-label">Male DOB <span class="required-asterisk">*</span></label>
-                                <input type="date" class="form-control" id="male_dob" name="male_dob" value="<?= htmlspecialchars($breedingcage['male_dob']); ?>" required min="1900-01-01">
+                                <label for="male_dob" class="form-label">Male DOB (legacy, optional)</label>
+                                <input type="date" class="form-control" id="male_dob" name="male_dob" value="<?= htmlspecialchars($breedingcage['male_dob'] ?? ''); ?>" min="1900-01-01">
                             </div>
 
                             <div class="mb-3">
-                                <label for="female_dob" class="form-label">Female DOB <span class="required-asterisk">*</span></label>
-                                <input type="date" class="form-control" id="female_dob" name="female_dob" value="<?= htmlspecialchars($breedingcage['female_dob']); ?>" required min="1900-01-01">
+                                <label for="female_dob" class="form-label">Female DOB (legacy, optional)</label>
+                                <input type="date" class="form-control" id="female_dob" name="female_dob" value="<?= htmlspecialchars($breedingcage['female_dob'] ?? ''); ?>" min="1900-01-01">
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="room" class="form-label">Room</label>
+                                    <input type="text" class="form-control" id="room" name="room" list="roomList" value="<?= htmlspecialchars($breedingcage['room'] ?? ''); ?>" placeholder="Used to organise the daily round">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="rack" class="form-label">Rack</label>
+                                    <input type="text" class="form-control" id="rack" name="rack" value="<?= htmlspecialchars($breedingcage['rack'] ?? ''); ?>">
+                                </div>
+                                <datalist id="roomList">
+                                    <?php foreach ($con->query("SELECT DISTINCT room FROM cages WHERE room IS NOT NULL AND room <> '' ORDER BY room") as $roomRow) : ?>
+                                        <option value="<?= htmlspecialchars($roomRow['room']); ?>">
+                                    <?php endforeach; ?>
+                                </datalist>
                             </div>
 
                             <div class="mb-3">
