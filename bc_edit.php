@@ -367,6 +367,10 @@ if (isset($_GET['id'])) {
 
 function getUserDetailsByIds($con, $userIds)
 {
+    // Archived cages have no assigned users left: avoid an invalid "IN ()".
+    if (empty($userIds)) {
+        return [];
+    }
     $placeholders = implode(',', array_fill(0, count($userIds), '?'));
     $query = "SELECT id, initials, name FROM users WHERE id IN ($placeholders)";
     $stmt = $con->prepare($query);

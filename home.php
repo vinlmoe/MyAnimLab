@@ -61,9 +61,10 @@ if ($totalTasks == 0) {
 
 // Include the header file
 // Daily round progress: today, and cages missed yesterday.
-$roundCages = array_column(active_cages($con), 'cage_id');
+$roundCages = array_column(cages_due_on($con, date('Y-m-d')), 'cage_id');
 $seenToday = count(array_intersect($roundCages, array_keys(cage_checks_for_date($con, date('Y-m-d')))));
-$missedYesterday = count(array_diff($roundCages, array_keys(cage_checks_for_date($con, date('Y-m-d', strtotime('-1 day'))))));
+$yesterday = date('Y-m-d', strtotime('-1 day'));
+$missedYesterday = count(array_diff(array_column(cages_due_on($con, $yesterday), 'cage_id'), array_keys(cage_checks_for_date($con, $yesterday))));
 
 require 'header.php';
 ?>
