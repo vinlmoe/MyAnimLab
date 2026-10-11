@@ -372,6 +372,10 @@ require 'header.php';
                         <th>Remarks</th>
                         <td class="remarks-column"><?= htmlspecialchars($breedingcage['remarks']); ?></td>
                     </tr>
+                    <tr>
+                        <th>Animals</th>
+                        <td><a href="animal_search.php?list=1&amp;status=all&amp;cage_id=<?= rawurlencode($breedingcage['cage_id']); ?>"><i class="fas fa-paw"></i> List, transfer or report health issues for this cage's animals</a></td>
+                    </tr>
                 </table>
 
                 <!-- Separator -->

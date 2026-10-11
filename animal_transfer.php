@@ -87,6 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 require 'header.php';
 
+$preselectedAnimalId = (int) ($_GET['animal_id'] ?? 0);
 $animals = $con->query("SELECT id, animal_uid, mouse_id, cage_id FROM mice WHERE status = 'active' AND animal_uid IS NOT NULL ORDER BY animal_uid");
 $cages = $con->query("SELECT cage_id FROM cages ORDER BY cage_id");
 ?>
@@ -129,9 +130,9 @@ $cages = $con->query("SELECT cage_id FROM cages ORDER BY cage_id");
             <div class="mb-3">
                 <label for="animal_id" class="form-label">Animal <span class="required-asterisk">*</span></label>
                 <select class="form-control" id="animal_id" name="animal_id" required>
-                    <option value="" disabled selected>Select Animal</option>
+                    <option value="" disabled <?= $preselectedAnimalId ? '' : 'selected'; ?>>Select Animal</option>
                     <?php while ($row = $animals->fetch_assoc()) : ?>
-                        <option value="<?= (int) $row['id']; ?>">
+                        <option value="<?= (int) $row['id']; ?>" <?= (int) $row['id'] === $preselectedAnimalId ? 'selected' : ''; ?>>
                             <?= htmlspecialchars($row['animal_uid']); ?> (currently in cage <?= htmlspecialchars($row['cage_id']); ?>)
                         </option>
                     <?php endwhile; ?>

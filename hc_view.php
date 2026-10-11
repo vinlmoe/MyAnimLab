@@ -447,7 +447,13 @@ require 'header.php';
                                 <th>Notes</th>
                             </tr>
                             <tr>
-                                <td><?= htmlspecialchars($mouse['animal_uid'] ?? ''); ?></td>
+                                <td>
+                                    <a href="animal_view.php?id=<?= (int) $mouse['id']; ?>"><?= htmlspecialchars($mouse['animal_uid'] ?? ''); ?></a>
+                                    <?php if (($mouse['status'] ?? 'active') === 'active') : ?>
+                                        <a href="animal_transfer.php?animal_id=<?= (int) $mouse['id']; ?>" class="btn btn-sm btn-outline-primary ms-1" title="Transfer"><i class="fas fa-exchange-alt"></i> Transfer</a>
+                                        <a href="health_report.php?animal_id=<?= (int) $mouse['id']; ?>" class="btn btn-sm btn-outline-warning" title="Report a health issue"><i class="fas fa-notes-medical"></i> Health</a>
+                                    <?php endif; ?>
+                                </td>
                                 <td><?= htmlspecialchars(!empty($mouse['sex']) ? ucfirst($mouse['sex']) : 'Not specified'); ?></td>
                                 <td><?= htmlspecialchars($mouse['genotype'] ?? ''); ?></td>
                                 <td><?= htmlspecialchars($mouse['notes'] ?? ''); ?></td>

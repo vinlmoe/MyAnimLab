@@ -11,6 +11,7 @@
 
 session_start();
 require 'dbcon.php';
+require 'animal_lib.php';
 
 if (!isset($_SESSION['username'])) {
     $currentUrl = urlencode($_SERVER['REQUEST_URI']);
@@ -82,6 +83,12 @@ $experiments->bind_param("i", $animalId);
 $experiments->execute();
 $experiments = $experiments->get_result();
 
+$healthReports = $con->prepare(HEALTH_REPORTS_WITH_STATE_SQL . " WHERE r.animal_id = ? ORDER BY r.id DESC");
+$healthReports->bind_param("i", $animalId);
+$healthReports->execute();
+$healthReports = $healthReports->get_result()->fetch_all(MYSQLI_ASSOC);
+$openHealthIssues = count(array_filter($healthReports, fn($r) => $r['current_status'] !== 'resolved'));
+
 $events = $con->prepare("SELECT * FROM animal_events WHERE animal_id = ? ORDER BY created_at DESC LIMIT 50");
 $events->bind_param("i", $animalId);
 $events->execute();
@@ -117,8 +124,12 @@ $statusBadge = [
         <h4>
             Animal <?= htmlspecialchars($animal['animal_uid'] ?? $animal['mouse_id'] ?? ('#' . $animal['id'])); ?>
             <span class="badge bg-<?= $statusBadge; ?>"><?= htmlspecialchars($animal['status']); ?></span>
+            <?php if ($openHealthIssues) : ?>
+                <a href="#health" class="badge bg-danger text-decoration-none"><?= $openHealthIssues; ?> open health issue(s)</a>
+            <?php endif; ?>
             <?php if ($animal['status'] === 'active') : ?>
-                <a href="animal_transfer.php" class="btn btn-sm btn-outline-primary">Transfer</a>
+                <a href="animal_transfer.php?animal_id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-primary">Transfer</a>
+                <a href="health_report.php?animal_id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-warning">Report Health Issue</a>
                 <a href="animal_sacrifice.php?id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-danger">Sacrifice</a>
             <?php endif; ?>
             <?php if (($_SESSION['role'] ?? '') === 'admin') : ?>
@@ -133,7 +144,12 @@ $statusBadge = [
                 <p><strong>Sex:</strong> <?= htmlspecialchars($animal['sex'] ?? 'N/A'); ?></p>
                 <p><strong>Tag / mouse_id:</strong> <?= htmlspecialchars($animal['mouse_id'] ?? 'N/A'); ?></p>
                 <p><strong>Genotype:</strong> <?= htmlspecialchars($animal['genotype'] ?? 'N/A'); ?></p>
-                <p><strong>Current cage:</strong> <?= htmlspecialchars($animal['cage_id'] ?? 'N/A'); ?></p>
+                <p><strong>Current cage:</strong>
+                    <?php if ($animal['cage_id']) : ?>
+                        <?= htmlspecialchars($animal['cage_id']); ?>
+                        <a href="animal_search.php?list=1&amp;status=all&amp;cage_id=<?= rawurlencode($animal['cage_id']); ?>" class="small">(cage mates)</a>
+                    <?php else : ?>N/A<?php endif; ?>
+                </p>
                 <?php if ($animal['status'] !== 'active') : ?>
                     <p><strong>Exit date:</strong> <?= htmlspecialchars($animal['exit_date'] ?? 'N/A'); ?></p>
                     <p><strong>Exit reason:</strong> <?= htmlspecialchars($animal['exit_reason'] ?? 'N/A'); ?></p>
@@ -217,6 +233,42 @@ $statusBadge = [
                                     <td><?= htmlspecialchars($e['removed_at'] ?? '-'); ?></td>
                                 </tr>
                             <?php endwhile; ?>
+                        </tbody>
+                    </table>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <div class="card" id="health">
+            <div class="card-body">
+                <h5 class="card-title">Health Reports</h5>
+                <?php if (empty($healthReports)) : ?>
+                    <p class="text-muted">No health issue reported.</p>
+                <?php else : ?>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Observed</th>
+                                <th>Category</th>
+                                <th>Severity</th>
+                                <th>Status</th>
+                                <th>Cage</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($healthReports as $hr) : ?>
+                                <tr>
+                                    <td><?= (int) $hr['id']; ?></td>
+                                    <td><?= htmlspecialchars($hr['observed_at']); ?></td>
+                                    <td><?= htmlspecialchars(HEALTH_CATEGORIES[$hr['category']] ?? $hr['category']); ?></td>
+                                    <td><?= health_badge($hr['current_severity'], HEALTH_SEVERITIES); ?></td>
+                                    <td><?= health_badge($hr['current_status'], HEALTH_STATUSES); ?></td>
+                                    <td><?= htmlspecialchars($hr['cage_id'] ?? '-'); ?></td>
+                                    <td><a href="health_report_view.php?id=<?= (int) $hr['id']; ?>" class="btn btn-sm btn-outline-primary">Follow-up</a></td>
+                                </tr>
+                            <?php endforeach; ?>
                         </tbody>
                     </table>
                 <?php endif; ?>
