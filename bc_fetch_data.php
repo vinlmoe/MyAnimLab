@@ -101,7 +101,12 @@ while ($row = mysqli_fetch_assoc($result)) {
                         <a href="manage_tasks.php?id=' . rawurlencode($breedingcage['cage_id']) . '&page=' . $page . '&search=' . urlencode($searchQuery) . '" class="btn btn-secondary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Manage Tasks"><i class="fas fa-tasks"></i></a>';
                         
         // Check if the user is an admin or assigned to this cage
-        $assignedUsers = explode(',', $breedingcage['user']);
+        // Assigned users live in cage_users (cages/holding/breeding have no 'user' column)
+        $assignedStmt = $con->prepare("SELECT user_id FROM cage_users WHERE cage_id = ?");
+        $assignedStmt->bind_param("s", $breedingcage['cage_id']);
+        $assignedStmt->execute();
+        $assignedUsers = array_column($assignedStmt->get_result()->fetch_all(MYSQLI_ASSOC), 'user_id');
+        $assignedStmt->close();
         if ($userRole === 'admin' || in_array($currentUserId, $assignedUsers)) {
             $tableRows .= '<a href="bc_edit.php?id=' . rawurlencode($breedingcage['cage_id']) . '&page=' . $page . '&search=' . urlencode($searchQuery) . '" class="btn btn-secondary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Edit Cage"><i class="fas fa-edit"></i></a>
                            <a href="#" onclick="confirmDeletion(\'' . htmlspecialchars($breedingcage['cage_id']) . '\')" class="btn btn-danger btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Delete Cage"><i class="fas fa-trash"></i></a>';

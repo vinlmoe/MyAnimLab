@@ -15,8 +15,6 @@ if (!isset($_SESSION['username'])) {
     exit;
 }
 
-require 'header.php';
-
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
@@ -38,6 +36,7 @@ $eaStmt->execute();
 $ea = $eaStmt->get_result()->fetch_assoc();
 
 if (!$ea) {
+    require 'header.php';
     echo "<div class='container mt-4'><div class='alert alert-danger'>Enrollment not found.</div></div>";
     require 'footer.php';
     exit;
@@ -123,6 +122,10 @@ $history = $con->prepare("SELECT * FROM experiment_followups WHERE experiment_an
 $history->bind_param("i", $experimentAnimalId);
 $history->execute();
 $history = $history->get_result();
+
+// Render the shared header only after request handling. Including it before the
+// POST redirect sends HTML output and prevents PHP from modifying headers.
+require 'header.php';
 ?>
 
 <!doctype html>
