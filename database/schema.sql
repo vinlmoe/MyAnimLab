@@ -34,6 +34,8 @@ CREATE TABLE `cages` (
   `status` ENUM('active','archived') NOT NULL DEFAULT 'active',
   `room` varchar(255) DEFAULT NULL,
   `rack` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  `retired_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`cage_id`),
   FOREIGN KEY (`pi_name`) REFERENCES `users` (`id`) ON DELETE SET NULL
 );
@@ -374,7 +376,7 @@ CREATE TABLE `cage_checks` (
   `id` int NOT NULL AUTO_INCREMENT,
   `cage_id` varchar(255) NOT NULL,
   `check_date` date NOT NULL,
-  `check_type` ENUM('routine','experimental','health_report') NOT NULL,
+  `check_type` ENUM('routine','experimental','health_report','creation') NOT NULL,
   `result` ENUM('ok','issue') NOT NULL,
   `method` ENUM('round','qr','cage_page','auto') NOT NULL,
   `note` text DEFAULT NULL,
@@ -390,6 +392,27 @@ CREATE TRIGGER `cage_checks_no_update` BEFORE UPDATE ON `cage_checks`
   FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cage check log is append-only';
 CREATE TRIGGER `cage_checks_no_delete` BEFORE DELETE ON `cage_checks`
   FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cage check log is append-only';
+
+-- Cage lifecycle: when each cage entered and left service. The daily round
+-- only expects a cage to be seen on days it actually existed. A cage can be
+-- retired (archived) and later restored, so every transition is kept in an
+-- append-only log; cages.created_at / retired_at hold the current values.
+CREATE TABLE `cage_lifecycle` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `cage_id` varchar(255) NOT NULL,
+  `event` ENUM('created','retired','restored') NOT NULL,
+  `event_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `reason` text DEFAULT NULL,
+  `user_id` int DEFAULT NULL,
+  `user_name` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_cage_lifecycle_cage` (`cage_id`, `event_at`)
+);
+
+CREATE TRIGGER `cage_lifecycle_no_update` BEFORE UPDATE ON `cage_lifecycle`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cage lifecycle log is append-only';
+CREATE TRIGGER `cage_lifecycle_no_delete` BEFORE DELETE ON `cage_lifecycle`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cage lifecycle log is append-only';
 
 -- Table for storing tasks information
 CREATE TABLE `tasks` (

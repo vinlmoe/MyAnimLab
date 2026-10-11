@@ -202,14 +202,76 @@ function cage_checks_for_date(mysqli $con, string $date): array
     return $byCage;
 }
 
-// Active cages (holding and breeding) with their room/rack and kind.
-function active_cages(mysqli $con): array
+// Record a cage entering or leaving service (append-only cage_lifecycle) and
+// keep cages.created_at / retired_at in sync with the latest transition.
+function log_cage_lifecycle(mysqli $con, string $cageId, string $event, ?string $reason = null, ?int $userId = null, ?string $userName = null): void
 {
-    return $con->query(
-        "SELECT c.cage_id, c.room, c.rack,
+    $stmt = $con->prepare("INSERT INTO cage_lifecycle (cage_id, event, reason, user_id, user_name) VALUES (?, ?, ?, ?, ?)");
+    $stmt->bind_param("sssis", $cageId, $event, $reason, $userId, $userName);
+    $stmt->execute();
+    $stmt->close();
+
+    $sql = [
+        'created' => "UPDATE cages SET created_at = NOW(), retired_at = NULL WHERE cage_id = ?",
+        'retired' => "UPDATE cages SET retired_at = NOW() WHERE cage_id = ?",
+        'restored' => "UPDATE cages SET retired_at = NULL WHERE cage_id = ?",
+    ][$event];
+    $upd = $con->prepare($sql);
+    $upd->bind_param("s", $cageId);
+    $upd->execute();
+    $upd->close();
+}
+
+// Cages (holding and breeding) that had to be seen on $date, i.e. that were in
+// service that day according to their lifecycle: due from the day they were
+// created or restored, no longer due from the day they were retired. Cages
+// with no recorded creation (legacy data) are treated as existing since
+// before records began.
+function cages_due_on(mysqli $con, string $date): array
+{
+    $cages = $con->query(
+        "SELECT c.cage_id, c.room, c.rack, c.status, c.created_at, c.retired_at,
                 IF(EXISTS (SELECT 1 FROM breeding b WHERE b.cage_id = c.cage_id), 'breeding', 'holding') AS kind
-         FROM cages c WHERE c.status = 'active' ORDER BY c.room, c.rack, c.cage_id"
+         FROM cages c ORDER BY c.room, c.rack, c.cage_id"
     )->fetch_all(MYSQLI_ASSOC);
+
+    $events = [];
+    foreach ($con->query("SELECT cage_id, event, DATE(event_at) AS day FROM cage_lifecycle ORDER BY event_at, id") as $e) {
+        $events[$e['cage_id']][] = $e;
+    }
+
+    $due = [];
+    foreach ($cages as $c) {
+        // Build in-service periods [start, end): start/end are dates, null = open.
+        $periods = [];
+        $start = null;
+        $open = true; // legacy cage: in service since before any record
+        foreach ($events[$c['cage_id']] ?? [] as $e) {
+            if ($e['event'] === 'created' || $e['event'] === 'restored') {
+                if (!$open || $e['event'] === 'created') {
+                    $start = $e['day'];
+                    $open = true;
+                }
+            } elseif ($e['event'] === 'retired' && $open) {
+                $periods[] = [$start, $e['day']];
+                $open = false;
+            }
+        }
+        if (!isset($events[$c['cage_id']]) && $c['status'] !== 'active') {
+            $open = false; // archived legacy cage with no history: never expected
+        }
+        if ($open) {
+            $periods[] = [$start, null];
+        }
+
+        foreach ($periods as [$from, $to]) {
+            if (($from === null || $from <= $date) && ($to === null || $to > $date)) {
+                $due[] = $c;
+                break;
+            }
+        }
+    }
+    return $due;
 }
 
 // Short badge describing one cage check.

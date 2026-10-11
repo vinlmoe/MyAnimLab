@@ -103,6 +103,10 @@ if (isset($_GET['id'])) {
 
 function getUserDetailsByIds($con, $userIds)
 {
+    // Archived cages have no assigned users left: avoid an invalid "IN ()".
+    if (empty($userIds)) {
+        return [];
+    }
     $placeholders = implode(',', array_fill(0, count($userIds), '?'));
     $query = "SELECT id, initials, name FROM users WHERE id IN ($placeholders)";
     $stmt = $con->prepare($query);
@@ -311,18 +315,37 @@ require 'header.php';
         <?php
         // Daily check banner: printed cage QR codes open this page.
         $cageTodayChecks = cage_checks_for_date($con, date('Y-m-d'))[$breedingcage['cage_id']] ?? [];
+        $lifeStmt = $con->prepare("SELECT status, created_at, retired_at FROM cages WHERE cage_id = ?");
+        $lifeStmt->bind_param("s", $breedingcage['cage_id']);
+        $lifeStmt->execute();
+        $cageLife = $lifeStmt->get_result()->fetch_assoc();
+        $lifeStmt->close();
         ?>
-        <div class="alert <?= $cageTodayChecks ? 'alert-success' : 'alert-warning'; ?> d-flex justify-content-between align-items-center flex-wrap mb-3" id="dailyCheckBanner">
-            <span>
-                <strong>Daily check:</strong>
-                <?php if ($cageTodayChecks) : ?>
-                    seen today <?php foreach ($cageTodayChecks as $chk) echo cage_check_badge($chk); ?>
-                <?php else : ?>
-                    this cage has not been seen yet today.
-                <?php endif; ?>
-            </span>
-            <a href="cage_check.php?<?= htmlspecialchars(http_build_query(['id' => $breedingcage['cage_id'], 'via' => 'cage_page'])); ?>" class="btn btn-success btn-sm"><i class="fas fa-clipboard-check"></i> Validate daily check</a>
-        </div>
+        <?php if (($cageLife['status'] ?? 'active') === 'archived') : ?>
+            <div class="alert alert-secondary d-flex justify-content-between align-items-center flex-wrap mb-3" id="dailyCheckBanner">
+                <span>
+                    <strong>Retired cage</strong>
+                    <?= $cageLife['retired_at'] ? 'since ' . htmlspecialchars(substr($cageLife['retired_at'], 0, 10)) : ''; ?>
+                    — no daily check expected.
+                </span>
+                <a href="cage_restore.php?<?= htmlspecialchars(http_build_query(['id' => $breedingcage['cage_id'], 'confirm' => 'true', 'return' => 'bc_dash.php'])); ?>" class="btn btn-outline-secondary btn-sm" onclick="return confirm('Put this cage back in service? It will be expected on the daily round again.');">Restore cage</a>
+            </div>
+        <?php else : ?>
+            <div class="alert <?= $cageTodayChecks ? 'alert-success' : 'alert-warning'; ?> d-flex justify-content-between align-items-center flex-wrap mb-3" id="dailyCheckBanner">
+                <span>
+                    <strong>Daily check:</strong>
+                    <?php if ($cageTodayChecks) : ?>
+                        seen today <?php foreach ($cageTodayChecks as $chk) echo cage_check_badge($chk); ?>
+                    <?php else : ?>
+                        this cage has not been seen yet today.
+                    <?php endif; ?>
+                    <?php if (!empty($cageLife['created_at'])) : ?>
+                        <small class="text-muted">· in service since <?= htmlspecialchars(substr($cageLife['created_at'], 0, 10)); ?></small>
+                    <?php endif; ?>
+                </span>
+                <a href="cage_check.php?<?= htmlspecialchars(http_build_query(['id' => $breedingcage['cage_id'], 'via' => 'cage_page'])); ?>" class="btn btn-success btn-sm"><i class="fas fa-clipboard-check"></i> Validate daily check</a>
+            </div>
+        <?php endif; ?>
         <div class="card">
             <div class="card-header">
                 <h4>View Breeding Cage <?= htmlspecialchars($breedingcage['cage_id']); ?></h4>

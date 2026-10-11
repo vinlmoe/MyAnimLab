@@ -166,6 +166,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
+            // Start of the cage's life: from today it must be seen daily. Creating it
+            // means its animals were just handled, so it counts as today's check.
+            log_cage_lifecycle($con, $cage_id, 'created', null, $_SESSION['user_id'] ?? null, $_SESSION['name'] ?? null);
+            record_cage_check($con, $cage_id, 'creation', 'ok', 'auto', 'Cage created', null, $_SESSION['user_id'] ?? null, $_SESSION['name'] ?? null);
+
             log_activity($con, 'create', 'cage', $cage_id, "Holding cage created with $male_count male(s) and $female_count female(s).", $_SESSION['user_id'] ?? null);
 
             // Commit the transaction

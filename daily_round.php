@@ -41,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Checks can only be recorded for today: the log is a real-time record.
     $cageIds = array_filter(array_map('trim', (array) ($_POST['cage_ids'] ?? [])));
     $note = trim($_POST['note'] ?? '') ?: null;
-    $active = array_column(active_cages($con), 'cage_id');
+    $active = array_column(cages_due_on($con, $today), 'cage_id');
     $cageIds = array_values(array_intersect($cageIds, $active));
 
     foreach ($cageIds as $cid) {
@@ -56,7 +56,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-$cages = active_cages($con);
+// Only cages that were in service on that day (created, not yet retired).
+$cages = cages_due_on($con, $date);
 $checks = cage_checks_for_date($con, $date);
 
 // Animals currently housed in each active cage, with their open health issues.
@@ -142,7 +143,7 @@ require 'header.php';
                 <?= $totalCages - $totalSeen; ?> <?= $isToday ? 'still to check' : 'missed'; ?>.
             <?php endif; ?>
             <?php if (!$isToday) : ?>
-                <br><small>Past days are read-only and compared with the cages active today.</small>
+                <br><small>Past days are read-only. Only cages in service that day are expected (created on or before it, not yet retired).</small>
             <?php endif; ?>
         </div>
 
@@ -203,7 +204,7 @@ require 'header.php';
                                     <?php if ($isToday) : ?><th style="width: 30px;"><input type="checkbox" class="form-check-input select-room" title="Select all cages of this room"></th><?php endif; ?>
                                     <th>Cage</th>
                                     <th>Rack</th>
-                                    <th>Animals</th>
+                                    <th><?= $isToday ? 'Animals' : 'Lifecycle'; ?></th>
                                     <th>Seen<?= $isToday ? ' today' : ''; ?></th>
                                     <?php if ($isToday) : ?><th class="text-end">Actions</th><?php endif; ?>
                                 </tr>
@@ -221,7 +222,13 @@ require 'header.php';
                                 <td><a href="<?= $view; ?>?id=<?= rawurlencode($cid); ?>" class="fw-bold"><?= htmlspecialchars($cid); ?></a><br><small class="text-muted"><?= $c['kind']; ?></small></td>
                                 <td><?= htmlspecialchars($c['rack'] ?? '-'); ?></td>
                                 <td>
-                                    <?php foreach ($animalsByCage[$cid] ?? [] as $a) :
+                                    <?php if (!$isToday) : ?>
+                                        <small class="text-muted">
+                                            <?= $c['created_at'] ? 'in service since ' . htmlspecialchars(substr($c['created_at'], 0, 10)) : 'legacy cage'; ?>
+                                            <?= $c['retired_at'] ? '· retired ' . htmlspecialchars(substr($c['retired_at'], 0, 10)) : ''; ?>
+                                        </small>
+                                    <?php endif; ?>
+                                    <?php foreach ($isToday ? ($animalsByCage[$cid] ?? []) : [] as $a) :
                                         $label = $a['animal_uid'] ?? $a['mouse_id'] ?? '#' . $a['id']; ?>
                                         <span class="text-nowrap me-2">
                                             <a href="animal_view.php?id=<?= (int) $a['id']; ?>"><?= htmlspecialchars($label); ?></a><?= $a['sex'] === 'male' ? '♂' : ($a['sex'] === 'female' ? '♀' : ''); ?>
@@ -231,7 +238,7 @@ require 'header.php';
                                             <?php endif; ?>
                                         </span>
                                     <?php endforeach; ?>
-                                    <?php if (empty($animalsByCage[$cid])) : ?><span class="text-muted">No active animal</span><?php endif; ?>
+                                    <?php if ($isToday && empty($animalsByCage[$cid])) : ?><span class="text-muted">No active animal</span><?php endif; ?>
                                 </td>
                                 <td>
                                     <?php foreach ($cageChecks as $chk) echo cage_check_badge($chk); ?>

@@ -120,6 +120,7 @@ if (isset($_GET['id'], $_GET['confirm']) && $_GET['confirm'] == 'true') {
         mysqli_stmt_execute($archiveCageStmt);
         mysqli_stmt_close($archiveCageStmt);
 
+        log_cage_lifecycle($con, $id, 'retired', $archiveReason, $currentUserId, $_SESSION['name'] ?? null);
         log_activity($con, 'archive', 'cage', $id, $archiveReason, $currentUserId);
 
         // Commit the transaction
