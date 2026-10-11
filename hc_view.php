@@ -381,7 +381,11 @@ require 'header.php';
                     <?= $cageLife['retired_at'] ? 'since ' . htmlspecialchars(substr($cageLife['retired_at'], 0, 10)) : ''; ?>
                     — no daily check expected.
                 </span>
-                <a href="cage_restore.php?<?= htmlspecialchars(http_build_query(['id' => $holdingcage['cage_id'], 'confirm' => 'true', 'return' => 'hc_dash.php'])); ?>" class="btn btn-outline-secondary btn-sm" onclick="return confirm('Put this cage back in service? It will be expected on the daily round again.');">Restore cage</a>
+                <?php if (cage_active_animal_count($con, $holdingcage['cage_id']) > 0) : ?>
+                    <a href="cage_restore.php?<?= htmlspecialchars(http_build_query(['id' => $holdingcage['cage_id'], 'confirm' => 'true', 'return' => 'hc_dash.php'])); ?>" class="btn btn-outline-secondary btn-sm" onclick="return confirm('Put this cage back in service? It will be expected on the daily round again.');">Restore cage</a>
+                <?php else : ?>
+                    <span class="text-muted small">No animal left: it cannot be put back in service.</span>
+                <?php endif; ?>
             </div>
         <?php else : ?>
             <div class="alert <?= $cageTodayChecks ? 'alert-success' : 'alert-warning'; ?> d-flex justify-content-between align-items-center flex-wrap mb-3" id="dailyCheckBanner">
@@ -455,7 +459,7 @@ require 'header.php';
                     </tr>
                     <tr>
                         <th>Qty</th>
-                        <td><?= htmlspecialchars($holdingcage['quantity']); ?></td>
+                        <td><?= htmlspecialchars($holdingcage['quantity'] ?? ''); ?></td>
                     </tr>
                     <tr>
                         <th>DOB</th>
@@ -471,7 +475,7 @@ require 'header.php';
                     </tr>
                     <tr>
                         <th>Remarks</th>
-                        <td><?= htmlspecialchars($holdingcage['remarks']); ?></td>
+                        <td><?= htmlspecialchars($holdingcage['remarks'] ?? ''); ?></td>
                     </tr>
                 </table>
 

@@ -39,6 +39,7 @@ $defaultLabData = [
     'lab_name' => '',
     'url' => '',
     'timezone' => '',
+    'round_alert_time' => '18:00',
     'r1_temp' => '',
     'r1_humi' => '',
     'r1_illu' => '',
@@ -63,7 +64,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_lab'])) {
     }
 
     // Sanitize and fetch form inputs
-    $inputFields = ['lab_name', 'url', 'timezone', 'r1_temp', 'r1_humi', 'r1_illu', 'r1_pres', 'r2_temp', 'r2_humi', 'r2_illu', 'r2_pres', 'cf-turnstile-secretKey', 'cf-turnstile-sitekey'];
+    $inputFields = ['lab_name', 'url', 'timezone', 'round_alert_time', 'r1_temp', 'r1_humi', 'r1_illu', 'r1_pres', 'r2_temp', 'r2_humi', 'r2_illu', 'r2_pres', 'cf-turnstile-secretKey', 'cf-turnstile-sitekey'];
     $inputData = [];
     foreach ($inputFields as $field) {
         $inputData[$field] = filter_input(INPUT_POST, $field, FILTER_SANITIZE_STRING);
@@ -178,6 +179,11 @@ require 'header.php';
                 <label for="timezone">Timezone</label><br>
                 <a href="https://www.php.net/manual/en/timezones.php" target="_blank" style="margin-bottom: 10px; display: inline-block;">List of Supported Timezones</a>
                 <input type="text" class="form-control" id="timezone" name="timezone" value="<?php echo htmlspecialchars($labData['timezone']); ?>">
+            </div>
+            <div class="form-group">
+                <label for="round_alert_time">Daily round alert time</label>
+                <small class="form-text text-muted d-block">After this time (lab timezone), admins are alerted once about cages not yet seen today. Requires the daily_round_alert.php cron job.</small>
+                <input type="time" class="form-control" id="round_alert_time" name="round_alert_time" value="<?php echo htmlspecialchars($labData['round_alert_time']); ?>">
             </div>
             <div class="form-group">
                 <label for="r1_temp">Room 1 Temperature Sensor</label>

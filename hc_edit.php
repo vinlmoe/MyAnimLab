@@ -12,6 +12,7 @@ session_start();
 
 // Include the database connection file
 require 'dbcon.php';
+require 'animal_lib.php';
 
 // Disable error display in production (errors logged to server logs)
 error_reporting(E_ALL);
@@ -268,9 +269,10 @@ if (isset($_GET['id'])) {
             if (!empty($_POST['mice_to_delete'])) {
                 $miceToDelete = explode(',', $_POST['mice_to_delete']);
                 foreach ($miceToDelete as $mouseId) {
-                    $deleteMouseQuery = "DELETE FROM mice WHERE id = ?";
+                    // Only animals of this cage can be removed from its edit form.
+                    $deleteMouseQuery = "DELETE FROM mice WHERE id = ? AND cage_id = ?";
                     $stmtMouseDelete = $con->prepare($deleteMouseQuery);
-                    $stmtMouseDelete->bind_param("i", $mouseId);
+                    $stmtMouseDelete->bind_param("is", $mouseId, $cage_id);
                     $stmtMouseDelete->execute();
                     $stmtMouseDelete->close();
                 }
@@ -374,6 +376,10 @@ if (isset($_GET['id'])) {
                         }
                     }
                 }
+            }
+
+            if (retire_cage_if_empty($con, $cage_id, 'last animal removed from the cage form', $_SESSION['user_id'] ?? null, $_SESSION['name'] ?? null)) {
+                $_SESSION['message'] = ($_SESSION['message'] ?? '') . " Cage $cage_id has no animal left and was retired automatically.";
             }
 
             // Redirect to the same page to prevent resubmission on refresh

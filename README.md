@@ -256,6 +256,7 @@ For initial setup, use the following default admin credentials:
 - `get_reminder.php`: Retrieves scheduled reminders from the database, likely for notifications.
 - `manage_reminder.php`: Manages reminders within the application, allowing users to add, edit, or delete reminders.
 - `process_reminders.php`: Processes and sends scheduled reminders, possibly running as a cron job.
+- `daily_round_alert.php`: End-of-day alert to admins listing cages not seen on the daily round; run it from cron every few minutes (e.g. `*/5 * * * * php /path/to/daily_round_alert.php`), it sends at most once a day after the time set in Manage Lab.
 
 ## Demo Website
 

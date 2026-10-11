@@ -289,3 +289,57 @@ function safe_check_return(?string $return): ?string
 {
     return ($return && preg_match('/^(daily_round|cage_check)\.php(\?[A-Za-z0-9_\-=&%.]*)?$/', $return)) ? $return : null;
 }
+
+// Number of active animals currently housed in a cage.
+function cage_active_animal_count(mysqli $con, string $cageId): int
+{
+    $stmt = $con->prepare("SELECT COUNT(*) FROM mice WHERE cage_id = ? AND status = 'active'");
+    $stmt->bind_param("s", $cageId);
+    $stmt->execute();
+    $stmt->bind_result($count);
+    $stmt->fetch();
+    $stmt->close();
+    return (int) $count;
+}
+
+// A cage without any active animal is taken out of service automatically
+// (after a transfer, sacrifice or deletion of its last animal). Its
+// recurring reminders stop; assigned users, files and notes are kept so it
+// stays fully traceable. Returns true when the cage was retired.
+function retire_cage_if_empty(mysqli $con, ?string $cageId, string $why, ?int $userId = null, ?string $userName = null): bool
+{
+    if ($cageId === null || $cageId === '' || cage_active_animal_count($con, $cageId) > 0) {
+        return false;
+    }
+    $stmt = $con->prepare("UPDATE cages SET status = 'archived' WHERE cage_id = ? AND status = 'active'");
+    $stmt->bind_param("s", $cageId);
+    $stmt->execute();
+    $retired = $stmt->affected_rows === 1;
+    $stmt->close();
+    if (!$retired) {
+        return false;
+    }
+
+    $reason = "Automatically retired: no animal left ($why).";
+    $rem = $con->prepare("DELETE FROM reminders WHERE cage_id = ?");
+    $rem->bind_param("s", $cageId);
+    $rem->execute();
+    $rem->close();
+    log_cage_lifecycle($con, $cageId, 'retired', $reason, $userId, $userName);
+    log_activity($con, 'auto_retire', 'cage', $cageId, $reason, $userId);
+    return true;
+}
+
+// Cages due on $date that have not been seen, grouped by room ('' = no room).
+function unseen_cages_by_room(mysqli $con, string $date): array
+{
+    $checks = cage_checks_for_date($con, $date);
+    $byRoom = [];
+    foreach (cages_due_on($con, $date) as $c) {
+        if (empty($checks[$c['cage_id']])) {
+            $byRoom[$c['room'] ?? ''][] = $c['cage_id'];
+        }
+    }
+    ksort($byRoom);
+    return $byRoom;
+}

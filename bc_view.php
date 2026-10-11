@@ -328,7 +328,11 @@ require 'header.php';
                     <?= $cageLife['retired_at'] ? 'since ' . htmlspecialchars(substr($cageLife['retired_at'], 0, 10)) : ''; ?>
                     — no daily check expected.
                 </span>
-                <a href="cage_restore.php?<?= htmlspecialchars(http_build_query(['id' => $breedingcage['cage_id'], 'confirm' => 'true', 'return' => 'bc_dash.php'])); ?>" class="btn btn-outline-secondary btn-sm" onclick="return confirm('Put this cage back in service? It will be expected on the daily round again.');">Restore cage</a>
+                <?php if (cage_active_animal_count($con, $breedingcage['cage_id']) > 0) : ?>
+                    <a href="cage_restore.php?<?= htmlspecialchars(http_build_query(['id' => $breedingcage['cage_id'], 'confirm' => 'true', 'return' => 'bc_dash.php'])); ?>" class="btn btn-outline-secondary btn-sm" onclick="return confirm('Put this cage back in service? It will be expected on the daily round again.');">Restore cage</a>
+                <?php else : ?>
+                    <span class="text-muted small">No animal left: it cannot be put back in service.</span>
+                <?php endif; ?>
             </div>
         <?php else : ?>
             <div class="alert <?= $cageTodayChecks ? 'alert-success' : 'alert-warning'; ?> d-flex justify-content-between align-items-center flex-wrap mb-3" id="dailyCheckBanner">

@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $sacrificeDate = $_POST['sacrifice_date'] ?: date('Y-m-d');
     $reason = trim($_POST['reason'] ?? '');
 
-    $stmt = $con->prepare("SELECT status, animal_uid FROM mice WHERE id = ?");
+    $stmt = $con->prepare("SELECT status, animal_uid, cage_id FROM mice WHERE id = ?");
     $stmt->bind_param("i", $animalId);
     $stmt->execute();
     $animal = $stmt->get_result()->fetch_assoc();
@@ -50,7 +50,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         log_animal_event($con, $animalId, 'status_change', ['status' => 'sacrificed', 'date' => $sacrificeDate, 'reason' => $reason], $currentUserId);
         log_activity($con, 'sacrifice', 'animal', (string) $animalId, "{$animal['animal_uid']}: $reason", $currentUserId);
 
-        $_SESSION['message'] = "Animal {$animal['animal_uid']} marked as sacrificed.";
+        $retired = retire_cage_if_empty($con, $animal['cage_id'], "last animal sacrificed", $currentUserId, $_SESSION['name'] ?? null);
+        $_SESSION['message'] = "Animal {$animal['animal_uid']} marked as sacrificed."
+            . ($retired ? " Cage {$animal['cage_id']} is now empty and was retired automatically." : '');
     }
 
     header("Location: animal_view.php?id=$animalId");
