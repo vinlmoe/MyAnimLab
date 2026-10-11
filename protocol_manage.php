@@ -13,8 +13,6 @@ if (!isset($_SESSION['username'])) {
     exit;
 }
 
-require 'header.php';
-
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
@@ -27,6 +25,7 @@ $trialStmt->execute();
 $trial = $trialStmt->get_result()->fetch_assoc();
 
 if (!$trial) {
+    require 'header.php';
     echo "<div class='container mt-4'><div class='alert alert-danger'>Trial not found.</div></div>";
     require 'footer.php';
     exit;
@@ -83,6 +82,10 @@ $protocols = $con->prepare("SELECT * FROM protocols WHERE trial_id = ? ORDER BY 
 $protocols->bind_param("i", $trialId);
 $protocols->execute();
 $protocols = $protocols->get_result();
+
+// Render the shared header only after request handling. Including it before the
+// POST redirect sends HTML output and prevents PHP from modifying headers.
+require 'header.php';
 ?>
 
 <!doctype html>
