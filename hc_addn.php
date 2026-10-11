@@ -111,6 +111,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->bind_param("siss", $cage_id, $pi_name, $qty, $remarks);
             $stmt->execute();
 
+            // Room / rack locate the cage for the daily round.
+            $room = trim($_POST['room'] ?? '') ?: null;
+            $rack = trim($_POST['rack'] ?? '') ?: null;
+            $stmtLoc = $con->prepare("UPDATE cages SET room = ?, rack = ? WHERE cage_id = ?");
+            $stmtLoc->bind_param("sss", $room, $rack, $cage_id);
+            $stmtLoc->execute();
+            $stmtLoc->close();
+
             // Insert data into holding table (parent_cg is no longer collected:
             // real lineage, when it exists, is tracked via animal_parentage instead)
             $query2 = "INSERT INTO holding (cage_id, strain, dob) VALUES (?, ?, ?)";
@@ -473,6 +481,22 @@ require 'header.php';
                     <label for="female_count" class="form-label">Number of Females <span class="required-asterisk">*</span></label>
                     <input type="number" class="form-control" id="female_count" name="female_count" min="0" value="0" required>
                 </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="room" class="form-label">Room</label>
+                    <input type="text" class="form-control" id="room" name="room" list="roomList" value="" placeholder="Used to organise the daily round">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="rack" class="form-label">Rack</label>
+                    <input type="text" class="form-control" id="rack" name="rack" value="">
+                </div>
+                <datalist id="roomList">
+                    <?php foreach ($con->query("SELECT DISTINCT room FROM cages WHERE room IS NOT NULL AND room <> '' ORDER BY room") as $roomRow) : ?>
+                        <option value="<?= htmlspecialchars($roomRow['room']); ?>">
+                    <?php endforeach; ?>
+                </datalist>
             </div>
 
             <div class="mb-3">

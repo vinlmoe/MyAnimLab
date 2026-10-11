@@ -10,6 +10,7 @@
 
 session_start();
 require 'dbcon.php';
+require 'animal_lib.php';
 
 // Check if the user is not logged in
 if (!isset($_SESSION['username'])) {
@@ -360,6 +361,21 @@ require 'header.php';
 
 <body>
     <div class="container content mt-4">
+        <?php
+        // Daily check banner: printed cage QR codes open this page.
+        $cageTodayChecks = cage_checks_for_date($con, date('Y-m-d'))[$holdingcage['cage_id']] ?? [];
+        ?>
+        <div class="alert <?= $cageTodayChecks ? 'alert-success' : 'alert-warning'; ?> d-flex justify-content-between align-items-center flex-wrap mb-3" id="dailyCheckBanner">
+            <span>
+                <strong>Daily check:</strong>
+                <?php if ($cageTodayChecks) : ?>
+                    seen today <?php foreach ($cageTodayChecks as $chk) echo cage_check_badge($chk); ?>
+                <?php else : ?>
+                    this cage has not been seen yet today.
+                <?php endif; ?>
+            </span>
+            <a href="cage_check.php?<?= htmlspecialchars(http_build_query(['id' => $holdingcage['cage_id'], 'via' => 'cage_page'])); ?>" class="btn btn-success btn-sm"><i class="fas fa-clipboard-check"></i> Validate daily check</a>
+        </div>
         <div class="card">
             <div class="card-header">
                 <h4>View Holding Cage <?= htmlspecialchars($holdingcage['cage_id']); ?></h4>

@@ -80,7 +80,7 @@ if (isset($_GET['id'])) {
     $id = $_GET['id'];
 
     // Fetch the holding cage record with the specified ID including PI name details
-    $query = "SELECT h.*, c.pi_name AS pi_name, c.quantity, c.remarks
+    $query = "SELECT h.*, c.pi_name AS pi_name, c.quantity, c.remarks, c.room, c.rack
               FROM holding h
               LEFT JOIN cages c ON h.cage_id = c.cage_id 
               WHERE h.cage_id = ?";
@@ -165,8 +165,9 @@ if (isset($_GET['id'])) {
                 return mysqli_real_escape_string($con, trim($user_id));
             }, $_POST['user']) : [];
             $dob = mysqli_real_escape_string($con, $_POST['dob']);
-            $sex = mysqli_real_escape_string($con, $_POST['sex']);
-            $parent_cg = mysqli_real_escape_string($con, $_POST['parent_cg']);
+            // Optional since animals carry their own sex and lineage (migration 003).
+            $sex = in_array(strtolower($_POST['sex'] ?? ''), ['male', 'female'], true) ? strtolower($_POST['sex']) : null;
+            $parent_cg = trim($_POST['parent_cg'] ?? '') ?: null;
             $remarks = mysqli_real_escape_string($con, $_POST['remarks']);
 
             // Update query for holding table
@@ -192,6 +193,14 @@ if (isset($_GET['id'])) {
             $stmtCages->bind_param("iss", $pi_name, $remarks, $cage_id);
             $resultCages = $stmtCages->execute();
             $stmtCages->close();
+
+            // Room / rack locate the cage for the daily round.
+            $room = trim($_POST['room'] ?? '') ?: null;
+            $rack = trim($_POST['rack'] ?? '') ?: null;
+            $stmtLoc = $con->prepare("UPDATE cages SET room = ?, rack = ? WHERE cage_id = ?");
+            $stmtLoc->bind_param("sss", $room, $rack, $cage_id);
+            $stmtLoc->execute();
+            $stmtLoc->close();
 
             // Update the cage_users table
             $deleteUsersQuery = "DELETE FROM cage_users WHERE cage_id = ?";
@@ -855,17 +864,33 @@ require 'header.php';
                             </div>
 
                             <div class="mb-3">
-                                <label for="sex" class="form-label">Sex <span class="required-asterisk">*</span></label>
-                                <select class="form-control" id="sex" name="sex" required>
-                                    <option value="" disabled <?= empty($holdingcage['sex']) ? 'selected' : ''; ?>>Select Sex</option>
+                                <label for="sex" class="form-label">Cage Sex</label>
+                                <select class="form-control" id="sex" name="sex">
+                                    <option value="" <?= empty($holdingcage['sex']) ? 'selected' : ''; ?>>Mixed / set per animal</option>
                                     <option value="Male" <?= $holdingcage['sex'] === 'male' ? 'selected' : ''; ?>>Male</option>
                                     <option value="Female" <?= $holdingcage['sex'] === 'female' ? 'selected' : ''; ?>>Female</option>
                                 </select>
                             </div>
 
                             <div class="mb-3">
-                                <label for="parent_cg" class="form-label">Parent Cage <span class="required-asterisk">*</span></label>
-                                <input type="text" class="form-control" id="parent_cg" name="parent_cg" value="<?= htmlspecialchars($holdingcage['parent_cg']); ?>" required>
+                                <label for="parent_cg" class="form-label">Parent Cage</label>
+                                <input type="text" class="form-control" id="parent_cg" name="parent_cg" value="<?= htmlspecialchars($holdingcage['parent_cg'] ?? ''); ?>">
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="room" class="form-label">Room</label>
+                                    <input type="text" class="form-control" id="room" name="room" list="roomList" value="<?= htmlspecialchars($holdingcage['room'] ?? ''); ?>" placeholder="Used to organise the daily round">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="rack" class="form-label">Rack</label>
+                                    <input type="text" class="form-control" id="rack" name="rack" value="<?= htmlspecialchars($holdingcage['rack'] ?? ''); ?>">
+                                </div>
+                                <datalist id="roomList">
+                                    <?php foreach ($con->query("SELECT DISTINCT room FROM cages WHERE room IS NOT NULL AND room <> '' ORDER BY room") as $roomRow) : ?>
+                                        <option value="<?= htmlspecialchars($roomRow['room']); ?>">
+                                    <?php endforeach; ?>
+                                </datalist>
                             </div>
 
                             <div class="mb-3">
@@ -886,7 +911,7 @@ require 'header.php';
                                         <input type="hidden" name="existing_mouse_id[]" value="<?= htmlspecialchars($mouse['id']) ?>">
                                         <div class="mb-3">
                                             <label for="mouse_id_<?= $i + 1 ?>" class="form-label">Mouse ID</label>
-                                            <input type="text" class="form-control" id="mouse_id_<?= $i + 1 ?>" name="mouse_id[]" value="<?= htmlspecialchars($mouse['mouse_id']) ?>">
+                                            <input type="text" class="form-control" id="mouse_id_<?= $i + 1 ?>" name="mouse_id[]" value="<?= htmlspecialchars($mouse['mouse_id'] ?? '') ?>">
                                         </div>
 
                                         <div class="mb-3">
@@ -896,7 +921,7 @@ require 'header.php';
 
                                         <div class="mb-3">
                                             <label for="notes_<?= $i + 1 ?>" class="form-label">Maintenance Notes</label>
-                                            <textarea class="form-control" id="notes_<?= $i + 1 ?>" name="notes[]" oninput="adjustTextareaHeight(this)"><?= htmlspecialchars($mouse['notes']) ?></textarea>
+                                            <textarea class="form-control" id="notes_<?= $i + 1 ?>" name="notes[]" oninput="adjustTextareaHeight(this)"><?= htmlspecialchars($mouse['notes'] ?? '') ?></textarea>
                                         </div>
 
                                         <div class="button-group">

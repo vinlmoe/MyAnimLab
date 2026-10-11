@@ -13,7 +13,7 @@ header("X-Frame-Options: SAMEORIGIN"); // Prevent clickjacking
 header("X-Content-Type-Options: nosniff"); // Prevent MIME type sniffing
 header("X-XSS-Protection: 1; mode=block"); // Enable browser XSS protection
 header("Referrer-Policy: strict-origin-when-cross-origin"); // Control referrer information
-header("Permissions-Policy: geolocation=(), microphone=(), camera=()"); // Restrict powerful features
+header("Permissions-Policy: geolocation=(), microphone=(), camera=(self)"); // Restrict powerful features; camera kept for same-origin cage QR scanning
 
 // Include the database connection file
 require 'dbcon.php';
@@ -198,6 +198,9 @@ if (isset($settings['r2_pres'])) {
                     <i class="fas fa-paw"></i> Animals
                 </button>
                 <ul class="dropdown-menu" aria-labelledby="animalsMenuButton">
+                    <li><a class="dropdown-item" href="daily_round.php"><i class="fas fa-clipboard-check me-1"></i> Daily Round</a></li>
+                    <li><a class="dropdown-item" href="qr_scan.php"><i class="fas fa-qrcode me-1"></i> Scan Cage QR</a></li>
+                    <li><hr class="dropdown-divider"></li>
                     <li><a class="dropdown-item" href="animal_search.php?list=1"><i class="fas fa-search me-1"></i> Find Animal</a></li>
                     <li><a class="dropdown-item" href="animal_transfer.php">Transfer Animal</a></li>
                     <li><a class="dropdown-item" href="trial_manage.php">Trials / Protocols / Experiments</a></li>

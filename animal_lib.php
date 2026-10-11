@@ -172,3 +172,58 @@ function open_health_counts(mysqli $con, array $animalIds): array
     $stmt->close();
     return $counts;
 }
+
+// Record that a cage was seen on its daily check (append-only log). Called by
+// the daily round, the QR/cage page, and automatically by the experimental
+// follow-up and health reports, so any of them satisfies "seen today".
+function record_cage_check(mysqli $con, string $cageId, string $type, string $result, string $method, ?string $note = null, ?int $healthReportId = null, ?int $userId = null, ?string $userName = null): void
+{
+    $today = date('Y-m-d');
+    $stmt = $con->prepare(
+        "INSERT INTO cage_checks (cage_id, check_date, check_type, result, method, note, health_report_id, checked_by, checked_by_name)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    );
+    $stmt->bind_param("ssssssiis", $cageId, $today, $type, $result, $method, $note, $healthReportId, $userId, $userName);
+    $stmt->execute();
+    $stmt->close();
+}
+
+// All checks of the given day, grouped by cage_id.
+function cage_checks_for_date(mysqli $con, string $date): array
+{
+    $stmt = $con->prepare("SELECT * FROM cage_checks WHERE check_date = ? ORDER BY checked_at, id");
+    $stmt->bind_param("s", $date);
+    $stmt->execute();
+    $byCage = [];
+    foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
+        $byCage[$row['cage_id']][] = $row;
+    }
+    $stmt->close();
+    return $byCage;
+}
+
+// Active cages (holding and breeding) with their room/rack and kind.
+function active_cages(mysqli $con): array
+{
+    return $con->query(
+        "SELECT c.cage_id, c.room, c.rack,
+                IF(EXISTS (SELECT 1 FROM breeding b WHERE b.cage_id = c.cage_id), 'breeding', 'holding') AS kind
+         FROM cages c WHERE c.status = 'active' ORDER BY c.room, c.rack, c.cage_id"
+    )->fetch_all(MYSQLI_ASSOC);
+}
+
+// Short badge describing one cage check.
+function cage_check_badge(array $check): string
+{
+    $color = $check['result'] === 'ok' ? 'success' : 'danger';
+    $label = ['routine' => 'round', 'experimental' => 'exp. follow-up', 'health_report' => 'health report'][$check['check_type']] ?? $check['check_type'];
+    $text = date('H:i', strtotime($check['checked_at'])) . ' ' . $label . ($check['method'] === 'qr' ? ' (QR)' : '')
+        . ' · ' . ($check['checked_by_name'] ?? '?');
+    return '<span class="badge bg-' . $color . ' me-1" title="' . htmlspecialchars($check['note'] ?? '') . '">' . htmlspecialchars($text) . '</span>';
+}
+
+// Only allow redirecting back to the daily-check pages (avoids open redirects).
+function safe_check_return(?string $return): ?string
+{
+    return ($return && preg_match('/^(daily_round|cage_check)\.php(\?[A-Za-z0-9_\-=&%.]*)?$/', $return)) ? $return : null;
+}
