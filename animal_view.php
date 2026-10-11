@@ -137,6 +137,8 @@ $statusBadge = [
             <?php endif; ?>
         </h4>
 
+        <?php include('message.php'); ?>
+
         <div class="card">
             <div class="card-body">
                 <h5 class="card-title">Identity</h5>
