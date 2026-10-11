@@ -102,3 +102,73 @@ function notify_admins(mysqli $con, string $title, ?string $message = null, ?str
         create_notification($con, (int) $row['id'], $title, $message, $link, $type);
     }
 }
+
+// Health (sanitary) registry vocabularies, shared by the report, follow-up
+// and registry pages.
+const HEALTH_CATEGORIES = [
+    'injury' => 'Injury / wound',
+    'weight_loss' => 'Weight loss / poor condition',
+    'behavior' => 'Abnormal behavior',
+    'respiratory' => 'Respiratory signs',
+    'digestive' => 'Digestive signs (diarrhea...)',
+    'skin_fur' => 'Skin / fur / dermatitis',
+    'ocular' => 'Ocular',
+    'mass' => 'Tumor / mass',
+    'dental' => 'Dental / malocclusion',
+    'neurological' => 'Neurological',
+    'infection' => 'Suspected infection',
+    'found_dead' => 'Found dead',
+    'other' => 'Other',
+];
+
+const HEALTH_SEVERITIES = [
+    'minor' => 'success',
+    'moderate' => 'warning',
+    'severe' => 'danger',
+    'critical' => 'dark',
+];
+
+const HEALTH_STATUSES = [
+    'open' => 'danger',
+    'monitoring' => 'warning',
+    'resolved' => 'success',
+];
+
+// SELECT fragment giving each health report with its current state, i.e. the
+// status/severity of its latest (append-only) follow-up entry.
+const HEALTH_REPORTS_WITH_STATE_SQL = "
+    SELECT r.*, u.status AS current_status, u.severity AS current_severity,
+           u.created_at AS last_update_at
+    FROM health_reports r
+    JOIN health_report_updates u ON u.id = (
+        SELECT MAX(u2.id) FROM health_report_updates u2 WHERE u2.report_id = r.id
+    )";
+
+// Bootstrap badge for a health severity or status value.
+function health_badge(string $value, array $palette): string
+{
+    $color = $palette[$value] ?? 'secondary';
+    return '<span class="badge bg-' . $color . '">' . htmlspecialchars($value) . '</span>';
+}
+
+// Number of not-yet-resolved health reports per animal id, for the given ids.
+function open_health_counts(mysqli $con, array $animalIds): array
+{
+    if (empty($animalIds)) {
+        return [];
+    }
+    $placeholders = implode(',', array_fill(0, count($animalIds), '?'));
+    $stmt = $con->prepare(
+        "SELECT s.animal_id, COUNT(*) AS n FROM (" . HEALTH_REPORTS_WITH_STATE_SQL . ") s
+         WHERE s.current_status <> 'resolved' AND s.animal_id IN ($placeholders)
+         GROUP BY s.animal_id"
+    );
+    $stmt->bind_param(str_repeat('i', count($animalIds)), ...array_map('intval', $animalIds));
+    $stmt->execute();
+    $counts = [];
+    foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
+        $counts[(int) $row['animal_id']] = (int) $row['n'];
+    }
+    $stmt->close();
+    return $counts;
+}
