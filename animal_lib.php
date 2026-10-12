@@ -311,6 +311,14 @@ function retire_cage_if_empty(mysqli $con, ?string $cageId, string $why, ?int $u
     if ($cageId === null || $cageId === '' || cage_active_animal_count($con, $cageId) > 0) {
         return false;
     }
+    return retire_cage($con, $cageId, "Automatically retired: no animal left ($why).", $userId, $userName, 'auto_retire');
+}
+
+// Take an (empty) active cage out of service: status archived, lifecycle
+// 'retired', recurring reminders removed, activity logged. The database
+// refuses it while living animals remain (cages_no_retire_with_animals).
+function retire_cage(mysqli $con, string $cageId, string $reason, ?int $userId = null, ?string $userName = null, string $action = 'archive'): bool
+{
     $stmt = $con->prepare("UPDATE cages SET status = 'archived' WHERE cage_id = ? AND status = 'active'");
     $stmt->bind_param("s", $cageId);
     $stmt->execute();
@@ -320,13 +328,12 @@ function retire_cage_if_empty(mysqli $con, ?string $cageId, string $why, ?int $u
         return false;
     }
 
-    $reason = "Automatically retired: no animal left ($why).";
     $rem = $con->prepare("DELETE FROM reminders WHERE cage_id = ?");
     $rem->bind_param("s", $cageId);
     $rem->execute();
     $rem->close();
     log_cage_lifecycle($con, $cageId, 'retired', $reason, $userId, $userName);
-    log_activity($con, 'auto_retire', 'cage', $cageId, $reason, $userId);
+    log_activity($con, $action, 'cage', $cageId, $reason, $userId);
     return true;
 }
 
@@ -342,4 +349,90 @@ function unseen_cages_by_room(mysqli $con, string $date): array
     }
     ksort($byRoom);
     return $byRoom;
+}
+
+// Ways an animal can leave the facility (its "fate" when it does not move to
+// another cage). Key = mice.status value.
+const ANIMAL_EXIT_TYPES = [
+    'sacrificed' => 'Sacrificed (euthanasia)',
+    'dead' => 'Died / found dead',
+    'transferred_out' => 'Exported to another facility',
+];
+
+// Move an active animal to another active cage, with its movement history.
+// Throws on invalid moves. Retires the source cage if it is left empty unless
+// $retireEmptySource is false. Returns true when the source cage was retired.
+function move_animal(mysqli $con, int $animalId, string $toCageId, ?string $reason, ?int $userId, ?string $userName, bool $retireEmptySource = true): bool
+{
+    $stmt = $con->prepare("SELECT cage_id, status, animal_uid FROM mice WHERE id = ? FOR UPDATE");
+    $stmt->bind_param("i", $animalId);
+    $stmt->execute();
+    $animal = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$animal) {
+        throw new Exception("Animal not found.");
+    }
+    if ($animal['status'] !== 'active') {
+        throw new Exception("Only living animals can be moved.");
+    }
+    $check = $con->prepare("SELECT 1 FROM cages WHERE cage_id = ? AND status = 'active'");
+    $check->bind_param("s", $toCageId);
+    $check->execute();
+    $exists = $check->get_result()->num_rows > 0;
+    $check->close();
+    if (!$exists) {
+        throw new Exception("Destination cage does not exist or is retired.");
+    }
+    $fromCageId = $animal['cage_id'];
+    if ($fromCageId === $toCageId) {
+        throw new Exception("The animal is already in that cage.");
+    }
+
+    $update = $con->prepare("UPDATE mice SET cage_id = ? WHERE id = ?");
+    $update->bind_param("si", $toCageId, $animalId);
+    $update->execute();
+    $update->close();
+
+    log_animal_movement($con, $animalId, $fromCageId, $toCageId, $userId, $reason ?: null);
+    log_animal_event($con, $animalId, 'transferred', ['from_cage_id' => $fromCageId, 'to_cage_id' => $toCageId, 'reason' => $reason], $userId);
+
+    return $retireEmptySource && retire_cage_if_empty($con, $fromCageId, "last animal transferred to $toCageId", $userId, $userName);
+}
+
+// Record an animal leaving the facility (sacrificed, dead or exported). The
+// animal keeps its last cage_id for traceability. Retires the cage if it is
+// left empty unless $retireEmptyCage is false. Returns the cage id when it
+// was retired, null otherwise.
+function exit_animal(mysqli $con, int $animalId, string $type, string $date, string $reason, ?string $destination, ?int $userId, ?string $userName, bool $retireEmptyCage = true): ?string
+{
+    if (!isset(ANIMAL_EXIT_TYPES[$type])) {
+        throw new Exception("Unknown exit type.");
+    }
+    if ($type === 'transferred_out' && trim((string) $destination) === '') {
+        throw new Exception("An export needs the destination facility.");
+    }
+    $stmt = $con->prepare("SELECT cage_id, status, animal_uid FROM mice WHERE id = ? FOR UPDATE");
+    $stmt->bind_param("i", $animalId);
+    $stmt->execute();
+    $animal = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$animal) {
+        throw new Exception("Animal not found.");
+    }
+    if ($animal['status'] !== 'active') {
+        throw new Exception("Animal {$animal['animal_uid']} has already left the facility.");
+    }
+
+    $destination = $type === 'transferred_out' ? trim($destination) : null;
+    $update = $con->prepare("UPDATE mice SET status = ?, exit_date = ?, exit_reason = ?, exit_destination = ? WHERE id = ?");
+    $update->bind_param("ssssi", $type, $date, $reason, $destination, $animalId);
+    $update->execute();
+    $update->close();
+
+    log_animal_event($con, $animalId, 'status_change', ['status' => $type, 'date' => $date, 'reason' => $reason, 'destination' => $destination], $userId);
+    log_activity($con, 'exit_' . $type, 'animal', (string) $animalId, "{$animal['animal_uid']}: " . ANIMAL_EXIT_TYPES[$type] . ($destination ? " → $destination" : '') . ($reason !== '' ? " ($reason)" : ''), $userId);
+
+    $why = ['sacrificed' => 'last animal sacrificed', 'dead' => 'last animal died', 'transferred_out' => 'last animal exported'][$type];
+    return ($retireEmptyCage && retire_cage_if_empty($con, $animal['cage_id'], $why, $userId, $userName)) ? $animal['cage_id'] : null;
 }

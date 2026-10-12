@@ -209,7 +209,7 @@ $animalStmt->close();
                 <?php if ($animal && $animal['status'] === 'active') : ?>
                     <hr>
                     <a href="animal_transfer.php?animal_id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-primary"><i class="fas fa-exchange-alt"></i> Isolate / transfer</a>
-                    <a href="animal_sacrifice.php?id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-danger"><i class="fas fa-skull-crossbones"></i> Sacrifice</a>
+                    <a href="animal_exit.php?id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-danger"><i class="fas fa-sign-out-alt"></i> Exit (sacrifice / death / export)</a>
                 <?php endif; ?>
             </div>
         </div>

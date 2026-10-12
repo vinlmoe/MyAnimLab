@@ -64,10 +64,16 @@ if (in_array($sex, ['male', 'female'], true)) {
     $params[] = $sex;
     $types .= 's';
 }
-if (in_array($status, ['active', 'sacrificed', 'transferred_out', 'archived'], true)) {
+if (in_array($status, ['active', 'sacrificed', 'dead', 'transferred_out', 'archived'], true)) {
     $where[] = "m.status = ?";
     $params[] = $status;
     $types .= 's';
+}
+// Living animals breaking the housing rule (no cage, or a retired cage):
+// legacy data only, the database now prevents new cases.
+$housingAnomaly = !empty($_GET['housing_anomaly']);
+if ($housingAnomaly) {
+    $where[] = "m.status = 'active' AND (c.cage_id IS NULL OR c.status <> 'active')";
 }
 if ($healthOnly) {
     $where[] = "m.id IN (SELECT s.animal_id FROM (" . HEALTH_REPORTS_WITH_STATE_SQL . ") s WHERE s.current_status <> 'resolved')";
@@ -161,7 +167,7 @@ require 'header.php';
                     <label class="form-label" for="status">Status</label>
                     <select class="form-select" id="status" name="status">
                         <option value="all" <?= $status === 'all' ? 'selected' : ''; ?>>All</option>
-                        <?php foreach (['active', 'sacrificed', 'transferred_out', 'archived'] as $s) : ?>
+                        <?php foreach (['active', 'sacrificed', 'dead', 'transferred_out', 'archived'] as $s) : ?>
                             <option value="<?= $s; ?>" <?= $status === $s ? 'selected' : ''; ?>><?= ucfirst(str_replace('_', ' ', $s)); ?></option>
                         <?php endforeach; ?>
                     </select>
@@ -173,6 +179,10 @@ require 'header.php';
             <div class="form-check mt-2">
                 <input class="form-check-input" type="checkbox" id="health_open" name="health_open" value="1" <?= $healthOnly ? 'checked' : ''; ?>>
                 <label class="form-check-label" for="health_open">Only animals with an unresolved health issue</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="housing_anomaly" name="housing_anomaly" value="1" <?= $housingAnomaly ? 'checked' : ''; ?>>
+                <label class="form-check-label" for="housing_anomaly">Housing anomalies: living animals without an active cage</label>
             </div>
         </form>
 
@@ -237,7 +247,7 @@ require 'header.php';
                                 <?php if ($a['status'] === 'active') : ?>
                                     <a href="animal_transfer.php?animal_id=<?= $aid; ?>" class="btn btn-sm btn-outline-primary" title="Transfer to another cage"><i class="fas fa-exchange-alt"></i> Transfer</a>
                                     <a href="health_report.php?animal_id=<?= $aid; ?>" class="btn btn-sm btn-outline-warning" title="Report a health issue"><i class="fas fa-notes-medical"></i> Health</a>
-                                    <a href="animal_sacrifice.php?id=<?= $aid; ?>" class="btn btn-sm btn-outline-danger" title="Sacrifice"><i class="fas fa-skull-crossbones"></i> Sacrifice</a>
+                                    <a href="animal_exit.php?id=<?= $aid; ?>" class="btn btn-sm btn-outline-danger" title="Exit: sacrifice, death or export"><i class="fas fa-sign-out-alt"></i> Exit</a>
                                 <?php endif; ?>
                             </td>
                         </tr>
