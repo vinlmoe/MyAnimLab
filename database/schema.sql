@@ -172,6 +172,7 @@ CREATE TABLE `mice` (
   `exit_date` date DEFAULT NULL,
   `exit_reason` text DEFAULT NULL,
   `exit_destination` varchar(255) DEFAULT NULL,
+  `exit_code` varchar(40) DEFAULT NULL,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`cage_id`) REFERENCES `cages` (`cage_id`) ON UPDATE CASCADE ON DELETE SET NULL,
   FOREIGN KEY (`line_id`) REFERENCES `animal_lines` (`id`) ON DELETE SET NULL

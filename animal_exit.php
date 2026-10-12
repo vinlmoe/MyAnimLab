@@ -23,11 +23,9 @@ if (empty($_SESSION['csrf_token'])) {
 
 $currentUserId = $_SESSION['user_id'] ?? null;
 $animalId = (int) ($_GET['id'] ?? $_POST['animal_id'] ?? 0);
-// On submit, the fate chosen in the form wins over the ?type= preselection.
-$type = $_SERVER['REQUEST_METHOD'] === 'POST' ? ($_POST['exit_type'] ?? '') : ($_GET['type'] ?? 'sacrificed');
-if (!isset(ANIMAL_EXIT_TYPES[$type])) {
-    $type = 'sacrificed';
-}
+// On submit, the code chosen in the form wins over the ?code= preselection.
+// No default: the exit code must be chosen explicitly.
+$code = $_SERVER['REQUEST_METHOD'] === 'POST' ? ($_POST['exit_code'] ?? '') : ($_GET['code'] ?? '');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
@@ -40,14 +38,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     mysqli_begin_transaction($con);
     try {
-        $retiredCage = exit_animal($con, $animalId, $type, $date, $reason, $destination, $currentUserId, $_SESSION['name'] ?? null);
+        $retiredCage = exit_animal($con, $animalId, $code, $date, $reason, $destination, $currentUserId, $_SESSION['name'] ?? null);
         mysqli_commit($con);
-        $_SESSION['message'] = "Exit recorded: " . ANIMAL_EXIT_TYPES[$type] . "."
+        $_SESSION['message'] = "Exit recorded: " . ANIMAL_EXIT_CODES[$code][0] . "."
             . ($retiredCage ? " Cage $retiredCage is now empty and was retired automatically." : '');
     } catch (Exception $e) {
         mysqli_rollback($con);
         $_SESSION['message'] = "Exit not recorded: " . $e->getMessage();
-        header("Location: animal_exit.php?" . http_build_query(['id' => $animalId, 'type' => $type]));
+        header("Location: animal_exit.php?" . http_build_query(['id' => $animalId, 'code' => $code]));
         exit;
     }
 
@@ -92,10 +90,11 @@ $label = $animal['animal_uid'] ?? $animal['mouse_id'] ?? '#' . $animal['id'];
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                 <input type="hidden" name="animal_id" value="<?= (int) $animal['id']; ?>">
                 <div class="mb-3">
-                    <label class="form-label" for="exit_type">Fate</label>
-                    <select class="form-select" id="exit_type" name="exit_type">
-                        <?php foreach (ANIMAL_EXIT_TYPES as $key => $text) : ?>
-                            <option value="<?= $key; ?>" <?= $key === $type ? 'selected' : ''; ?>><?= htmlspecialchars($text); ?></option>
+                    <label class="form-label" for="exit_code">Exit code (motif de sortie)</label>
+                    <select class="form-select" id="exit_code" name="exit_code" required>
+                        <option value="" disabled <?= isset(ANIMAL_EXIT_CODES[$code]) ? '' : 'selected'; ?>>Choose…</option>
+                        <?php foreach (ANIMAL_EXIT_CODES as $key => [$text]) : ?>
+                            <option value="<?= $key; ?>" <?= $key === $code ? 'selected' : ''; ?>><?= htmlspecialchars($text); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -120,11 +119,11 @@ $label = $animal['animal_uid'] ?? $animal['mouse_id'] ?? '#' . $animal['id'];
     <script>
         // The destination is only meaningful (and required) for an export.
         (function() {
-            const type = document.getElementById('exit_type');
+            const type = document.getElementById('exit_code');
             const dest = document.getElementById('destination');
             if (!type || !dest) return;
             const sync = () => {
-                const exp = type.value === 'transferred_out';
+                const exp = type.value === 'export';
                 document.getElementById('destinationGroup').style.display = exp ? '' : 'none';
                 dest.required = exp;
             };
