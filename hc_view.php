@@ -381,11 +381,7 @@ require 'header.php';
                     <?= $cageLife['retired_at'] ? 'since ' . htmlspecialchars(substr($cageLife['retired_at'], 0, 10)) : ''; ?>
                     — no daily check expected.
                 </span>
-                <?php if (cage_active_animal_count($con, $holdingcage['cage_id']) > 0) : ?>
-                    <a href="cage_restore.php?<?= htmlspecialchars(http_build_query(['id' => $holdingcage['cage_id'], 'confirm' => 'true', 'return' => 'hc_dash.php'])); ?>" class="btn btn-outline-secondary btn-sm" onclick="return confirm('Put this cage back in service? It will be expected on the daily round again.');">Restore cage</a>
-                <?php else : ?>
-                    <span class="text-muted small">No animal left: it cannot be put back in service.</span>
-                <?php endif; ?>
+                <span class="text-muted small">A retired cage is not put back in service; its animals were moved or left the facility.</span>
             </div>
         <?php else : ?>
             <div class="alert <?= $cageTodayChecks ? 'alert-success' : 'alert-warning'; ?> d-flex justify-content-between align-items-center flex-wrap mb-3" id="dailyCheckBanner">
@@ -400,7 +396,10 @@ require 'header.php';
                         <small class="text-muted">· in service since <?= htmlspecialchars(substr($cageLife['created_at'], 0, 10)); ?></small>
                     <?php endif; ?>
                 </span>
-                <a href="cage_check.php?<?= htmlspecialchars(http_build_query(['id' => $holdingcage['cage_id'], 'via' => 'cage_page'])); ?>" class="btn btn-success btn-sm"><i class="fas fa-clipboard-check"></i> Validate daily check</a>
+                <span>
+                    <a href="cage_check.php?<?= htmlspecialchars(http_build_query(['id' => $holdingcage['cage_id'], 'via' => 'cage_page'])); ?>" class="btn btn-success btn-sm"><i class="fas fa-clipboard-check"></i> Validate daily check</a>
+                    <a href="cage_retire.php?id=<?= rawurlencode($holdingcage['cage_id']); ?>" class="btn btn-outline-danger btn-sm">Retire cage</a>
+                </span>
             </div>
         <?php endif; ?>
         <div class="card">

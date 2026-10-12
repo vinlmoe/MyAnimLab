@@ -97,6 +97,7 @@ $events = $events->get_result();
 $statusBadge = [
     'active' => 'success',
     'sacrificed' => 'dark',
+    'dead' => 'dark',
     'transferred_out' => 'secondary',
     'archived' => 'secondary',
 ][$animal['status']] ?? 'secondary';
@@ -130,7 +131,7 @@ $statusBadge = [
             <?php if ($animal['status'] === 'active') : ?>
                 <a href="animal_transfer.php?animal_id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-primary">Transfer</a>
                 <a href="health_report.php?animal_id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-warning">Report Health Issue</a>
-                <a href="animal_sacrifice.php?id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-danger">Sacrifice</a>
+                <a href="animal_exit.php?id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-danger">Exit (sacrifice / death / export)</a>
             <?php endif; ?>
             <?php if (($_SESSION['role'] ?? '') === 'admin') : ?>
                 <a href="animal_hard_delete.php?id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-dark">Permanently Delete (admin)</a>
@@ -155,6 +156,9 @@ $statusBadge = [
                 <?php if ($animal['status'] !== 'active') : ?>
                     <p><strong>Exit date:</strong> <?= htmlspecialchars($animal['exit_date'] ?? 'N/A'); ?></p>
                     <p><strong>Exit reason:</strong> <?= htmlspecialchars($animal['exit_reason'] ?? 'N/A'); ?></p>
+                    <?php if (!empty($animal['exit_destination'])) : ?>
+                        <p><strong>Exported to:</strong> <?= htmlspecialchars($animal['exit_destination']); ?></p>
+                    <?php endif; ?>
                 <?php endif; ?>
                 <p><strong>Notes:</strong> <?= nl2br(htmlspecialchars($animal['notes'] ?? '')); ?></p>
             </div>

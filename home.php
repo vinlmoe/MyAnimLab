@@ -66,6 +66,11 @@ $seenToday = count(array_intersect($roundCages, array_keys(cage_checks_for_date(
 $yesterday = date('Y-m-d', strtotime('-1 day'));
 $missedYesterday = count(array_diff(array_column(cages_due_on($con, $yesterday), 'cage_id'), array_keys(cage_checks_for_date($con, $yesterday))));
 
+$housingAnomalies = (int) $con->query(
+    "SELECT COUNT(*) FROM mice m LEFT JOIN cages c ON c.cage_id = m.cage_id
+     WHERE m.status = 'active' AND (c.cage_id IS NULL OR c.status <> 'active')"
+)->fetch_row()[0];
+
 require 'header.php';
 ?>
 
@@ -112,6 +117,13 @@ require 'header.php';
                 <span aria-hidden="true">&times;</span>
             </button>
         </div>
+        <?php endif; ?>
+
+        <?php if ($housingAnomalies) : ?>
+            <div class="alert alert-danger" id="housingAnomalies">
+                <i class="fas fa-exclamation-triangle"></i> <strong><?= $housingAnomalies; ?> living animal(s) without an active cage</strong> (data recorded before the housing rule).
+                <a href="animal_search.php?list=1&amp;status=active&amp;housing_anomaly=1">Move them to a cage or record their exit</a>.
+            </div>
         <?php endif; ?>
 
         <?php if ($roundCages) : ?>

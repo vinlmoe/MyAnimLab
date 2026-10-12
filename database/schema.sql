@@ -168,9 +168,10 @@ CREATE TABLE `mice` (
   `sex` ENUM('male','female') DEFAULT NULL,
   `genotype` varchar(255) DEFAULT NULL,
   `notes` text DEFAULT NULL,
-  `status` ENUM('active','sacrificed','transferred_out','archived') NOT NULL DEFAULT 'active',
+  `status` ENUM('active','sacrificed','dead','transferred_out','archived') NOT NULL DEFAULT 'active',
   `exit_date` date DEFAULT NULL,
   `exit_reason` text DEFAULT NULL,
+  `exit_destination` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`cage_id`) REFERENCES `cages` (`cage_id`) ON UPDATE CASCADE ON DELETE SET NULL,
   FOREIGN KEY (`line_id`) REFERENCES `animal_lines` (`id`) ON DELETE SET NULL
@@ -413,6 +414,36 @@ CREATE TRIGGER `cage_lifecycle_no_update` BEFORE UPDATE ON `cage_lifecycle`
   FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cage lifecycle log is append-only';
 CREATE TRIGGER `cage_lifecycle_no_delete` BEFORE DELETE ON `cage_lifecycle`
   FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cage lifecycle log is append-only';
+
+-- Housing invariant: every living (active) animal is in an active cage.
+-- Enforced in the database so no code path can break it: an active animal
+-- cannot be placed without a cage or into a retired cage, and a cage cannot
+-- be retired while it still houses living animals (each must first be
+-- given a fate: exit or move to another cage, see cage_retire.php).
+DELIMITER $$
+CREATE TRIGGER `mice_active_needs_cage_insert` BEFORE INSERT ON `mice` FOR EACH ROW
+BEGIN
+  IF NEW.status = 'active' AND (NEW.cage_id IS NULL
+      OR NOT EXISTS (SELECT 1 FROM cages c WHERE c.cage_id = NEW.cage_id AND c.status = 'active')) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'A living animal must be housed in an active cage';
+  END IF;
+END$$
+CREATE TRIGGER `mice_active_needs_cage_update` BEFORE UPDATE ON `mice` FOR EACH ROW
+BEGIN
+  IF NEW.status = 'active' AND (NOT (NEW.cage_id <=> OLD.cage_id) OR NEW.status <> OLD.status)
+     AND (NEW.cage_id IS NULL
+      OR NOT EXISTS (SELECT 1 FROM cages c WHERE c.cage_id = NEW.cage_id AND c.status = 'active')) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'A living animal must be housed in an active cage';
+  END IF;
+END$$
+CREATE TRIGGER `cages_no_retire_with_animals` BEFORE UPDATE ON `cages` FOR EACH ROW
+BEGIN
+  IF OLD.status = 'active' AND NEW.status <> 'active'
+     AND EXISTS (SELECT 1 FROM mice m WHERE m.cage_id = OLD.cage_id AND m.status = 'active') THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cage still houses living animals: give each one a fate first';
+  END IF;
+END$$
+DELIMITER ;
 
 -- Table for storing tasks information
 CREATE TABLE `tasks` (

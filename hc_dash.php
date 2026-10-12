@@ -47,10 +47,8 @@ require 'header.php';
 
         // Confirm deletion function with a dialog
         function confirmDeletion(id) {
-            var confirmDelete = confirm("Are you sure you want to delete cage - '" + id + "' and related mouse data?");
-            if (confirmDelete) {
-                window.location.href = "hc_drop.php?id=" + id + "&confirm=true"; // Redirect to deletion script
-            }
+            // Retiring a cage requires giving each of its animals a fate.
+            window.location.href = "cage_retire.php?id=" + encodeURIComponent(id);
         }
 
         // Fetch data function to load data dynamically

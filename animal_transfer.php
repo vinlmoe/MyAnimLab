@@ -35,46 +35,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     mysqli_begin_transaction($con);
     try {
-        $stmt = $con->prepare("SELECT cage_id, status, animal_uid FROM mice WHERE id = ? FOR UPDATE");
-        $stmt->bind_param("i", $animalId);
-        $stmt->execute();
-        $animal = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-
-        if (!$animal) {
-            throw new Exception("Animal not found.");
-        }
-        if ($animal['status'] !== 'active') {
-            throw new Exception("Only active animals can be transferred.");
-        }
-
-        $checkCage = $con->prepare("SELECT cage_id FROM cages WHERE cage_id = ? AND status = 'active'");
-        $checkCage->bind_param("s", $toCageId);
-        $checkCage->execute();
-        if ($checkCage->get_result()->num_rows === 0) {
-            throw new Exception("Destination cage does not exist or is retired.");
-        }
-        $checkCage->close();
-
+        $uidStmt = $con->prepare("SELECT animal_uid, cage_id FROM mice WHERE id = ?");
+        $uidStmt->bind_param("i", $animalId);
+        $uidStmt->execute();
+        $animal = $uidStmt->get_result()->fetch_assoc() ?? ['animal_uid' => "#$animalId", 'cage_id' => null];
+        $uidStmt->close();
         $fromCageId = $animal['cage_id'];
 
-        if ($fromCageId === $toCageId) {
-            throw new Exception("The animal is already in that cage.");
-        }
-
-        $update = $con->prepare("UPDATE mice SET cage_id = ? WHERE id = ?");
-        $update->bind_param("si", $toCageId, $animalId);
-        $update->execute();
-        $update->close();
-
-        log_animal_movement($con, $animalId, $fromCageId, $toCageId, $currentUserId, $reason ?: null);
-        log_animal_event($con, $animalId, 'transferred', [
-            'from_cage_id' => $fromCageId,
-            'to_cage_id' => $toCageId,
-            'reason' => $reason,
-        ], $currentUserId);
-
-        $retired = retire_cage_if_empty($con, $fromCageId, "last animal transferred to $toCageId", $currentUserId, $_SESSION['name'] ?? null);
+        $retired = move_animal($con, $animalId, $toCageId, $reason, $currentUserId, $_SESSION['name'] ?? null);
 
         mysqli_commit($con);
         $_SESSION['message'] = "Animal {$animal['animal_uid']} transferred from $fromCageId to $toCageId."

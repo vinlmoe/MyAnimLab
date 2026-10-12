@@ -108,7 +108,7 @@ if (!$animal) {
         <div class="alert alert-danger">
             This action is irreversible and bypasses the normal traceability rule (records are otherwise never
             deleted, only archived/sacrificed). Only use this for genuine data-entry errors, not for normal
-            end-of-life tracking — use <a href="animal_sacrifice.php?id=<?= (int) $animal['id']; ?>">Sacrifice</a> for that.
+            end-of-life tracking — use <a href="animal_exit.php?id=<?= (int) $animal['id']; ?>">Exit (sacrifice / death / export)</a> for that.
         </div>
 
         <?php include('message.php'); ?>
