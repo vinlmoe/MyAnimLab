@@ -155,6 +155,7 @@ $statusBadge = [
                 </p>
                 <?php if ($animal['status'] !== 'active') : ?>
                     <p><strong>Exit date:</strong> <?= htmlspecialchars($animal['exit_date'] ?? 'N/A'); ?></p>
+                    <p><strong>Exit code:</strong> <?= htmlspecialchars(exit_label($animal['exit_code'] ?? null, $animal['status'])); ?></p>
                     <p><strong>Exit reason:</strong> <?= htmlspecialchars($animal['exit_reason'] ?? 'N/A'); ?></p>
                     <?php if (!empty($animal['exit_destination'])) : ?>
                         <p><strong>Exported to:</strong> <?= htmlspecialchars($animal['exit_destination']); ?></p>

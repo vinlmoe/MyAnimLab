@@ -5,7 +5,8 @@
  *
  * Every living animal must be in an active cage, so a cage can only be
  * retired once each of its living animals has been given a fate: moved to
- * another cage, or an exit (sacrificed, died, exported to another facility).
+ * another cage, or an exit with its exit code (mise à mort, euthanasie, point
+ * limite, retrouvé mort, export...).
  * The whole operation is atomic: if any animal's fate fails, nothing changes.
  * Replaces the old dashboard deletion (hc_drop.php / bc_drop.php), which
  * silently archived the animals.
@@ -95,11 +96,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 move_animal($con, $aid, $to, "Cage $cageId retired: $reason", $currentUserId, $currentUserName, false);
                 $moved++;
-            } elseif (isset(ANIMAL_EXIT_TYPES[$fate])) {
+            } elseif (isset(ANIMAL_EXIT_CODES[$fate])) {
                 exit_animal($con, $aid, $fate, $date, "Cage $cageId retired: $reason", $destinations[$aid] ?? null, $currentUserId, $currentUserName, false);
                 $exited++;
             } else {
-                throw new Exception("Give a fate to $label (move to another cage or exit).");
+                throw new Exception("Give a fate to $label (move to another cage or an exit code).");
             }
         }
 
@@ -144,7 +145,7 @@ require 'header.php';
         <h4>Retire cage <?= htmlspecialchars($cageId); ?></h4>
         <p class="text-muted">
             <?= htmlspecialchars($cage['kind']); ?> cage<?= $cage['room'] ? ' · Room ' . htmlspecialchars($cage['room']) : ''; ?>.
-            Every living animal must stay in an active cage: give each animal of this cage a fate — move it to another cage, or record its exit (sacrificed, died, exported). The cage is retired only when all animals are handled.
+            Every living animal must stay in an active cage: give each animal of this cage a fate — move it to another cage, or record its exit with an exit code. The cage is retired only when all animals are handled.
         </p>
 
         <?php include('message.php'); ?>
@@ -161,9 +162,11 @@ require 'header.php';
                             <select class="form-select" id="allFate">
                                 <option value="">—</option>
                                 <option value="move">Move to another cage</option>
-                                <?php foreach (ANIMAL_EXIT_TYPES as $key => $text) : ?>
-                                    <option value="<?= $key; ?>"><?= htmlspecialchars($text); ?></option>
-                                <?php endforeach; ?>
+                                <optgroup label="Exit (motif de sortie)">
+                                    <?php foreach (ANIMAL_EXIT_CODES as $key => [$text]) : ?>
+                                        <option value="<?= $key; ?>"><?= htmlspecialchars($text); ?></option>
+                                    <?php endforeach; ?>
+                                </optgroup>
                             </select>
                         </div>
                         <div class="col-md-4">
@@ -202,9 +205,11 @@ require 'header.php';
                                         <select class="form-select form-select-sm fate" name="fate[<?= $aid; ?>]" required>
                                             <option value="" selected disabled>Choose…</option>
                                             <option value="move">Move to another cage</option>
-                                            <?php foreach (ANIMAL_EXIT_TYPES as $key => $text) : ?>
-                                                <option value="<?= $key; ?>"><?= htmlspecialchars($text); ?></option>
-                                            <?php endforeach; ?>
+                                            <optgroup label="Exit (motif de sortie)">
+                                                <?php foreach (ANIMAL_EXIT_CODES as $key => [$text]) : ?>
+                                                    <option value="<?= $key; ?>"><?= htmlspecialchars($text); ?></option>
+                                                <?php endforeach; ?>
+                                            </optgroup>
                                         </select>
                                     </td>
                                     <td>
@@ -252,8 +257,8 @@ require 'header.php';
             const dest = row.querySelector('.destination');
             cage.style.display = fate === 'move' ? '' : 'none';
             cage.required = fate === 'move';
-            dest.style.display = fate === 'transferred_out' ? '' : 'none';
-            dest.required = fate === 'transferred_out';
+            dest.style.display = fate === 'export' ? '' : 'none';
+            dest.required = fate === 'export';
         }
         document.querySelectorAll('.animal-row').forEach(row => {
             row.querySelector('.fate').addEventListener('change', () => syncRow(row));

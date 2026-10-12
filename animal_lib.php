@@ -351,13 +351,24 @@ function unseen_cages_by_room(mysqli $con, string $date): array
     return $byRoom;
 }
 
-// Ways an animal can leave the facility (its "fate" when it does not move to
-// another cage). Key = mice.status value.
-const ANIMAL_EXIT_TYPES = [
-    'sacrificed' => 'Sacrificed (euthanasia)',
-    'dead' => 'Died / found dead',
-    'transferred_out' => 'Exported to another facility',
+// Exit codes (motifs de sortie): how an animal leaves the facility when it
+// does not move to another cage. code => [label, resulting mice.status].
+const ANIMAL_EXIT_CODES = [
+    'mam_population' => ['Mis à mort – gestion de population', 'sacrificed'],
+    'mam_experimentation' => ['Mis à mort en expérimentation', 'sacrificed'],
+    'euthanasie' => ['Euthanasie', 'sacrificed'],
+    'point_limite' => ['Atteinte de point limite', 'sacrificed'],
+    'retrouve_mort' => ['Retrouvé mort', 'dead'],
+    'retrouve_mort_experimentation' => ['Retrouvé mort en expérimentation', 'dead'],
+    'export' => ['Export vers une autre animalerie', 'transferred_out'],
 ];
+
+// Label of an animal's exit: its exit code, or its status for exits
+// recorded before exit codes existed.
+function exit_label(?string $code, string $status): string
+{
+    return ANIMAL_EXIT_CODES[$code][0] ?? str_replace('_', ' ', $status);
+}
 
 // Move an active animal to another active cage, with its movement history.
 // Throws on invalid moves. Retires the source cage if it is left empty unless
@@ -400,16 +411,18 @@ function move_animal(mysqli $con, int $animalId, string $toCageId, ?string $reas
     return $retireEmptySource && retire_cage_if_empty($con, $fromCageId, "last animal transferred to $toCageId", $userId, $userName);
 }
 
-// Record an animal leaving the facility (sacrificed, dead or exported). The
-// animal keeps its last cage_id for traceability. Retires the cage if it is
-// left empty unless $retireEmptyCage is false. Returns the cage id when it
-// was retired, null otherwise.
-function exit_animal(mysqli $con, int $animalId, string $type, string $date, string $reason, ?string $destination, ?int $userId, ?string $userName, bool $retireEmptyCage = true): ?string
+// Record an animal leaving the facility with an exit code (see
+// ANIMAL_EXIT_CODES; an export needs the destination facility). The animal
+// keeps its last cage_id for traceability and its open experiment
+// enrollments are closed. Retires the cage if it is left empty unless
+// $retireEmptyCage is false. Returns the cage id when it was retired.
+function exit_animal(mysqli $con, int $animalId, string $code, string $date, string $reason, ?string $destination, ?int $userId, ?string $userName, bool $retireEmptyCage = true): ?string
 {
-    if (!isset(ANIMAL_EXIT_TYPES[$type])) {
-        throw new Exception("Unknown exit type.");
+    if (!isset(ANIMAL_EXIT_CODES[$code])) {
+        throw new Exception("Choose an exit code.");
     }
-    if ($type === 'transferred_out' && trim((string) $destination) === '') {
+    [$label, $status] = ANIMAL_EXIT_CODES[$code];
+    if ($code === 'export' && trim((string) $destination) === '') {
         throw new Exception("An export needs the destination facility.");
     }
     $stmt = $con->prepare("SELECT cage_id, status, animal_uid FROM mice WHERE id = ? FOR UPDATE");
@@ -424,15 +437,29 @@ function exit_animal(mysqli $con, int $animalId, string $type, string $date, str
         throw new Exception("Animal {$animal['animal_uid']} has already left the facility.");
     }
 
-    $destination = $type === 'transferred_out' ? trim($destination) : null;
-    $update = $con->prepare("UPDATE mice SET status = ?, exit_date = ?, exit_reason = ?, exit_destination = ? WHERE id = ?");
-    $update->bind_param("ssssi", $type, $date, $reason, $destination, $animalId);
+    $destination = $code === 'export' ? trim($destination) : null;
+    $update = $con->prepare("UPDATE mice SET status = ?, exit_code = ?, exit_date = ?, exit_reason = ?, exit_destination = ? WHERE id = ?");
+    $update->bind_param("sssssi", $status, $code, $date, $reason, $destination, $animalId);
     $update->execute();
     $update->close();
 
-    log_animal_event($con, $animalId, 'status_change', ['status' => $type, 'date' => $date, 'reason' => $reason, 'destination' => $destination], $userId);
-    log_activity($con, 'exit_' . $type, 'animal', (string) $animalId, "{$animal['animal_uid']}: " . ANIMAL_EXIT_TYPES[$type] . ($destination ? " → $destination" : '') . ($reason !== '' ? " ($reason)" : ''), $userId);
+    // The animal leaves any experiment it is still enrolled in.
+    $open = $con->prepare("SELECT id, experiment_id FROM experiment_animals WHERE animal_id = ? AND removed_at IS NULL");
+    $open->bind_param("i", $animalId);
+    $open->execute();
+    $enrollments = $open->get_result()->fetch_all(MYSQLI_ASSOC);
+    $open->close();
+    $close = $con->prepare("UPDATE experiment_animals SET removed_at = ?, removal_reason = ? WHERE id = ?");
+    foreach ($enrollments as $en) {
+        $removedAt = "$date 00:00:00";
+        $close->bind_param("ssi", $removedAt, $label, $en['id']);
+        $close->execute();
+        log_animal_event($con, $animalId, 'experiment_end', ['experiment_id' => (int) $en['experiment_id'], 'reason' => $label], $userId);
+    }
+    $close->close();
 
-    $why = ['sacrificed' => 'last animal sacrificed', 'dead' => 'last animal died', 'transferred_out' => 'last animal exported'][$type];
-    return ($retireEmptyCage && retire_cage_if_empty($con, $animal['cage_id'], $why, $userId, $userName)) ? $animal['cage_id'] : null;
+    log_animal_event($con, $animalId, 'status_change', ['status' => $status, 'exit_code' => $code, 'date' => $date, 'reason' => $reason, 'destination' => $destination], $userId);
+    log_activity($con, 'exit', 'animal', (string) $animalId, "{$animal['animal_uid']}: $label" . ($destination ? " → $destination" : '') . ($reason !== '' ? " ($reason)" : ''), $userId);
+
+    return ($retireEmptyCage && retire_cage_if_empty($con, $animal['cage_id'], "last animal exit: $label", $userId, $userName)) ? $animal['cage_id'] : null;
 }
