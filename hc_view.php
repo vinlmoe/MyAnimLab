@@ -141,6 +141,33 @@ if (isset($_GET['id'])) {
         $stmtMouse->execute();
         $mouseResult = $stmtMouse->get_result();
         $mice = mysqli_fetch_all($mouseResult, MYSQLI_ASSOC);
+        $stmtMouse->close();
+
+        // Current health notes are shown on the cage card itself.  A health
+        // report remains append-only; the link in the table opens its follow-up
+        // screen so the technician can add the next note without hunting for
+        // the animal in the registry.
+        $healthNotesByAnimal = [];
+        $mouseIds = array_map('intval', array_column($mice, 'id'));
+        if ($mouseIds) {
+            $placeholders = implode(',', array_fill(0, count($mouseIds), '?'));
+            $healthSql = "SELECT r.id, r.animal_id, r.category, r.description,
+                                  u.status AS current_status, u.severity AS current_severity,
+                                  u.note AS latest_note, u.created_at AS last_update_at
+                           FROM health_reports r
+                           INNER JOIN health_report_updates u ON u.id = (
+                               SELECT MAX(u2.id) FROM health_report_updates u2 WHERE u2.report_id = r.id
+                           )
+                           WHERE r.animal_id IN ($placeholders) AND u.status <> 'resolved'
+                           ORDER BY r.animal_id, u.created_at DESC, r.id DESC";
+            $healthStmt = $con->prepare($healthSql);
+            $healthStmt->bind_param(str_repeat('i', count($mouseIds)), ...$mouseIds);
+            $healthStmt->execute();
+            foreach ($healthStmt->get_result()->fetch_all(MYSQLI_ASSOC) as $healthNote) {
+                $healthNotesByAnimal[(int) $healthNote['animal_id']][] = $healthNote;
+            }
+            $healthStmt->close();
+        }
 
         // Calculate age
         if (!empty($holdingcage['dob'])) {
@@ -409,17 +436,17 @@ require 'header.php';
                     <a href="javascript:void(0);" onclick="goBack()" class="btn btn-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Go Back">
                         <i class="fas fa-arrow-circle-left"></i>
                     </a>
-                    <a href="hc_edit.php?id=<?= rawurlencode($holdingcage['cage_id']); ?>" class="btn btn-secondary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Edit Cage">
-                        <i class="fas fa-edit"></i>
-                    </a>
                     <a href="manage_tasks.php?id=<?= rawurlencode($holdingcage['cage_id']); ?>" class="btn btn-secondary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Manage Tasks">
                         <i class="fas fa-tasks"></i>
                     </a>
                     <a href="javascript:void(0);" onclick="showQrCodePopup('<?= rawurlencode($holdingcage['cage_id']); ?>')" class="btn btn-success btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="QR Code">
                         <i class="fas fa-qrcode"></i>
                     </a>
-                    <a href="javascript:void(0);" onclick="window.print()" class="btn btn-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Print Cage">
+                    <a href="cage_labels.php?id=<?= rawurlencode($holdingcage['cage_id']); ?>" target="_blank" class="btn btn-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Imprimer l’étiquette de cage">
                         <i class="fas fa-print"></i>
+                    </a>
+                    <a href="medication_administration.php?cage_id=<?= rawurlencode($holdingcage['cage_id']); ?>" class="btn btn-outline-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Administrations en cours">
+                        <i class="fas fa-syringe"></i>
                     </a>
                 </div>
             </div>
@@ -485,7 +512,7 @@ require 'header.php';
                             <tr>
                                 <th>Animal UID</th>
                                 <th>Sex</th>
-                                <th>Genotype</th>
+                                <th>Notes de santé</th>
                                 <th>Distinctive mark</th>
                                 <th>Notes</th>
                             </tr>
@@ -498,7 +525,30 @@ require 'header.php';
                                     <?php endif; ?>
                                 </td>
                                 <td><?= htmlspecialchars(!empty($mouse['sex']) ? ucfirst($mouse['sex']) : 'Not specified'); ?></td>
-                                <td><?= htmlspecialchars($mouse['genotype'] ?? ''); ?></td>
+                                <td class="health-notes-cell">
+                                    <?php $healthNotes = $healthNotesByAnimal[(int) $mouse['id']] ?? []; ?>
+                                    <?php if ($healthNotes) : ?>
+                                        <?php foreach ($healthNotes as $healthNote) : ?>
+                                            <div class="mb-2 pb-2 border-bottom">
+                                                <a href="health_report_view.php?id=<?= (int) $healthNote['id']; ?>" class="fw-bold text-decoration-none">
+                                                    <?= htmlspecialchars(HEALTH_CATEGORIES[$healthNote['category']] ?? $healthNote['category']); ?>
+                                                </a>
+                                                <?= health_badge($healthNote['current_status'], HEALTH_STATUSES); ?>
+                                                <?= health_badge($healthNote['current_severity'], HEALTH_SEVERITIES); ?>
+                                                <div class="small mt-1"><?= nl2br(htmlspecialchars($healthNote['description'])); ?></div>
+                                                <?php if (!empty($healthNote['latest_note'])) : ?>
+                                                    <div class="small text-muted mt-1"><strong>Dernier suivi :</strong> <?= nl2br(htmlspecialchars($healthNote['latest_note'])); ?></div>
+                                                <?php endif; ?>
+                                                <a href="health_report_view.php?id=<?= (int) $healthNote['id']; ?>" class="btn btn-outline-primary btn-sm mt-1">Ajouter un suivi</a>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    <?php else : ?>
+                                        <span class="text-muted small">Aucune note de santé active.</span><br>
+                                        <?php if (($mouse['status'] ?? 'active') === 'active') : ?>
+                                            <a href="health_report.php?<?= htmlspecialchars(http_build_query(['animal_id' => $mouse['id'], 'via' => 'cage_page', 'return' => 'hc_view.php?id=' . $id])); ?>" class="btn btn-outline-warning btn-sm mt-1"><i class="fas fa-notes-medical"></i> Ajouter une note</a>
+                                        <?php endif; ?>
+                                    <?php endif; ?>
+                                </td>
                                 <td><?= htmlspecialchars($mouse['distinctive_mark'] ?? ''); ?></td>
                                 <td><?= htmlspecialchars($mouse['notes'] ?? ''); ?></td>
                             </tr>
@@ -552,9 +602,6 @@ require 'header.php';
                         <!-- Maintenance button with tooltip -->
                         <a href="maintenance.php?from=hc_dash" class="btn btn-warning btn-icon" data-toggle="tooltip" data-placement="top" title="Add Maintenance Record">
                             <i class="fas fa-wrench"></i>
-                        </a>
-                        <a href="hc_edit.php?id=<?= rawurlencode($holdingcage['cage_id']); ?>" class="btn btn-secondary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Edit Cage">
-                            <i class="fas fa-edit"></i>
                         </a>
                     </div>
                 </div>
@@ -633,7 +680,7 @@ require 'header.php';
     <script>
         function showQrCodePopup(cageId) {
             var popup = window.open("", "QR Code for Cage " + cageId, "width=400,height=400");
-            var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://' + <?php echo json_encode($url); ?> + '/hc_view.php?id=' + encodeURIComponent(cageId);
+            var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://' + <?php echo json_encode($url); ?> + '/cage_scan_route.php?id=' + encodeURIComponent(cageId);
 
             var htmlContent = `
                 <html>

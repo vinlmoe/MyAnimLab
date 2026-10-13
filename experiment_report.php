@@ -25,7 +25,7 @@ if (!isset($_SESSION['username'])) {
 $experimentId = (int) ($_GET['experiment_id'] ?? 0);
 $stmt = $con->prepare(
     "SELECT e.*, p.id AS protocol_id, p.protocol_number, p.title AS protocol_title, p.methodology, p.endpoint_criteria, p.clinical_grid_id,
-            t.trial_number, t.title AS trial_title, t.iacuc_id
+            t.id AS trial_id, t.trial_number, t.title AS trial_title, t.iacuc_id
      FROM experiments e JOIN protocols p ON p.id = e.protocol_id JOIN trials t ON t.id = p.trial_id
      WHERE e.id = ?"
 );
@@ -173,7 +173,10 @@ require 'header.php';
 <body>
     <div class="container mt-4 content report-wrapper">
         <div class="no-print mb-3">
-            <a href="experiment_manage.php?protocol_id=<?= (int) $exp['protocol_id']; ?>">&laquo; Back to experiments</a>
+            <a href="trial_manage.php">Essais</a> <span class="text-muted">/</span>
+            <a href="trial_report.php?trial_id=<?= (int) $exp['trial_id']; ?>">Rapport de l’essai</a> <span class="text-muted">/</span>
+            <a href="protocol_report.php?protocol_id=<?= (int) $exp['protocol_id']; ?>">Rapport du plan</a> <span class="text-muted">/</span>
+            <a href="experiment_manage.php?protocol_id=<?= (int) $exp['protocol_id']; ?>">Expérimentations</a>
             <button type="button" class="btn btn-primary btn-sm ms-3" onclick="window.print()"><i class="fas fa-print"></i> Print / Save as PDF</button>
             <a href="experiment_report.php?experiment_id=<?= $experimentId; ?>&amp;format=csv" class="btn btn-outline-secondary btn-sm"><i class="fas fa-file-csv"></i> Download data (CSV)</a>
         </div>

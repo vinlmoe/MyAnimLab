@@ -26,7 +26,12 @@ if (isset($_GET['code'])) {
         parse_str($query, $qs);
         $code = $qs['id'] ?? $code;
     }
-    header("Location: cage_check.php?" . http_build_query(['id' => $code, 'via' => 'qr']));
+    $experimentCheck = $con->prepare("SELECT 1 FROM experiment_animals ea JOIN mice m ON m.id = ea.animal_id JOIN experiments e ON e.id = ea.experiment_id WHERE m.cage_id = ? AND m.status = 'active' AND ea.removed_at IS NULL AND e.status IN ('planned', 'active') LIMIT 1");
+    $experimentCheck->bind_param('s', $code);
+    $experimentCheck->execute();
+    $hasExperimentalAnimals = $experimentCheck->get_result()->num_rows > 0;
+    $experimentCheck->close();
+    header('Location: ' . ($hasExperimentalAnimals ? 'experiment_cage_followup.php?' . http_build_query(['cage_id' => $code]) : 'cage_check.php?' . http_build_query(['id' => $code, 'via' => 'qr'])));
     exit;
 }
 

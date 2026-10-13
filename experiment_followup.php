@@ -28,10 +28,11 @@ if (empty($_SESSION['csrf_token'])) {
 $currentUserId = $_SESSION['user_id'] ?? null;
 $currentUserName = $_SESSION['name'] ?? null;
 $experimentAnimalId = (int) ($_GET['experiment_animal_id'] ?? $_POST['experiment_animal_id'] ?? 0);
+$returnUrl = safe_check_return($_GET['return'] ?? $_POST['return'] ?? null);
 
 $eaStmt = $con->prepare(
-    "SELECT ea.*, m.animal_uid, m.id AS animal_id, m.status AS animal_status, m.distinctive_mark, e.experiment_number, e.title AS experiment_title,
-            p.id AS protocol_id, p.protocol_number, p.endpoint_criteria, p.clinical_grid_id
+    "SELECT ea.*, m.animal_uid, m.id AS animal_id, m.status AS animal_status, m.distinctive_mark, e.id AS experiment_id, e.experiment_number, e.title AS experiment_title,
+            p.id AS protocol_id, p.trial_id, p.protocol_number, p.endpoint_criteria, p.clinical_grid_id
      FROM experiment_animals ea
      JOIN mice m ON m.id = ea.animal_id
      JOIN experiments e ON e.id = ea.experiment_id
@@ -70,7 +71,9 @@ function threshold_breached(string $operator, float $actual, float $limit): bool
     };
 }
 
-$selfUrl = "experiment_followup.php?experiment_animal_id=$experimentAnimalId";
+$selfUrl = "experiment_followup.php?experiment_animal_id=$experimentAnimalId" . ($returnUrl ? '&return=' . rawurlencode($returnUrl) : '');
+$experimentUrl = 'experiment_manage.php?protocol_id=' . (int) $ea['protocol_id'];
+$backUrl = $returnUrl ?: $experimentUrl;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
@@ -307,7 +310,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ? "Saved. ENDPOINT REACHED: " . implode(' | ', $breachedMessages) . ($newActions ? " — ACTION REQUIRED: " . implode(', ', $newActions) : '')
         : "Follow-up saved." . ($hasGrid ? " Clinical score: $clinicalScore / {$grid['max_total']}." : '');
 
-    header("Location: $selfUrl");
+    header("Location: " . ($returnUrl ?? $selfUrl));
     exit();
 }
 
@@ -385,7 +388,10 @@ require 'header.php';
             <?php if ($ea['distinctive_mark']) : ?><small class="text-muted" id="animalMark">[<?= htmlspecialchars($ea['distinctive_mark']); ?>]</small><?php endif; ?></h4>
         <p class="text-muted">Experiment <?= htmlspecialchars($ea['experiment_number']); ?> — <?= htmlspecialchars($ea['experiment_title']); ?> (Protocol <?= htmlspecialchars($ea['protocol_number']); ?>)
             · baseline weight <?= htmlspecialchars($ea['baseline_weight_g'] ?? 'N/A'); ?> g</p>
-        <a href="animal_view.php?id=<?= (int) $ea['animal_id']; ?>">&laquo; Back to animal record</a>
+        <div class="d-flex gap-2 mb-3">
+            <a href="<?= htmlspecialchars($backUrl); ?>">&laquo; Retour à l’expérimentation</a>
+            <a href="animal_view.php?id=<?= (int) $ea['animal_id']; ?>" class="text-muted">Voir la fiche de l’animal</a>
+        </div>
 
         <?php include('message.php'); ?>
 
@@ -399,6 +405,7 @@ require 'header.php';
                     <form method="POST" class="row g-2">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>">
                         <input type="hidden" name="experiment_animal_id" value="<?= $experimentAnimalId; ?>">
+                        <input type="hidden" name="return" value="<?= htmlspecialchars($returnUrl ?? '') ?>">
                         <input type="hidden" name="action_id" value="<?= (int) $a['id']; ?>">
                         <div class="col-md-9">
                             <input type="text" class="form-control" name="done_note" required placeholder="What was done (e.g. Dr X called at 10:30 — analgesia, re-check tonight)">
@@ -432,6 +439,7 @@ require 'header.php';
                     <form method="POST" id="followupForm">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                         <input type="hidden" name="experiment_animal_id" value="<?= $experimentAnimalId; ?>">
+                        <input type="hidden" name="return" value="<?= htmlspecialchars($returnUrl ?? '') ?>">
                         <div class="row">
                             <div class="col-md-4 mb-3">
                                 <label class="form-label">Date *</label>

@@ -192,7 +192,7 @@ require 'header.php';
                                 <i class="fas fa-plus"></i>
                             </a>
                             <!-- Print cage card button with tooltip -->
-                            <a href="bc_slct_crd.php" class="btn btn-success btn-icon" data-toggle="tooltip" data-placement="top" title="Print Cage Card">
+                            <a href="cage_label_select.php" class="btn btn-success btn-icon" data-toggle="tooltip" data-placement="top" title="Imprimer des étiquettes de cages">
                                 <i class="fas fa-print"></i>
                             </a>
                             <!-- Maintenance button with tooltip -->

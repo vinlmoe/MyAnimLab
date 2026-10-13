@@ -1,5 +1,9 @@
 <?php
 
+// Legacy URL: use the unified portrait A4 label printer.
+require 'cage_labels.php';
+exit;
+
 /**
  * Breeding Cage Printable Card Script
  *

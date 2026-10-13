@@ -220,7 +220,8 @@ require 'header.php';
             <div class="card mb-3">
                 <div class="card-body">
                     <h6><?= htmlspecialchars($p['protocol_number']); ?> — <?= htmlspecialchars($p['title']); ?>
-                        <a class="btn btn-sm btn-secondary float-end" href="experiment_manage.php?protocol_id=<?= (int) $p['id']; ?>">Experiments &raquo;</a>
+                        <a class="btn btn-sm btn-secondary float-end" href="experiment_manage.php?protocol_id=<?= (int) $p['id']; ?>">Expérimentations &raquo;</a>
+                        <a class="btn btn-sm btn-outline-dark float-end me-2" href="protocol_report.php?protocol_id=<?= (int) $p['id']; ?>"><i class="fas fa-file-alt"></i> Rapport du plan</a>
                     </h6>
                     <p class="text-muted"><?= nl2br(htmlspecialchars($p['endpoint_criteria'] ?? '')); ?></p>
 

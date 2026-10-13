@@ -25,6 +25,8 @@ CREATE TABLE `users` (
   `email_verified` tinyint DEFAULT 0,
   `email_token` varchar(255) DEFAULT NULL,
   `initials` varchar(5) DEFAULT NULL,
+  `preferred_locale` varchar(5) NOT NULL DEFAULT 'fr',
+  `is_bea_responsible` tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`)
 );
 
@@ -169,6 +171,16 @@ CREATE TABLE `cage_sequence` (
 
 INSERT INTO `cage_sequence` (`id`, `next_seq`) VALUES (1, 1);
 
+-- Singleton counter for automatically allocated experiment IDs (EXP-00001,
+-- EXP-00002, ...). Allocation is locked inside a transaction.
+CREATE TABLE `experiment_sequence` (
+  `id` tinyint NOT NULL DEFAULT 1,
+  `next_seq` int NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id`)
+);
+
+INSERT INTO `experiment_sequence` (`id`, `next_seq`) VALUES (1, 1);
+
 -- Table for storing mouse/animal information related to cages
 CREATE TABLE `mice` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -250,6 +262,60 @@ CREATE TABLE `animal_events` (
   FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
 );
 
+-- Planned or completed use of an animal (the equivalent of JCMS MouseUsage).
+CREATE TABLE `animal_use_schedule` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `animal_id` int NOT NULL,
+  `use_label` varchar(255) NOT NULL,
+  `projected_date` date DEFAULT NULL,
+  `actual_date` date DEFAULT NULL,
+  `completed` tinyint(1) NOT NULL DEFAULT 0,
+  `notes` text DEFAULT NULL,
+  `source_system` varchar(30) DEFAULT NULL,
+  `source_key` varchar(64) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_use_source` (`source_system`, `source_key`),
+  KEY `idx_use_schedule_animal_date` (`animal_id`, `projected_date`),
+  FOREIGN KEY (`animal_id`) REFERENCES `mice` (`id`) ON DELETE CASCADE
+);
+
+-- Chronological sanitary level of a room, independent of individual reports.
+CREATE TABLE `room_health_history` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `room` varchar(255) NOT NULL,
+  `health_level` varchar(100) NOT NULL,
+  `start_date` date DEFAULT NULL,
+  `source_system` varchar(30) DEFAULT NULL,
+  `source_key` varchar(64) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_room_health_source` (`source_system`, `source_key`)
+);
+
+-- Immutable correspondence tables make a JCMS import repeatable and auditable.
+CREATE TABLE `jcms_import_runs` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `source_file` varchar(255) NOT NULL,
+  `started_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `finished_at` timestamp NULL DEFAULT NULL,
+  `status` enum('running','completed','failed') NOT NULL DEFAULT 'running',
+  `summary` json DEFAULT NULL,
+  PRIMARY KEY (`id`)
+);
+
+CREATE TABLE `jcms_import_map` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `run_id` int NOT NULL,
+  `source_table` varchar(80) NOT NULL,
+  `source_key` varchar(64) NOT NULL,
+  `target_table` varchar(80) NOT NULL,
+  `target_key` varchar(80) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_jcms_source` (`source_table`, `source_key`, `target_table`),
+  KEY `idx_jcms_target` (`target_table`, `target_key`),
+  FOREIGN KEY (`run_id`) REFERENCES `jcms_import_runs` (`id`) ON DELETE CASCADE
+);
+
 -- Experimentation module: trial (essai) -> protocol(s) -> experiment(s)
 CREATE TABLE `trials` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -320,6 +386,21 @@ CREATE TABLE `experiment_animals` (
   UNIQUE KEY `uq_experiment_animal` (`experiment_id`, `animal_id`),
   FOREIGN KEY (`experiment_id`) REFERENCES `experiments` (`id`) ON DELETE CASCADE,
   FOREIGN KEY (`animal_id`) REFERENCES `mice` (`id`) ON DELETE CASCADE
+);
+
+CREATE TABLE `experiment_retrospective_assessments` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `experiment_animal_id` int NOT NULL,
+  `severity_classification` ENUM('non_recovery','mild','moderate','severe') NOT NULL,
+  `assessment_notes` text NOT NULL,
+  `assessed_by` int NOT NULL,
+  `assessed_by_name` varchar(255) NOT NULL,
+  `assessed_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_retro_experiment_animal` (`experiment_animal_id`),
+  FOREIGN KEY (`experiment_animal_id`) REFERENCES `experiment_animals` (`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`assessed_by`) REFERENCES `users` (`id`) ON DELETE RESTRICT
 );
 
 CREATE TABLE `experiment_followups` (
@@ -702,6 +783,63 @@ CREATE TABLE `activity_log` (
   KEY `idx_activity_log_entity` (`entity_type`, `entity_id`),
   KEY `idx_activity_log_created` (`created_at`),
   FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+);
+
+-- Pharmacy: products, traceable lots, prescriptions and administrations.
+CREATE TABLE `medication_products` (
+  `id` int NOT NULL AUTO_INCREMENT, `name` varchar(255) NOT NULL,
+  `presentation` varchar(255) DEFAULT NULL, `active_ingredient` varchar(255) DEFAULT NULL,
+  `default_unit` varchar(30) NOT NULL DEFAULT 'unit', `notes` text DEFAULT NULL,
+  `active` tinyint(1) NOT NULL DEFAULT 1, PRIMARY KEY (`id`), UNIQUE KEY `uq_medication_product_name` (`name`)
+);
+CREATE TABLE `medication_lots` (
+  `id` int NOT NULL AUTO_INCREMENT, `product_id` int NOT NULL, `lot_number` varchar(100) NOT NULL,
+  `expiry_date` date NOT NULL, `received_at` date NOT NULL, `in_use_since` date DEFAULT NULL, `initial_quantity` decimal(12,3) NOT NULL,
+  `remaining_quantity` decimal(12,3) NOT NULL, `storage_location` varchar(255) DEFAULT NULL,
+  `supplier` varchar(255) DEFAULT NULL, `created_by` int DEFAULT NULL, `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`), UNIQUE KEY `uq_medication_lot` (`product_id`,`lot_number`),
+  FOREIGN KEY (`product_id`) REFERENCES `medication_products` (`id`) ON DELETE RESTRICT,
+  FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+);
+CREATE TABLE `prescriptions` (
+  `id` int NOT NULL AUTO_INCREMENT, `animal_id` int NOT NULL, `product_id` int NOT NULL,
+  `prescription_reference` varchar(100) DEFAULT NULL, `prescriber_name` varchar(255) NOT NULL,
+  `prescribed_on` date NOT NULL, `start_date` date DEFAULT NULL, `end_date` date DEFAULT NULL,
+  `dose_amount` decimal(12,3) DEFAULT NULL, `dose_unit` varchar(30) DEFAULT NULL,
+  `route` varchar(100) DEFAULT NULL, `frequency` varchar(100) DEFAULT NULL, `instructions` text DEFAULT NULL,
+  `status` ENUM('active','completed','cancelled') NOT NULL DEFAULT 'active', `recorded_by` int DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(), PRIMARY KEY (`id`),
+  FOREIGN KEY (`animal_id`) REFERENCES `mice` (`id`) ON DELETE RESTRICT,
+  FOREIGN KEY (`product_id`) REFERENCES `medication_products` (`id`) ON DELETE RESTRICT,
+  FOREIGN KEY (`recorded_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+);
+CREATE TABLE `prescription_animals` (
+  `id` int NOT NULL AUTO_INCREMENT, `prescription_id` int NOT NULL, `animal_id` int NOT NULL,
+  `planned_administrations` int NOT NULL DEFAULT 1, `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`), UNIQUE KEY `uq_prescription_animal` (`prescription_id`,`animal_id`),
+  KEY `idx_prescription_animal_animal` (`animal_id`),
+  FOREIGN KEY (`prescription_id`) REFERENCES `prescriptions` (`id`) ON DELETE RESTRICT,
+  FOREIGN KEY (`animal_id`) REFERENCES `mice` (`id`) ON DELETE RESTRICT
+);
+CREATE TABLE `medication_administrations` (
+  `id` int NOT NULL AUTO_INCREMENT, `prescription_id` int NOT NULL, `animal_id` int NOT NULL,
+  `medication_lot_id` int NOT NULL, `administered_at` datetime NOT NULL, `quantity_used` decimal(12,3) NOT NULL,
+  `unit` varchar(30) NOT NULL, `route` varchar(100) DEFAULT NULL, `notes` text DEFAULT NULL,
+  `administered_by` int DEFAULT NULL, `administered_by_name` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(), PRIMARY KEY (`id`),
+  FOREIGN KEY (`prescription_id`) REFERENCES `prescriptions` (`id`) ON DELETE RESTRICT,
+  FOREIGN KEY (`animal_id`) REFERENCES `mice` (`id`) ON DELETE RESTRICT,
+  FOREIGN KEY (`medication_lot_id`) REFERENCES `medication_lots` (`id`) ON DELETE RESTRICT,
+  FOREIGN KEY (`administered_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+);
+CREATE TABLE `medication_stock_movements` (
+  `id` int NOT NULL AUTO_INCREMENT, `medication_lot_id` int NOT NULL,
+  `movement_type` ENUM('receipt','administration','adjustment') NOT NULL, `quantity_delta` decimal(12,3) NOT NULL,
+  `reason` text DEFAULT NULL, `administration_id` int DEFAULT NULL, `performed_by` int DEFAULT NULL,
+  `performed_at` timestamp NOT NULL DEFAULT current_timestamp(), PRIMARY KEY (`id`),
+  FOREIGN KEY (`medication_lot_id`) REFERENCES `medication_lots` (`id`) ON DELETE RESTRICT,
+  FOREIGN KEY (`administration_id`) REFERENCES `medication_administrations` (`id`) ON DELETE RESTRICT,
+  FOREIGN KEY (`performed_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
 );
 
 -- Table for storing system settings
