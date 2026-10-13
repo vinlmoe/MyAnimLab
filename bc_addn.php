@@ -169,8 +169,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 // Loop through each litter entry and insert into the database
                 for ($i = 0; $i < count($dom); $i++) {
-                    $insert_litter_query = $con->prepare("INSERT INTO litters (`cage_id`, `dom`, `litter_dob`, `pups_alive`, `pups_dead`, `pups_male`, `pups_female`, `remarks`) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-                    $insert_litter_query->bind_param("ssssssss", $cage_id, $dom[$i], $litter_dob[$i], $pups_alive[$i], $pups_dead[$i], $pups_male[$i], $pups_female[$i], $litter_remarks[$i]);
+                    $expected = $litter_dob[$i] ? date('Y-m-d', strtotime($litter_dob[$i] . ' +' . weaning_age_days($con) . ' days')) : null;
+                    $insert_litter_query = $con->prepare("INSERT INTO litters (`cage_id`, `dom`, `litter_dob`, `pups_alive`, `pups_dead`, `pups_male`, `pups_female`, `remarks`, `expected_weaning_date`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    $insert_litter_query->bind_param("sssssssss", $cage_id, $dom[$i], $litter_dob[$i], $pups_alive[$i], $pups_dead[$i], $pups_male[$i], $pups_female[$i], $litter_remarks[$i], $expected);
 
                     // Execute the statement and check if it was successful
                     if ($insert_litter_query->execute()) {

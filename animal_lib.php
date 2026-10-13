@@ -308,7 +308,8 @@ function cage_active_animal_count(mysqli $con, string $cageId): int
 // stays fully traceable. Returns true when the cage was retired.
 function retire_cage_if_empty(mysqli $con, ?string $cageId, string $why, ?int $userId = null, ?string $userName = null): bool
 {
-    if ($cageId === null || $cageId === '' || cage_active_animal_count($con, $cageId) > 0) {
+    // A cage still nursing a litter stays in service (pups are not animals yet).
+    if ($cageId === null || $cageId === '' || cage_active_animal_count($con, $cageId) > 0 || cage_nursing_litters($con, $cageId) > 0) {
         return false;
     }
     return retire_cage($con, $cageId, "Automatically retired: no animal left ($why).", $userId, $userName, 'auto_retire');
@@ -591,4 +592,99 @@ function threshold_target_label(array $t, ?array $grid, array $obsFields): ?stri
         return $f['label'] . ($f['unit'] ? " ({$f['unit']})" : '');
     }
     return null;
+}
+
+// Litters (portées): birth -> nursing -> weaning.
+
+// Weaning age in days (Manage Lab setting, default 21).
+function weaning_age_days(mysqli $con): int
+{
+    $row = $con->query("SELECT value FROM settings WHERE name = 'weaning_age_days'")->fetch_assoc();
+    $days = (int) ($row['value'] ?? 0);
+    return $days > 0 ? $days : 21;
+}
+
+// Pups of a litter still alive: born alive minus the deaths recorded since.
+function litter_alive_now(mysqli $con, array $litter): int
+{
+    $stmt = $con->prepare("SELECT COALESCE(SUM(count), 0) FROM litter_events WHERE litter_id = ? AND event = 'death'");
+    $stmt->bind_param("i", $litter['id']);
+    $stmt->execute();
+    $stmt->bind_result($deaths);
+    $stmt->fetch();
+    $stmt->close();
+    return max(0, (int) $litter['pups_alive'] - (int) $deaths);
+}
+
+function log_litter_event(mysqli $con, int $litterId, string $event, string $date, ?int $count, ?int $males, ?int $females, ?string $note, ?int $userId, ?string $userName): void
+{
+    $stmt = $con->prepare("INSERT INTO litter_events (litter_id, event, event_date, count, males, females, note, user_id, user_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param("issiiisis", $litterId, $event, $date, $count, $males, $females, $note, $userId, $userName);
+    $stmt->execute();
+    $stmt->close();
+}
+
+// Nursing litters of a cage: such a cage must not be retired (the pups are
+// not individual animals yet).
+function cage_nursing_litters(mysqli $con, string $cageId): int
+{
+    $stmt = $con->prepare("SELECT COUNT(*) FROM litters WHERE cage_id = ? AND status = 'nursing'");
+    $stmt->bind_param("s", $cageId);
+    $stmt->execute();
+    $stmt->bind_result($n);
+    $stmt->fetch();
+    $stmt->close();
+    return (int) $n;
+}
+
+// Create an active holding cage (auto cage_id) with its lifecycle, users and
+// creation check. Returns the new cage_id. Caller handles the transaction.
+function create_holding_cage(mysqli $con, ?int $piId, ?string $room, ?string $rack, ?string $dob, array $userIds, string $why, ?int $userId, ?string $userName): string
+{
+    $cageId = allocate_cage_id($con);
+    $stmt = $con->prepare("INSERT INTO cages (cage_id, pi_name, quantity, room, rack) VALUES (?, ?, 0, ?, ?)");
+    $stmt->bind_param("siss", $cageId, $piId, $room, $rack);
+    $stmt->execute();
+    $stmt->close();
+    $h = $con->prepare("INSERT INTO holding (cage_id, dob) VALUES (?, ?)");
+    $dob = $dob ?: date('Y-m-d');
+    $h->bind_param("ss", $cageId, $dob);
+    $h->execute();
+    $h->close();
+    foreach ($userIds as $uid) {
+        $u = $con->prepare("INSERT INTO cage_users (cage_id, user_id) VALUES (?, ?)");
+        $uid = (int) $uid;
+        $u->bind_param("si", $cageId, $uid);
+        $u->execute();
+        $u->close();
+    }
+    log_cage_lifecycle($con, $cageId, 'created', $why, $userId, $userName);
+    record_cage_check($con, $cageId, 'creation', 'ok', 'auto', $why, null, $userId, $userName);
+    log_activity($con, 'create', 'cage', $cageId, $why, $userId);
+    return $cageId;
+}
+
+// Create one identified animal (line UID) in an active cage, with optional
+// parentage, its initial placement and creation event. Returns its id.
+function create_animal(mysqli $con, string $cageId, int $lineId, ?string $sex, ?string $dob, ?array $parentage, string $why, ?int $userId): int
+{
+    $uid = allocate_animal_uid($con, $lineId);
+    $stmt = $con->prepare("INSERT INTO mice (cage_id, line_id, animal_uid, sex, dob) VALUES (?, ?, ?, ?, ?)");
+    $stmt->bind_param("sisss", $cageId, $lineId, $uid, $sex, $dob);
+    $stmt->execute();
+    $animalId = $con->insert_id;
+    $stmt->close();
+    if ($parentage) {
+        $p = $con->prepare("INSERT INTO animal_parentage (animal_id, litter_id, sire_id, dam_id) VALUES (?, ?, ?, ?)");
+        $p->bind_param("iiii", $animalId, $parentage['litter_id'], $parentage['sire_id'], $parentage['dam_id']);
+        $p->execute();
+        $p->close();
+    }
+    log_animal_movement($con, $animalId, null, $cageId, $userId, $why);
+    log_animal_event($con, $animalId, 'created', ['cage_id' => $cageId, 'animal_uid' => $uid, 'sex' => $sex, 'reason' => $why], $userId);
+    $q = $con->prepare("UPDATE cages SET quantity = (SELECT COUNT(*) FROM mice WHERE cage_id = ? AND status = 'active') WHERE cage_id = ?");
+    $q->bind_param("ss", $cageId, $cageId);
+    $q->execute();
+    $q->close();
+    return $animalId;
 }

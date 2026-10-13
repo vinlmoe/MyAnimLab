@@ -133,9 +133,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 for ($i = 0; $i < $count; $i++) {
                     $animal_uid = allocate_animal_uid($con, $line_id);
 
-                    $query3 = "INSERT INTO mice (cage_id, line_id, animal_uid, sex, genotype) VALUES (?, ?, ?, ?, ?)";
+                    $query3 = "INSERT INTO mice (cage_id, line_id, animal_uid, sex, genotype, dob) VALUES (?, ?, ?, ?, ?, ?)";
                     $stmt3 = $con->prepare($query3);
-                    $stmt3->bind_param("sisss", $cage_id, $line_id, $animal_uid, $sex, $genotype);
+                    $stmt3->bind_param("sissss", $cage_id, $line_id, $animal_uid, $sex, $genotype, $dob);
                     $stmt3->execute();
                     $new_animal_id = $con->insert_id;
 

@@ -40,6 +40,7 @@ $defaultLabData = [
     'url' => '',
     'timezone' => '',
     'round_alert_time' => '18:00',
+    'weaning_age_days' => '21',
     'r1_temp' => '',
     'r1_humi' => '',
     'r1_illu' => '',
@@ -64,7 +65,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_lab'])) {
     }
 
     // Sanitize and fetch form inputs
-    $inputFields = ['lab_name', 'url', 'timezone', 'round_alert_time', 'r1_temp', 'r1_humi', 'r1_illu', 'r1_pres', 'r2_temp', 'r2_humi', 'r2_illu', 'r2_pres', 'cf-turnstile-secretKey', 'cf-turnstile-sitekey'];
+    $inputFields = ['lab_name', 'url', 'timezone', 'round_alert_time', 'weaning_age_days', 'r1_temp', 'r1_humi', 'r1_illu', 'r1_pres', 'r2_temp', 'r2_humi', 'r2_illu', 'r2_pres', 'cf-turnstile-secretKey', 'cf-turnstile-sitekey'];
     $inputData = [];
     foreach ($inputFields as $field) {
         $inputData[$field] = filter_input(INPUT_POST, $field, FILTER_SANITIZE_STRING);
@@ -184,6 +185,11 @@ require 'header.php';
                 <label for="round_alert_time">Daily round alert time</label>
                 <small class="form-text text-muted d-block">After this time (lab timezone), admins are alerted once about cages not yet seen today. Requires the daily_round_alert.php cron job.</small>
                 <input type="time" class="form-control" id="round_alert_time" name="round_alert_time" value="<?php echo htmlspecialchars($labData['round_alert_time']); ?>">
+            </div>
+            <div class="form-group">
+                <label for="weaning_age_days">Weaning age (days)</label>
+                <small class="form-text text-muted d-block">Used to compute each litter's expected weaning date from its date of birth.</small>
+                <input type="number" min="1" class="form-control" id="weaning_age_days" name="weaning_age_days" value="<?php echo htmlspecialchars($labData['weaning_age_days']); ?>">
             </div>
             <div class="form-group">
                 <label for="r1_temp">Room 1 Temperature Sensor</label>
