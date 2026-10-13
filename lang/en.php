@@ -8,6 +8,8 @@ return [
     'nav.dashboards' => 'Dashboards',
     'nav.holding_cages' => 'Holding cages',
     'nav.breeding_cages' => 'Breeding cages',
+    'nav.experimental_cages' => 'Experimental cages',
+    'nav.all_cages' => 'All cages / rooms',
     'nav.iot_sensors' => 'IoT sensors',
     'nav.animals' => 'Animals',
     'nav.daily_round' => 'Daily round',

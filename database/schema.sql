@@ -37,6 +37,7 @@ CREATE TABLE `cages` (
   `quantity` int DEFAULT NULL,
   `remarks` text DEFAULT NULL,
   `status` ENUM('active','archived') NOT NULL DEFAULT 'active',
+  `is_experimental` tinyint(1) NOT NULL DEFAULT 0,
   `room` varchar(255) DEFAULT NULL,
   `rack` varchar(255) DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT current_timestamp(),

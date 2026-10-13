@@ -773,3 +773,74 @@ function create_animal(mysqli $con, string $cageId, int $lineId, ?string $sex, ?
     $q->close();
     return $animalId;
 }
+
+// Cage categories: label, dashboard, cage page. A breeding cage has a breeding
+// record; an experimental cage is a holding cage flagged is_experimental.
+const CAGE_KINDS = [
+    'holding' => ['Cages d’hébergement', 'hc_dash.php', 'hc_view.php'],
+    'breeding' => ['Cages d’accouplement', 'bc_dash.php', 'bc_view.php'],
+    'experimental' => ['Cages d’expérimentation', 'ec_dash.php', 'hc_view.php'],
+];
+
+// SQL expression giving the category of the cage aliased c.
+const CAGE_KIND_SQL = "CASE WHEN EXISTS (SELECT 1 FROM breeding b WHERE b.cage_id = c.cage_id) THEN 'breeding'
+    WHEN c.is_experimental = 1 THEN 'experimental' ELSE 'holding' END";
+
+function cage_kind(mysqli $con, string $cageId): string
+{
+    $stmt = $con->prepare("SELECT " . CAGE_KIND_SQL . " FROM cages c WHERE c.cage_id = ?");
+    $stmt->bind_param("s", $cageId);
+    $stmt->execute();
+    $kind = $stmt->get_result()->fetch_row()[0] ?? 'holding';
+    $stmt->close();
+    return $kind;
+}
+
+// Move cages to another room (and rack). An empty rack keeps each cage's
+// current rack. Returns the number of cages actually changed.
+function move_cages_to_room(mysqli $con, array $cageIds, string $room, ?string $rack, ?int $userId): int
+{
+    $select = $con->prepare("SELECT room, rack FROM cages WHERE cage_id = ? AND status = 'active'");
+    $update = $con->prepare("UPDATE cages SET room = ?, rack = ? WHERE cage_id = ?");
+    $changed = 0;
+    foreach (array_unique($cageIds) as $cageId) {
+        $select->bind_param("s", $cageId);
+        $select->execute();
+        $current = $select->get_result()->fetch_assoc();
+        if (!$current) {
+            continue;
+        }
+        $newRack = ($rack === null || $rack === '') ? $current['rack'] : $rack;
+        if ($current['room'] === $room && $current['rack'] === $newRack) {
+            continue;
+        }
+        $update->bind_param("sss", $room, $newRack, $cageId);
+        $update->execute();
+        $from = trim(($current['room'] ?? '—') . ' / ' . ($current['rack'] ?? '—'));
+        log_activity($con, 'move_room', 'cage', $cageId, "Salle/rack : $from → $room / " . ($newRack ?? '—'), $userId);
+        $changed++;
+    }
+    $select->close();
+    $update->close();
+    return $changed;
+}
+
+// Switch holding cages between the holding and experimental categories.
+// Breeding cages are left untouched. Returns the number of cages changed.
+function set_cages_experimental(mysqli $con, array $cageIds, bool $experimental, ?int $userId): int
+{
+    $flag = $experimental ? 1 : 0;
+    $stmt = $con->prepare("UPDATE cages c SET c.is_experimental = ? WHERE c.cage_id = ? AND c.status = 'active' AND c.is_experimental <> ?
+        AND NOT EXISTS (SELECT 1 FROM breeding b WHERE b.cage_id = c.cage_id)");
+    $changed = 0;
+    foreach (array_unique($cageIds) as $cageId) {
+        $stmt->bind_param("isi", $flag, $cageId, $flag);
+        $stmt->execute();
+        if ($stmt->affected_rows > 0) {
+            log_activity($con, 'set_category', 'cage', $cageId, $experimental ? 'Cage d’expérimentation' : 'Cage d’hébergement', $userId);
+            $changed++;
+        }
+    }
+    $stmt->close();
+    return $changed;
+}

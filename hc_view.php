@@ -11,6 +11,7 @@
 session_start();
 require 'dbcon.php';
 require 'animal_lib.php';
+require 'cage_view_parts.php';
 
 // Check if the user is not logged in
 if (!isset($_SESSION['username'])) {
@@ -135,48 +136,6 @@ if (isset($_GET['id'])) {
         $userDisplayString = implode(', ', $userDisplay);
         $stmtUser->close();
 
-        $mouseQuery = "SELECT * FROM mice WHERE cage_id = ?";
-        $stmtMouse = $con->prepare($mouseQuery);
-        $stmtMouse->bind_param("s", $id);
-        $stmtMouse->execute();
-        $mouseResult = $stmtMouse->get_result();
-        $mice = mysqli_fetch_all($mouseResult, MYSQLI_ASSOC);
-        $stmtMouse->close();
-
-        // Only living animals by default; animals that left (sacrificed, dead,
-        // exported) keep their last cage and are shown on request.
-        $showExited = !empty($_GET['show_exited']);
-        $exitedCount = count(array_filter($mice, fn($m) => ($m['status'] ?? 'active') !== 'active'));
-        if (!$showExited) {
-            $mice = array_values(array_filter($mice, fn($m) => ($m['status'] ?? 'active') === 'active'));
-        }
-
-        // Current health notes are shown on the cage card itself.  A health
-        // report remains append-only; the link in the table opens its follow-up
-        // screen so the technician can add the next note without hunting for
-        // the animal in the registry.
-        $healthNotesByAnimal = [];
-        $mouseIds = array_map('intval', array_column($mice, 'id'));
-        if ($mouseIds) {
-            $placeholders = implode(',', array_fill(0, count($mouseIds), '?'));
-            $healthSql = "SELECT r.id, r.animal_id, r.category, r.description,
-                                  u.status AS current_status, u.severity AS current_severity,
-                                  u.note AS latest_note, u.created_at AS last_update_at
-                           FROM health_reports r
-                           INNER JOIN health_report_updates u ON u.id = (
-                               SELECT MAX(u2.id) FROM health_report_updates u2 WHERE u2.report_id = r.id
-                           )
-                           WHERE r.animal_id IN ($placeholders) AND u.status <> 'resolved'
-                           ORDER BY r.animal_id, u.created_at DESC, r.id DESC";
-            $healthStmt = $con->prepare($healthSql);
-            $healthStmt->bind_param(str_repeat('i', count($mouseIds)), ...$mouseIds);
-            $healthStmt->execute();
-            foreach ($healthStmt->get_result()->fetch_all(MYSQLI_ASSOC) as $healthNote) {
-                $healthNotesByAnimal[(int) $healthNote['animal_id']][] = $healthNote;
-            }
-            $healthStmt->close();
-        }
-
         // Calculate age
         if (!empty($holdingcage['dob'])) {
             $dob = new DateTime($holdingcage['dob']);
@@ -252,6 +211,10 @@ $stmtMaintenance->bind_param("s", $id); // Assuming $id holds the current cage_i
 $stmtMaintenance->execute();
 $maintenanceLogs = $stmtMaintenance->get_result();
 
+$cageKind = cage_kind($con, $id);
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
 require 'header.php';
 ?>
 
@@ -261,7 +224,7 @@ require 'header.php';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>View Holding Cage | <?php echo htmlspecialchars($labName); ?></title>
+    <title><?= $cageKind === 'experimental' ? 'Cage d’expérimentation' : 'View Holding Cage'; ?> | <?php echo htmlspecialchars($labName); ?></title>
 
     <style>
         body {
@@ -437,9 +400,10 @@ require 'header.php';
                 </span>
             </div>
         <?php endif; ?>
+        <?php render_cage_location($con, $holdingcage['cage_id'], 'hc_view.php?id=' . rawurlencode($holdingcage['cage_id'])); ?>
         <div class="card">
             <div class="card-header">
-                <h4>View Holding Cage <?= htmlspecialchars($holdingcage['cage_id']); ?></h4>
+                <h4><?= $cageKind === 'experimental' ? 'Cage d’expérimentation' : 'View Holding Cage'; ?> <?= htmlspecialchars($holdingcage['cage_id']); ?></h4>
                 <div class="action-buttons">
                     <a href="javascript:void(0);" onclick="goBack()" class="btn btn-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Go Back">
                         <i class="fas fa-arrow-circle-left"></i>
@@ -513,69 +477,7 @@ require 'header.php';
                     </tr>
                 </table>
 
-                <?php if ($exitedCount > 0) : ?>
-                    <p class="text-muted small mb-2">
-                        <?php if ($showExited) : ?>
-                            Affichage de tous les animaux, y compris <?= $exitedCount; ?> sorti(s).
-                            <a href="hc_view.php?id=<?= urlencode($id); ?>">Vivants uniquement</a>
-                        <?php else : ?>
-                            Vivants uniquement — <?= $exitedCount; ?> animal(aux) sorti(s) masqué(s).
-                            <a href="hc_view.php?id=<?= urlencode($id); ?>&amp;show_exited=1">Afficher les sortis</a>
-                        <?php endif; ?>
-                    </p>
-                <?php endif; ?>
-                <?php if (!empty($mice)) : ?>
-                    <?php foreach ($mice as $index => $mouse) : ?>
-                        <h4>Animal #<?= $index + 1; ?><?php if (($mouse['status'] ?? 'active') !== 'active') : ?> <span class="badge bg-secondary"><?= htmlspecialchars(exit_label($mouse['exit_code'] ?? null, $mouse['status'])); ?></span><?php endif; ?></h4>
-                        <table class="table table-bordered">
-                            <tr>
-                                <th>Animal UID</th>
-                                <th>Sex</th>
-                                <th>Notes de santé</th>
-                                <th>Distinctive mark</th>
-                                <th>Notes</th>
-                            </tr>
-                            <tr>
-                                <td>
-                                    <a href="animal_view.php?id=<?= (int) $mouse['id']; ?>"><?= htmlspecialchars($mouse['animal_uid'] ?? ''); ?></a>
-                                    <?php if (($mouse['status'] ?? 'active') === 'active') : ?>
-                                        <a href="animal_transfer.php?animal_id=<?= (int) $mouse['id']; ?>" class="btn btn-sm btn-outline-primary ms-1" title="Transfer"><i class="fas fa-exchange-alt"></i> Transfer</a>
-                                        <a href="health_report.php?animal_id=<?= (int) $mouse['id']; ?>" class="btn btn-sm btn-outline-warning" title="Report a health issue"><i class="fas fa-notes-medical"></i> Health</a>
-                                    <?php endif; ?>
-                                </td>
-                                <td><?= htmlspecialchars(!empty($mouse['sex']) ? ucfirst($mouse['sex']) : 'Not specified'); ?></td>
-                                <td class="health-notes-cell">
-                                    <?php $healthNotes = $healthNotesByAnimal[(int) $mouse['id']] ?? []; ?>
-                                    <?php if ($healthNotes) : ?>
-                                        <?php foreach ($healthNotes as $healthNote) : ?>
-                                            <div class="mb-2 pb-2 border-bottom">
-                                                <a href="health_report_view.php?id=<?= (int) $healthNote['id']; ?>" class="fw-bold text-decoration-none">
-                                                    <?= htmlspecialchars(HEALTH_CATEGORIES[$healthNote['category']] ?? $healthNote['category']); ?>
-                                                </a>
-                                                <?= health_badge($healthNote['current_status'], HEALTH_STATUSES); ?>
-                                                <?= health_badge($healthNote['current_severity'], HEALTH_SEVERITIES); ?>
-                                                <div class="small mt-1"><?= nl2br(htmlspecialchars($healthNote['description'])); ?></div>
-                                                <?php if (!empty($healthNote['latest_note'])) : ?>
-                                                    <div class="small text-muted mt-1"><strong>Dernier suivi :</strong> <?= nl2br(htmlspecialchars($healthNote['latest_note'])); ?></div>
-                                                <?php endif; ?>
-                                                <a href="health_report_view.php?id=<?= (int) $healthNote['id']; ?>" class="btn btn-outline-primary btn-sm mt-1">Ajouter un suivi</a>
-                                            </div>
-                                        <?php endforeach; ?>
-                                    <?php else : ?>
-                                        <span class="text-muted small">Aucune note de santé active.</span><br>
-                                        <?php if (($mouse['status'] ?? 'active') === 'active') : ?>
-                                            <a href="health_report.php?<?= htmlspecialchars(http_build_query(['animal_id' => $mouse['id'], 'via' => 'cage_page', 'return' => 'hc_view.php?id=' . $id])); ?>" class="btn btn-outline-warning btn-sm mt-1"><i class="fas fa-notes-medical"></i> Ajouter une note</a>
-                                        <?php endif; ?>
-                                    <?php endif; ?>
-                                </td>
-                                <td><?= htmlspecialchars($mouse['distinctive_mark'] ?? ''); ?></td>
-                                <td><?= htmlspecialchars($mouse['notes'] ?? ''); ?></td>
-                            </tr>
-                        </table>
-                    <?php endforeach; ?>
-                <?php else : ?>
-                    <p>No living animal in this cage.</p>
-                <?php endif; ?>
+                <?php render_cage_animals($con, $id, 'hc_view.php'); ?>
             </div>
 
             <hr class="mt-4 mb-4" style="border-top: 3px solid #000;">
@@ -726,7 +628,7 @@ require 'header.php';
             const urlParams = new URLSearchParams(window.location.search);
             const page = urlParams.get('page') || 1;
             const search = urlParams.get('search') || '';
-            window.location.href = 'hc_dash.php?page=' + page + '&search=' + encodeURIComponent(search);
+            window.location.href = '<?= CAGE_KINDS[$cageKind][1]; ?>?page=' + page + '&search=' + encodeURIComponent(search);
         }
 
         function viewStrainDetails(id, name, aka, url, rrid, notes) {
