@@ -143,6 +143,14 @@ if (isset($_GET['id'])) {
         $mice = mysqli_fetch_all($mouseResult, MYSQLI_ASSOC);
         $stmtMouse->close();
 
+        // Only living animals by default; animals that left (sacrificed, dead,
+        // exported) keep their last cage and are shown on request.
+        $showExited = !empty($_GET['show_exited']);
+        $exitedCount = count(array_filter($mice, fn($m) => ($m['status'] ?? 'active') !== 'active'));
+        if (!$showExited) {
+            $mice = array_values(array_filter($mice, fn($m) => ($m['status'] ?? 'active') === 'active'));
+        }
+
         // Current health notes are shown on the cage card itself.  A health
         // report remains append-only; the link in the table opens its follow-up
         // screen so the technician can add the next note without hunting for
@@ -505,9 +513,20 @@ require 'header.php';
                     </tr>
                 </table>
 
+                <?php if ($exitedCount > 0) : ?>
+                    <p class="text-muted small mb-2">
+                        <?php if ($showExited) : ?>
+                            Affichage de tous les animaux, y compris <?= $exitedCount; ?> sorti(s).
+                            <a href="hc_view.php?id=<?= urlencode($id); ?>">Vivants uniquement</a>
+                        <?php else : ?>
+                            Vivants uniquement — <?= $exitedCount; ?> animal(aux) sorti(s) masqué(s).
+                            <a href="hc_view.php?id=<?= urlencode($id); ?>&amp;show_exited=1">Afficher les sortis</a>
+                        <?php endif; ?>
+                    </p>
+                <?php endif; ?>
                 <?php if (!empty($mice)) : ?>
                     <?php foreach ($mice as $index => $mouse) : ?>
-                        <h4>Animal #<?= $index + 1; ?></h4>
+                        <h4>Animal #<?= $index + 1; ?><?php if (($mouse['status'] ?? 'active') !== 'active') : ?> <span class="badge bg-secondary"><?= htmlspecialchars(exit_label($mouse['exit_code'] ?? null, $mouse['status'])); ?></span><?php endif; ?></h4>
                         <table class="table table-bordered">
                             <tr>
                                 <th>Animal UID</th>
@@ -555,7 +574,7 @@ require 'header.php';
                         </table>
                     <?php endforeach; ?>
                 <?php else : ?>
-                    <p>No animal data available for this cage.</p>
+                    <p>No living animal in this cage.</p>
                 <?php endif; ?>
             </div>
 
