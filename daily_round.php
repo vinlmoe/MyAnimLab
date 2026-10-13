@@ -62,7 +62,7 @@ $checks = cage_checks_for_date($con, $date);
 
 // Animals currently housed in each active cage, with their open health issues.
 $animalRows = $con->query(
-    "SELECT m.id, m.animal_uid, m.mouse_id, m.sex, m.cage_id FROM mice m
+    "SELECT m.id, m.animal_uid, m.mouse_id, m.sex, m.distinctive_mark, m.cage_id FROM mice m
      JOIN cages c ON c.cage_id = m.cage_id AND c.status = 'active'
      WHERE m.status = 'active' ORDER BY m.animal_uid"
 )->fetch_all(MYSQLI_ASSOC);
@@ -231,7 +231,7 @@ require 'header.php';
                                     <?php foreach ($isToday ? ($animalsByCage[$cid] ?? []) : [] as $a) :
                                         $label = $a['animal_uid'] ?? $a['mouse_id'] ?? '#' . $a['id']; ?>
                                         <span class="text-nowrap me-2">
-                                            <a href="animal_view.php?id=<?= (int) $a['id']; ?>"><?= htmlspecialchars($label); ?></a><?= $a['sex'] === 'male' ? '♂' : ($a['sex'] === 'female' ? '♀' : ''); ?>
+                                            <a href="animal_view.php?id=<?= (int) $a['id']; ?>"><?= htmlspecialchars($label); ?></a><?= $a['sex'] === 'male' ? '♂' : ($a['sex'] === 'female' ? '♀' : ''); ?><?php if (!empty($a['distinctive_mark'])) : ?><small class="text-muted mark" title="Distinctive mark"> [<?= htmlspecialchars($a['distinctive_mark']); ?>]</small><?php endif; ?>
                                             <?php if (!empty($openIssues[$a['id']])) : ?><span class="badge bg-danger" title="Open health issue">!</span><?php endif; ?>
                                             <?php if ($isToday) : ?>
                                                 <a href="health_report.php?<?= htmlspecialchars(http_build_query(['animal_id' => $a['id'], 'via' => 'round', 'return' => $returnUrl])); ?>" class="btn btn-outline-warning btn-sm py-0 px-1" title="Report a health issue for <?= htmlspecialchars($label); ?>">Report</a>

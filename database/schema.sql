@@ -178,6 +178,7 @@ CREATE TABLE `mice` (
   `mouse_id` varchar(255) DEFAULT NULL,
   `sex` ENUM('male','female') DEFAULT NULL,
   `dob` date DEFAULT NULL,
+  `distinctive_mark` varchar(255) DEFAULT NULL,
   `genotype` varchar(255) DEFAULT NULL,
   `notes` text DEFAULT NULL,
   `status` ENUM('active','sacrificed','dead','transferred_out','archived') NOT NULL DEFAULT 'active',

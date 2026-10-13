@@ -69,7 +69,7 @@ if (cage_nursing_litters($con, $cageId) > 0) {
     exit;
 }
 
-$animalsStmt = $con->prepare("SELECT id, animal_uid, mouse_id, sex FROM mice WHERE cage_id = ? AND status = 'active' ORDER BY animal_uid");
+$animalsStmt = $con->prepare("SELECT id, animal_uid, mouse_id, sex, distinctive_mark FROM mice WHERE cage_id = ? AND status = 'active' ORDER BY animal_uid");
 $animalsStmt->bind_param("s", $cageId);
 $animalsStmt->execute();
 $animals = $animalsStmt->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -207,7 +207,7 @@ require 'header.php';
                                 $aid = (int) $a['id'];
                                 $label = $a['animal_uid'] ?? $a['mouse_id'] ?? "#$aid"; ?>
                                 <tr class="animal-row" data-animal="<?= $aid; ?>">
-                                    <td><a href="animal_view.php?id=<?= $aid; ?>"><?= htmlspecialchars($label); ?></a> <?= $a['sex'] === 'male' ? '♂' : ($a['sex'] === 'female' ? '♀' : ''); ?></td>
+                                    <td><a href="animal_view.php?id=<?= $aid; ?>"><?= htmlspecialchars($label); ?></a> <?= $a['sex'] === 'male' ? '♂' : ($a['sex'] === 'female' ? '♀' : ''); ?><?php if (!empty($a['distinctive_mark'])) : ?><small class="text-muted mark" title="Distinctive mark"> [<?= htmlspecialchars($a['distinctive_mark']); ?>]</small><?php endif; ?></td>
                                     <td>
                                         <select class="form-select form-select-sm fate" name="fate[<?= $aid; ?>]" required>
                                             <option value="" selected disabled>Choose…</option>
