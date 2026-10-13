@@ -10,6 +10,7 @@
 
 session_start();
 require 'dbcon.php';
+require 'animal_lib.php';
 
 // Check if the user is not logged in
 if (!isset($_SESSION['username'])) {
@@ -185,6 +186,10 @@ if (isset($_GET['id'])) {
 
 function getUserDetailsByIds($con, $userIds)
 {
+    // Archived cages have no assigned users left: avoid an invalid "IN ()".
+    if (empty($userIds)) {
+        return [];
+    }
     $placeholders = implode(',', array_fill(0, count($userIds), '?'));
     $query = "SELECT id, initials, name FROM users WHERE id IN ($placeholders)";
     $stmt = $con->prepare($query);
@@ -360,6 +365,43 @@ require 'header.php';
 
 <body>
     <div class="container content mt-4">
+        <?php
+        // Daily check banner: printed cage QR codes open this page.
+        $cageTodayChecks = cage_checks_for_date($con, date('Y-m-d'))[$holdingcage['cage_id']] ?? [];
+        $lifeStmt = $con->prepare("SELECT status, created_at, retired_at FROM cages WHERE cage_id = ?");
+        $lifeStmt->bind_param("s", $holdingcage['cage_id']);
+        $lifeStmt->execute();
+        $cageLife = $lifeStmt->get_result()->fetch_assoc();
+        $lifeStmt->close();
+        ?>
+        <?php if (($cageLife['status'] ?? 'active') === 'archived') : ?>
+            <div class="alert alert-secondary d-flex justify-content-between align-items-center flex-wrap mb-3" id="dailyCheckBanner">
+                <span>
+                    <strong>Retired cage</strong>
+                    <?= $cageLife['retired_at'] ? 'since ' . htmlspecialchars(substr($cageLife['retired_at'], 0, 10)) : ''; ?>
+                    — no daily check expected.
+                </span>
+                <span class="text-muted small">A retired cage is not put back in service; its animals were moved or left the facility.</span>
+            </div>
+        <?php else : ?>
+            <div class="alert <?= $cageTodayChecks ? 'alert-success' : 'alert-warning'; ?> d-flex justify-content-between align-items-center flex-wrap mb-3" id="dailyCheckBanner">
+                <span>
+                    <strong>Daily check:</strong>
+                    <?php if ($cageTodayChecks) : ?>
+                        seen today <?php foreach ($cageTodayChecks as $chk) echo cage_check_badge($chk); ?>
+                    <?php else : ?>
+                        this cage has not been seen yet today.
+                    <?php endif; ?>
+                    <?php if (!empty($cageLife['created_at'])) : ?>
+                        <small class="text-muted">· in service since <?= htmlspecialchars(substr($cageLife['created_at'], 0, 10)); ?></small>
+                    <?php endif; ?>
+                </span>
+                <span>
+                    <a href="cage_check.php?<?= htmlspecialchars(http_build_query(['id' => $holdingcage['cage_id'], 'via' => 'cage_page'])); ?>" class="btn btn-success btn-sm"><i class="fas fa-clipboard-check"></i> Validate daily check</a>
+                    <a href="cage_retire.php?id=<?= rawurlencode($holdingcage['cage_id']); ?>" class="btn btn-outline-danger btn-sm">Retire cage</a>
+                </span>
+            </div>
+        <?php endif; ?>
         <div class="card">
             <div class="card-header">
                 <h4>View Holding Cage <?= htmlspecialchars($holdingcage['cage_id']); ?></h4>
@@ -416,7 +458,7 @@ require 'header.php';
                     </tr>
                     <tr>
                         <th>Qty</th>
-                        <td><?= htmlspecialchars($holdingcage['quantity']); ?></td>
+                        <td><?= htmlspecialchars($holdingcage['quantity'] ?? ''); ?></td>
                     </tr>
                     <tr>
                         <th>DOB</th>
@@ -432,7 +474,7 @@ require 'header.php';
                     </tr>
                     <tr>
                         <th>Remarks</th>
-                        <td><?= htmlspecialchars($holdingcage['remarks']); ?></td>
+                        <td><?= htmlspecialchars($holdingcage['remarks'] ?? ''); ?></td>
                     </tr>
                 </table>
 
@@ -444,12 +486,20 @@ require 'header.php';
                                 <th>Animal UID</th>
                                 <th>Sex</th>
                                 <th>Genotype</th>
+                                <th>Distinctive mark</th>
                                 <th>Notes</th>
                             </tr>
                             <tr>
-                                <td><?= htmlspecialchars($mouse['animal_uid'] ?? ''); ?></td>
+                                <td>
+                                    <a href="animal_view.php?id=<?= (int) $mouse['id']; ?>"><?= htmlspecialchars($mouse['animal_uid'] ?? ''); ?></a>
+                                    <?php if (($mouse['status'] ?? 'active') === 'active') : ?>
+                                        <a href="animal_transfer.php?animal_id=<?= (int) $mouse['id']; ?>" class="btn btn-sm btn-outline-primary ms-1" title="Transfer"><i class="fas fa-exchange-alt"></i> Transfer</a>
+                                        <a href="health_report.php?animal_id=<?= (int) $mouse['id']; ?>" class="btn btn-sm btn-outline-warning" title="Report a health issue"><i class="fas fa-notes-medical"></i> Health</a>
+                                    <?php endif; ?>
+                                </td>
                                 <td><?= htmlspecialchars(!empty($mouse['sex']) ? ucfirst($mouse['sex']) : 'Not specified'); ?></td>
                                 <td><?= htmlspecialchars($mouse['genotype'] ?? ''); ?></td>
+                                <td><?= htmlspecialchars($mouse['distinctive_mark'] ?? ''); ?></td>
                                 <td><?= htmlspecialchars($mouse['notes'] ?? ''); ?></td>
                             </tr>
                         </table>

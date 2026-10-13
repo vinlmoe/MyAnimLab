@@ -14,6 +14,7 @@ session_start();
 
 // Include the database connection file
 require 'dbcon.php';
+require 'animal_lib.php';
 
 // Check if the user is logged in, redirect to login page if not logged in
 if (!isset($_SESSION['name'])) {
@@ -59,6 +60,30 @@ if ($totalTasks == 0) {
 }
 
 // Include the header file
+// Daily round progress: today, and cages missed yesterday.
+$roundCages = array_column(cages_due_on($con, date('Y-m-d')), 'cage_id');
+$seenToday = count(array_intersect($roundCages, array_keys(cage_checks_for_date($con, date('Y-m-d')))));
+$yesterday = date('Y-m-d', strtotime('-1 day'));
+$missedYesterday = count(array_diff(array_column(cages_due_on($con, $yesterday), 'cage_id'), array_keys(cage_checks_for_date($con, $yesterday))));
+
+$pendingEndpointActions = $con->query(
+    "SELECT a.*, m.animal_uid, e.experiment_number FROM endpoint_actions a
+     JOIN experiment_animals ea ON ea.id = a.experiment_animal_id
+     JOIN mice m ON m.id = ea.animal_id JOIN experiments e ON e.id = ea.experiment_id
+     WHERE a.status = 'pending' ORDER BY a.created_at"
+)->fetch_all(MYSQLI_ASSOC);
+
+// Litters to wean within 2 days, or overdue.
+$littersToWean = $con->query(
+    "SELECT id, cage_id, litter_dob, expected_weaning_date FROM litters
+     WHERE status = 'nursing' AND expected_weaning_date <= CURDATE() + INTERVAL 2 DAY ORDER BY expected_weaning_date"
+)->fetch_all(MYSQLI_ASSOC);
+
+$housingAnomalies = (int) $con->query(
+    "SELECT COUNT(*) FROM mice m LEFT JOIN cages c ON c.cage_id = m.cage_id
+     WHERE m.status = 'active' AND (c.cage_id IS NULL OR c.status <> 'active')"
+)->fetch_row()[0];
+
 require 'header.php';
 ?>
 
@@ -105,6 +130,53 @@ require 'header.php';
                 <span aria-hidden="true">&times;</span>
             </button>
         </div>
+        <?php endif; ?>
+
+        <?php if ($pendingEndpointActions) : ?>
+            <div class="alert alert-danger" id="pendingEndpointActions">
+                <i class="fas fa-exclamation-triangle"></i> <strong><?= count($pendingEndpointActions); ?> endpoint action(s) required</strong>
+                <ul class="mb-0">
+                    <?php foreach ($pendingEndpointActions as $pa) : ?>
+                        <li><a href="experiment_followup.php?experiment_animal_id=<?= (int) $pa['experiment_animal_id']; ?>"><?= htmlspecialchars($pa['animal_uid']); ?></a>
+                            (<?= htmlspecialchars($pa['experiment_number']); ?>): <strong><?= htmlspecialchars(ENDPOINT_REQUIRED_ACTIONS[$pa['required_action']]); ?></strong>
+                            — <?= htmlspecialchars($pa['message'] ?? ''); ?> <small>(since <?= htmlspecialchars($pa['created_at']); ?>)</small></li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($littersToWean) : ?>
+            <div class="alert alert-warning" id="littersToWean">
+                <i class="fas fa-baby"></i> <strong><?= count($littersToWean); ?> litter(s) to wean</strong>
+                <ul class="mb-0">
+                    <?php foreach ($littersToWean as $lw) : $over = $lw['expected_weaning_date'] < date('Y-m-d'); ?>
+                        <li class="<?= $over ? 'text-danger fw-bold' : ''; ?>"><a href="litter_manage.php?litter_id=<?= (int) $lw['id']; ?>">Litter #<?= (int) $lw['id']; ?></a> — cage <?= htmlspecialchars($lw['cage_id']); ?>, born <?= htmlspecialchars($lw['litter_dob']); ?>, weaning <?= $over ? 'overdue since' : 'expected'; ?> <?= htmlspecialchars($lw['expected_weaning_date']); ?></li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($housingAnomalies) : ?>
+            <div class="alert alert-danger" id="housingAnomalies">
+                <i class="fas fa-exclamation-triangle"></i> <strong><?= $housingAnomalies; ?> living animal(s) without an active cage</strong> (data recorded before the housing rule).
+                <a href="animal_search.php?list=1&amp;status=active&amp;housing_anomaly=1">Move them to a cage or record their exit</a>.
+            </div>
+        <?php endif; ?>
+
+        <?php if ($roundCages) : ?>
+            <div class="alert <?= $seenToday === count($roundCages) ? 'alert-success' : 'alert-warning'; ?> d-flex justify-content-between align-items-center flex-wrap" id="dailyRoundStatus">
+                <span>
+                    <i class="fas fa-clipboard-check"></i> <strong>Daily round:</strong>
+                    <?= $seenToday; ?> / <?= count($roundCages); ?> cage(s) seen today.
+                    <?php if ($missedYesterday) : ?>
+                        <a href="daily_round.php?date=<?= date('Y-m-d', strtotime('-1 day')); ?>" class="text-danger fw-bold"><?= $missedYesterday; ?> cage(s) missed yesterday.</a>
+                    <?php endif; ?>
+                </span>
+                <span>
+                    <a href="daily_round.php?hide_seen=1" class="btn btn-sm btn-primary">Start / continue the round</a>
+                    <a href="qr_scan.php" class="btn btn-sm btn-success"><i class="fas fa-qrcode"></i> Scan</a>
+                </span>
+            </div>
         <?php endif; ?>
 
         <br>

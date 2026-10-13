@@ -14,6 +14,7 @@ session_start();
 
 // Include the database connection file
 require 'dbcon.php';
+require 'animal_lib.php';
 
 // Check if the user is not logged in, redirect them to index.php with the current URL for redirection after login
 if (!isset($_SESSION['username'])) {
@@ -102,6 +103,10 @@ if (isset($_GET['id'])) {
 
 function getUserDetailsByIds($con, $userIds)
 {
+    // Archived cages have no assigned users left: avoid an invalid "IN ()".
+    if (empty($userIds)) {
+        return [];
+    }
     $placeholders = implode(',', array_fill(0, count($userIds), '?'));
     $query = "SELECT id, initials, name FROM users WHERE id IN ($placeholders)";
     $stmt = $con->prepare($query);
@@ -307,6 +312,43 @@ require 'header.php';
 <body>
 
     <div class="container content mt-4">
+        <?php
+        // Daily check banner: printed cage QR codes open this page.
+        $cageTodayChecks = cage_checks_for_date($con, date('Y-m-d'))[$breedingcage['cage_id']] ?? [];
+        $lifeStmt = $con->prepare("SELECT status, created_at, retired_at FROM cages WHERE cage_id = ?");
+        $lifeStmt->bind_param("s", $breedingcage['cage_id']);
+        $lifeStmt->execute();
+        $cageLife = $lifeStmt->get_result()->fetch_assoc();
+        $lifeStmt->close();
+        ?>
+        <?php if (($cageLife['status'] ?? 'active') === 'archived') : ?>
+            <div class="alert alert-secondary d-flex justify-content-between align-items-center flex-wrap mb-3" id="dailyCheckBanner">
+                <span>
+                    <strong>Retired cage</strong>
+                    <?= $cageLife['retired_at'] ? 'since ' . htmlspecialchars(substr($cageLife['retired_at'], 0, 10)) : ''; ?>
+                    — no daily check expected.
+                </span>
+                <span class="text-muted small">A retired cage is not put back in service; its animals were moved or left the facility.</span>
+            </div>
+        <?php else : ?>
+            <div class="alert <?= $cageTodayChecks ? 'alert-success' : 'alert-warning'; ?> d-flex justify-content-between align-items-center flex-wrap mb-3" id="dailyCheckBanner">
+                <span>
+                    <strong>Daily check:</strong>
+                    <?php if ($cageTodayChecks) : ?>
+                        seen today <?php foreach ($cageTodayChecks as $chk) echo cage_check_badge($chk); ?>
+                    <?php else : ?>
+                        this cage has not been seen yet today.
+                    <?php endif; ?>
+                    <?php if (!empty($cageLife['created_at'])) : ?>
+                        <small class="text-muted">· in service since <?= htmlspecialchars(substr($cageLife['created_at'], 0, 10)); ?></small>
+                    <?php endif; ?>
+                </span>
+                <span>
+                    <a href="cage_check.php?<?= htmlspecialchars(http_build_query(['id' => $breedingcage['cage_id'], 'via' => 'cage_page'])); ?>" class="btn btn-success btn-sm"><i class="fas fa-clipboard-check"></i> Validate daily check</a>
+                    <a href="cage_retire.php?id=<?= rawurlencode($breedingcage['cage_id']); ?>" class="btn btn-outline-danger btn-sm">Retire cage</a>
+                </span>
+            </div>
+        <?php endif; ?>
         <div class="card">
             <div class="card-header">
                 <h4>View Breeding Cage <?= htmlspecialchars($breedingcage['cage_id']); ?></h4>
@@ -354,23 +396,27 @@ require 'header.php';
                     </tr>
                     <tr>
                         <th>Male ID</th>
-                        <td><?= htmlspecialchars($breedingcage['male_id']); ?></td>
+                        <td><?= htmlspecialchars($breedingcage['male_id'] ?? ''); ?></td>
                     </tr>
                     <tr>
                         <th>Male DOB</th>
-                        <td><?= htmlspecialchars($breedingcage['male_dob']); ?></td>
+                        <td><?= htmlspecialchars($breedingcage['male_dob'] ?? ''); ?></td>
                     </tr>
                     <tr>
                         <th>Female ID</th>
-                        <td><?= htmlspecialchars($breedingcage['female_id']); ?></td>
+                        <td><?= htmlspecialchars($breedingcage['female_id'] ?? ''); ?></td>
                     </tr>
                     <tr>
                         <th>Female DOB</th>
-                        <td><?= htmlspecialchars($breedingcage['female_dob']); ?></td>
+                        <td><?= htmlspecialchars($breedingcage['female_dob'] ?? ''); ?></td>
                     </tr>
                     <tr>
                         <th>Remarks</th>
                         <td class="remarks-column"><?= htmlspecialchars($breedingcage['remarks']); ?></td>
+                    </tr>
+                    <tr>
+                        <th>Animals</th>
+                        <td><a href="animal_search.php?list=1&amp;status=all&amp;cage_id=<?= rawurlencode($breedingcage['cage_id']); ?>"><i class="fas fa-paw"></i> List, transfer or report health issues for this cage's animals</a></td>
                     </tr>
                 </table>
 
@@ -412,6 +458,7 @@ require 'header.php';
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h4 class="mb-0">Litter Details - <?= htmlspecialchars($id) ?>
                         </h4>
+                        <a href="litter_manage.php?cage_id=<?= rawurlencode($id); ?>" class="btn btn-success btn-sm" id="manageLitters"><i class="fas fa-baby"></i> Litters: birth → weaning</a>
                     </div>
 
                     <?php while ($litter = mysqli_fetch_assoc($litters)) : ?>
@@ -424,7 +471,8 @@ require 'header.php';
                                     </tr>
                                     <tr>
                                         <th>Litter DOB</th>
-                                        <td><?= htmlspecialchars($litter['litter_dob'] ?? ''); ?></td>
+                                        <td><?= htmlspecialchars($litter['litter_dob'] ?? ''); ?>
+                                            <a href="litter_manage.php?litter_id=<?= (int) $litter['id']; ?>" class="ms-2 small"><?= htmlspecialchars($litter['status'] ?? ''); ?><?= ($litter['status'] ?? '') === 'nursing' ? ' — weaning expected ' . htmlspecialchars($litter['expected_weaning_date'] ?? '?') : ''; ?></a></td>
                                     </tr>
                                     <tr>
                                         <th>Pups Alive</th>
