@@ -522,10 +522,12 @@ function clinical_grid_locked(mysqli $con, int $gridId): bool
 // Human-readable condition of an endpoint threshold.
 function threshold_label(array $t, ?string $itemLabel = null): string
 {
+    // $itemLabel: the grid item (item_score) or observation field (observation).
     $metric = [
         'weight_loss_pct' => 'Weight loss %',
         'clinical_score' => 'Total clinical score',
         'item_score' => 'Score "' . ($itemLabel ?? '?') . '"',
+        'observation' => '"' . ($itemLabel ?? '?') . '"',
         'custom' => 'Custom',
     ][$t['metric']] ?? $t['metric'];
     return $metric . ' ' . $t['operator'] . ' ' . rtrim(rtrim((string) $t['value'], '0'), '.');
@@ -544,4 +546,49 @@ function resolve_endpoint_actions_on_exit(mysqli $con, int $animalId, string $ex
     $stmt->bind_param("issi", $userId, $userName, $note, $animalId);
     $stmt->execute();
     $stmt->close();
+}
+
+// Observation fields a protocol asks for at every daily follow-up, by id
+// (only active ones unless $includeInactive, e.g. for reports and endpoints).
+function protocol_observation_fields(mysqli $con, int $protocolId, bool $includeInactive = false): array
+{
+    $stmt = $con->prepare("SELECT * FROM protocol_observation_fields WHERE protocol_id = ?" . ($includeInactive ? '' : ' AND active = 1') . " ORDER BY position, id");
+    $stmt->bind_param("i", $protocolId);
+    $stmt->execute();
+    $fields = [];
+    foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $f) {
+        $fields[(int) $f['id']] = $f;
+    }
+    $stmt->close();
+    return $fields;
+}
+
+// Parse a typed number, accepting a decimal comma ("37,5"); null if not a number.
+function parse_number(?string $raw): ?float
+{
+    $raw = str_replace([' ', ','], ['', '.'], trim((string) $raw));
+    return is_numeric($raw) ? (float) $raw : null;
+}
+
+// Display value of a follow-up observation (number trimmed, with its unit).
+function observation_value(array $o): string
+{
+    if ($o['value_type'] === 'number') {
+        $n = $o['value_number'] === null ? '' : rtrim(rtrim(number_format((float) $o['value_number'], 4, '.', ''), '0'), '.');
+        return trim($n . ' ' . ($o['unit'] ?? ''));
+    }
+    return (string) ($o['value_text'] ?? '');
+}
+
+// Label of the grid item or observation field a threshold refers to.
+function threshold_target_label(array $t, ?array $grid, array $obsFields): ?string
+{
+    if ($t['metric'] === 'item_score') {
+        return $grid['items'][(int) $t['grid_item_id']]['label'] ?? null;
+    }
+    if ($t['metric'] === 'observation' && isset($obsFields[(int) $t['observation_field_id']])) {
+        $f = $obsFields[(int) $t['observation_field_id']];
+        return $f['label'] . ($f['unit'] ? " ({$f['unit']})" : '');
+    }
+    return null;
 }
