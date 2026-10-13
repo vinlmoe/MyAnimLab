@@ -431,7 +431,6 @@ mysqli_close($con);
                             <?php } ?>
 
                             <button type="submit" class="btn btn-primary" name="login">Login</button>
-                            <a href="register.php" class="btn btn-secondary">Register</a>
                             <br><br>
                             <a href="forgot_password.php" class="forgot-password-link">Forgot Password?</a>
                         </form>
