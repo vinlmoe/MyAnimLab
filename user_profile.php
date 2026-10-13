@@ -109,6 +109,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_profile'])) {
     $name = filter_input(INPUT_POST, 'name', FILTER_SANITIZE_STRING);
     $initials = filter_input(INPUT_POST, 'initials', FILTER_SANITIZE_STRING);
     $position = filter_input(INPUT_POST, 'position', FILTER_SANITIZE_STRING);
+    $preferredLocale = in_array($_POST['preferred_locale'] ?? '', APP_SUPPORTED_LOCALES, true)
+        ? $_POST['preferred_locale']
+        : APP_DEFAULT_LOCALE;
 
     // Check if the email address (username) has changed
     $emailChanged = ($newUsername !== $username);
@@ -120,7 +123,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_profile'])) {
         $updateMessage = "The initials '$initials' are already in use by another user. Please choose different initials.";
     } else {
         // Update user details in the database
-        $updateQuery = "UPDATE users SET username = ?, name = ?, position = ?, initials = ?";
+        $updateQuery = "UPDATE users SET username = ?, name = ?, position = ?, initials = ?, preferred_locale = ?";
         if ($emailChanged) {
             $updateQuery .= ", email_verified = 0";
         }
@@ -128,9 +131,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_profile'])) {
         $updateStmt = $con->prepare($updateQuery);
 
         if ($emailChanged) {
-            $updateStmt->bind_param("sssss", $newUsername, $name, $position, $uniqueInitials, $username);
+            $updateStmt->bind_param("ssssss", $newUsername, $name, $position, $uniqueInitials, $preferredLocale, $username);
         } else {
-            $updateStmt->bind_param("sssss", $newUsername, $name, $position, $uniqueInitials, $username);
+            $updateStmt->bind_param("ssssss", $newUsername, $name, $position, $uniqueInitials, $preferredLocale, $username);
         }
 
         if ($updateStmt->execute()) {
@@ -140,10 +143,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_profile'])) {
                 $username = $newUsername;
                 $updateMessage = "Profile information updated successfully. Please log out and log back in to reflect the changes everywhere.";
             } else {
-                $updateMessage = "Profile information updated successfully.";
+                $updateMessage = t('profile.updated');
             }
+            set_current_locale($preferredLocale);
         } else {
-            $updateMessage = "An error occurred while updating the profile. Please try again.";
+            $updateMessage = t('profile.update_error');
         }
 
         $updateStmt->close();
@@ -226,12 +230,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale(), ENT_QUOTES, 'UTF-8') ?>">
 
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>User Profile</title>
+    <title><?= htmlspecialchars(t('profile.title')) ?></title>
     <style>
         .container {
             max-width: 800px;
@@ -297,25 +301,25 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
 <body>
     <div class="container content">
         <br>
-        <h2>User Profile</h2>
+        <h2><?= htmlspecialchars(t('profile.title')) ?></h2>
         <br>
         <br>
         <form method="POST" action="">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
             <div class="form-group">
-                <label for="name">Name</label>
+                <label for="name"><?= htmlspecialchars(t('profile.name')) ?></label>
                 <input type="text" class="form-control" id="name" name="name" value="<?php echo htmlspecialchars($user['name']); ?>" required>
             </div>
             <br>
             <div class="form-group">
-                <label for="initials">Initials <span class="note1">(Your Initials will be displayed in Cage Card)</span></label>
+                <label for="initials"><?= htmlspecialchars(t('profile.initials')) ?> <span class="note1">(<?= htmlspecialchars(t('profile.initials_help')) ?>)</span></label>
                 <input type="text" class="form-control" id="initials" name="initials" value="<?php echo htmlspecialchars($user['initials']); ?>" maxlength="3" required>
             </div>
             <br>
             <div class="form-group">
-                <label for="position">Position</label>
+                <label for="position"><?= htmlspecialchars(t('profile.position')) ?></label>
                 <select class="form-control" id="position" name="position">
-                    <option value="" disabled>Select Position</option>
+                    <option value="" disabled><?= htmlspecialchars(t('profile.select_position')) ?></option>
                     <option value="Principal Investigator" <?php echo ($user['position'] == 'Principal Investigator') ? 'selected' : ''; ?>>Principal Investigator</option>
                     <option value="Research Scientist" <?php echo ($user['position'] == 'Research Scientist') ? 'selected' : ''; ?>>Research Scientist</option>
                     <option value="Postdoctoral Researcher" <?php echo ($user['position'] == 'Postdoctoral Researcher') ? 'selected' : ''; ?>>Postdoctoral Researcher</option>
@@ -332,12 +336,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
             <br>
             <?php if ($demo !== "yes") : ?>
                 <div class="form-group">
-                    <label for="username">Email Address</label>
+                    <label for="username"><?= htmlspecialchars(t('profile.email')) ?></label>
                     <input type="email" class="form-control" id="username" name="username" value="<?php echo htmlspecialchars($user['username']); ?>" required>
                 </div>
             <?php endif; ?>
             <br>
-            <button type="submit" class="btn1 btn-primary" name="update_profile">Update Profile</button>
+            <div class="form-group">
+                <label for="preferred_locale"><?= htmlspecialchars(t('profile.language')) ?></label>
+                <select class="form-control" id="preferred_locale" name="preferred_locale">
+                    <option value="fr" <?= ($user['preferred_locale'] ?? APP_DEFAULT_LOCALE) === 'fr' ? 'selected' : '' ?>><?= htmlspecialchars(t('language.french')) ?></option>
+                    <option value="en" <?= ($user['preferred_locale'] ?? APP_DEFAULT_LOCALE) === 'en' ? 'selected' : '' ?>><?= htmlspecialchars(t('language.english')) ?></option>
+                </select>
+            </div>
+            <br>
+            <button type="submit" class="btn1 btn-primary" name="update_profile"><?= htmlspecialchars(t('profile.update')) ?></button>
         </form>
         <br>
         <?php if ($updateMessage) {
@@ -347,12 +359,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
         <br>
         <br>
         <br>
-        <h2>Request Password Change</h2>
+        <h2><?= htmlspecialchars(t('profile.password_title')) ?></h2>
         <br>
         <br>
         <form method="POST" action="">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-            <button type="submit" class="btn1 btn-warning" name="reset">Request Password Change</button>
+            <button type="submit" class="btn1 btn-warning" name="reset"><?= htmlspecialchars(t('profile.password_request')) ?></button>
         </form>
         <?php if ($resultMessage) {
             echo "<p class='result-message'>$resultMessage</p>";

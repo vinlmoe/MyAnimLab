@@ -25,6 +25,16 @@ if (!isset($_SESSION['username'])) {
     exit; // Exit to ensure no further code is executed
 }
 
+// Cage changes are made from the cage workflow pages.  Keep this former URL
+// as a safe redirect so bookmarks cannot reopen the retired edit screen.
+$redirectCageId = trim((string) ($_GET['id'] ?? ''));
+if ($redirectCageId !== '') {
+    header('Location: hc_view.php?id=' . rawurlencode($redirectCageId));
+} else {
+    header('Location: hc_dash.php');
+}
+exit;
+
 // Generate a CSRF token if it doesn't exist
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));

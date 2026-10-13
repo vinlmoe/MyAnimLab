@@ -175,7 +175,7 @@ require 'header.php';
         // Function to display a QR code popup for the cage
         function showQrCodePopup(cageId) {
             var popup = window.open("", "QR Code for Cage " + cageId, "width=400,height=400");
-            var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://' + $url + '/bc_view.php?id=' + cageId;
+            var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://' + $url + '/cage_scan_route.php?id=' + cageId;
             var htmlContent = `
             <html>
             <head>
@@ -356,9 +356,6 @@ require 'header.php';
                     <a href="javascript:void(0);" onclick="goBack()" class="btn btn-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Go Back">
                         <i class="fas fa-arrow-circle-left"></i>
                     </a>
-                    <a href="bc_edit.php?id=<?= rawurlencode($breedingcage['cage_id']); ?>" class="btn btn-secondary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Edit Cage">
-                        <i class="fas fa-edit"></i>
-                    </a>
                     <!-- Button to mange tasks for the cage -->
                     <a href="manage_tasks.php?id=<?= rawurlencode($breedingcage['cage_id']); ?>" class="btn btn-secondary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Manage Tasks">
                         <i class="fas fa-tasks"></i>
@@ -366,8 +363,11 @@ require 'header.php';
                     <a href="javascript:void(0);" onclick="showQrCodePopup('<?= rawurlencode($breedingcage['cage_id']); ?>')" class="btn btn-success btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="QR Code">
                         <i class="fas fa-qrcode"></i>
                     </a>
-                    <a href="javascript:void(0);" onclick="window.print()" class="btn btn-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Print Cage">
+                    <a href="cage_labels.php?id=<?= rawurlencode($breedingcage['cage_id']); ?>" target="_blank" class="btn btn-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Imprimer l’étiquette de cage">
                         <i class="fas fa-print"></i>
+                    </a>
+                    <a href="medication_administration.php?cage_id=<?= rawurlencode($breedingcage['cage_id']); ?>" class="btn btn-outline-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Administrations en cours">
+                        <i class="fas fa-syringe"></i>
                     </a>
                 </div>
             </div>
@@ -509,9 +509,6 @@ require 'header.php';
                             <!-- Maintenance button with tooltip -->
                             <a href="maintenance.php?from=bc_dash" class="btn btn-warning btn-icon" data-toggle="tooltip" data-placement="top" title="Add Maintenance Record">
                                 <i class="fas fa-wrench"></i>
-                            </a>
-                            <a href="bc_edit.php?id=<?= rawurlencode($breedingcage['cage_id']); ?>" class="btn btn-secondary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Edit Cage">
-                                <i class="fas fa-edit"></i>
                             </a>
                         </div>
                     </div>

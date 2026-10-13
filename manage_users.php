@@ -55,6 +55,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         case 'user':
             $query = "UPDATE users SET role='user' WHERE username=?";
             break;
+        case 'bea_on':
+            $query = "UPDATE users SET is_bea_responsible=1 WHERE username=?";
+            break;
+        case 'bea_off':
+            $query = "UPDATE users SET is_bea_responsible=0 WHERE username=?";
+            break;
         default:
             die('Invalid action');
     }
@@ -194,6 +200,7 @@ mysqli_close($con);
                                         <?php } elseif ($row['role'] == 'admin') { ?>
                                             <button type="submit" class="btn btn-info btn-sm" name="action" value="user" title="Make User"><i class="fas fa-user"></i></button>
                                         <?php } ?>
+                                        <button type="submit" class="btn btn-<?= !empty($row['is_bea_responsible']) ? 'outline-info' : 'info'; ?> btn-sm" name="action" value="<?= !empty($row['is_bea_responsible']) ? 'bea_off' : 'bea_on'; ?>" title="<?= !empty($row['is_bea_responsible']) ? 'Retirer le rôle responsable BEA' : 'Désigner responsable BEA'; ?>"><i class="fas fa-<?= !empty($row['is_bea_responsible']) ? 'user-times' : 'user-check'; ?>"></i> BEA</button>
 
                                         <button type="submit" class="btn btn-danger btn-sm" name="action" value="delete" title="Delete User"><i class="fas fa-trash"></i></button>
                                     </form>

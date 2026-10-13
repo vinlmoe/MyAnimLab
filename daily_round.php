@@ -71,6 +71,16 @@ $animalsByCage = [];
 foreach ($animalRows as $a) {
     $animalsByCage[$a['cage_id']][] = $a;
 }
+$treatmentsByCage = [];
+$treatmentRows = $con->query(
+    "SELECT m.cage_id, COUNT(*) AS pending_count
+     FROM prescription_animals pa
+     JOIN prescriptions pr ON pr.id=pa.prescription_id AND pr.status='active'
+     JOIN mice m ON m.id=pa.animal_id AND m.status='active'
+     WHERE pa.planned_administrations > (SELECT COUNT(*) FROM medication_administrations ma WHERE ma.prescription_id=pa.prescription_id AND ma.animal_id=pa.animal_id)
+     GROUP BY m.cage_id"
+)->fetch_all(MYSQLI_ASSOC);
+foreach ($treatmentRows as $treatment) $treatmentsByCage[$treatment['cage_id']] = (int) $treatment['pending_count'];
 
 // Room summary (cages with no room are grouped under "").
 $rooms = [];
@@ -246,6 +256,9 @@ require 'header.php';
                                 </td>
                                 <?php if ($isToday) : ?>
                                     <td class="text-end">
+                                        <?php if (!empty($treatmentsByCage[$cid])) : ?>
+                                            <a href="medication_administration.php?cage_id=<?= rawurlencode($cid); ?>" class="btn btn-outline-primary btn-sm" title="Administrations actives"><i class="fas fa-syringe"></i> <?= $treatmentsByCage[$cid]; ?></a>
+                                        <?php endif; ?>
                                         <button type="submit" name="cage_ids[]" value="<?= htmlspecialchars($cid); ?>" formnovalidate class="btn btn-success btn-sm single-ok">All OK</button>
                                     </td>
                                 <?php endif; ?>
@@ -273,6 +286,20 @@ require 'header.php';
     </div>
 
     <script>
+        // A validation reloads this page to refresh all counters and badges.
+        // Preserve the technician's place in a long round instead of returning
+        // them to the top of the room list after every "All OK".
+        const roundForm = document.getElementById('roundForm');
+        const roundScrollKey = 'myvivarium.dailyRound.scrollY';
+        const savedRoundScroll = sessionStorage.getItem(roundScrollKey);
+        if (savedRoundScroll !== null) {
+            sessionStorage.removeItem(roundScrollKey);
+            requestAnimationFrame(() => window.scrollTo(0, Number(savedRoundScroll)));
+        }
+        roundForm?.addEventListener('submit', () => {
+            sessionStorage.setItem(roundScrollKey, String(window.scrollY));
+        });
+
         // "All OK" on one row must only submit that cage, not every ticked box.
         document.querySelectorAll('.single-ok').forEach(btn => btn.addEventListener('click', () => {
             document.querySelectorAll('.cage-box').forEach(b => b.checked = false);

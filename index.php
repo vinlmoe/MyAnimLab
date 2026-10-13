@@ -184,6 +184,10 @@ if (isset($_POST['login'])) {
                         $_SESSION['role'] = $row['role'];
                         $_SESSION['position'] = $row['position'];
                         $_SESSION['user_id'] = $row['id'];
+                        $_SESSION['is_bea_responsible'] = !empty($row['is_bea_responsible']);
+                        $_SESSION['locale'] = in_array($row['preferred_locale'] ?? '', ['fr', 'en'], true)
+                            ? $row['preferred_locale']
+                            : 'fr';
 
                         // Regenerate session ID to prevent session fixation    
                         session_regenerate_id(true);

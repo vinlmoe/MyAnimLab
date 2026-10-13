@@ -287,7 +287,10 @@ function cage_check_badge(array $check): string
 // Only allow redirecting back to the daily-check pages (avoids open redirects).
 function safe_check_return(?string $return): ?string
 {
-    return ($return && preg_match('/^(daily_round|cage_check)\.php(\?[A-Za-z0-9_\-=&%.]*)?$/', $return)) ? $return : null;
+    // Explicit allow-list: callers may return to the daily workflow, a cage
+    // view, or the experimentation workflow, never to an external URL or an
+    // arbitrary application route.
+    return ($return && preg_match('/^(daily_round|cage_check|experiment_cage_followup|experiment_manage|hc_view|bc_view)\.php(\?[A-Za-z0-9_\-=&%.]*)?$/', $return)) ? $return : null;
 }
 
 // Number of active animals currently housed in a cage.
@@ -410,6 +413,88 @@ function move_animal(mysqli $con, int $animalId, string $toCageId, ?string $reas
     log_animal_event($con, $animalId, 'transferred', ['from_cage_id' => $fromCageId, 'to_cage_id' => $toCageId, 'reason' => $reason], $userId);
 
     return $retireEmptySource && retire_cage_if_empty($con, $fromCageId, "last animal transferred to $toCageId", $userId, $userName);
+}
+
+// Recalculate the cached number of living animals in a cage. Call this after
+// any bulk operation; individual movements also use this through the bulk
+// helper below.
+function refresh_cage_quantity(mysqli $con, string $cageId): void
+{
+    $stmt = $con->prepare("UPDATE cages SET quantity = (SELECT COUNT(*) FROM mice WHERE cage_id = ? AND status = 'active') WHERE cage_id = ?");
+    $stmt->bind_param("ss", $cageId, $cageId);
+    $stmt->execute();
+    $stmt->close();
+}
+
+// Allocate an experiment number while the caller holds a transaction.
+// The row lock prevents duplicate numbers when several users create an
+// experiment at the same time.
+function allocate_experiment_number(mysqli $con): string
+{
+    $stmt = $con->prepare('SELECT next_seq FROM experiment_sequence WHERE id = 1 FOR UPDATE');
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$row) {
+        throw new Exception('Experiment number sequence is not initialized.');
+    }
+    $number = sprintf('EXP-%05d', (int) $row['next_seq']);
+    $update = $con->prepare('UPDATE experiment_sequence SET next_seq = next_seq + 1 WHERE id = 1');
+    $update->execute();
+    $update->close();
+    return $number;
+}
+
+// Move several living animals as one operation. The caller must already have
+// opened a transaction. Validation happens before the first update, so a bad
+// selection cannot leave a partially moved group. Empty source cages are
+// retired only after every selected animal has moved.
+function move_animals(mysqli $con, array $animalIds, string $toCageId, ?string $reason, ?int $userId, ?string $userName): array
+{
+    $animalIds = array_values(array_unique(array_filter(array_map('intval', $animalIds), static fn($id) => $id > 0)));
+    if (!$animalIds) {
+        throw new Exception('Select at least one animal.');
+    }
+
+    $destination = $con->prepare("SELECT 1 FROM cages WHERE cage_id = ? AND status = 'active'");
+    $destination->bind_param("s", $toCageId);
+    $destination->execute();
+    $destinationExists = $destination->get_result()->num_rows > 0;
+    $destination->close();
+    if (!$destinationExists) {
+        throw new Exception('Destination cage does not exist or is retired.');
+    }
+
+    $sources = [];
+    $labels = [];
+    $check = $con->prepare("SELECT cage_id, status, animal_uid FROM mice WHERE id = ? FOR UPDATE");
+    foreach ($animalIds as $animalId) {
+        $check->bind_param("i", $animalId);
+        $check->execute();
+        $animal = $check->get_result()->fetch_assoc();
+        if (!$animal || $animal['status'] !== 'active') {
+            $check->close();
+            throw new Exception('Every selected animal must be living and active.');
+        }
+        if ($animal['cage_id'] === $toCageId) {
+            $check->close();
+            throw new Exception('An animal is already in the destination cage.');
+        }
+        $sources[$animal['cage_id']] = true;
+        $labels[] = $animal['animal_uid'] ?: ('#' . $animalId);
+    }
+    $check->close();
+
+    foreach ($animalIds as $animalId) {
+        move_animal($con, $animalId, $toCageId, $reason, $userId, $userName, false);
+    }
+    refresh_cage_quantity($con, $toCageId);
+    foreach (array_keys($sources) as $sourceCageId) {
+        refresh_cage_quantity($con, $sourceCageId);
+        retire_cage_if_empty($con, $sourceCageId, "all remaining animals transferred to $toCageId", $userId, $userName);
+    }
+
+    return ['count' => count($animalIds), 'labels' => $labels, 'source_cages' => array_keys($sources)];
 }
 
 // Record an animal leaving the facility with an exit code (see

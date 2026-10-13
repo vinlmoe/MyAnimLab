@@ -75,7 +75,7 @@ $offspring->execute();
 $offspring = $offspring->get_result();
 
 $experiments = $con->prepare(
-    "SELECT ea.*, e.experiment_number, e.title AS experiment_title, p.protocol_number, t.trial_number
+    "SELECT ea.*, e.experiment_number, e.title AS experiment_title, p.id AS protocol_id, p.protocol_number, t.trial_number
      FROM experiment_animals ea
      JOIN experiments e ON e.id = ea.experiment_id
      JOIN protocols p ON p.id = e.protocol_id
@@ -258,7 +258,7 @@ $statusBadge = [
                                 <tr>
                                     <td><?= htmlspecialchars($e['trial_number']); ?></td>
                                     <td><?= htmlspecialchars($e['protocol_number']); ?></td>
-                                    <td><a href="experiment_followup.php?experiment_animal_id=<?= (int) $e['id']; ?>"><?= htmlspecialchars($e['experiment_number']); ?></a></td>
+                                    <td><a href="experiment_manage.php?protocol_id=<?= (int) $e['protocol_id']; ?>"><?= htmlspecialchars($e['experiment_number']); ?></a></td>
                                     <td><?= htmlspecialchars($e['enrolled_at']); ?></td>
                                     <td><?= htmlspecialchars($e['removed_at'] ?? '-'); ?></td>
                                 </tr>

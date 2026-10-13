@@ -29,24 +29,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         die('CSRF token validation failed');
     }
 
-    $animalId = (int) $_POST['animal_id'];
+    $animalIds = $_POST['animal_ids'] ?? [];
     $toCageId = trim($_POST['to_cage_id']);
     $reason = trim($_POST['reason'] ?? '');
 
     mysqli_begin_transaction($con);
     try {
-        $uidStmt = $con->prepare("SELECT animal_uid, cage_id FROM mice WHERE id = ?");
-        $uidStmt->bind_param("i", $animalId);
-        $uidStmt->execute();
-        $animal = $uidStmt->get_result()->fetch_assoc() ?? ['animal_uid' => "#$animalId", 'cage_id' => null];
-        $uidStmt->close();
-        $fromCageId = $animal['cage_id'];
-
-        $retired = move_animal($con, $animalId, $toCageId, $reason, $currentUserId, $_SESSION['name'] ?? null);
+        $result = move_animals($con, $animalIds, $toCageId, $reason, $currentUserId, $_SESSION['name'] ?? null);
 
         mysqli_commit($con);
-        $_SESSION['message'] = "Animal {$animal['animal_uid']} transferred from $fromCageId to $toCageId."
-            . ($retired ? " Cage $fromCageId is now empty and was retired automatically." : '');
+        $_SESSION['message'] = "{$result['count']} animal(s) transferred to $toCageId. Empty source cages were retired automatically.";
     } catch (Exception $e) {
         mysqli_rollback($con);
         $_SESSION['message'] = "Transfer failed: " . $e->getMessage();
@@ -67,7 +59,7 @@ $cages = $con->query("SELECT cage_id FROM cages WHERE status = 'active' ORDER BY
 <html lang="en">
 
 <head>
-    <title>Transfer Animal | <?php echo htmlspecialchars($labName); ?></title>
+    <title>Transférer des animaux | <?php echo htmlspecialchars($labName); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         .container {
@@ -90,8 +82,8 @@ $cages = $con->query("SELECT cage_id FROM cages WHERE status = 'active' ORDER BY
 
 <body>
     <div class="container mt-4 content">
-        <h4>Transfer Animal to Another Cage</h4>
-        <p class="text-muted">Move an existing animal without re-creating it. The full cage history is preserved.</p>
+        <h4>Transférer des animaux vers une autre cage</h4>
+        <p class="text-muted">Déplacez un ou plusieurs animaux existants sans les recréer. Chaque mouvement est conservé dans l’historique.</p>
 
         <?php include('message.php'); ?>
 
@@ -99,21 +91,22 @@ $cages = $con->query("SELECT cage_id FROM cages WHERE status = 'active' ORDER BY
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
 
             <div class="mb-3">
-                <label for="animal_id" class="form-label">Animal <span class="required-asterisk">*</span></label>
-                <select class="form-control" id="animal_id" name="animal_id" required>
-                    <option value="" disabled <?= $preselectedAnimalId ? '' : 'selected'; ?>>Select Animal</option>
+                <label for="animal_ids" class="form-label">Animaux <span class="required-asterisk">*</span></label>
+                <input type="search" class="form-control mb-2" id="animal_search" placeholder="Rechercher par identifiant ou cage actuelle" autocomplete="off">
+                <select class="form-control" id="animal_ids" name="animal_ids[]" multiple size="12" required>
                     <?php while ($row = $animals->fetch_assoc()) : ?>
                         <option value="<?= (int) $row['id']; ?>" <?= (int) $row['id'] === $preselectedAnimalId ? 'selected' : ''; ?>>
                             <?= htmlspecialchars($row['animal_uid']); ?> (currently in cage <?= htmlspecialchars($row['cage_id']); ?>)
                         </option>
                     <?php endwhile; ?>
                 </select>
+                <small class="form-text text-muted">Utilisez Cmd/Ctrl-clic pour sélectionner plusieurs animaux.</small>
             </div>
 
             <div class="mb-3">
-                <label for="to_cage_id" class="form-label">Destination Cage <span class="required-asterisk">*</span></label>
+                <label for="to_cage_id" class="form-label">Cage de destination <span class="required-asterisk">*</span></label>
                 <select class="form-control" id="to_cage_id" name="to_cage_id" required>
-                    <option value="" disabled selected>Select Cage</option>
+                    <option value="" disabled selected>Sélectionner une cage</option>
                     <?php while ($row = $cages->fetch_assoc()) : ?>
                         <option value="<?= htmlspecialchars($row['cage_id']); ?>"><?= htmlspecialchars($row['cage_id']); ?></option>
                     <?php endwhile; ?>
@@ -121,16 +114,26 @@ $cages = $con->query("SELECT cage_id FROM cages WHERE status = 'active' ORDER BY
             </div>
 
             <div class="mb-3">
-                <label for="reason" class="form-label">Reason / Notes</label>
+                <label for="reason" class="form-label">Motif / Notes</label>
                 <textarea class="form-control" id="reason" name="reason"></textarea>
             </div>
 
-            <button type="submit" class="btn btn-primary">Transfer Animal</button>
+            <button type="submit" class="btn btn-primary">Transférer les animaux sélectionnés</button>
         </form>
     </div>
 
     <br>
     <?php include 'footer.php'; ?>
+    <script>
+        const animalSearch = document.getElementById('animal_search');
+        const animalSelect = document.getElementById('animal_ids');
+        animalSearch.addEventListener('input', () => {
+            const search = animalSearch.value.trim().toLowerCase();
+            for (const option of animalSelect.options) {
+                option.hidden = search !== '' && !option.text.toLowerCase().includes(search);
+            }
+        });
+    </script>
 </body>
 
 </html>

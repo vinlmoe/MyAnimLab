@@ -1,5 +1,9 @@
 <?php
 
+// Legacy URL: the unified selector has no four-cage limit.
+header('Location: cage_label_select.php?type=breeding');
+exit;
+
 /**
  * Select Breeding Cages for Printing
  *

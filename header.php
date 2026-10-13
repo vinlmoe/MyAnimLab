@@ -17,6 +17,19 @@ header("Permissions-Policy: geolocation=(), microphone=(), camera=(self)"); // R
 
 // Include the database connection file
 require 'dbcon.php';
+require_once 'i18n.php';
+
+$navigationReturnTo = $_SERVER['REQUEST_URI'] ?? 'home.php';
+$showBeaReview = ($_SESSION['role'] ?? '') === 'admin';
+if (!$showBeaReview && !empty($_SESSION['user_id'])) {
+    $beaNavigationStmt = $con->prepare('SELECT is_bea_responsible FROM users WHERE id = ?');
+    if ($beaNavigationStmt) {
+        $beaNavigationStmt->bind_param('i', $_SESSION['user_id']);
+        $beaNavigationStmt->execute();
+        $showBeaReview = !empty($beaNavigationStmt->get_result()->fetch_assoc()['is_bea_responsible']);
+        $beaNavigationStmt->close();
+    }
+}
 
 // Query to fetch settings from the database
 $query = "SELECT * FROM settings";
@@ -68,7 +81,7 @@ if (isset($settings['r2_pres'])) {
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale(), ENT_QUOTES, 'UTF-8') ?>">
 
 <head>
     <meta charset="UTF-8">
@@ -173,20 +186,20 @@ if (isset($settings['r2_pres'])) {
     <div class="nav-container">
         <nav class="nav justify-content-center">
             <a href="home.php" class="btn btn-primary">
-                <i class="fas fa-home"></i> Home
+                <i class="fas fa-home"></i> <?= htmlspecialchars(t('nav.home')) ?>
             </a>
 
             <!-- Dropdown for Dashboard -->
             <div class="dropdown">
                 <button class="btn btn-primary dropdown-toggle" type="button" id="dashboardMenuButton" data-bs-toggle="dropdown" aria-expanded="false">
-                    <i class="fas fa-tachometer-alt"></i> Dashboards
+                    <i class="fas fa-tachometer-alt"></i> <?= htmlspecialchars(t('nav.dashboards')) ?>
                 </button>
                 <ul class="dropdown-menu" aria-labelledby="dashboardMenuButton">
-                    <li><a class="dropdown-item" href="hc_dash.php">Holding Cage</a></li>
-                    <li><a class="dropdown-item" href="bc_dash.php">Breeding Cage</a></li>
+                    <li><a class="dropdown-item" href="hc_dash.php"><?= htmlspecialchars(t('nav.holding_cages')) ?></a></li>
+                    <li><a class="dropdown-item" href="bc_dash.php"><?= htmlspecialchars(t('nav.breeding_cages')) ?></a></li>
                     <?php
                     if (!empty($r1_temp) || !empty($r1_humi) || !empty($r1_illu) || !empty($r1_pres) || !empty($r2_temp) || !empty($r2_humi) || !empty($r2_illu) || !empty($r2_pres)) {
-                        echo '<li><a class="dropdown-item" href="iot_sensors.php">IOT Sensors</a></li>';
+                        echo '<li><a class="dropdown-item" href="iot_sensors.php">' . htmlspecialchars(t('nav.iot_sensors')) . '</a></li>';
                     }
                     ?>
                 </ul>
@@ -195,26 +208,29 @@ if (isset($settings['r2_pres'])) {
             <!-- Dropdown for Animals / Experimentation -->
             <div class="dropdown">
                 <button class="btn btn-primary dropdown-toggle" type="button" id="animalsMenuButton" data-bs-toggle="dropdown" aria-expanded="false">
-                    <i class="fas fa-paw"></i> Animals
+                    <i class="fas fa-paw"></i> <?= htmlspecialchars(t('nav.animals')) ?>
                 </button>
                 <ul class="dropdown-menu" aria-labelledby="animalsMenuButton">
-                    <li><a class="dropdown-item" href="daily_round.php"><i class="fas fa-clipboard-check me-1"></i> Daily Round</a></li>
-                    <li><a class="dropdown-item" href="qr_scan.php"><i class="fas fa-qrcode me-1"></i> Scan Cage QR</a></li>
+                    <li><a class="dropdown-item" href="daily_round.php"><i class="fas fa-clipboard-check me-1"></i> <?= htmlspecialchars(t('nav.daily_round')) ?></a></li>
+                    <li><a class="dropdown-item" href="qr_scan.php"><i class="fas fa-qrcode me-1"></i> <?= htmlspecialchars(t('nav.scan_cage')) ?></a></li>
                     <li><hr class="dropdown-divider"></li>
-                    <li><a class="dropdown-item" href="animal_search.php?list=1"><i class="fas fa-search me-1"></i> Find Animal</a></li>
-                    <li><a class="dropdown-item" href="animal_transfer.php">Transfer Animal</a></li>
-                    <li><a class="dropdown-item" href="trial_manage.php">Trials / Protocols / Experiments</a></li>
-                    <li><a class="dropdown-item" href="clinical_grids.php"><i class="fas fa-table me-1"></i> Clinical Scoring Grids</a></li>
+                    <li><a class="dropdown-item" href="animal_search.php?list=1"><i class="fas fa-search me-1"></i> <?= htmlspecialchars(t('nav.find_animal')) ?></a></li>
+                    <li><a class="dropdown-item" href="animal_transfer.php"><?= htmlspecialchars(t('nav.transfer_animals')) ?></a></li>
+                    <li><a class="dropdown-item" href="cage_bulk_create.php"><?= htmlspecialchars(t('nav.create_bulk')) ?></a></li>
+                    <li><a class="dropdown-item" href="animal_use_schedule.php"><?= htmlspecialchars(t('nav.use_schedule')) ?></a></li>
+                    <li><a class="dropdown-item" href="trial_manage.php"><?= htmlspecialchars(t('nav.trials')) ?></a></li>
+                    <li><a class="dropdown-item" href="clinical_grids.php"><i class="fas fa-table me-1"></i> <?= htmlspecialchars(t('nav.clinical_grids')) ?></a></li>
                     <li><hr class="dropdown-divider"></li>
-                    <li><a class="dropdown-item" href="health_report.php"><i class="fas fa-notes-medical me-1"></i> Report Health Issue</a></li>
-                    <li><a class="dropdown-item" href="health_registry.php"><i class="fas fa-book-medical me-1"></i> Health Registry</a></li>
+                    <li><a class="dropdown-item" href="health_report.php"><i class="fas fa-notes-medical me-1"></i> <?= htmlspecialchars(t('nav.report_health')) ?></a></li>
+                    <li><a class="dropdown-item" href="health_registry.php"><i class="fas fa-book-medical me-1"></i> <?= htmlspecialchars(t('nav.health_registry')) ?></a></li>
+                    <li><a class="dropdown-item" href="pharmacy_manage.php"><i class="fas fa-pills me-1"></i> Pharmacie, ordonnances et administrations</a></li>
                 </ul>
             </div>
 
             <!-- Quick animal search: an exact number opens the animal record -->
             <form class="d-flex" method="GET" action="animal_search.php" role="search">
-                <input class="form-control form-control-sm" type="search" name="q" placeholder="Animal no., cage..." aria-label="Find animal" style="width: 170px;">
-                <button class="btn btn-primary btn-sm ms-1" type="submit" title="Find animal"><i class="fas fa-search"></i></button>
+                <input class="form-control form-control-sm" type="search" name="q" placeholder="<?= htmlspecialchars(t('nav.search_placeholder')) ?>" aria-label="<?= htmlspecialchars(t('nav.search_aria')) ?>" style="width: 170px;">
+                <button class="btn btn-primary btn-sm ms-1" type="submit" title="<?= htmlspecialchars(t('nav.search_aria')) ?>"><i class="fas fa-search"></i></button>
             </form>
 
             <!-- Notification Bell -->
@@ -224,36 +240,48 @@ if (isset($settings['r2_pres'])) {
                     <span id="notifBadge" class="badge rounded-pill bg-danger" style="display:none; position:absolute; top:-5px; right:-5px;">0</span>
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end" id="notifDropdown" aria-labelledby="notifBellButton" style="min-width: 320px; max-height: 400px; overflow-y: auto;">
-                    <li><span class="dropdown-item-text text-muted">Loading...</span></li>
+                    <li><span class="dropdown-item-text text-muted"><?= htmlspecialchars(t('nav.loading')) ?></span></li>
                 </ul>
             </div>
 
             <!-- Dropdown for Settings -->
             <div class="dropdown">
                 <button class="btn btn-primary dropdown-toggle" type="button" id="settingsMenuButton" data-bs-toggle="dropdown" aria-expanded="false">
-                    <i class="fas fa-cog"></i> Settings
+                    <i class="fas fa-cog"></i> <?= htmlspecialchars(t('nav.settings')) ?>
                 </button>
                 <ul class="dropdown-menu" aria-labelledby="settingsMenuButton">
-                    <li><a class="dropdown-item" href="user_profile.php">User Profile</a></li>
-                    <li><a class="dropdown-item" href="manage_tasks.php">Tasks &amp; Reminders</a></li>
+                    <li><a class="dropdown-item" href="user_profile.php"><?= htmlspecialchars(t('nav.profile')) ?></a></li>
+                    <li><a class="dropdown-item" href="manage_tasks.php"><?= htmlspecialchars(t('nav.tasks')) ?></a></li>
+                    <?php if ($showBeaReview) : ?>
+                        <li><a class="dropdown-item" href="experiment_retrospective.php"><i class="fas fa-clipboard-list me-1"></i> Analyse rétrospective BEA</a></li>
+                    <?php endif; ?>
                     <?php
                     // Display admin options if the user is an admin
                     if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin') {
                         echo '<li><hr class="dropdown-divider"></li>';
-                        echo '<li class="dropdown-header">Administration</li>';
-                        echo '<li><a class="dropdown-item" href="manage_users.php">Manage Users</a></li>';
-                        echo '<li><a class="dropdown-item" href="manage_iacuc.php">Manage IACUC</a></li>';
-                        echo '<li><a class="dropdown-item" href="manage_strain.php">Manage Strain</a></li>';
-                        echo '<li><a class="dropdown-item" href="manage_animal_lines.php">Manage Animal Lines</a></li>';
-                        echo '<li><a class="dropdown-item" href="manage_lab.php">Manage Lab</a></li>';
-                        echo '<li><a class="dropdown-item" href="export_data.php">Export CSV</a></li>';
-                        echo '<li><a class="dropdown-item" href="export_for_v2.php"><i class="fas fa-file-export me-1"></i> Export for V2 Migration</a></li>';
+                        echo '<li class="dropdown-header">' . htmlspecialchars(t('nav.administration')) . '</li>';
+                        echo '<li><a class="dropdown-item" href="manage_users.php">' . htmlspecialchars(t('nav.manage_users')) . '</a></li>';
+                        echo '<li><a class="dropdown-item" href="manage_iacuc.php">' . htmlspecialchars(t('nav.manage_iacuc')) . '</a></li>';
+                        echo '<li><a class="dropdown-item" href="manage_strain.php">' . htmlspecialchars(t('nav.manage_strains')) . '</a></li>';
+                        echo '<li><a class="dropdown-item" href="manage_animal_lines.php">' . htmlspecialchars(t('nav.manage_lines')) . '</a></li>';
+                        echo '<li><a class="dropdown-item" href="manage_lab.php">' . htmlspecialchars(t('nav.manage_lab')) . '</a></li>';
+                        echo '<li><a class="dropdown-item" href="export_data.php">' . htmlspecialchars(t('nav.export_csv')) . '</a></li>';
+                        echo '<li><a class="dropdown-item" href="export_for_v2.php"><i class="fas fa-file-export me-1"></i> ' . htmlspecialchars(t('nav.export_v2')) . '</a></li>';
                         echo '<li><hr class="dropdown-divider"></li>';
                     }
                     ?>
-                    <li><a class="dropdown-item" href="logout.php">Logout</a></li>
+                    <li><a class="dropdown-item" href="logout.php"><?= htmlspecialchars(t('nav.logout')) ?></a></li>
                 </ul>
             </div>
+            <form class="d-flex align-items-center ms-1" method="POST" action="set_locale.php">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(locale_csrf_token()) ?>">
+                <input type="hidden" name="return_to" value="<?= htmlspecialchars($navigationReturnTo, ENT_QUOTES, 'UTF-8') ?>">
+                <label class="visually-hidden" for="locale-selector"><?= htmlspecialchars(t('language.label')) ?></label>
+                <select id="locale-selector" class="form-select form-select-sm" name="locale" onchange="this.form.submit()" aria-label="<?= htmlspecialchars(t('language.label')) ?>">
+                    <option value="fr" <?= current_locale() === 'fr' ? 'selected' : '' ?>><?= htmlspecialchars(t('language.french')) ?></option>
+                    <option value="en" <?= current_locale() === 'en' ? 'selected' : '' ?>><?= htmlspecialchars(t('language.english')) ?></option>
+                </select>
+            </form>
         </nav>
     </div>
 
@@ -280,7 +308,7 @@ if (isset($settings['r2_pres'])) {
 
                     list.innerHTML = '';
                     if (!data.notifications || data.notifications.length === 0) {
-                        list.innerHTML = '<li><span class="dropdown-item-text text-muted">No notifications</span></li>';
+                        list.innerHTML = '<li><span class="dropdown-item-text text-muted"><?= htmlspecialchars(t('nav.no_notifications'), ENT_QUOTES, 'UTF-8') ?></span></li>';
                         return;
                     }
 

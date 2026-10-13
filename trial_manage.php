@@ -137,7 +137,7 @@ $iacucList = $con->query("SELECT iacuc_id, iacuc_title FROM iacuc");
                         <td><?= htmlspecialchars($t['title']); ?></td>
                         <td><?= htmlspecialchars($t['status']); ?></td>
                         <td><?= htmlspecialchars($t['start_date'] ?? ''); ?> &rarr; <?= htmlspecialchars($t['end_date'] ?? ''); ?></td>
-                        <td><a class="btn btn-sm btn-secondary" href="protocol_manage.php?trial_id=<?= (int) $t['id']; ?>">Protocols &raquo;</a></td>
+                        <td><a class="btn btn-sm btn-outline-dark" href="trial_report.php?trial_id=<?= (int) $t['id']; ?>"><i class="fas fa-file-alt"></i> Rapport</a> <a class="btn btn-sm btn-secondary" href="protocol_manage.php?trial_id=<?= (int) $t['id']; ?>">Plans / protocoles &raquo;</a></td>
                     </tr>
                 <?php endwhile; ?>
             </tbody>
