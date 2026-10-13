@@ -35,6 +35,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = filter_input(INPUT_POST, 'username', FILTER_SANITIZE_STRING);
     $action = filter_input(INPUT_POST, 'action', FILTER_SANITIZE_STRING);
 
+    // Create a new account (self-registration is disabled, only admins create users)
+    if ($action === 'create') {
+        $newName = trim($_POST['new_name'] ?? '');
+        $newEmail = trim($_POST['new_email'] ?? '');
+        $newPosition = trim($_POST['new_position'] ?? '');
+        $newRole = ($_POST['new_role'] ?? '') === 'admin' ? 'admin' : 'user';
+        $newPassword = $_POST['new_password'] ?? '';
+        $newBea = !empty($_POST['new_bea']) ? 1 : 0;
+
+        if ($newName === '' || $newPosition === '' || !filter_var($newEmail, FILTER_VALIDATE_EMAIL)) {
+            $_SESSION['userMessage'] = ['danger', 'Name, position and a valid email are required.'];
+        } elseif (strlen($newPassword) < 8) {
+            $_SESSION['userMessage'] = ['danger', 'The password must contain at least 8 characters.'];
+        } else {
+            $checkStmt = mysqli_prepare($con, "SELECT id FROM users WHERE username = ?");
+            mysqli_stmt_bind_param($checkStmt, "s", $newEmail);
+            mysqli_stmt_execute($checkStmt);
+            mysqli_stmt_store_result($checkStmt);
+            $exists = mysqli_stmt_num_rows($checkStmt) > 0;
+            mysqli_stmt_close($checkStmt);
+
+            if ($exists) {
+                $_SESSION['userMessage'] = ['danger', 'A user with this email already exists.'];
+            } else {
+                // Accounts created by an admin are approved and verified immediately
+                $hashedPassword = password_hash($newPassword, PASSWORD_BCRYPT);
+                $insertStmt = mysqli_prepare($con, "INSERT INTO users (name, username, position, role, password, status, email_verified, is_bea_responsible) VALUES (?, ?, ?, ?, ?, 'approved', 1, ?)");
+                mysqli_stmt_bind_param($insertStmt, "sssssi", $newName, $newEmail, $newPosition, $newRole, $hashedPassword, $newBea);
+                if (mysqli_stmt_execute($insertStmt)) {
+                    $_SESSION['userMessage'] = ['success', 'User ' . $newEmail . ' created.'];
+                } else {
+                    error_log("Database error: " . mysqli_error($con));
+                    $_SESSION['userMessage'] = ['danger', 'User creation failed.'];
+                }
+                mysqli_stmt_close($insertStmt);
+            }
+        }
+
+        // Redirect to avoid form resubmission
+        header("Location: manage_users.php");
+        exit;
+    }
+
     // Initialize query variables
     $query = "";
 
@@ -79,6 +122,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
+
+// Retrieve and clear the creation result message
+$userMessage = $_SESSION['userMessage'] ?? null;
+unset($_SESSION['userMessage']);
+
+$positions = [
+    'Principal Investigator', 'Research Scientist', 'Postdoctoral Researcher', 'PhD Student',
+    'Masters Student', 'Undergraduate', 'Laboratory Technician', 'Research Associate',
+    'Lab Manager', 'Animal Care Technician', 'Interns and Volunteers',
+];
 
 // Fetch all users from the database
 $userquery = "SELECT * FROM users";
@@ -165,6 +218,57 @@ mysqli_close($con);
     <div class="container mt-4 content">
         <div class="main-content">
             <h1 class="text-center">User Management</h1>
+
+            <?php if ($userMessage) { ?>
+                <div class="alert alert-<?php echo htmlspecialchars($userMessage[0]); ?>"><?php echo htmlspecialchars($userMessage[1]); ?></div>
+            <?php } ?>
+
+            <div class="card mb-4">
+                <div class="card-header"><i class="fas fa-user-plus"></i> Create a user</div>
+                <div class="card-body">
+                    <form action="manage_users.php" method="post" class="row g-2" autocomplete="off">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                        <input type="hidden" name="action" value="create">
+                        <div class="col-md-4">
+                            <label for="new_name" class="form-label">Full name</label>
+                            <input type="text" class="form-control" id="new_name" name="new_name" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="new_email" class="form-label">Email (login)</label>
+                            <input type="email" class="form-control" id="new_email" name="new_email" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="new_position" class="form-label">Position</label>
+                            <select class="form-select" id="new_position" name="new_position" required>
+                                <option value="" disabled selected>Select Position</option>
+                                <?php foreach ($positions as $position) { ?>
+                                    <option value="<?php echo htmlspecialchars($position); ?>"><?php echo htmlspecialchars($position); ?></option>
+                                <?php } ?>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="new_password" class="form-label">Initial password</label>
+                            <input type="password" class="form-control" id="new_password" name="new_password" minlength="8" required autocomplete="new-password">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="new_role" class="form-label">Role</label>
+                            <select class="form-select" id="new_role" name="new_role">
+                                <option value="user" selected>User</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="new_bea" name="new_bea" value="1">
+                                <label class="form-check-label" for="new_bea">Responsable BEA</label>
+                            </div>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary w-100">Create</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
             <div class="table-responsive">
                 <table class="table table-striped">
                     <thead>

@@ -191,7 +191,7 @@ DB_DATABASE=myvivarium
     http://yourdomain.com
     ```
 
-2. Register a new user or log in with existing credentials.
+2. Log in with an account created by an administrator (User Management page).
 
 3. Manage your lab, users, and monitor environmental conditions in real-time.
 
@@ -209,7 +209,7 @@ For initial setup, use the following default admin credentials:
 - `config.php`: Contains SMTP configuration.
 - `session_config.php`: Configures secure session settings including HttpOnly cookies, HTTPS-only transmission, CSRF protection, and 30-minute timeout. See file comments for deployment instructions.
 - `index.php`: Main entry point for the application, handles user login.
-- `register.php`: Handles user registration and email verification.
+- `register.php`: Self-registration is disabled; redirects to the login page (accounts are created by admins in `manage_users.php`).
 - `home.php`: Displays the home page with a welcome message, cage statistics, and general notes.
 - `forgot_password.php`: Handles the password reset process, including generating and sending reset emails.
 - `reset_password.php`: Manages the password reset process.
