@@ -220,6 +220,7 @@ For initial setup, use the following default admin credentials:
 - `manage_strain.php`: Allows admins to manage mouse strain details.
 - `manage_iacuc.php`: Allows admins to manage IACUC details.
 - `iot_sensors.php`: Displays IoT sensor data for different rooms using iframes.
+- `annual_report.php`: Annual animal use report (admins and BEA responsibles): population, procedures ended in the year by actual severity, use per project authorization, exits, animals not used; CSV export per table or ZIP.
 - `bc_dash.php`: Displays a dashboard for managing breeding cages with search and pagination.
 - `bc_fetch_data.php`: Handles pagination and search functionality for breeding cages.
 - `bc_addn.php`: Handles the creation of new breeding cages and associated litter data.

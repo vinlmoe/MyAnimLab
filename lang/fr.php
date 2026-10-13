@@ -35,6 +35,7 @@ return [
     'nav.manage_lab' => 'Gérer le laboratoire',
     'nav.export_csv' => 'Exporter en CSV',
     'nav.export_v2' => 'Exporter pour la migration V2',
+    'nav.annual_report' => 'Bilan annuel d’utilisation des animaux',
     'nav.logout' => 'Déconnexion',
     'profile.title' => 'Profil utilisateur',
     'profile.name' => 'Nom',

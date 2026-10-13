@@ -254,6 +254,7 @@ if (isset($settings['r2_pres'])) {
                     <li><a class="dropdown-item" href="manage_tasks.php"><?= htmlspecialchars(t('nav.tasks')) ?></a></li>
                     <?php if ($showBeaReview) : ?>
                         <li><a class="dropdown-item" href="experiment_retrospective.php"><i class="fas fa-clipboard-list me-1"></i> Analyse rétrospective BEA</a></li>
+                        <li><a class="dropdown-item" href="annual_report.php"><i class="fas fa-chart-bar me-1"></i> <?= htmlspecialchars(t('nav.annual_report')) ?></a></li>
                     <?php endif; ?>
                     <?php
                     // Display admin options if the user is an admin
