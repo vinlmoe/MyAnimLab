@@ -44,10 +44,10 @@ $types = '';
 $params = [];
 
 if ($q !== '') {
-    $where[] = "(m.animal_uid LIKE ? OR m.mouse_id LIKE ? OR m.cage_id LIKE ? OR m.genotype LIKE ? OR al.name LIKE ?)";
+    $where[] = "(m.animal_uid LIKE ? OR m.mouse_id LIKE ? OR m.cage_id LIKE ? OR m.genotype LIKE ? OR al.name LIKE ? OR m.distinctive_mark LIKE ?)";
     $like = '%' . $q . '%';
-    array_push($params, $like, $like, $like, $like, $like);
-    $types .= 'sssss';
+    array_push($params, $like, $like, $like, $like, $like, $like);
+    $types .= 'ssssss';
 }
 if ($lineId) {
     $where[] = "m.line_id = ?";
@@ -80,7 +80,7 @@ if ($healthOnly) {
 }
 
 $limit = 200;
-$sql = "SELECT m.id, m.animal_uid, m.mouse_id, m.sex, m.genotype, m.status, m.cage_id,
+$sql = "SELECT m.id, m.animal_uid, m.mouse_id, m.sex, m.genotype, m.distinctive_mark, m.status, m.cage_id,
                al.code AS line_code, al.name AS line_name,
                c.room, c.rack,
                (SELECT COUNT(*) FROM holding h WHERE h.cage_id = m.cage_id) AS is_holding
@@ -134,8 +134,8 @@ require 'header.php';
             <input type="hidden" name="list" value="1">
             <div class="row g-2 align-items-end">
                 <div class="col-md-4">
-                    <label class="form-label" for="q">Number / tag / cage / genotype</label>
-                    <input type="text" class="form-control" id="q" name="q" value="<?= htmlspecialchars($q); ?>" placeholder="e.g. RSD-0002, P-00012, WT" autofocus>
+                    <label class="form-label" for="q">Number / tag / cage / genotype / mark</label>
+                    <input type="text" class="form-control" id="q" name="q" value="<?= htmlspecialchars($q); ?>" placeholder="e.g. RSD-0002, P-00012, WT, ear punch" autofocus>
                 </div>
                 <div class="col-md-2">
                     <label class="form-label" for="line_id">Line</label>
@@ -223,6 +223,9 @@ require 'header.php';
                                 <a href="animal_view.php?id=<?= $aid; ?>" class="fw-bold"><?= htmlspecialchars($label); ?></a>
                                 <?php if ($a['mouse_id'] && $a['animal_uid']) : ?>
                                     <br><small class="text-muted">tag <?= htmlspecialchars($a['mouse_id']); ?></small>
+                                <?php endif; ?>
+                                <?php if (!empty($a['distinctive_mark'])) : ?>
+                                    <br><small class="text-muted mark">mark: <?= htmlspecialchars($a['distinctive_mark']); ?></small>
                                 <?php endif; ?>
                             </td>
                             <td title="<?= htmlspecialchars($a['line_name'] ?? ''); ?>"><?= htmlspecialchars($a['line_code'] ?? '-'); ?></td>

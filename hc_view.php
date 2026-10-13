@@ -486,6 +486,7 @@ require 'header.php';
                                 <th>Animal UID</th>
                                 <th>Sex</th>
                                 <th>Genotype</th>
+                                <th>Distinctive mark</th>
                                 <th>Notes</th>
                             </tr>
                             <tr>
@@ -498,6 +499,7 @@ require 'header.php';
                                 </td>
                                 <td><?= htmlspecialchars(!empty($mouse['sex']) ? ucfirst($mouse['sex']) : 'Not specified'); ?></td>
                                 <td><?= htmlspecialchars($mouse['genotype'] ?? ''); ?></td>
+                                <td><?= htmlspecialchars($mouse['distinctive_mark'] ?? ''); ?></td>
                                 <td><?= htmlspecialchars($mouse['notes'] ?? ''); ?></td>
                             </tr>
                         </table>

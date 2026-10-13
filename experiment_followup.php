@@ -30,7 +30,7 @@ $currentUserName = $_SESSION['name'] ?? null;
 $experimentAnimalId = (int) ($_GET['experiment_animal_id'] ?? $_POST['experiment_animal_id'] ?? 0);
 
 $eaStmt = $con->prepare(
-    "SELECT ea.*, m.animal_uid, m.id AS animal_id, m.status AS animal_status, e.experiment_number, e.title AS experiment_title,
+    "SELECT ea.*, m.animal_uid, m.id AS animal_id, m.status AS animal_status, m.distinctive_mark, e.experiment_number, e.title AS experiment_title,
             p.id AS protocol_id, p.protocol_number, p.endpoint_criteria, p.clinical_grid_id
      FROM experiment_animals ea
      JOIN mice m ON m.id = ea.animal_id
@@ -381,7 +381,8 @@ require 'header.php';
 
 <body>
     <div class="container mt-4 content">
-        <h4>Daily Follow-up — <?= htmlspecialchars($ea['animal_uid']); ?></h4>
+        <h4>Daily Follow-up — <?= htmlspecialchars($ea['animal_uid']); ?>
+            <?php if ($ea['distinctive_mark']) : ?><small class="text-muted" id="animalMark">[<?= htmlspecialchars($ea['distinctive_mark']); ?>]</small><?php endif; ?></h4>
         <p class="text-muted">Experiment <?= htmlspecialchars($ea['experiment_number']); ?> — <?= htmlspecialchars($ea['experiment_title']); ?> (Protocol <?= htmlspecialchars($ea['protocol_number']); ?>)
             · baseline weight <?= htmlspecialchars($ea['baseline_weight_g'] ?? 'N/A'); ?> g</p>
         <a href="animal_view.php?id=<?= (int) $ea['animal_id']; ?>">&laquo; Back to animal record</a>

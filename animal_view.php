@@ -23,6 +23,10 @@ require 'header.php';
 
 $animalId = (int) ($_GET['id'] ?? 0);
 
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 $stmt = $con->prepare(
     "SELECT m.*, al.code AS line_code, al.name AS line_name, al.species
      FROM mice m
@@ -148,6 +152,21 @@ $statusBadge = [
                 <p><strong>Date of birth:</strong> <?= htmlspecialchars($animal['dob'] ?? 'N/A'); ?></p>
                 <p><strong>Tag / mouse_id:</strong> <?= htmlspecialchars($animal['mouse_id'] ?? 'N/A'); ?></p>
                 <p><strong>Genotype:</strong> <?= htmlspecialchars($animal['genotype'] ?? 'N/A'); ?></p>
+                <form method="POST" action="animal_mark.php" class="row g-2 align-items-center mb-3" id="markForm">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>">
+                    <input type="hidden" name="animal_id" value="<?= (int) $animal['id']; ?>">
+                    <div class="col-auto"><label for="distinctive_mark" class="col-form-label fw-bold">Distinctive mark:</label></div>
+                    <div class="col">
+                        <input type="text" class="form-control" id="distinctive_mark" name="distinctive_mark" maxlength="255" list="markSuggestions"
+                            value="<?= htmlspecialchars($animal['distinctive_mark'] ?? ''); ?>" placeholder="e.g. left ear punch, tail mark 2 stripes, chip 250269..., white spot on head">
+                        <datalist id="markSuggestions">
+                            <option value="Right ear punch"><option value="Left ear punch"><option value="Both ears punched">
+                            <option value="Tail mark: 1 stripe"><option value="Tail mark: 2 stripes"><option value="Tattoo: ">
+                            <option value="RFID chip: "><option value="Coat colour: "><option value="Scar: ">
+                        </datalist>
+                    </div>
+                    <div class="col-auto"><button type="submit" class="btn btn-outline-primary btn-sm">Save mark</button></div>
+                </form>
                 <p><strong>Current cage:</strong>
                     <?php if ($animal['cage_id']) : ?>
                         <?= htmlspecialchars($animal['cage_id']); ?>

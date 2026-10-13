@@ -55,7 +55,7 @@ if (!$cage) {
     exit;
 }
 
-$animals = $con->prepare("SELECT id, animal_uid, mouse_id, sex FROM mice WHERE cage_id = ? AND status = 'active' ORDER BY animal_uid");
+$animals = $con->prepare("SELECT id, animal_uid, mouse_id, sex, distinctive_mark FROM mice WHERE cage_id = ? AND status = 'active' ORDER BY animal_uid");
 $animals->bind_param("s", $cageId);
 $animals->execute();
 $animals = $animals->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -119,6 +119,7 @@ $roomKey = ($cage['room'] ?? '') === '' ? '__none' : $cage['room'];
                         <span>
                             <a href="animal_view.php?id=<?= (int) $a['id']; ?>"><?= htmlspecialchars($label); ?></a>
                             <?= $a['sex'] === 'male' ? '♂' : ($a['sex'] === 'female' ? '♀' : ''); ?>
+                            <?php if (!empty($a['distinctive_mark'])) : ?><small class="text-muted mark" title="Distinctive mark"> [<?= htmlspecialchars($a['distinctive_mark']); ?>]</small><?php endif; ?>
                             <?php if (!empty($openIssues[$a['id']])) : ?><span class="badge bg-danger"><?= $openIssues[$a['id']]; ?> open issue(s)</span><?php endif; ?>
                         </span>
                         <a href="health_report.php?<?= htmlspecialchars(http_build_query(['animal_id' => $a['id'], 'via' => $via === 'qr' ? 'qr' : 'cage_page', 'return' => $selfUrl])); ?>" class="btn btn-warning btn-sm">Report issue</a>
