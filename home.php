@@ -73,6 +73,12 @@ $pendingEndpointActions = $con->query(
      WHERE a.status = 'pending' ORDER BY a.created_at"
 )->fetch_all(MYSQLI_ASSOC);
 
+// Litters to wean within 2 days, or overdue.
+$littersToWean = $con->query(
+    "SELECT id, cage_id, litter_dob, expected_weaning_date FROM litters
+     WHERE status = 'nursing' AND expected_weaning_date <= CURDATE() + INTERVAL 2 DAY ORDER BY expected_weaning_date"
+)->fetch_all(MYSQLI_ASSOC);
+
 $housingAnomalies = (int) $con->query(
     "SELECT COUNT(*) FROM mice m LEFT JOIN cages c ON c.cage_id = m.cage_id
      WHERE m.status = 'active' AND (c.cage_id IS NULL OR c.status <> 'active')"
@@ -134,6 +140,17 @@ require 'header.php';
                         <li><a href="experiment_followup.php?experiment_animal_id=<?= (int) $pa['experiment_animal_id']; ?>"><?= htmlspecialchars($pa['animal_uid']); ?></a>
                             (<?= htmlspecialchars($pa['experiment_number']); ?>): <strong><?= htmlspecialchars(ENDPOINT_REQUIRED_ACTIONS[$pa['required_action']]); ?></strong>
                             — <?= htmlspecialchars($pa['message'] ?? ''); ?> <small>(since <?= htmlspecialchars($pa['created_at']); ?>)</small></li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($littersToWean) : ?>
+            <div class="alert alert-warning" id="littersToWean">
+                <i class="fas fa-baby"></i> <strong><?= count($littersToWean); ?> litter(s) to wean</strong>
+                <ul class="mb-0">
+                    <?php foreach ($littersToWean as $lw) : $over = $lw['expected_weaning_date'] < date('Y-m-d'); ?>
+                        <li class="<?= $over ? 'text-danger fw-bold' : ''; ?>"><a href="litter_manage.php?litter_id=<?= (int) $lw['id']; ?>">Litter #<?= (int) $lw['id']; ?></a> — cage <?= htmlspecialchars($lw['cage_id']); ?>, born <?= htmlspecialchars($lw['litter_dob']); ?>, weaning <?= $over ? 'overdue since' : 'expected'; ?> <?= htmlspecialchars($lw['expected_weaning_date']); ?></li>
                     <?php endforeach; ?>
                 </ul>
             </div>

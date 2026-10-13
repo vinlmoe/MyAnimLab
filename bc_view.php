@@ -458,6 +458,7 @@ require 'header.php';
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h4 class="mb-0">Litter Details - <?= htmlspecialchars($id) ?>
                         </h4>
+                        <a href="litter_manage.php?cage_id=<?= rawurlencode($id); ?>" class="btn btn-success btn-sm" id="manageLitters"><i class="fas fa-baby"></i> Litters: birth → weaning</a>
                     </div>
 
                     <?php while ($litter = mysqli_fetch_assoc($litters)) : ?>
@@ -470,7 +471,8 @@ require 'header.php';
                                     </tr>
                                     <tr>
                                         <th>Litter DOB</th>
-                                        <td><?= htmlspecialchars($litter['litter_dob'] ?? ''); ?></td>
+                                        <td><?= htmlspecialchars($litter['litter_dob'] ?? ''); ?>
+                                            <a href="litter_manage.php?litter_id=<?= (int) $litter['id']; ?>" class="ms-2 small"><?= htmlspecialchars($litter['status'] ?? ''); ?><?= ($litter['status'] ?? '') === 'nursing' ? ' — weaning expected ' . htmlspecialchars($litter['expected_weaning_date'] ?? '?') : ''; ?></a></td>
                                     </tr>
                                     <tr>
                                         <th>Pups Alive</th>

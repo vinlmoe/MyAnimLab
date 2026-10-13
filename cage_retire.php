@@ -62,6 +62,13 @@ if ($cage['status'] !== 'active') {
     exit;
 }
 
+// Unweaned pups are not individual animals yet: wean or close their litter first.
+if (cage_nursing_litters($con, $cageId) > 0) {
+    $_SESSION['message'] = "Cage $cageId has a litter still nursing: wean it or close it before retiring the cage.";
+    header("Location: litter_manage.php?cage_id=" . rawurlencode($cageId));
+    exit;
+}
+
 $animalsStmt = $con->prepare("SELECT id, animal_uid, mouse_id, sex FROM mice WHERE cage_id = ? AND status = 'active' ORDER BY animal_uid");
 $animalsStmt->bind_param("s", $cageId);
 $animalsStmt->execute();

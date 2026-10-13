@@ -49,6 +49,7 @@ if (!$force) {
 $unseen = unseen_cages_by_room($con, $today);
 $total = array_sum(array_map('count', $unseen));
 $pendingActions = (int) $con->query("SELECT COUNT(*) FROM endpoint_actions WHERE status = 'pending'")->fetch_row()[0];
+$overdueWeanings = (int) $con->query("SELECT COUNT(*) FROM litters WHERE status = 'nursing' AND expected_weaning_date < CURDATE()")->fetch_row()[0];
 
 // Remember the run first so a mail failure never triggers repeated alerts.
 $mark = $con->prepare("INSERT INTO settings (name, value) VALUES ('round_alert_last_date', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)");
@@ -56,7 +57,7 @@ $mark->bind_param("s", $today);
 $mark->execute();
 $mark->close();
 
-if ($total === 0 && $pendingActions === 0) {
+if ($total === 0 && $pendingActions === 0 && $overdueWeanings === 0) {
     echo "Daily round complete for $today: no alert.\n";
     exit(0);
 }
@@ -68,7 +69,10 @@ foreach ($unseen as $room => $cageIds) {
 if ($pendingActions) {
     $lines[] = "$pendingActions endpoint action(s) still pending (euthanasia, vet...)";
 }
-$title = $total ? "Daily round incomplete: $total cage(s) not seen today" : "End of day: $pendingActions endpoint action(s) still pending";
+if ($overdueWeanings) {
+    $lines[] = "$overdueWeanings litter(s) past their expected weaning date";
+}
+$title = $total ? "Daily round incomplete: $total cage(s) not seen today" : "End of day: " . implode(', ', array_slice($lines, 0));
 $summary = implode(' | ', $lines);
 
 notify_admins($con, $title, $summary, 'daily_round.php?hide_seen=1', 'system');

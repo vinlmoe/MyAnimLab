@@ -145,6 +145,7 @@ $statusBadge = [
                 <h5 class="card-title">Identity</h5>
                 <p><strong>Line:</strong> <?= htmlspecialchars($animal['line_code'] ? "{$animal['line_code']} - {$animal['line_name']} ({$animal['species']})" : 'N/A'); ?></p>
                 <p><strong>Sex:</strong> <?= htmlspecialchars($animal['sex'] ?? 'N/A'); ?></p>
+                <p><strong>Date of birth:</strong> <?= htmlspecialchars($animal['dob'] ?? 'N/A'); ?></p>
                 <p><strong>Tag / mouse_id:</strong> <?= htmlspecialchars($animal['mouse_id'] ?? 'N/A'); ?></p>
                 <p><strong>Genotype:</strong> <?= htmlspecialchars($animal['genotype'] ?? 'N/A'); ?></p>
                 <p><strong>Current cage:</strong>
@@ -171,6 +172,9 @@ $statusBadge = [
                 <?php if ($parentage) : ?>
                     <p><strong>Sire:</strong> <?= htmlspecialchars($parentage['sire_uid'] ?? 'Unknown/external'); ?></p>
                     <p><strong>Dam:</strong> <?= htmlspecialchars($parentage['dam_uid'] ?? 'Unknown/external'); ?></p>
+                    <?php if (!empty($parentage['litter_id'])) : ?>
+                        <p><strong>Litter:</strong> <a href="litter_manage.php?litter_id=<?= (int) $parentage['litter_id']; ?>">#<?= (int) $parentage['litter_id']; ?></a></p>
+                    <?php endif; ?>
                 <?php else : ?>
                     <p class="text-muted">No recorded parentage (external origin).</p>
                 <?php endif; ?>

@@ -13,6 +13,7 @@ session_start();
 
 // Include the database connection
 require 'dbcon.php';
+require 'animal_lib.php';
 
 // Disable error display in production (errors logged to server logs)
 error_reporting(E_ALL);
@@ -320,6 +321,23 @@ if (isset($_GET['id'])) {
                     $remarks_litter_i = mysqli_real_escape_string($con, $_POST['remarks_litter'][$i]);
                     $litter_id_i = isset($_POST['litter_id'][$i]) ? mysqli_real_escape_string($con, $_POST['litter_id'][$i]) : '';
 
+                    // Sanity checks, and weaned/closed litters are read-only (their
+                    // pups became animals with parentage); use litter_manage.php.
+                    if ($litter_dob_i !== '' && $dom_i !== '' && $litter_dob_i < $dom_i) {
+                        $_SESSION['message'] = ($_SESSION['message'] ?? '') . " Litter not saved: date of birth before mating date.";
+                        continue;
+                    }
+                    if ($pups_male_i + $pups_female_i > $pups_alive_i) {
+                        $_SESSION['message'] = ($_SESSION['message'] ?? '') . " Litter not saved: more males + females than pups alive.";
+                        continue;
+                    }
+                    if (!empty($litter_id_i)) {
+                        $st = $con->query("SELECT status FROM litters WHERE id = " . (int) $litter_id_i)->fetch_row()[0] ?? 'nursing';
+                        if ($st !== 'nursing') {
+                            continue;
+                        }
+                    }
+
                     // If litter_id exists, update the entry
                     if (!empty($litter_id_i)) {
                         $updateLitterQuery = $con->prepare("UPDATE litters SET `dom` = ?, `litter_dob` = ?, `pups_alive` = ?, `pups_dead` = ?, `pups_male` = ?, `pups_female` = ?, `remarks` = ? WHERE `id` = ?");
@@ -328,8 +346,9 @@ if (isset($_GET['id'])) {
                         $updateLitterQuery->close();
                     } else {
                         // If no litter_id, insert a new entry
-                        $insertLitterQuery = $con->prepare("INSERT INTO litters (`cage_id`, `dom`, `litter_dob`, `pups_alive`, `pups_dead`, `pups_male`, `pups_female`, `remarks`) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-                        $insertLitterQuery->bind_param("ssssssss", $cage_id, $dom_i, $litter_dob_i, $pups_alive_i, $pups_dead_i, $pups_male_i, $pups_female_i, $remarks_litter_i);
+                        $expected_i = $litter_dob_i !== '' ? date('Y-m-d', strtotime($litter_dob_i . ' +' . weaning_age_days($con) . ' days')) : null;
+                        $insertLitterQuery = $con->prepare("INSERT INTO litters (`cage_id`, `dom`, `litter_dob`, `pups_alive`, `pups_dead`, `pups_male`, `pups_female`, `remarks`, `expected_weaning_date`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                        $insertLitterQuery->bind_param("sssssssss", $cage_id, $dom_i, $litter_dob_i, $pups_alive_i, $pups_dead_i, $pups_male_i, $pups_female_i, $remarks_litter_i, $expected_i);
                         $insertLitterQuery->execute();
                         $insertLitterQuery->close();
                     }
@@ -340,7 +359,8 @@ if (isset($_GET['id'])) {
             if (!empty($delete_litter_ids)) {
                 foreach ($delete_litter_ids as $delete_litter_id) {
                     if (!empty($delete_litter_id)) {
-                        $deleteLitterQuery = $con->prepare("DELETE FROM litters WHERE id = ?");
+                        // Only a still-nursing litter can be deleted (weaned ones are traceability records).
+                        $deleteLitterQuery = $con->prepare("DELETE FROM litters WHERE id = ? AND status = 'nursing' AND NOT EXISTS (SELECT 1 FROM litter_events e WHERE e.litter_id = litters.id AND e.event <> 'birth')");
                         $deleteLitterQuery->bind_param("s", $delete_litter_id);
                         $deleteLitterQuery->execute();
                         $deleteLitterQuery->close();
@@ -937,44 +957,23 @@ require 'header.php';
                                 </div>
 
                                 <div class="card-body" id="litterEntries">
-                                    <?php while ($litter = mysqli_fetch_assoc($litters)) : ?>
-                                        <div class="litter-entry">
-                                            <hr class="mt-4 mb-4" style="border-top: 3px solid #000;">
-                                            <div class="mb-3">
-                                                <label for="dom[]" class="form-label">DOM <span class="required-asterisk">*</span></label>
-                                                <input type="date" class="form-control" name="dom[]" value="<?= htmlspecialchars($litter['dom']); ?>" required min="1900-01-01">
-                                            </div>
-                                            <div class="mb-3">
-                                                <label for="litter_dob[]" class="form-label">Litter DOB</label>
-                                                <input type="date" class="form-control" name="litter_dob[]" value="<?= htmlspecialchars($litter['litter_dob']); ?>" min="1900-01-01">
-                                            </div>
-                                            <div class="mb-3">
-                                                <label for="pups_alive[]" class="form-label">Pups Alive <span class="required-asterisk">*</span></label>
-                                                <input type="number" class="form-control" name="pups_alive[]" value="<?= htmlspecialchars($litter['pups_alive']); ?>" required min="0" step="1">
-                                            </div>
-                                            <div class="mb-3">
-                                                <label for="pups_dead[]" class="form-label">Pups Dead <span class="required-asterisk">*</span></label>
-                                                <input type="number" class="form-control" name="pups_dead[]" value="<?= htmlspecialchars($litter['pups_dead']); ?>" required min="0" step="1">
-                                            </div>
-                                            <div class="mb-3">
-                                                <label for="pups_male[]" class="form-label">Pups Male</label>
-                                                <input type="number" class="form-control" name="pups_male[]" value="<?= htmlspecialchars($litter['pups_male']); ?>" min="0" step="1">
-                                            </div>
-                                            <div class="mb-3">
-                                                <label for="pups_female[]" class="form-label">Pups Female</label>
-                                                <input type="number" class="form-control" name="pups_female[]" value="<?= htmlspecialchars($litter['pups_female']); ?>" min="0" step="1">
-                                            </div>
-                                            <div class="mb-3">
-                                                <label for="remarks_litter[]" class="form-label">Remarks Litter</label>
-                                                <textarea class="form-control" name="remarks_litter[]" oninput="adjustTextareaHeight(this)"><?= htmlspecialchars($litter['remarks']); ?></textarea>
-                                            </div>
-
-                                            <input type="hidden" name="delete_litter_ids[]" value="">
-
-                                            <input type="hidden" name="litter_id[]" value="<?= htmlspecialchars($litter['id']); ?>">
-                                            <button type="button" class="btn btn-danger" onclick="removeLitter(this)">Remove</button>
-                                        </div>
-                                    <?php endwhile; ?>
+                                    <?php // Existing litters are managed on litter_manage.php (birth → weaning);
+                                    // shown read-only here so this form never alters their history. ?>
+                                    <?php if ($litters->num_rows > 0) : ?>
+                                        <table class="table table-sm" id="existingLitters">
+                                            <thead><tr><th>#</th><th>Born</th><th>Alive / dead at birth</th><th>Status</th><th></th></tr></thead>
+                                            <?php while ($litter = mysqli_fetch_assoc($litters)) : ?>
+                                                <tr>
+                                                    <td><?= (int) $litter['id']; ?></td>
+                                                    <td><?= htmlspecialchars($litter['litter_dob'] ?? '?'); ?></td>
+                                                    <td><?= (int) $litter['pups_alive']; ?> / <?= (int) $litter['pups_dead']; ?></td>
+                                                    <td><?= htmlspecialchars($litter['status'] ?? ''); ?></td>
+                                                    <td><a href="litter_manage.php?litter_id=<?= (int) $litter['id']; ?>">Open</a></td>
+                                                </tr>
+                                            <?php endwhile; ?>
+                                        </table>
+                                    <?php endif; ?>
+                                    <p class="small"><a href="litter_manage.php?cage_id=<?= rawurlencode($breedingcage['cage_id']); ?>">Record births, deaths, sexing and weaning on the litters page &raquo;</a></p>
                                 </div>
                             </div>
 

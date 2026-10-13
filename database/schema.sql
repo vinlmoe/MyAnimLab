@@ -104,13 +104,21 @@ CREATE TABLE `breeding` (
 CREATE TABLE `litters` (
   `id` int NOT NULL AUTO_INCREMENT,
   `cage_id` varchar(255) NOT NULL,
-  `dom` date NOT NULL,
+  `dom` date DEFAULT NULL,
   `litter_dob` date DEFAULT NULL,
   `pups_alive` int NOT NULL,
   `pups_dead` int NOT NULL,
   `pups_male` int DEFAULT NULL,
   `pups_female` int DEFAULT NULL,
   `remarks` text DEFAULT NULL,
+  `sire_id` int DEFAULT NULL,
+  `dam_id` int DEFAULT NULL,
+  `status` ENUM('nursing','weaned','closed') NOT NULL DEFAULT 'nursing',
+  `expected_weaning_date` date DEFAULT NULL,
+  `weaned_at` date DEFAULT NULL,
+  `weaned_males` int DEFAULT NULL,
+  `weaned_females` int DEFAULT NULL,
+  `closed_reason` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`cage_id`) REFERENCES `cages` (`cage_id`) ON UPDATE CASCADE
 );
@@ -169,6 +177,7 @@ CREATE TABLE `mice` (
   `animal_uid` varchar(50) DEFAULT NULL UNIQUE,
   `mouse_id` varchar(255) DEFAULT NULL,
   `sex` ENUM('male','female') DEFAULT NULL,
+  `dob` date DEFAULT NULL,
   `genotype` varchar(255) DEFAULT NULL,
   `notes` text DEFAULT NULL,
   `status` ENUM('active','sacrificed','dead','transferred_out','archived') NOT NULL DEFAULT 'active',
@@ -571,6 +580,28 @@ CREATE TABLE `experiment_followup_observations` (
   KEY `idx_followup_obs` (`followup_id`),
   FOREIGN KEY (`followup_id`) REFERENCES `experiment_followups` (`id`) ON DELETE CASCADE,
   FOREIGN KEY (`field_id`) REFERENCES `protocol_observation_fields` (`id`) ON DELETE SET NULL
+);
+
+-- Litter lifecycle (portée): birth -> nursing (deaths, sexing) -> weaning.
+-- At weaning the pups become identified animals (line UID, sex, date of
+-- birth, parentage sire/dam/litter) in new or existing holding cages.
+-- litter_events is the litter's journal. A weaned or closed litter can no
+-- longer be edited or deleted.
+CREATE TABLE `litter_events` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `litter_id` int NOT NULL,
+  `event` ENUM('birth','death','sexing','weaning','closed','note') NOT NULL,
+  `event_date` date NOT NULL,
+  `count` int DEFAULT NULL,
+  `males` int DEFAULT NULL,
+  `females` int DEFAULT NULL,
+  `note` text DEFAULT NULL,
+  `user_id` int DEFAULT NULL,
+  `user_name` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_litter_events_litter` (`litter_id`),
+  FOREIGN KEY (`litter_id`) REFERENCES `litters` (`id`) ON DELETE CASCADE
 );
 
 -- Table for storing tasks information
