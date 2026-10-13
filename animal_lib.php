@@ -458,8 +458,90 @@ function exit_animal(mysqli $con, int $animalId, string $code, string $date, str
     }
     $close->close();
 
+    resolve_endpoint_actions_on_exit($con, $animalId, $label, $userId, $userName);
+
     log_animal_event($con, $animalId, 'status_change', ['status' => $status, 'exit_code' => $code, 'date' => $date, 'reason' => $reason, 'destination' => $destination], $userId);
     log_activity($con, 'exit', 'animal', (string) $animalId, "{$animal['animal_uid']}: $label" . ($destination ? " → $destination" : '') . ($reason !== '' ? " ($reason)" : ''), $userId);
 
     return ($retireEmptyCage && retire_cage_if_empty($con, $animal['cage_id'], "last animal exit: $label", $userId, $userName)) ? $animal['cage_id'] : null;
+}
+
+// Actions an endpoint (point limite) can require from the experimenter.
+const ENDPOINT_REQUIRED_ACTIONS = [
+    'none' => 'Alert only',
+    'euthanasia' => 'Euthanasia (mise à mort)',
+    'call_vet' => 'Call the veterinarian',
+    'increase_monitoring' => 'Increase monitoring',
+    'other' => 'Other action (see message)',
+];
+
+// A clinical grid with its items (ordered) and each item's levels.
+function load_clinical_grid(mysqli $con, int $gridId): ?array
+{
+    $stmt = $con->prepare("SELECT * FROM clinical_grids WHERE id = ?");
+    $stmt->bind_param("i", $gridId);
+    $stmt->execute();
+    $grid = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$grid) {
+        return null;
+    }
+    $items = $con->prepare("SELECT * FROM clinical_grid_items WHERE grid_id = ? ORDER BY position, id");
+    $items->bind_param("i", $gridId);
+    $items->execute();
+    $grid['items'] = [];
+    foreach ($items->get_result()->fetch_all(MYSQLI_ASSOC) as $item) {
+        $levels = $con->prepare("SELECT score, description FROM clinical_grid_levels WHERE item_id = ? ORDER BY score");
+        $levels->bind_param("i", $item['id']);
+        $levels->execute();
+        $item['levels'] = $levels->get_result()->fetch_all(MYSQLI_ASSOC);
+        $levels->close();
+        $grid['items'][(int) $item['id']] = $item;
+    }
+    $items->close();
+    $grid['max_total'] = array_sum(array_map(fn($i) => $i['levels'] ? max(array_column($i['levels'], 'score')) : 0, $grid['items']));
+    return $grid;
+}
+
+// A grid is read-only once a follow-up scored it or a protocol threshold
+// points at one of its items (changes go to a duplicate).
+function clinical_grid_locked(mysqli $con, int $gridId): bool
+{
+    $stmt = $con->prepare(
+        "SELECT (EXISTS (SELECT 1 FROM experiment_followup_scores s JOIN clinical_grid_items i ON i.id = s.grid_item_id WHERE i.grid_id = ?)
+              OR EXISTS (SELECT 1 FROM protocol_endpoint_thresholds t JOIN clinical_grid_items i ON i.id = t.grid_item_id WHERE i.grid_id = ?))"
+    );
+    $stmt->bind_param("ii", $gridId, $gridId);
+    $stmt->execute();
+    $stmt->bind_result($locked);
+    $stmt->fetch();
+    $stmt->close();
+    return (bool) $locked;
+}
+
+// Human-readable condition of an endpoint threshold.
+function threshold_label(array $t, ?string $itemLabel = null): string
+{
+    $metric = [
+        'weight_loss_pct' => 'Weight loss %',
+        'clinical_score' => 'Total clinical score',
+        'item_score' => 'Score "' . ($itemLabel ?? '?') . '"',
+        'custom' => 'Custom',
+    ][$t['metric']] ?? $t['metric'];
+    return $metric . ' ' . $t['operator'] . ' ' . rtrim(rtrim((string) $t['value'], '0'), '.');
+}
+
+// Close the pending endpoint actions of an animal that left the facility
+// (euthanasia done, or the action became moot).
+function resolve_endpoint_actions_on_exit(mysqli $con, int $animalId, string $exitLabel, ?int $userId, ?string $userName): void
+{
+    $note = "Animal left the facility: $exitLabel";
+    $stmt = $con->prepare(
+        "UPDATE endpoint_actions a JOIN experiment_animals ea ON ea.id = a.experiment_animal_id
+         SET a.status = 'done', a.done_at = NOW(), a.done_by = ?, a.done_by_name = ?, a.done_note = ?
+         WHERE ea.animal_id = ? AND a.status = 'pending'"
+    );
+    $stmt->bind_param("issi", $userId, $userName, $note, $animalId);
+    $stmt->execute();
+    $stmt->close();
 }

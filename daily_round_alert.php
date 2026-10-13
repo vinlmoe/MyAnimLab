@@ -48,6 +48,7 @@ if (!$force) {
 
 $unseen = unseen_cages_by_room($con, $today);
 $total = array_sum(array_map('count', $unseen));
+$pendingActions = (int) $con->query("SELECT COUNT(*) FROM endpoint_actions WHERE status = 'pending'")->fetch_row()[0];
 
 // Remember the run first so a mail failure never triggers repeated alerts.
 $mark = $con->prepare("INSERT INTO settings (name, value) VALUES ('round_alert_last_date', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)");
@@ -55,7 +56,7 @@ $mark->bind_param("s", $today);
 $mark->execute();
 $mark->close();
 
-if ($total === 0) {
+if ($total === 0 && $pendingActions === 0) {
     echo "Daily round complete for $today: no alert.\n";
     exit(0);
 }
@@ -64,14 +65,17 @@ $lines = [];
 foreach ($unseen as $room => $cageIds) {
     $lines[] = ($room === '' ? 'No room' : "Room $room") . ': ' . implode(', ', $cageIds);
 }
-$title = "Daily round incomplete: $total cage(s) not seen today";
+if ($pendingActions) {
+    $lines[] = "$pendingActions endpoint action(s) still pending (euthanasia, vet...)";
+}
+$title = $total ? "Daily round incomplete: $total cage(s) not seen today" : "End of day: $pendingActions endpoint action(s) still pending";
 $summary = implode(' | ', $lines);
 
 notify_admins($con, $title, $summary, 'daily_round.php?hide_seen=1', 'system');
 
 $siteUrl = setting($con, 'url');
 $link = $siteUrl !== '' ? "https://$siteUrl/daily_round.php?hide_seen=1" : 'daily_round.php?hide_seen=1';
-$body = "<p>The daily round of $today is not complete: <strong>$total cage(s)</strong> in service have not been seen.</p><ul>";
+$body = "<p>End of day $today: <strong>$total cage(s)</strong> in service not seen, <strong>$pendingActions endpoint action(s)</strong> pending.</p><ul>";
 foreach ($lines as $line) {
     $body .= '<li>' . htmlspecialchars($line) . '</li>';
 }
@@ -85,5 +89,5 @@ foreach ($admins as $admin) {
 }
 $mail->close();
 
-log_activity($con, 'round_alert', 'daily_round', $today, "$total unseen cage(s): $summary");
+log_activity($con, 'round_alert', 'daily_round', $today, $summary);
 echo "$title — alerted " . count($admins) . " admin(s).\n";

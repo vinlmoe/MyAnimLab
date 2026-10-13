@@ -204,6 +204,7 @@ if (isset($settings['r2_pres'])) {
                     <li><a class="dropdown-item" href="animal_search.php?list=1"><i class="fas fa-search me-1"></i> Find Animal</a></li>
                     <li><a class="dropdown-item" href="animal_transfer.php">Transfer Animal</a></li>
                     <li><a class="dropdown-item" href="trial_manage.php">Trials / Protocols / Experiments</a></li>
+                    <li><a class="dropdown-item" href="clinical_grids.php"><i class="fas fa-table me-1"></i> Clinical Scoring Grids</a></li>
                     <li><hr class="dropdown-divider"></li>
                     <li><a class="dropdown-item" href="health_report.php"><i class="fas fa-notes-medical me-1"></i> Report Health Issue</a></li>
                     <li><a class="dropdown-item" href="health_registry.php"><i class="fas fa-book-medical me-1"></i> Health Registry</a></li>
