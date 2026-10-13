@@ -51,6 +51,8 @@ if (!$ea) {
 
 $grid = $ea['clinical_grid_id'] ? load_clinical_grid($con, (int) $ea['clinical_grid_id']) : null;
 $hasGrid = $grid && $grid['items'];
+$obsFields = protocol_observation_fields($con, (int) $ea['protocol_id']);
+$allObsFields = protocol_observation_fields($con, (int) $ea['protocol_id'], true);
 
 $thresholdsStmt = $con->prepare("SELECT * FROM protocol_endpoint_thresholds WHERE protocol_id = ?");
 $thresholdsStmt->bind_param("i", $ea['protocol_id']);
@@ -132,6 +134,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $clinicalScore = ($_POST['clinical_score'] ?? '') !== '' ? (int) $_POST['clinical_score'] : null;
     }
 
+    // Additional observations: protocol fields, then free ones (label + value).
+    $observationRows = [];
+    $fail = function (string $msg) use ($selfUrl) {
+        $_SESSION['message'] = $msg;
+        header("Location: $selfUrl");
+        exit;
+    };
+    foreach ($obsFields as $fieldId => $field) {
+        $raw = trim($_POST['obs'][$fieldId] ?? '');
+        if ($raw === '') {
+            if ($field['required']) {
+                $fail("Observation \"{$field['label']}\" is required.");
+            }
+            continue;
+        }
+        $number = $field['value_type'] === 'number' ? parse_number($raw) : null;
+        if ($field['value_type'] === 'number' && $number === null) {
+            $fail("Observation \"{$field['label']}\" must be a number.");
+        }
+        $observationRows[] = ['field_id' => $fieldId, 'label' => $field['label'], 'value_type' => $field['value_type'], 'unit' => $field['unit'], 'number' => $number, 'text' => $field['value_type'] === 'text' ? $raw : null];
+    }
+    foreach ((array) ($_POST['extra_label'] ?? []) as $i => $label) {
+        $label = trim($label);
+        $raw = trim($_POST['extra_value'][$i] ?? '');
+        if ($label === '' && $raw === '') {
+            continue;
+        }
+        if ($label === '' || $raw === '') {
+            $fail("Each free observation needs a label and a value.");
+        }
+        $type = ($_POST['extra_type'][$i] ?? '') === 'number' ? 'number' : 'text';
+        $number = $type === 'number' ? parse_number($raw) : null;
+        if ($type === 'number' && $number === null) {
+            $fail("Free observation \"$label\" must be a number.");
+        }
+        $unit = $type === 'number' ? (trim($_POST['extra_unit'][$i] ?? '') ?: null) : null;
+        $observationRows[] = ['field_id' => null, 'label' => $label, 'value_type' => $type, 'unit' => $unit, 'number' => $number, 'text' => $type === 'text' ? $raw : null];
+    }
+    $obsValueByField = [];
+    foreach ($observationRows as $row) {
+        if ($row['field_id'] !== null && $row['number'] !== null) {
+            $obsValueByField[$row['field_id']] = $row['number'];
+        }
+    }
+
     // Evaluate the protocol's endpoints against this entry.
     $breaches = [];
     foreach ($thresholds as $t) {
@@ -142,9 +189,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $actual = ($ea['baseline_weight_g'] - $weight) / $ea['baseline_weight_g'] * 100;
         } elseif ($t['metric'] === 'item_score' && isset($itemScores[(int) $t['grid_item_id']])) {
             $actual = (int) $itemScores[(int) $t['grid_item_id']]['score'];
+        } elseif ($t['metric'] === 'observation' && isset($obsValueByField[(int) $t['observation_field_id']])) {
+            $actual = $obsValueByField[(int) $t['observation_field_id']];
         }
         if ($actual !== null && threshold_breached($t['operator'], $actual, (float) $t['value'])) {
-            $condition = threshold_label($t, $grid['items'][(int) $t['grid_item_id']]['label'] ?? null);
+            $condition = threshold_label($t, threshold_target_label($t, $grid, $allObsFields));
             $breaches[] = [
                 'threshold' => $t,
                 'actual' => $actual,
@@ -182,6 +231,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $label = $grid['items'][$itemId]['label'];
             $ins = $con->prepare("INSERT INTO experiment_followup_scores (followup_id, grid_item_id, item_label, score, level_description) VALUES (?, ?, ?, ?, ?)");
             $ins->bind_param("iisis", $followupId, $itemId, $label, $level['score'], $level['description']);
+            $ins->execute();
+            $ins->close();
+        }
+
+        // Re-saving the day replaces its additional observations too.
+        $delObs = $con->prepare("DELETE FROM experiment_followup_observations WHERE followup_id = ?");
+        $delObs->bind_param("i", $followupId);
+        $delObs->execute();
+        $delObs->close();
+        foreach ($observationRows as $row) {
+            $ins = $con->prepare("INSERT INTO experiment_followup_observations (followup_id, field_id, label, value_type, unit, value_number, value_text) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $ins->bind_param("iisssds", $followupId, $row['field_id'], $row['label'], $row['value_type'], $row['unit'], $row['number'], $row['text']);
             $ins->execute();
             $ins->close();
         }
@@ -271,6 +332,23 @@ if ($history) {
 }
 $historyLabels = array_keys($historyLabels);
 
+// Additional observations of the history: protocol fields as columns (by
+// label snapshot), free observations listed together.
+$obsByFollowup = [];
+$obsColumns = array_map(fn($f) => $f['label'], $obsFields);
+if ($history) {
+    foreach ($con->query("SELECT * FROM experiment_followup_observations WHERE followup_id IN ($ids) ORDER BY id") as $o) {
+        if ($o['field_id'] !== null) {
+            $obsByFollowup[$o['followup_id']]['fields'][$o['label']] = $o;
+            if (!in_array($o['label'], $obsColumns, true)) {
+                $obsColumns[] = $o['label'];
+            }
+        } else {
+            $obsByFollowup[$o['followup_id']]['free'][] = $o;
+        }
+    }
+}
+
 $actions = $con->prepare("SELECT * FROM endpoint_actions WHERE experiment_animal_id = ? ORDER BY status = 'pending' DESC, created_at DESC");
 $actions->bind_param("i", $experimentAnimalId);
 $actions->execute();
@@ -338,7 +416,7 @@ require 'header.php';
                 <?php if ($ea['endpoint_criteria']) : ?><div><?= nl2br(htmlspecialchars($ea['endpoint_criteria'])); ?></div><?php endif; ?>
                 <ul class="mb-0">
                     <?php foreach ($thresholds as $t) : ?>
-                        <li><?= htmlspecialchars(threshold_label($t, $grid['items'][(int) $t['grid_item_id']]['label'] ?? null)); ?>
+                        <li><?= htmlspecialchars(threshold_label($t, threshold_target_label($t, $grid, $allObsFields))); ?>
                             <?php if ($t['required_action'] !== 'none') : ?> → <strong><?= htmlspecialchars(ENDPOINT_REQUIRED_ACTIONS[$t['required_action']]); ?></strong><?php endif; ?>
                             <?= $t['action_message'] ? '— ' . htmlspecialchars($t['action_message']) : ''; ?></li>
                     <?php endforeach; ?>
@@ -391,8 +469,42 @@ require 'header.php';
                             </div>
                         <?php endif; ?>
 
+                        <?php if ($obsFields) : ?>
+                            <h6>Observations of the protocol</h6>
+                            <div class="row">
+                                <?php foreach ($obsFields as $fieldId => $field) : ?>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label" for="obs<?= (int) $fieldId; ?>"><?= htmlspecialchars($field['label']); ?><?= $field['unit'] ? ' (' . htmlspecialchars($field['unit']) . ')' : ''; ?><?= $field['required'] ? ' *' : ''; ?></label>
+                                        <?php if ($field['value_type'] === 'number') : ?>
+                                            <input type="text" inputmode="decimal" pattern="-?[0-9]+([.,][0-9]+)?" class="form-control" id="obs<?= (int) $fieldId; ?>" name="obs[<?= (int) $fieldId; ?>]" <?= $field['required'] ? 'required' : ''; ?>>
+                                        <?php else : ?>
+                                            <textarea class="form-control" id="obs<?= (int) $fieldId; ?>" name="obs[<?= (int) $fieldId; ?>]" rows="1" <?= $field['required'] ? 'required' : ''; ?>></textarea>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+
+                        <h6>Free observations <small class="text-muted">(written or numeric, for this entry only)</small></h6>
+                        <div id="extraObs"></div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary mb-3" id="addExtraObs"><i class="fas fa-plus"></i> Add an observation</button>
+                        <template id="extraObsTpl">
+                            <div class="row g-2 mb-2 extra-obs">
+                                <div class="col-md-3"><input type="text" class="form-control form-control-sm" name="extra_label[]" placeholder="Label (e.g. Food intake)"></div>
+                                <div class="col-md-2">
+                                    <select class="form-select form-select-sm extra-type" name="extra_type[]">
+                                        <option value="text">Text</option>
+                                        <option value="number">Number</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4"><input type="text" class="form-control form-control-sm" name="extra_value[]" placeholder="Value"></div>
+                                <div class="col-md-2"><input type="text" class="form-control form-control-sm extra-unit" name="extra_unit[]" placeholder="Unit"></div>
+                                <div class="col-md-1"><button type="button" class="btn btn-sm btn-outline-danger remove-extra" title="Remove">&times;</button></div>
+                            </div>
+                        </template>
+
                         <div class="mb-3">
-                            <label class="form-label">Observations</label>
+                            <label class="form-label">General observations</label>
                             <textarea class="form-control" name="observations"></textarea>
                         </div>
                         <button type="submit" class="btn btn-primary">Save Follow-up</button>
@@ -413,6 +525,8 @@ require 'header.php';
                         <th>Loss %</th>
                         <?php foreach ($historyLabels as $label) : ?><th><?= htmlspecialchars($label); ?></th><?php endforeach; ?>
                         <th>Clinical score</th>
+                        <?php foreach ($obsColumns as $label) : ?><th><?= htmlspecialchars($label); ?></th><?php endforeach; ?>
+                        <th>Other observations</th>
                         <th>Observations</th>
                         <th>Endpoint</th>
                         <th>By</th>
@@ -426,6 +540,10 @@ require 'header.php';
                             <td><?= ($h['weight_g'] !== null && !empty($ea['baseline_weight_g'])) ? round(($ea['baseline_weight_g'] - $h['weight_g']) / $ea['baseline_weight_g'] * 100, 1) : '-'; ?></td>
                             <?php foreach ($historyLabels as $label) : ?><td><?= htmlspecialchars((string) ($scoresByFollowup[$h['id']][$label] ?? '-')); ?></td><?php endforeach; ?>
                             <td><strong><?= htmlspecialchars($h['clinical_score'] ?? '-'); ?></strong></td>
+                            <?php foreach ($obsColumns as $label) : $o = $obsByFollowup[$h['id']]['fields'][$label] ?? null; ?>
+                                <td><?= $o ? htmlspecialchars(observation_value($o)) : '-'; ?></td>
+                            <?php endforeach; ?>
+                            <td><?= implode('<br>', array_map(fn($o) => '<em>' . htmlspecialchars($o['label']) . ':</em> ' . htmlspecialchars(observation_value($o)), $obsByFollowup[$h['id']]['free'] ?? [])); ?></td>
                             <td><?= htmlspecialchars($h['observations'] ?? ''); ?></td>
                             <td><?= $h['endpoint_reached'] ? 'YES' : 'No'; ?></td>
                             <td><?= htmlspecialchars($h['recorded_by_name'] ?? ''); ?></td>
@@ -463,6 +581,25 @@ require 'header.php';
     </div>
 
     <script>
+        // Free observation rows: add / remove, unit only for numbers.
+        (function() {
+            const box = document.getElementById('extraObs');
+            const tpl = document.getElementById('extraObsTpl');
+            const add = document.getElementById('addExtraObs');
+            if (!box || !tpl || !add) return;
+            add.addEventListener('click', () => {
+                const row = tpl.content.firstElementChild.cloneNode(true);
+                const type = row.querySelector('.extra-type');
+                const unit = row.querySelector('.extra-unit');
+                const sync = () => unit.style.visibility = type.value === 'number' ? 'visible' : 'hidden';
+                type.addEventListener('change', sync);
+                sync();
+                row.querySelector('.remove-extra').addEventListener('click', () => row.remove());
+                box.appendChild(row);
+                row.querySelector('input').focus();
+            });
+        })();
+
         // Live total of the grid scores.
         (function() {
             const total = document.getElementById('gridTotal');

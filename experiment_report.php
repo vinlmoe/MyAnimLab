@@ -43,6 +43,7 @@ if (!$exp) {
 
 $grid = $exp['clinical_grid_id'] ? load_clinical_grid($con, (int) $exp['clinical_grid_id']) : null;
 $thresholds = $con->query("SELECT * FROM protocol_endpoint_thresholds WHERE protocol_id = " . (int) $exp['protocol_id'])->fetch_all(MYSQLI_ASSOC);
+$obsFields = protocol_observation_fields($con, (int) $exp['protocol_id'], true);
 
 $animals = $con->prepare(
     "SELECT ea.*, m.animal_uid, m.sex, m.genotype, m.status, m.cage_id, m.exit_code, m.exit_date, m.exit_reason, m.exit_destination,
@@ -73,6 +74,32 @@ if ($animals) {
     }
 }
 
+// Additional observations: protocol fields as columns (label snapshot with
+// unit), free observations grouped in one column.
+$obsColumns = array_map(fn($f) => $f['label'] . ($f['unit'] ? " ({$f['unit']})" : ''), array_filter($obsFields, fn($f) => $f['active']));
+$obsByFollowup = [];
+if ($animals) {
+    foreach ($con->query("SELECT o.* FROM experiment_followup_observations o JOIN experiment_followups f ON f.id = o.followup_id WHERE f.experiment_animal_id IN ($eaIds) ORDER BY o.id") as $o) {
+        if ($o['field_id'] !== null) {
+            $col = $o['label'] . ($o['unit'] ? " ({$o['unit']})" : '');
+            $obsByFollowup[$o['followup_id']]['fields'][$col] = $o;
+            if (!in_array($col, $obsColumns, true)) {
+                $obsColumns[] = $col;
+            }
+        } else {
+            $obsByFollowup[$o['followup_id']]['free'][] = $o;
+        }
+    }
+}
+$freeObsText = fn($fid) => implode('; ', array_map(fn($o) => $o['label'] . ': ' . observation_value($o), $obsByFollowup[$fid]['free'] ?? []));
+$obsCell = function ($fid, $col) use ($obsByFollowup) {
+    $o = $obsByFollowup[$fid]['fields'][$col] ?? null;
+    if (!$o) {
+        return '';
+    }
+    return $o['value_type'] === 'number' ? rtrim(rtrim(number_format((float) $o['value_number'], 4, '.', ''), '0'), '.') : (string) $o['value_text'];
+};
+
 $lossPct = fn($ea, $f) => ($f['weight_g'] !== null && !empty($ea['baseline_weight_g']))
     ? round(($ea['baseline_weight_g'] - $f['weight_g']) / $ea['baseline_weight_g'] * 100, 1) : null;
 
@@ -83,7 +110,7 @@ if (($_GET['format'] ?? '') === 'csv') {
     header('Content-Disposition: attachment; filename="experiment_' . preg_replace('/[^A-Za-z0-9_-]/', '_', $exp['experiment_number']) . '_' . date('Y-m-d') . '.csv"');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF");
-    fputcsv($out, array_merge(['experiment', 'animal', 'line', 'sex', 'baseline_weight_g', 'date', 'weight_g', 'weight_loss_pct'], $itemLabels, ['clinical_score_total', 'observations', 'endpoint_reached', 'recorded_by']));
+    fputcsv($out, array_merge(['experiment', 'animal', 'line', 'sex', 'baseline_weight_g', 'date', 'weight_g', 'weight_loss_pct'], $itemLabels, ['clinical_score_total'], $obsColumns, ['other_observations', 'observations', 'endpoint_reached', 'recorded_by']));
     $safe = fn($v) => is_string($v) && preg_match('/^[=+\-@]/', $v) ? "'" . $v : $v;
     foreach ($animals as $ea) {
         foreach ($followups[$ea['id']] ?? [] as $f) {
@@ -91,7 +118,11 @@ if (($_GET['format'] ?? '') === 'csv') {
             foreach ($itemLabels as $label) {
                 $row[] = $scores[$f['id']][$label]['score'] ?? '';
             }
-            array_push($row, $f['clinical_score'], $f['observations'], $f['endpoint_reached'] ? 'yes' : 'no', $f['recorded_by_name']);
+            $row[] = $f['clinical_score'];
+            foreach ($obsColumns as $col) {
+                $row[] = $obsCell($f['id'], $col);
+            }
+            array_push($row, $freeObsText($f['id']), $f['observations'], $f['endpoint_reached'] ? 'yes' : 'no', $f['recorded_by_name']);
             fputcsv($out, array_map($safe, $row));
         }
     }
@@ -178,6 +209,18 @@ require 'header.php';
                 <p class="text-muted">No grid: free clinical score.</p>
             <?php endif; ?>
 
+            <h5>Additional observations</h5>
+            <?php if ($obsFields) : ?>
+                <table class="table table-sm table-bordered" id="obsDefinition">
+                    <thead class="table-light"><tr><th>Observation</th><th>Type</th><th>Required</th></tr></thead>
+                    <?php foreach ($obsFields as $of) : ?>
+                        <tr><td><?= htmlspecialchars($of['label']); ?><?= $of['active'] ? '' : ' <em>(no longer asked)</em>'; ?></td><td><?= $of['value_type'] === 'number' ? 'Number' . ($of['unit'] ? ' (' . htmlspecialchars($of['unit']) . ')' : '') : 'Text'; ?></td><td><?= $of['required'] ? 'Yes' : 'No'; ?></td></tr>
+                    <?php endforeach; ?>
+                </table>
+            <?php else : ?>
+                <p class="text-muted">No protocol-defined observation (free observations are listed per entry).</p>
+            <?php endif; ?>
+
             <h5>Endpoints (points limites)</h5>
             <?php if ($exp['endpoint_criteria']) : ?><p><?= nl2br(htmlspecialchars($exp['endpoint_criteria'])); ?></p><?php endif; ?>
             <table class="table table-sm table-bordered" id="endpointDefinition">
@@ -186,7 +229,7 @@ require 'header.php';
                 </thead>
                 <?php foreach ($thresholds as $t) : ?>
                     <tr>
-                        <td><?= htmlspecialchars(threshold_label($t, $grid['items'][(int) $t['grid_item_id']]['label'] ?? null)); ?></td>
+                        <td><?= htmlspecialchars(threshold_label($t, threshold_target_label($t, $grid, $obsFields))); ?></td>
                         <td><?= htmlspecialchars(ENDPOINT_REQUIRED_ACTIONS[$t['required_action']] ?? $t['required_action']); ?></td>
                         <td><?= htmlspecialchars($t['action_message'] ?? ''); ?></td>
                     </tr>
@@ -230,6 +273,8 @@ require 'header.php';
                                 <th>Loss %</th>
                                 <?php foreach ($itemLabels as $label) : ?><th><?= htmlspecialchars($label); ?></th><?php endforeach; ?>
                                 <th>Total</th>
+                                <?php foreach ($obsColumns as $col) : ?><th><?= htmlspecialchars($col); ?></th><?php endforeach; ?>
+                                <th>Other observations</th>
                                 <th>Observations</th>
                                 <th>Endpoint</th>
                                 <th>By</th>
@@ -244,12 +289,14 @@ require 'header.php';
                                     <td title="<?= htmlspecialchars($s['level_description'] ?? ''); ?>"><?= $s ? (int) $s['score'] : '-'; ?></td>
                                 <?php endforeach; ?>
                                 <td><strong><?= htmlspecialchars($f['clinical_score'] ?? '-'); ?></strong></td>
+                                <?php foreach ($obsColumns as $col) : $v = $obsCell($f['id'], $col); ?><td><?= $v === '' ? '-' : htmlspecialchars($v); ?></td><?php endforeach; ?>
+                                <td><?= htmlspecialchars($freeObsText($f['id'])); ?></td>
                                 <td><?= htmlspecialchars($f['observations'] ?? ''); ?></td>
                                 <td><?= $f['endpoint_reached'] ? 'YES' : ''; ?></td>
                                 <td><?= htmlspecialchars($f['recorded_by_name'] ?? ''); ?></td>
                             </tr>
                         <?php endforeach; ?>
-                        <?php if (!$fs) : ?><tr><td colspan="<?= 7 + count($itemLabels); ?>" class="text-muted">No follow-up recorded.</td></tr><?php endif; ?>
+                        <?php if (!$fs) : ?><tr><td colspan="<?= 8 + count($itemLabels) + count($obsColumns); ?>" class="text-muted">No follow-up recorded.</td></tr><?php endif; ?>
                     </table>
 
                     <?php if (!empty($actions[$ea['id']])) : ?>
