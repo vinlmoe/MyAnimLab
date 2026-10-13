@@ -156,7 +156,9 @@ require 'header.php';
         ?>
             <div class="card mb-3">
                 <div class="card-body">
-                    <h6><?= htmlspecialchars($e['experiment_number']); ?> — <?= htmlspecialchars($e['title']); ?></h6>
+                    <h6><?= htmlspecialchars($e['experiment_number']); ?> — <?= htmlspecialchars($e['title']); ?>
+                        <a class="btn btn-sm btn-outline-dark float-end" href="experiment_report.php?experiment_id=<?= (int) $e['id']; ?>"><i class="fas fa-file-alt"></i> Report (with grids)</a>
+                    </h6>
 
                     <table class="table table-sm">
                         <thead>

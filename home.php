@@ -66,6 +66,13 @@ $seenToday = count(array_intersect($roundCages, array_keys(cage_checks_for_date(
 $yesterday = date('Y-m-d', strtotime('-1 day'));
 $missedYesterday = count(array_diff(array_column(cages_due_on($con, $yesterday), 'cage_id'), array_keys(cage_checks_for_date($con, $yesterday))));
 
+$pendingEndpointActions = $con->query(
+    "SELECT a.*, m.animal_uid, e.experiment_number FROM endpoint_actions a
+     JOIN experiment_animals ea ON ea.id = a.experiment_animal_id
+     JOIN mice m ON m.id = ea.animal_id JOIN experiments e ON e.id = ea.experiment_id
+     WHERE a.status = 'pending' ORDER BY a.created_at"
+)->fetch_all(MYSQLI_ASSOC);
+
 $housingAnomalies = (int) $con->query(
     "SELECT COUNT(*) FROM mice m LEFT JOIN cages c ON c.cage_id = m.cage_id
      WHERE m.status = 'active' AND (c.cage_id IS NULL OR c.status <> 'active')"
@@ -117,6 +124,19 @@ require 'header.php';
                 <span aria-hidden="true">&times;</span>
             </button>
         </div>
+        <?php endif; ?>
+
+        <?php if ($pendingEndpointActions) : ?>
+            <div class="alert alert-danger" id="pendingEndpointActions">
+                <i class="fas fa-exclamation-triangle"></i> <strong><?= count($pendingEndpointActions); ?> endpoint action(s) required</strong>
+                <ul class="mb-0">
+                    <?php foreach ($pendingEndpointActions as $pa) : ?>
+                        <li><a href="experiment_followup.php?experiment_animal_id=<?= (int) $pa['experiment_animal_id']; ?>"><?= htmlspecialchars($pa['animal_uid']); ?></a>
+                            (<?= htmlspecialchars($pa['experiment_number']); ?>): <strong><?= htmlspecialchars(ENDPOINT_REQUIRED_ACTIONS[$pa['required_action']]); ?></strong>
+                            — <?= htmlspecialchars($pa['message'] ?? ''); ?> <small>(since <?= htmlspecialchars($pa['created_at']); ?>)</small></li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
         <?php endif; ?>
 
         <?php if ($housingAnomalies) : ?>
