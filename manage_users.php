@@ -42,7 +42,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $newPosition = trim($_POST['new_position'] ?? '');
         $newRole = ($_POST['new_role'] ?? '') === 'admin' ? 'admin' : 'user';
         $newPassword = $_POST['new_password'] ?? '';
-        $newBea = !empty($_POST['new_bea']) ? 1 : 0;
+        // Admins are BEA responsible by default (can be removed later with the BEA button)
+        $newBea = ($newRole === 'admin' || !empty($_POST['new_bea'])) ? 1 : 0;
 
         if ($newName === '' || $newPosition === '' || !filter_var($newEmail, FILTER_VALIDATE_EMAIL)) {
             $_SESSION['userMessage'] = ['danger', 'Name, position and a valid email are required.'];
@@ -93,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $query = "DELETE FROM users WHERE username=?";
             break;
         case 'admin':
-            $query = "UPDATE users SET role='admin' WHERE username=?";
+            $query = "UPDATE users SET role='admin', is_bea_responsible=1 WHERE username=?";
             break;
         case 'user':
             $query = "UPDATE users SET role='user' WHERE username=?";
@@ -211,6 +212,16 @@ mysqli_close($con);
             }
             return true;
         }
+
+        // Admins are BEA responsible by default
+        function syncBeaWithRole() {
+            var isAdmin = document.getElementById('new_role').value === 'admin';
+            var bea = document.getElementById('new_bea');
+            if (isAdmin) {
+                bea.checked = true;
+            }
+            bea.disabled = isAdmin;
+        }
     </script>
 </head>
 
@@ -252,7 +263,7 @@ mysqli_close($con);
                         </div>
                         <div class="col-md-3">
                             <label for="new_role" class="form-label">Role</label>
-                            <select class="form-select" id="new_role" name="new_role">
+                            <select class="form-select" id="new_role" name="new_role" onchange="syncBeaWithRole()">
                                 <option value="user" selected>User</option>
                                 <option value="admin">Admin</option>
                             </select>
