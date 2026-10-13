@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $confirmUid = trim($_POST['confirm_uid'] ?? '');
 
-    $stmt = $con->prepare("SELECT animal_uid FROM mice WHERE id = ?");
+    $stmt = $con->prepare("SELECT animal_uid, cage_id FROM mice WHERE id = ?");
     $stmt->bind_param("i", $animalId);
     $stmt->execute();
     $animal = $stmt->get_result()->fetch_assoc();
@@ -66,8 +66,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $del->execute();
         $del->close();
 
+        $retired = retire_cage_if_empty($con, $animal['cage_id'], "last animal permanently deleted", $currentUserId, $_SESSION['name'] ?? null);
+
         mysqli_commit($con);
-        $_SESSION['message'] = "Animal {$animal['animal_uid']} permanently deleted.";
+        $_SESSION['message'] = "Animal {$animal['animal_uid']} permanently deleted."
+            . ($retired ? " Cage {$animal['cage_id']} is now empty and was retired automatically." : '');
     } catch (Exception $e) {
         mysqli_rollback($con);
         $_SESSION['message'] = "Error deleting animal: " . $e->getMessage();
@@ -105,7 +108,7 @@ if (!$animal) {
         <div class="alert alert-danger">
             This action is irreversible and bypasses the normal traceability rule (records are otherwise never
             deleted, only archived/sacrificed). Only use this for genuine data-entry errors, not for normal
-            end-of-life tracking — use <a href="animal_sacrifice.php?id=<?= (int) $animal['id']; ?>">Sacrifice</a> for that.
+            end-of-life tracking — use <a href="animal_exit.php?id=<?= (int) $animal['id']; ?>">Exit (sacrifice / death / export)</a> for that.
         </div>
 
         <?php include('message.php'); ?>

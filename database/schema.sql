@@ -1,3 +1,6 @@
+-- Data below contains accented text: load it as UTF-8 whatever the client default.
+SET NAMES utf8mb4;
+
 -- Table for storing IACUC (Institutional Animal Care and Use Committee) records
 CREATE TABLE `iacuc` (
   `iacuc_id` varchar(255) NOT NULL,
@@ -34,6 +37,8 @@ CREATE TABLE `cages` (
   `status` ENUM('active','archived') NOT NULL DEFAULT 'active',
   `room` varchar(255) DEFAULT NULL,
   `rack` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  `retired_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`cage_id`),
   FOREIGN KEY (`pi_name`) REFERENCES `users` (`id`) ON DELETE SET NULL
 );
@@ -99,13 +104,21 @@ CREATE TABLE `breeding` (
 CREATE TABLE `litters` (
   `id` int NOT NULL AUTO_INCREMENT,
   `cage_id` varchar(255) NOT NULL,
-  `dom` date NOT NULL,
+  `dom` date DEFAULT NULL,
   `litter_dob` date DEFAULT NULL,
   `pups_alive` int NOT NULL,
   `pups_dead` int NOT NULL,
   `pups_male` int DEFAULT NULL,
   `pups_female` int DEFAULT NULL,
   `remarks` text DEFAULT NULL,
+  `sire_id` int DEFAULT NULL,
+  `dam_id` int DEFAULT NULL,
+  `status` ENUM('nursing','weaned','closed') NOT NULL DEFAULT 'nursing',
+  `expected_weaning_date` date DEFAULT NULL,
+  `weaned_at` date DEFAULT NULL,
+  `weaned_males` int DEFAULT NULL,
+  `weaned_females` int DEFAULT NULL,
+  `closed_reason` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`cage_id`) REFERENCES `cages` (`cage_id`) ON UPDATE CASCADE
 );
@@ -164,11 +177,15 @@ CREATE TABLE `mice` (
   `animal_uid` varchar(50) DEFAULT NULL UNIQUE,
   `mouse_id` varchar(255) DEFAULT NULL,
   `sex` ENUM('male','female') DEFAULT NULL,
+  `dob` date DEFAULT NULL,
+  `distinctive_mark` varchar(255) DEFAULT NULL,
   `genotype` varchar(255) DEFAULT NULL,
   `notes` text DEFAULT NULL,
-  `status` ENUM('active','sacrificed','transferred_out','archived') NOT NULL DEFAULT 'active',
+  `status` ENUM('active','sacrificed','dead','transferred_out','archived') NOT NULL DEFAULT 'active',
   `exit_date` date DEFAULT NULL,
   `exit_reason` text DEFAULT NULL,
+  `exit_destination` varchar(255) DEFAULT NULL,
+  `exit_code` varchar(40) DEFAULT NULL,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`cage_id`) REFERENCES `cages` (`cage_id`) ON UPDATE CASCADE ON DELETE SET NULL,
   FOREIGN KEY (`line_id`) REFERENCES `animal_lines` (`id`) ON DELETE SET NULL
@@ -223,7 +240,7 @@ CREATE TABLE `animal_parentage` (
 CREATE TABLE `animal_events` (
   `id` int NOT NULL AUTO_INCREMENT,
   `animal_id` int NOT NULL,
-  `event_type` ENUM('created','transferred','status_change','experiment_start','experiment_end','endpoint_alert','note') NOT NULL,
+  `event_type` ENUM('created','transferred','status_change','experiment_start','experiment_end','endpoint_alert','note','health_report') NOT NULL,
   `payload` JSON DEFAULT NULL,
   `created_by` int DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
@@ -260,6 +277,7 @@ CREATE TABLE `protocols` (
   `start_date` date DEFAULT NULL,
   `end_date` date DEFAULT NULL,
   `status` ENUM('planned','active','completed','cancelled') NOT NULL DEFAULT 'planned',
+  `clinical_grid_id` int DEFAULT NULL,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`trial_id`) REFERENCES `trials` (`id`) ON DELETE CASCADE
 );
@@ -267,10 +285,13 @@ CREATE TABLE `protocols` (
 CREATE TABLE `protocol_endpoint_thresholds` (
   `id` int NOT NULL AUTO_INCREMENT,
   `protocol_id` int NOT NULL,
-  `metric` ENUM('weight_loss_pct','clinical_score','custom') NOT NULL,
+  `metric` ENUM('weight_loss_pct','clinical_score','custom','item_score','observation') NOT NULL,
+  `grid_item_id` int DEFAULT NULL,
+  `observation_field_id` int DEFAULT NULL,
   `operator` ENUM('>','>=','<','<=') NOT NULL,
   `value` decimal(10,2) NOT NULL,
   `action_message` varchar(255) DEFAULT NULL,
+  `required_action` ENUM('none','euthanasia','call_vet','increase_monitoring','other') NOT NULL DEFAULT 'none',
   PRIMARY KEY (`id`),
   FOREIGN KEY (`protocol_id`) REFERENCES `protocols` (`id`) ON DELETE CASCADE
 );
@@ -315,6 +336,273 @@ CREATE TABLE `experiment_followups` (
   UNIQUE KEY `uq_followup_day` (`experiment_animal_id`, `observed_at`),
   FOREIGN KEY (`experiment_animal_id`) REFERENCES `experiment_animals` (`id`) ON DELETE CASCADE,
   FOREIGN KEY (`recorded_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+);
+
+-- Sanitary (health) registry. Append-only by design: a report and every
+-- follow-up entry are permanent. The current status/severity of a report is
+-- its latest health_report_updates row, so nothing ever needs an UPDATE.
+-- animal_uid / cage_id / line_code are snapshots taken at report time and
+-- there is deliberately no FK to mice/users, so the registry survives an
+-- animal's permanent deletion and a user's removal.
+CREATE TABLE `health_reports` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `animal_id` int NOT NULL,
+  `animal_uid` varchar(50) DEFAULT NULL,
+  `cage_id` varchar(255) DEFAULT NULL,
+  `line_code` varchar(20) DEFAULT NULL,
+  `observed_at` date NOT NULL,
+  `category` varchar(50) NOT NULL,
+  `severity` ENUM('minor','moderate','severe','critical') NOT NULL,
+  `description` text NOT NULL,
+  `reported_by` int DEFAULT NULL,
+  `reported_by_name` varchar(255) DEFAULT NULL,
+  `reported_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_health_reports_animal` (`animal_id`),
+  KEY `idx_health_reports_cage` (`cage_id`)
+);
+
+CREATE TABLE `health_report_updates` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `report_id` int NOT NULL,
+  `status` ENUM('open','monitoring','resolved') NOT NULL,
+  `severity` ENUM('minor','moderate','severe','critical') NOT NULL,
+  `note` text NOT NULL,
+  `created_by` int DEFAULT NULL,
+  `created_by_name` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_health_updates_report` (`report_id`),
+  FOREIGN KEY (`report_id`) REFERENCES `health_reports` (`id`) ON DELETE RESTRICT
+);
+
+-- Database-level protection: no UPDATE or DELETE, whatever the code path.
+CREATE TRIGGER `health_reports_no_update` BEFORE UPDATE ON `health_reports`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Health registry is append-only';
+CREATE TRIGGER `health_reports_no_delete` BEFORE DELETE ON `health_reports`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Health registry is append-only';
+CREATE TRIGGER `health_report_updates_no_update` BEFORE UPDATE ON `health_report_updates`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Health registry is append-only';
+CREATE TRIGGER `health_report_updates_no_delete` BEFORE DELETE ON `health_report_updates`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Health registry is append-only';
+
+-- Daily cage checks (visite journalière). Every active cage must be seen at
+-- least once a day, either by the routine round (room by room or by scanning
+-- the cage QR code) or automatically through the experimental daily follow-up
+-- or a health report. Append-only, like the health registry: no FK to cages
+-- so the history survives a cage's removal, and triggers reject UPDATE/DELETE.
+CREATE TABLE `cage_checks` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `cage_id` varchar(255) NOT NULL,
+  `check_date` date NOT NULL,
+  `check_type` ENUM('routine','experimental','health_report','creation') NOT NULL,
+  `result` ENUM('ok','issue') NOT NULL,
+  `method` ENUM('round','qr','cage_page','auto') NOT NULL,
+  `note` text DEFAULT NULL,
+  `health_report_id` int DEFAULT NULL,
+  `checked_by` int DEFAULT NULL,
+  `checked_by_name` varchar(255) DEFAULT NULL,
+  `checked_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_cage_checks_date_cage` (`check_date`, `cage_id`)
+);
+
+CREATE TRIGGER `cage_checks_no_update` BEFORE UPDATE ON `cage_checks`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cage check log is append-only';
+CREATE TRIGGER `cage_checks_no_delete` BEFORE DELETE ON `cage_checks`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cage check log is append-only';
+
+-- Cage lifecycle: when each cage entered and left service. The daily round
+-- only expects a cage to be seen on days it actually existed. A cage can be
+-- retired (archived) and later restored, so every transition is kept in an
+-- append-only log; cages.created_at / retired_at hold the current values.
+CREATE TABLE `cage_lifecycle` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `cage_id` varchar(255) NOT NULL,
+  `event` ENUM('created','retired','restored') NOT NULL,
+  `event_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `reason` text DEFAULT NULL,
+  `user_id` int DEFAULT NULL,
+  `user_name` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_cage_lifecycle_cage` (`cage_id`, `event_at`)
+);
+
+CREATE TRIGGER `cage_lifecycle_no_update` BEFORE UPDATE ON `cage_lifecycle`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cage lifecycle log is append-only';
+CREATE TRIGGER `cage_lifecycle_no_delete` BEFORE DELETE ON `cage_lifecycle`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cage lifecycle log is append-only';
+
+-- Housing invariant: every living (active) animal is in an active cage.
+-- Enforced in the database so no code path can break it: an active animal
+-- cannot be placed without a cage or into a retired cage, and a cage cannot
+-- be retired while it still houses living animals (each must first be
+-- given a fate: exit or move to another cage, see cage_retire.php).
+DELIMITER $$
+CREATE TRIGGER `mice_active_needs_cage_insert` BEFORE INSERT ON `mice` FOR EACH ROW
+BEGIN
+  IF NEW.status = 'active' AND (NEW.cage_id IS NULL
+      OR NOT EXISTS (SELECT 1 FROM cages c WHERE c.cage_id = NEW.cage_id AND c.status = 'active')) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'A living animal must be housed in an active cage';
+  END IF;
+END$$
+CREATE TRIGGER `mice_active_needs_cage_update` BEFORE UPDATE ON `mice` FOR EACH ROW
+BEGIN
+  IF NEW.status = 'active' AND (NOT (NEW.cage_id <=> OLD.cage_id) OR NEW.status <> OLD.status)
+     AND (NEW.cage_id IS NULL
+      OR NOT EXISTS (SELECT 1 FROM cages c WHERE c.cage_id = NEW.cage_id AND c.status = 'active')) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'A living animal must be housed in an active cage';
+  END IF;
+END$$
+CREATE TRIGGER `cages_no_retire_with_animals` BEFORE UPDATE ON `cages` FOR EACH ROW
+BEGIN
+  IF OLD.status = 'active' AND NEW.status <> 'active'
+     AND EXISTS (SELECT 1 FROM mice m WHERE m.cage_id = OLD.cage_id AND m.status = 'active') THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cage still houses living animals: give each one a fate first';
+  END IF;
+END$$
+DELIMITER ;
+
+-- Clinical scoring grids (grilles d'évaluation clinique): a reusable library.
+-- A grid has items (criteria such as posture or respiration), each scored on
+-- levels (0 = normal ... 3 = severe). A protocol uses one grid for the daily
+-- follow-up of its animals. A grid becomes read-only once scores reference
+-- it; changes are made on a duplicate so recorded follow-ups stay exact.
+CREATE TABLE `clinical_grids` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL,
+  `description` text DEFAULT NULL,
+  `created_by` int DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`)
+);
+
+CREATE TABLE `clinical_grid_items` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `grid_id` int NOT NULL,
+  `position` int NOT NULL DEFAULT 0,
+  `label` varchar(255) NOT NULL,
+  PRIMARY KEY (`id`),
+  FOREIGN KEY (`grid_id`) REFERENCES `clinical_grids` (`id`) ON DELETE CASCADE
+);
+
+CREATE TABLE `clinical_grid_levels` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `item_id` int NOT NULL,
+  `score` int NOT NULL,
+  `description` varchar(255) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_grid_level` (`item_id`, `score`),
+  FOREIGN KEY (`item_id`) REFERENCES `clinical_grid_items` (`id`) ON DELETE CASCADE
+);
+
+-- Item scores of each daily follow-up, with label/description snapshots so
+-- reports stay exact whatever happens to the grid later.
+CREATE TABLE `experiment_followup_scores` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `followup_id` int NOT NULL,
+  `grid_item_id` int DEFAULT NULL,
+  `item_label` varchar(255) NOT NULL,
+  `score` int NOT NULL,
+  `level_description` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_followup_item` (`followup_id`, `grid_item_id`),
+  FOREIGN KEY (`followup_id`) REFERENCES `experiment_followups` (`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`grid_item_id`) REFERENCES `clinical_grid_items` (`id`) ON DELETE SET NULL
+);
+
+-- Action the experimenter must take when an endpoint (point limite) is
+-- reached: pending until done (euthanasia is completed by the animal's exit,
+-- other actions by a written note such as the vet's decision).
+CREATE TABLE `endpoint_actions` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `experiment_animal_id` int NOT NULL,
+  `followup_id` int DEFAULT NULL,
+  `threshold_id` int DEFAULT NULL,
+  `required_action` ENUM('euthanasia','call_vet','increase_monitoring','other') NOT NULL,
+  `message` varchar(512) DEFAULT NULL,
+  `measured_value` decimal(10,2) DEFAULT NULL,
+  `status` ENUM('pending','done') NOT NULL DEFAULT 'pending',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `done_at` timestamp NULL DEFAULT NULL,
+  `done_by` int DEFAULT NULL,
+  `done_by_name` varchar(255) DEFAULT NULL,
+  `done_note` text DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_endpoint_actions_status` (`status`),
+  FOREIGN KEY (`experiment_animal_id`) REFERENCES `experiment_animals` (`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`followup_id`) REFERENCES `experiment_followups` (`id`) ON DELETE SET NULL,
+  FOREIGN KEY (`threshold_id`) REFERENCES `protocol_endpoint_thresholds` (`id`) ON DELETE SET NULL
+);
+
+-- Starter grid (generic rodent welfare score sheet), editable via a duplicate.
+INSERT INTO `clinical_grids` (`id`, `name`, `description`) VALUES
+  (1, 'Grille générique rongeur', 'Évaluation clinique quotidienne : 0 = normal, 3 = atteinte sévère.');
+INSERT INTO `clinical_grid_items` (`id`, `grid_id`, `position`, `label`) VALUES
+  (1, 1, 1, 'Apparence / pelage'),
+  (2, 1, 2, 'Posture'),
+  (3, 1, 3, 'Comportement / activité'),
+  (4, 1, 4, 'Respiration');
+INSERT INTO `clinical_grid_levels` (`item_id`, `score`, `description`) VALUES
+  (1, 0, 'Normal'), (1, 1, 'Pelage terne, toilettage réduit'), (1, 2, 'Poils hérissés, écoulements'), (1, 3, 'Pelage très dégradé, plaies'),
+  (2, 0, 'Normale'), (2, 1, 'Dos légèrement voûté'), (2, 2, 'Dos voûté marqué'), (2, 3, 'Prostration'),
+  (3, 0, 'Normal, actif'), (3, 1, 'Activité réduite'), (3, 2, 'Isolé, peu réactif'), (3, 3, 'Inerte, ne réagit pas à la stimulation'),
+  (4, 0, 'Normale'), (4, 1, 'Légèrement modifiée'), (4, 2, 'Accélérée ou abdominale'), (4, 3, 'Détresse respiratoire');
+
+-- Additional observations of the experimental daily follow-up, written or
+-- numeric. A protocol can define its own fields (e.g. "Temperature", °C,
+-- number; "Wound aspect", text), entered at every follow-up; numeric fields
+-- can carry endpoints. Free ad-hoc observations can also be added to any
+-- entry. Values keep a snapshot of the label/unit for exact reports. A field
+-- is never deleted, only deactivated (active = 0), so its values stay linked.
+CREATE TABLE `protocol_observation_fields` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `protocol_id` int NOT NULL,
+  `position` int NOT NULL DEFAULT 0,
+  `label` varchar(255) NOT NULL,
+  `value_type` ENUM('number','text') NOT NULL,
+  `unit` varchar(50) DEFAULT NULL,
+  `required` tinyint(1) NOT NULL DEFAULT 0,
+  `active` tinyint(1) NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id`),
+  FOREIGN KEY (`protocol_id`) REFERENCES `protocols` (`id`) ON DELETE CASCADE
+);
+
+CREATE TABLE `experiment_followup_observations` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `followup_id` int NOT NULL,
+  `field_id` int DEFAULT NULL,
+  `label` varchar(255) NOT NULL,
+  `value_type` ENUM('number','text') NOT NULL,
+  `unit` varchar(50) DEFAULT NULL,
+  `value_number` decimal(14,4) DEFAULT NULL,
+  `value_text` text DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_followup_obs` (`followup_id`),
+  FOREIGN KEY (`followup_id`) REFERENCES `experiment_followups` (`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`field_id`) REFERENCES `protocol_observation_fields` (`id`) ON DELETE SET NULL
+);
+
+-- Litter lifecycle (portée): birth -> nursing (deaths, sexing) -> weaning.
+-- At weaning the pups become identified animals (line UID, sex, date of
+-- birth, parentage sire/dam/litter) in new or existing holding cages.
+-- litter_events is the litter's journal. A weaned or closed litter can no
+-- longer be edited or deleted.
+CREATE TABLE `litter_events` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `litter_id` int NOT NULL,
+  `event` ENUM('birth','death','sexing','weaning','closed','note') NOT NULL,
+  `event_date` date NOT NULL,
+  `count` int DEFAULT NULL,
+  `males` int DEFAULT NULL,
+  `females` int DEFAULT NULL,
+  `note` text DEFAULT NULL,
+  `user_id` int DEFAULT NULL,
+  `user_name` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_litter_events_litter` (`litter_id`),
+  FOREIGN KEY (`litter_id`) REFERENCES `litters` (`id`) ON DELETE CASCADE
 );
 
 -- Table for storing tasks information
@@ -391,7 +679,7 @@ CREATE TABLE `notifications` (
   `title` varchar(255) NOT NULL,
   `message` text DEFAULT NULL,
   `link` varchar(255) DEFAULT NULL,
-  `type` ENUM('reminder','task','system','endpoint_alert') NOT NULL DEFAULT 'system',
+  `type` ENUM('reminder','task','system','endpoint_alert','health_alert') NOT NULL DEFAULT 'system',
   `is_read` tinyint(1) NOT NULL DEFAULT 0,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),

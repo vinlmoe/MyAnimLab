@@ -111,6 +111,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->bind_param("siss", $cage_id, $pi_name, $qty, $remarks);
             $stmt->execute();
 
+            // Room / rack locate the cage for the daily round.
+            $room = trim($_POST['room'] ?? '') ?: null;
+            $rack = trim($_POST['rack'] ?? '') ?: null;
+            $stmtLoc = $con->prepare("UPDATE cages SET room = ?, rack = ? WHERE cage_id = ?");
+            $stmtLoc->bind_param("sss", $room, $rack, $cage_id);
+            $stmtLoc->execute();
+            $stmtLoc->close();
+
             // Insert data into holding table (parent_cg is no longer collected:
             // real lineage, when it exists, is tracked via animal_parentage instead)
             $query2 = "INSERT INTO holding (cage_id, strain, dob) VALUES (?, ?, ?)";
@@ -125,9 +133,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 for ($i = 0; $i < $count; $i++) {
                     $animal_uid = allocate_animal_uid($con, $line_id);
 
-                    $query3 = "INSERT INTO mice (cage_id, line_id, animal_uid, sex, genotype) VALUES (?, ?, ?, ?, ?)";
+                    $query3 = "INSERT INTO mice (cage_id, line_id, animal_uid, sex, genotype, dob) VALUES (?, ?, ?, ?, ?, ?)";
                     $stmt3 = $con->prepare($query3);
-                    $stmt3->bind_param("sisss", $cage_id, $line_id, $animal_uid, $sex, $genotype);
+                    $stmt3->bind_param("sissss", $cage_id, $line_id, $animal_uid, $sex, $genotype, $dob);
                     $stmt3->execute();
                     $new_animal_id = $con->insert_id;
 
@@ -157,6 +165,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt5->execute();
                 }
             }
+
+            // Start of the cage's life: from today it must be seen daily. Creating it
+            // means its animals were just handled, so it counts as today's check.
+            log_cage_lifecycle($con, $cage_id, 'created', null, $_SESSION['user_id'] ?? null, $_SESSION['name'] ?? null);
+            record_cage_check($con, $cage_id, 'creation', 'ok', 'auto', 'Cage created', null, $_SESSION['user_id'] ?? null, $_SESSION['name'] ?? null);
 
             log_activity($con, 'create', 'cage', $cage_id, "Holding cage created with $male_count male(s) and $female_count female(s).", $_SESSION['user_id'] ?? null);
 
@@ -473,6 +486,22 @@ require 'header.php';
                     <label for="female_count" class="form-label">Number of Females <span class="required-asterisk">*</span></label>
                     <input type="number" class="form-control" id="female_count" name="female_count" min="0" value="0" required>
                 </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="room" class="form-label">Room</label>
+                    <input type="text" class="form-control" id="room" name="room" list="roomList" value="" placeholder="Used to organise the daily round">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="rack" class="form-label">Rack</label>
+                    <input type="text" class="form-control" id="rack" name="rack" value="">
+                </div>
+                <datalist id="roomList">
+                    <?php foreach ($con->query("SELECT DISTINCT room FROM cages WHERE room IS NOT NULL AND room <> '' ORDER BY room") as $roomRow) : ?>
+                        <option value="<?= htmlspecialchars($roomRow['room']); ?>">
+                    <?php endforeach; ?>
+                </datalist>
             </div>
 
             <div class="mb-3">

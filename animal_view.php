@@ -11,6 +11,7 @@
 
 session_start();
 require 'dbcon.php';
+require 'animal_lib.php';
 
 if (!isset($_SESSION['username'])) {
     $currentUrl = urlencode($_SERVER['REQUEST_URI']);
@@ -21,6 +22,10 @@ if (!isset($_SESSION['username'])) {
 require 'header.php';
 
 $animalId = (int) ($_GET['id'] ?? 0);
+
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
 
 $stmt = $con->prepare(
     "SELECT m.*, al.code AS line_code, al.name AS line_name, al.species
@@ -82,6 +87,12 @@ $experiments->bind_param("i", $animalId);
 $experiments->execute();
 $experiments = $experiments->get_result();
 
+$healthReports = $con->prepare(HEALTH_REPORTS_WITH_STATE_SQL . " WHERE r.animal_id = ? ORDER BY r.id DESC");
+$healthReports->bind_param("i", $animalId);
+$healthReports->execute();
+$healthReports = $healthReports->get_result()->fetch_all(MYSQLI_ASSOC);
+$openHealthIssues = count(array_filter($healthReports, fn($r) => $r['current_status'] !== 'resolved'));
+
 $events = $con->prepare("SELECT * FROM animal_events WHERE animal_id = ? ORDER BY created_at DESC LIMIT 50");
 $events->bind_param("i", $animalId);
 $events->execute();
@@ -90,6 +101,7 @@ $events = $events->get_result();
 $statusBadge = [
     'active' => 'success',
     'sacrificed' => 'dark',
+    'dead' => 'dark',
     'transferred_out' => 'secondary',
     'archived' => 'secondary',
 ][$animal['status']] ?? 'secondary';
@@ -117,26 +129,57 @@ $statusBadge = [
         <h4>
             Animal <?= htmlspecialchars($animal['animal_uid'] ?? $animal['mouse_id'] ?? ('#' . $animal['id'])); ?>
             <span class="badge bg-<?= $statusBadge; ?>"><?= htmlspecialchars($animal['status']); ?></span>
+            <?php if ($openHealthIssues) : ?>
+                <a href="#health" class="badge bg-danger text-decoration-none"><?= $openHealthIssues; ?> open health issue(s)</a>
+            <?php endif; ?>
             <?php if ($animal['status'] === 'active') : ?>
-                <a href="animal_transfer.php" class="btn btn-sm btn-outline-primary">Transfer</a>
-                <a href="animal_sacrifice.php?id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-danger">Sacrifice</a>
+                <a href="animal_transfer.php?animal_id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-primary">Transfer</a>
+                <a href="health_report.php?animal_id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-warning">Report Health Issue</a>
+                <a href="animal_exit.php?id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-danger">Exit (sacrifice / death / export)</a>
             <?php endif; ?>
             <?php if (($_SESSION['role'] ?? '') === 'admin') : ?>
                 <a href="animal_hard_delete.php?id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-dark">Permanently Delete (admin)</a>
             <?php endif; ?>
         </h4>
 
+        <?php include('message.php'); ?>
+
         <div class="card">
             <div class="card-body">
                 <h5 class="card-title">Identity</h5>
                 <p><strong>Line:</strong> <?= htmlspecialchars($animal['line_code'] ? "{$animal['line_code']} - {$animal['line_name']} ({$animal['species']})" : 'N/A'); ?></p>
                 <p><strong>Sex:</strong> <?= htmlspecialchars($animal['sex'] ?? 'N/A'); ?></p>
+                <p><strong>Date of birth:</strong> <?= htmlspecialchars($animal['dob'] ?? 'N/A'); ?></p>
                 <p><strong>Tag / mouse_id:</strong> <?= htmlspecialchars($animal['mouse_id'] ?? 'N/A'); ?></p>
                 <p><strong>Genotype:</strong> <?= htmlspecialchars($animal['genotype'] ?? 'N/A'); ?></p>
-                <p><strong>Current cage:</strong> <?= htmlspecialchars($animal['cage_id'] ?? 'N/A'); ?></p>
+                <form method="POST" action="animal_mark.php" class="row g-2 align-items-center mb-3" id="markForm">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>">
+                    <input type="hidden" name="animal_id" value="<?= (int) $animal['id']; ?>">
+                    <div class="col-auto"><label for="distinctive_mark" class="col-form-label fw-bold">Distinctive mark:</label></div>
+                    <div class="col">
+                        <input type="text" class="form-control" id="distinctive_mark" name="distinctive_mark" maxlength="255" list="markSuggestions"
+                            value="<?= htmlspecialchars($animal['distinctive_mark'] ?? ''); ?>" placeholder="e.g. left ear punch, tail mark 2 stripes, chip 250269..., white spot on head">
+                        <datalist id="markSuggestions">
+                            <option value="Right ear punch"><option value="Left ear punch"><option value="Both ears punched">
+                            <option value="Tail mark: 1 stripe"><option value="Tail mark: 2 stripes"><option value="Tattoo: ">
+                            <option value="RFID chip: "><option value="Coat colour: "><option value="Scar: ">
+                        </datalist>
+                    </div>
+                    <div class="col-auto"><button type="submit" class="btn btn-outline-primary btn-sm">Save mark</button></div>
+                </form>
+                <p><strong>Current cage:</strong>
+                    <?php if ($animal['cage_id']) : ?>
+                        <?= htmlspecialchars($animal['cage_id']); ?>
+                        <a href="animal_search.php?list=1&amp;status=all&amp;cage_id=<?= rawurlencode($animal['cage_id']); ?>" class="small">(cage mates)</a>
+                    <?php else : ?>N/A<?php endif; ?>
+                </p>
                 <?php if ($animal['status'] !== 'active') : ?>
                     <p><strong>Exit date:</strong> <?= htmlspecialchars($animal['exit_date'] ?? 'N/A'); ?></p>
+                    <p><strong>Exit code:</strong> <?= htmlspecialchars(exit_label($animal['exit_code'] ?? null, $animal['status'])); ?></p>
                     <p><strong>Exit reason:</strong> <?= htmlspecialchars($animal['exit_reason'] ?? 'N/A'); ?></p>
+                    <?php if (!empty($animal['exit_destination'])) : ?>
+                        <p><strong>Exported to:</strong> <?= htmlspecialchars($animal['exit_destination']); ?></p>
+                    <?php endif; ?>
                 <?php endif; ?>
                 <p><strong>Notes:</strong> <?= nl2br(htmlspecialchars($animal['notes'] ?? '')); ?></p>
             </div>
@@ -148,6 +191,9 @@ $statusBadge = [
                 <?php if ($parentage) : ?>
                     <p><strong>Sire:</strong> <?= htmlspecialchars($parentage['sire_uid'] ?? 'Unknown/external'); ?></p>
                     <p><strong>Dam:</strong> <?= htmlspecialchars($parentage['dam_uid'] ?? 'Unknown/external'); ?></p>
+                    <?php if (!empty($parentage['litter_id'])) : ?>
+                        <p><strong>Litter:</strong> <a href="litter_manage.php?litter_id=<?= (int) $parentage['litter_id']; ?>">#<?= (int) $parentage['litter_id']; ?></a></p>
+                    <?php endif; ?>
                 <?php else : ?>
                     <p class="text-muted">No recorded parentage (external origin).</p>
                 <?php endif; ?>
@@ -217,6 +263,42 @@ $statusBadge = [
                                     <td><?= htmlspecialchars($e['removed_at'] ?? '-'); ?></td>
                                 </tr>
                             <?php endwhile; ?>
+                        </tbody>
+                    </table>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <div class="card" id="health">
+            <div class="card-body">
+                <h5 class="card-title">Health Reports</h5>
+                <?php if (empty($healthReports)) : ?>
+                    <p class="text-muted">No health issue reported.</p>
+                <?php else : ?>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Observed</th>
+                                <th>Category</th>
+                                <th>Severity</th>
+                                <th>Status</th>
+                                <th>Cage</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($healthReports as $hr) : ?>
+                                <tr>
+                                    <td><?= (int) $hr['id']; ?></td>
+                                    <td><?= htmlspecialchars($hr['observed_at']); ?></td>
+                                    <td><?= htmlspecialchars(HEALTH_CATEGORIES[$hr['category']] ?? $hr['category']); ?></td>
+                                    <td><?= health_badge($hr['current_severity'], HEALTH_SEVERITIES); ?></td>
+                                    <td><?= health_badge($hr['current_status'], HEALTH_STATUSES); ?></td>
+                                    <td><?= htmlspecialchars($hr['cage_id'] ?? '-'); ?></td>
+                                    <td><a href="health_report_view.php?id=<?= (int) $hr['id']; ?>" class="btn btn-sm btn-outline-primary">Follow-up</a></td>
+                                </tr>
+                            <?php endforeach; ?>
                         </tbody>
                     </table>
                 <?php endif; ?>

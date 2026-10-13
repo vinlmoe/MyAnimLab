@@ -79,6 +79,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $insert_cage_query->bind_param("sss", $cage_id, $pi_id, $remarks);
             $insert_cage_query->execute();
 
+            // Room / rack locate the cage for the daily round.
+            $room = trim($_POST['room'] ?? '') ?: null;
+            $rack = trim($_POST['rack'] ?? '') ?: null;
+            $stmtLoc = $con->prepare("UPDATE cages SET room = ?, rack = ? WHERE cage_id = ?");
+            $stmtLoc->bind_param("sss", $room, $rack, $cage_id);
+            $stmtLoc->execute();
+            $stmtLoc->close();
+
             // Insert into the breeding table
             $insert_breeding_query = $con->prepare("INSERT INTO breeding (`cage_id`, `cross`) VALUES (?, ?)");
             $insert_breeding_query->bind_param("ss", $cage_id, $cross);
@@ -134,6 +142,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $insert_cage_user_query->close();
             }
 
+            // Start of the cage's life: from today it must be seen daily. Creating it
+            // means its animals were just handled, so it counts as today's check.
+            log_cage_lifecycle($con, $cage_id, 'created', null, $_SESSION['user_id'] ?? null, $_SESSION['name'] ?? null);
+            record_cage_check($con, $cage_id, 'creation', 'ok', 'auto', 'Cage created', null, $_SESSION['user_id'] ?? null, $_SESSION['name'] ?? null);
+
             log_activity($con, 'create', 'cage', $cage_id, "Breeding cage created with $male_count male(s) and $female_count female(s).", $_SESSION['user_id'] ?? null);
 
             // Process litter data insertion if provided
@@ -156,8 +169,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 // Loop through each litter entry and insert into the database
                 for ($i = 0; $i < count($dom); $i++) {
-                    $insert_litter_query = $con->prepare("INSERT INTO litters (`cage_id`, `dom`, `litter_dob`, `pups_alive`, `pups_dead`, `pups_male`, `pups_female`, `remarks`) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-                    $insert_litter_query->bind_param("ssssssss", $cage_id, $dom[$i], $litter_dob[$i], $pups_alive[$i], $pups_dead[$i], $pups_male[$i], $pups_female[$i], $litter_remarks[$i]);
+                    $expected = $litter_dob[$i] ? date('Y-m-d', strtotime($litter_dob[$i] . ' +' . weaning_age_days($con) . ' days')) : null;
+                    $insert_litter_query = $con->prepare("INSERT INTO litters (`cage_id`, `dom`, `litter_dob`, `pups_alive`, `pups_dead`, `pups_male`, `pups_female`, `remarks`, `expected_weaning_date`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    $insert_litter_query->bind_param("sssssssss", $cage_id, $dom[$i], $litter_dob[$i], $pups_alive[$i], $pups_dead[$i], $pups_male[$i], $pups_female[$i], $litter_remarks[$i], $expected);
 
                     // Execute the statement and check if it was successful
                     if ($insert_litter_query->execute()) {
@@ -536,6 +550,22 @@ require 'header.php';
                     <label for="female_count" class="form-label">Number of Female Breeders <span class="required-asterisk">*</span></label>
                     <input type="number" class="form-control" id="female_count" name="female_count" min="0" value="0" required>
                 </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="room" class="form-label">Room</label>
+                    <input type="text" class="form-control" id="room" name="room" list="roomList" value="" placeholder="Used to organise the daily round">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="rack" class="form-label">Rack</label>
+                    <input type="text" class="form-control" id="rack" name="rack" value="">
+                </div>
+                <datalist id="roomList">
+                    <?php foreach ($con->query("SELECT DISTINCT room FROM cages WHERE room IS NOT NULL AND room <> '' ORDER BY room") as $roomRow) : ?>
+                        <option value="<?= htmlspecialchars($roomRow['room']); ?>">
+                    <?php endforeach; ?>
+                </datalist>
             </div>
 
             <div class="mb-3">

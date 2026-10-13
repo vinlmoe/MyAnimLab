@@ -15,8 +15,6 @@ if (!isset($_SESSION['username'])) {
     exit;
 }
 
-require 'header.php';
-
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
@@ -30,6 +28,7 @@ $protocolStmt->execute();
 $protocol = $protocolStmt->get_result()->fetch_assoc();
 
 if (!$protocol) {
+    require 'header.php';
     echo "<div class='container mt-4'><div class='alert alert-danger'>Protocol not found.</div></div>";
     require 'footer.php';
     exit;
@@ -69,10 +68,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $stmt = $con->prepare("INSERT INTO experiment_animals (experiment_id, animal_id, baseline_weight_g) VALUES (?, ?, ?)");
         $stmt->bind_param("iid", $experimentId, $animalId, $baselineWeight);
-        if ($stmt->execute()) {
+        // mysqli throws on the uq_experiment_animal duplicate (PHP >= 8.1 default report mode)
+        try {
+            $stmt->execute();
             log_animal_event($con, $animalId, 'experiment_start', ['experiment_id' => $experimentId], $currentUserId);
             $_SESSION['message'] = "Animal enrolled successfully.";
-        } else {
+        } catch (mysqli_sql_exception $e) {
+            if ($e->getCode() !== 1062) {
+                throw $e;
+            }
             $_SESSION['message'] = "Animal already enrolled in this experiment.";
         }
         $stmt->close();
@@ -92,6 +96,9 @@ $activeAnimalsList = [];
 while ($row = $activeAnimals->fetch_assoc()) {
     $activeAnimalsList[] = $row;
 }
+// Render the shared header only after request handling. Including it before the
+// POST redirect sends HTML output and prevents PHP from modifying headers.
+require 'header.php';
 ?>
 
 <!doctype html>
@@ -149,7 +156,9 @@ while ($row = $activeAnimals->fetch_assoc()) {
         ?>
             <div class="card mb-3">
                 <div class="card-body">
-                    <h6><?= htmlspecialchars($e['experiment_number']); ?> — <?= htmlspecialchars($e['title']); ?></h6>
+                    <h6><?= htmlspecialchars($e['experiment_number']); ?> — <?= htmlspecialchars($e['title']); ?>
+                        <a class="btn btn-sm btn-outline-dark float-end" href="experiment_report.php?experiment_id=<?= (int) $e['id']; ?>"><i class="fas fa-file-alt"></i> Report (with grids)</a>
+                    </h6>
 
                     <table class="table table-sm">
                         <thead>

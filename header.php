@@ -13,7 +13,7 @@ header("X-Frame-Options: SAMEORIGIN"); // Prevent clickjacking
 header("X-Content-Type-Options: nosniff"); // Prevent MIME type sniffing
 header("X-XSS-Protection: 1; mode=block"); // Enable browser XSS protection
 header("Referrer-Policy: strict-origin-when-cross-origin"); // Control referrer information
-header("Permissions-Policy: geolocation=(), microphone=(), camera=()"); // Restrict powerful features
+header("Permissions-Policy: geolocation=(), microphone=(), camera=(self)"); // Restrict powerful features; camera kept for same-origin cage QR scanning
 
 // Include the database connection file
 require 'dbcon.php';
@@ -198,10 +198,24 @@ if (isset($settings['r2_pres'])) {
                     <i class="fas fa-paw"></i> Animals
                 </button>
                 <ul class="dropdown-menu" aria-labelledby="animalsMenuButton">
+                    <li><a class="dropdown-item" href="daily_round.php"><i class="fas fa-clipboard-check me-1"></i> Daily Round</a></li>
+                    <li><a class="dropdown-item" href="qr_scan.php"><i class="fas fa-qrcode me-1"></i> Scan Cage QR</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="animal_search.php?list=1"><i class="fas fa-search me-1"></i> Find Animal</a></li>
                     <li><a class="dropdown-item" href="animal_transfer.php">Transfer Animal</a></li>
                     <li><a class="dropdown-item" href="trial_manage.php">Trials / Protocols / Experiments</a></li>
+                    <li><a class="dropdown-item" href="clinical_grids.php"><i class="fas fa-table me-1"></i> Clinical Scoring Grids</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="health_report.php"><i class="fas fa-notes-medical me-1"></i> Report Health Issue</a></li>
+                    <li><a class="dropdown-item" href="health_registry.php"><i class="fas fa-book-medical me-1"></i> Health Registry</a></li>
                 </ul>
             </div>
+
+            <!-- Quick animal search: an exact number opens the animal record -->
+            <form class="d-flex" method="GET" action="animal_search.php" role="search">
+                <input class="form-control form-control-sm" type="search" name="q" placeholder="Animal no., cage..." aria-label="Find animal" style="width: 170px;">
+                <button class="btn btn-primary btn-sm ms-1" type="submit" title="Find animal"><i class="fas fa-search"></i></button>
+            </form>
 
             <!-- Notification Bell -->
             <div class="dropdown">
@@ -270,11 +284,13 @@ if (isset($settings['r2_pres'])) {
                         return;
                     }
 
+                    // Notification text can contain user input (e.g. health reports): escape it.
+                    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
                     data.notifications.forEach(n => {
                         const li = document.createElement('li');
-                        const link = n.link ? n.link : '#';
-                        li.innerHTML = `<a class="dropdown-item ${n.is_read ? '' : 'fw-bold'}" href="${link}" onclick="markNotificationRead(${n.id})">
-                            ${n.title}<br><small class="text-muted">${n.message ?? ''}</small>
+                        const link = n.link ? esc(n.link) : '#';
+                        li.innerHTML = `<a class="dropdown-item ${n.is_read ? '' : 'fw-bold'}" href="${link}" onclick="markNotificationRead(${Number(n.id)})">
+                            ${esc(n.title)}<br><small class="text-muted">${esc(n.message)}</small>
                         </a>`;
                         list.appendChild(li);
                     });

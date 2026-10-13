@@ -181,6 +181,7 @@ PROCESS_REMINDERS_PATH="$APP_DIR/process_reminders.php"
 # Add cron jobs
 (crontab -l 2>/dev/null; echo "* * * * * /usr/bin/php $SEND_EMAIL_PATH > /dev/null 2>&1") | crontab -
 (crontab -l 2>/dev/null; echo "* * * * * /usr/bin/php $PROCESS_REMINDERS_PATH > /dev/null 2>&1") | crontab -
+(crontab -l 2>/dev/null; echo "*/5 * * * * /usr/bin/php $APP_DIR/daily_round_alert.php > /dev/null 2>&1") | crontab -
 
 echo "Cron jobs have been set up to run every minute."
 echo

@@ -41,3 +41,12 @@ if ($con->connect_error) {
     error_log('Connection Failed: ' . $con->connect_error);
     die('Connection Failed. Please try again later.');
 }
+
+// Use the lab's timezone (Manage Lab) for both PHP and MySQL, so "today"
+// (daily round, follow-ups, alerts) means the same day everywhere.
+$tzResult = $con->query("SELECT value FROM settings WHERE name = 'timezone'");
+$labTimezone = $tzResult ? ($tzResult->fetch_assoc()['value'] ?? '') : '';
+if ($labTimezone !== '' && in_array($labTimezone, timezone_identifiers_list(), true)) {
+    date_default_timezone_set($labTimezone);
+    $con->query("SET time_zone = '" . (new DateTime())->format('P') . "'");
+}
