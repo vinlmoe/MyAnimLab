@@ -62,11 +62,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 for ($animal = 0; $animal < $forThisCage; $animal++) {
                     create_animal($con, $cageId, $lineId, $sex, $dob, null, 'Bulk creation', $_SESSION['user_id'] ?? null);
                 }
+                if (!empty($_POST['is_experimental'])) {
+                    set_cages_experimental($con, [$cageId], true, $_SESSION['user_id'] ?? null);
+                }
                 $created[] = $cageId;
             }
             mysqli_commit($con);
             $_SESSION['message'] = "$animalCount $sex animal(s) created and distributed across " . count($created) . ' cage(s): ' . implode(', ', $created) . '.';
-            header('Location: hc_dash.php');
+            header('Location: ' . (!empty($_POST['is_experimental']) ? 'ec_dash.php' : 'hc_dash.php'));
             exit;
         } catch (Exception $e) {
             mysqli_rollback($con);
@@ -139,6 +142,10 @@ require 'header.php';
         <div class="row">
             <div class="col-md-6 mb-3"><label class="form-label" for="room">Salle</label><input class="form-control" id="room" name="room" list="roomList"></div>
             <div class="col-md-6 mb-3"><label class="form-label" for="rack">Rack</label><input class="form-control" id="rack" name="rack"></div>
+            <div class="col-12 mb-3 form-check ms-2">
+                <input class="form-check-input" type="checkbox" id="is_experimental" name="is_experimental" value="1" <?= !empty($_GET['experimental']) ? 'checked' : ''; ?>>
+                <label class="form-check-label" for="is_experimental">Cage d’expérimentation</label>
+            </div>
         </div>
         <datalist id="roomList">
             <?php foreach ($con->query("SELECT DISTINCT room FROM cages WHERE room IS NOT NULL AND room <> '' ORDER BY room") as $row) : ?>
