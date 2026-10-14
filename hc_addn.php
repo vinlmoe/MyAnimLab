@@ -119,6 +119,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmtLoc->execute();
             $stmtLoc->close();
 
+            // Experimental cages are holding cages listed in their own category.
+            if (!empty($_POST['is_experimental'])) {
+                set_cages_experimental($con, [$cage_id], true, $_SESSION['user_id'] ?? null);
+            }
+
             // Insert data into holding table (parent_cg is no longer collected:
             // real lineage, when it exists, is tracked via animal_parentage instead)
             $query2 = "INSERT INTO holding (cage_id, strain, dob) VALUES (?, ?, ?)";
@@ -192,7 +197,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Redirect back to the main page
-    header("Location: hc_dash.php");
+    header("Location: " . (!empty($_POST['is_experimental']) ? "ec_dash.php" : "hc_dash.php"));
     exit();
 }
 
@@ -496,6 +501,10 @@ require 'header.php';
                 <div class="col-md-6 mb-3">
                     <label for="rack" class="form-label">Rack</label>
                     <input type="text" class="form-control" id="rack" name="rack" value="">
+                </div>
+                <div class="col-12 mb-3 form-check ms-2">
+                    <input class="form-check-input" type="checkbox" id="is_experimental" name="is_experimental" value="1" <?= !empty($_GET['experimental']) ? 'checked' : ''; ?>>
+                    <label class="form-check-label" for="is_experimental">Cage d’expérimentation</label>
                 </div>
                 <datalist id="roomList">
                     <?php foreach ($con->query("SELECT DISTINCT room FROM cages WHERE room IS NOT NULL AND room <> '' ORDER BY room") as $roomRow) : ?>

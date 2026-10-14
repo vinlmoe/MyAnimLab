@@ -15,6 +15,7 @@ session_start();
 // Include the database connection file
 require 'dbcon.php';
 require 'animal_lib.php';
+require 'cage_view_parts.php';
 
 // Check if the user is not logged in, redirect them to index.php with the current URL for redirection after login
 if (!isset($_SESSION['username'])) {
@@ -161,6 +162,18 @@ $stmtMaintenance->bind_param("s", $id); // Assuming $id holds the current cage_i
 $stmtMaintenance->execute();
 $maintenanceLogs = $stmtMaintenance->get_result();
 
+// Breeders currently registered for this cage (breeding_animals)
+$breedersStmt = $con->prepare("SELECT m.id, m.animal_uid, m.sex, m.dob, m.status FROM breeding b
+    JOIN breeding_animals ba ON ba.breeding_id = b.id JOIN mice m ON m.id = ba.animal_id
+    WHERE b.cage_id = ? ORDER BY ba.sex, m.animal_uid");
+$breedersStmt->bind_param("s", $id);
+$breedersStmt->execute();
+$breeders = $breedersStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$breedersStmt->close();
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 // Include the header file
 require 'header.php';
 ?>
@@ -169,7 +182,7 @@ require 'header.php';
 <html lang="en">
 
 <head>
-    <title>View Breeding Cage | <?php echo htmlspecialchars($labName); ?></title>
+    <title>Cage d’accouplement | <?php echo htmlspecialchars($labName); ?></title>
 
     <script>
         // Function to display a QR code popup for the cage
@@ -349,9 +362,10 @@ require 'header.php';
                 </span>
             </div>
         <?php endif; ?>
+        <?php render_cage_location($con, $breedingcage['cage_id'], 'bc_view.php?id=' . rawurlencode($breedingcage['cage_id'])); ?>
         <div class="card">
             <div class="card-header">
-                <h4>View Breeding Cage <?= htmlspecialchars($breedingcage['cage_id']); ?></h4>
+                <h4>Cage d’accouplement <?= htmlspecialchars($breedingcage['cage_id']); ?></h4>
                 <div class="action-buttons">
                     <a href="javascript:void(0);" onclick="goBack()" class="btn btn-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Go Back">
                         <i class="fas fa-arrow-circle-left"></i>
@@ -395,30 +409,29 @@ require 'header.php';
                         <td><?= $userDisplayString; ?></td>
                     </tr>
                     <tr>
-                        <th>Male ID</th>
-                        <td><?= htmlspecialchars($breedingcage['male_id'] ?? ''); ?></td>
-                    </tr>
-                    <tr>
-                        <th>Male DOB</th>
-                        <td><?= htmlspecialchars($breedingcage['male_dob'] ?? ''); ?></td>
-                    </tr>
-                    <tr>
-                        <th>Female ID</th>
-                        <td><?= htmlspecialchars($breedingcage['female_id'] ?? ''); ?></td>
-                    </tr>
-                    <tr>
-                        <th>Female DOB</th>
-                        <td><?= htmlspecialchars($breedingcage['female_dob'] ?? ''); ?></td>
+                        <th>Reproducteurs</th>
+                        <td>
+                            <?php foreach ($breeders as $br) : ?>
+                                <div>
+                                    <a href="animal_view.php?id=<?= (int) $br['id']; ?>"><?= htmlspecialchars($br['animal_uid']); ?></a>
+                                    — <?= $br['sex'] === 'male' ? 'Mâle' : 'Femelle'; ?><?= $br['dob'] ? ', né(e) le ' . htmlspecialchars(date('d/m/Y', strtotime($br['dob']))) : ''; ?>
+                                    <?php if ($br['status'] !== 'active') : ?><span class="badge bg-secondary">sorti</span><?php endif; ?>
+                                </div>
+                            <?php endforeach; ?>
+                            <?php if (!$breeders) : ?>
+                                <?= htmlspecialchars(trim(implode(' · ', array_filter([
+                                    $breedingcage['male_id'] ? 'Mâle ' . $breedingcage['male_id'] . ($breedingcage['male_dob'] ? ' (' . $breedingcage['male_dob'] . ')' : '') : '',
+                                    $breedingcage['female_id'] ? 'Femelle ' . $breedingcage['female_id'] . ($breedingcage['female_dob'] ? ' (' . $breedingcage['female_dob'] . ')' : '') : '',
+                                ])))) ?: '—'; ?>
+                            <?php endif; ?>
+                        </td>
                     </tr>
                     <tr>
                         <th>Remarks</th>
-                        <td class="remarks-column"><?= htmlspecialchars($breedingcage['remarks']); ?></td>
-                    </tr>
-                    <tr>
-                        <th>Animals</th>
-                        <td><a href="animal_search.php?list=1&amp;status=all&amp;cage_id=<?= rawurlencode($breedingcage['cage_id']); ?>"><i class="fas fa-paw"></i> List, transfer or report health issues for this cage's animals</a></td>
+                        <td class="remarks-column"><?= htmlspecialchars($breedingcage['remarks'] ?? ''); ?></td>
                     </tr>
                 </table>
+                <?php render_cage_animals($con, $id, 'bc_view.php'); ?>
 
                 <!-- Separator -->
                 <hr class="mt-4 mb-4" style="border-top: 3px solid #000;">
