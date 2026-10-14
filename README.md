@@ -222,6 +222,7 @@ For initial setup, use the following default admin credentials:
 - `iot_sensors.php`: Displays IoT sensor data for different rooms using iframes.
 - `annual_report.php`: Annual animal use report (admins and BEA responsibles): population, procedures ended in the year by actual severity, use per project authorization, exits, animals not used; CSV export per table or ZIP.
 - `cage_dash.php`: Shared cage dashboard for every category (holding, breeding, experimental, all): room, rack, living animals, search, room filter, and group selection to change room/rack or switch holding/experimental. `hc_dash.php`, `bc_dash.php` and `ec_dash.php` open it on their category.
+- `cage_label_select.php` / `cage_labels.php`: Cage labels (A6, four per A4 sheet) with the same layout for every cage category; select by category and room, or print a selection from a cage dashboard. The former `hc_/bc_slct_crd.php` and `hc_/bc_prnt_crd.php` URLs redirect here.
 - `cage_location.php`: Applies a room/rack change or a category change to one or several cages.
 - `cage_view_parts.php`: Location and animals sections shared by all cage pages.
 - `bc_dash.php`: Displays a dashboard for managing breeding cages with search and pagination.
@@ -229,15 +230,11 @@ For initial setup, use the following default admin credentials:
 - `bc_view.php`: Viewing the details of a breeding cage.
 - `bc_edit.php`: Manages editing of breeding cage details, including litter information and file uploads.
 - `bc_drop.php`: Handles the deletion of breeding cages and their related data.
-- `bc_slct_crd.php`: Selects breeding cages for printing cage cards.
-- `bc_prnt_crd.php`: Generates printable cards for breeding cages with their latest litter records.
 - `hc_dash.php`: Displays a dashboard for managing holding cages.
 - `hc_addn.php`: Adds new holding cages.
 - `hc_view.php`: Viewing the details of a holding cage.
 - `hc_edit.php`: Manages editing of holding cage details.
 - `hc_drop.php`: Handles the deletion of holding cages.
-- `hc_slct_crd.php`: Selects holding cages for printing cage cards.
-- `hc_prnt_crd.php`: Generates printable cards for holding cages.
 - `nt_app.php`: Main script for the sticky note application.
 - `nt_add.php`: Adds new sticky notes.
 - `nt_edit.php`: Edits existing sticky notes.

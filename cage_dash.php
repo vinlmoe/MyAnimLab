@@ -133,7 +133,7 @@ require 'header.php';
                 <?php elseif ($type === 'breeding') : ?>
                     <a href="bc_addn.php" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> Nouvelle cage d’accouplement</a>
                 <?php endif; ?>
-                <a href="cage_label_select.php" class="btn btn-success btn-sm"><i class="fas fa-print"></i> Étiquettes</a>
+                <a href="cage_label_select.php<?= $type !== 'all' ? '?type=' . $type : '' ?>" class="btn btn-success btn-sm"><i class="fas fa-print"></i> Étiquettes</a>
                 <a href="maintenance.php?from=<?= $type === 'breeding' ? 'bc_dash' : 'hc_dash' ?>" class="btn btn-warning btn-sm"><i class="fas fa-wrench"></i> Maintenance</a>
             </div>
         </div>
@@ -227,6 +227,9 @@ require 'header.php';
                         <input type="text" class="form-control form-control-sm" id="bulkRack" name="rack" placeholder="inchangé">
                     </div>
                     <div class="col-auto">
+                        <button type="button" id="printSelected" class="btn btn-success btn-sm"><i class="fas fa-print"></i> Imprimer les étiquettes</button>
+                    </div>
+                    <div class="col-auto">
                         <button type="submit" name="location_action" value="move" class="btn btn-primary btn-sm group-action"><i class="fas fa-door-open"></i> Changer de salle</button>
                     </div>
                     <?php if ($type === 'holding' || $type === 'all') : ?>
@@ -249,6 +252,11 @@ require 'header.php';
         const refreshCount = () => { if (counter) counter.textContent = document.querySelectorAll('.cage-select:checked').length; };
         boxes.forEach(b => b.addEventListener('change', refreshCount));
         document.getElementById('selectAll').addEventListener('change', e => { boxes.forEach(b => b.checked = e.target.checked); refreshCount(); });
+        document.getElementById('printSelected')?.addEventListener('click', () => {
+            const ids = [...document.querySelectorAll('.cage-select:checked')].map(b => 'id[]=' + encodeURIComponent(b.value));
+            if (!ids.length) { alert('Sélectionnez au moins une cage.'); return; }
+            window.open('cage_labels.php?' + ids.join('&'), '_blank');
+        });
         document.querySelectorAll('.group-action').forEach(btn => btn.addEventListener('click', e => {
             if (!document.querySelectorAll('.cage-select:checked').length) {
                 e.preventDefault();
