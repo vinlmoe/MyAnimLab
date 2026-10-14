@@ -411,6 +411,8 @@ function move_animal(mysqli $con, int $animalId, string $toCageId, ?string $reas
 
     log_animal_movement($con, $animalId, $fromCageId, $toCageId, $userId, $reason ?: null);
     log_animal_event($con, $animalId, 'transferred', ['from_cage_id' => $fromCageId, 'to_cage_id' => $toCageId, 'reason' => $reason], $userId);
+    // An animal under experiment makes its new cage an experimental cage.
+    mark_cages_experimental_for_animals($con, [$animalId], $userId);
 
     return $retireEmptySource && retire_cage_if_empty($con, $fromCageId, "last animal transferred to $toCageId", $userId, $userName);
 }
@@ -842,5 +844,32 @@ function set_cages_experimental(mysqli $con, array $cageIds, bool $experimental,
         }
     }
     $stmt->close();
+    return $changed;
+}
+
+// A cage becomes an experimental cage as soon as one of its living animals is
+// in an ongoing experiment (enrollment not closed). It keeps its cage number;
+// breeding cages are left as they are. Returns the cages reclassified.
+function mark_cages_experimental_for_animals(mysqli $con, array $animalIds, ?int $userId): array
+{
+    $animalIds = array_values(array_unique(array_filter(array_map('intval', $animalIds))));
+    if (!$animalIds) {
+        return [];
+    }
+    $in = implode(',', array_fill(0, count($animalIds), '?'));
+    $stmt = $con->prepare("SELECT DISTINCT m.cage_id FROM mice m
+        JOIN experiment_animals ea ON ea.animal_id = m.id AND ea.removed_at IS NULL
+        JOIN cages c ON c.cage_id = m.cage_id AND c.status = 'active' AND c.is_experimental = 0
+        WHERE m.id IN ($in) AND m.status = 'active'");
+    $stmt->bind_param(str_repeat('i', count($animalIds)), ...$animalIds);
+    $stmt->execute();
+    $cageIds = array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'cage_id');
+    $stmt->close();
+    $changed = [];
+    foreach ($cageIds as $cageId) {
+        if (set_cages_experimental($con, [$cageId], true, $userId)) {
+            $changed[] = $cageId;
+        }
+    }
     return $changed;
 }
