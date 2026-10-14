@@ -223,7 +223,7 @@ For initial setup, use the following default admin credentials:
 - `annual_report.php`: Annual animal use report (admins and BEA responsibles): population, procedures ended in the year by actual severity, use per project authorization, exits, animals not used; CSV export per table or ZIP.
 - `cage_dash.php`: Shared cage dashboard for every category (holding, breeding, experimental, all): room, rack, living animals, search, room filter, and group selection to change room/rack or switch holding/experimental. `hc_dash.php`, `bc_dash.php` and `ec_dash.php` open it on their category.
 - `cage_label_select.php` / `cage_labels.php`: Cage labels (A6, four per A4 sheet) with the same layout for every cage category; select by category and room, or print a selection from a cage dashboard. The former `hc_/bc_slct_crd.php` and `hc_/bc_prnt_crd.php` URLs redirect here.
-- `cage_location.php`: Applies a room/rack change or a category change to one or several cages.
+- `cage_location.php`: Applies a room/rack change or a category change to one or several cages. A holding cage also becomes experimental automatically (same cage number) when one of its animals is enrolled in an experiment or an enrolled animal is moved into it.
 - `cage_view_parts.php`: Location and animals sections shared by all cage pages.
 - `bc_dash.php`: Displays a dashboard for managing breeding cages with search and pagination.
 - `bc_addn.php`: Handles the creation of new breeding cages and associated litter data.
