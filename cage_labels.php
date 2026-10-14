@@ -1,15 +1,23 @@
 <?php
 
-/** Printable A6 cage labels: four labels on one portrait A4 sheet. */
+/**
+ * Printable A6 cage labels: four labels on one portrait A4 sheet.
+ * Same layout for every cage category (holding, breeding, experimental):
+ * header (category, cage, room/rack, QR code), summary computed from the
+ * living animals, a category block (breeders and nursing litter for breeding
+ * cages, ongoing experiments for any cage), then the animals' identities.
+ * Accepts id[] (or cage_ids[] from the cage dashboards' selection).
+ */
 session_start();
 require 'dbcon.php';
+require 'animal_lib.php';
 
 if (!isset($_SESSION['username'])) {
     header('Location: index.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
     exit;
 }
 
-$rawIds = $_GET['id'] ?? [];
+$rawIds = $_GET['id'] ?? $_GET['cage_ids'] ?? [];
 if (!is_array($rawIds)) {
     $rawIds = explode(',', (string) $rawIds);
 }
@@ -40,25 +48,23 @@ $baseUrl = rtrim($baseUrl, '/');
 
 $labelData = [];
 foreach ($ids as $id) {
-    $cageSql = "SELECT c.cage_id, c.room, c.rack, c.remarks, pi.name AS pi_name,
-                       h.cage_id AS holding_id, h.sex, h.strain, s.str_name,
-                       b.cage_id AS breeding_id, b.`cross`
+    $cageSql = "SELECT c.cage_id, c.room, c.rack, pi.name AS pi_name, " . CAGE_KIND_SQL . " AS kind,
+                       (SELECT h.dob FROM holding h WHERE h.cage_id = c.cage_id LIMIT 1) AS holding_dob,
+                       (SELECT COALESCE(s.str_name, h.strain) FROM holding h LEFT JOIN strains s ON s.str_id = h.strain WHERE h.cage_id = c.cage_id LIMIT 1) AS strain,
+                       (SELECT b.`cross` FROM breeding b WHERE b.cage_id = c.cage_id LIMIT 1) AS cross_name
                 FROM cages c
                 LEFT JOIN users pi ON pi.id = c.pi_name
-                LEFT JOIN holding h ON h.cage_id = c.cage_id
-                LEFT JOIN strains s ON s.str_id = h.strain
-                LEFT JOIN breeding b ON b.cage_id = c.cage_id
                 WHERE c.cage_id = ? AND c.status = 'active'";
     $cageStmt = $con->prepare($cageSql);
     $cageStmt->bind_param('s', $id);
     $cageStmt->execute();
     $cage = $cageStmt->get_result()->fetch_assoc();
     $cageStmt->close();
-    if (!$cage || (!$cage['holding_id'] && !$cage['breeding_id'])) {
+    if (!$cage) {
         continue;
     }
 
-    $animalsStmt = $con->prepare("SELECT m.id, m.animal_uid, m.mouse_id, m.sex, al.code AS line_code
+    $animalsStmt = $con->prepare("SELECT m.id, m.animal_uid, m.mouse_id, m.sex, m.dob, al.code AS line_code, al.name AS line_name
                                   FROM mice m
                                   LEFT JOIN animal_lines al ON al.id = m.line_id
                                   WHERE m.cage_id = ? AND m.status = 'active'
@@ -80,9 +86,39 @@ foreach ($ids as $id) {
     $experiments = $experimentsStmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $experimentsStmt->close();
 
+    // Breeding cages: registered breeders and the litter being nursed.
+    $cage['breeders'] = [];
+    $cage['litters'] = [];
+    if ($cage['kind'] === 'breeding') {
+        $breedersStmt = $con->prepare("SELECT m.animal_uid, m.sex FROM breeding b JOIN breeding_animals ba ON ba.breeding_id = b.id
+            JOIN mice m ON m.id = ba.animal_id WHERE b.cage_id = ? AND m.status = 'active' ORDER BY ba.sex, m.animal_uid");
+        $breedersStmt->bind_param('s', $id);
+        $breedersStmt->execute();
+        $cage['breeders'] = $breedersStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $breedersStmt->close();
+        $littersStmt = $con->prepare("SELECT litter_dob, pups_alive, expected_weaning_date FROM litters WHERE cage_id = ? AND status = 'nursing' ORDER BY litter_dob");
+        $littersStmt->bind_param('s', $id);
+        $littersStmt->execute();
+        $cage['litters'] = $littersStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $littersStmt->close();
+    }
+
+    // Summary computed from the living animals, identical for every category.
+    $males = count(array_filter($animals, fn($a) => $a['sex'] === 'male'));
+    $females = count(array_filter($animals, fn($a) => $a['sex'] === 'female'));
+    $lines = array_values(array_unique(array_filter(array_map(fn($a) => $a['line_code'] ? $a['line_code'] . ' — ' . $a['line_name'] : null, $animals))));
+    $dobs = array_filter(array_column($animals, 'dob'));
+    $fmt = fn($d) => date('d/m/Y', strtotime($d));
+    $cage['sex_summary'] = $animals ? trim(($males ? "$males M" : '') . ($males && $females ? ' · ' : '') . ($females ? "$females F" : '')) ?: 'N.A.' : '—';
+    $cage['line_summary'] = $cage['kind'] === 'breeding' && $cage['cross_name']
+        ? $cage['cross_name']
+        : ($lines ? implode(', ', $lines) : ($cage['strain'] ?: '—'));
+    $cage['dob_summary'] = $dobs
+        ? (min($dobs) === max($dobs) ? $fmt(min($dobs)) : $fmt(min($dobs)) . ' → ' . $fmt(max($dobs)))
+        : ($cage['holding_dob'] ? $fmt($cage['holding_dob']) : '—');
     $cage['animals'] = $animals;
     $cage['experiments'] = $experiments;
-    $cage['type_label'] = $cage['breeding_id'] ? 'Reproduction' : 'Hébergement';
+    $cage['type_label'] = preg_replace('/^Cages/u', 'Cage', CAGE_KINDS[$cage['kind']][0]);
     $cage['target'] = $baseUrl . '/cage_scan_route.php?id=' . rawurlencode($id);
     $labelData[] = $cage;
 }
@@ -142,11 +178,21 @@ foreach ($ids as $id) {
                         <img class="qr" alt="QR code de la cage" src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&amp;data=<?= rawurlencode($cage['target']) ?>&amp;choe=UTF-8">
                     </div>
                     <div class="summary">
-                        <div><strong>Animaux</strong><br><?= $animalCount ?></div>
-                        <div><strong>Sexe</strong><br><?= htmlspecialchars($cage['sex'] ?: 'Mixte / N.A.') ?></div>
-                        <div><strong>Lignée / souche</strong><br><?= htmlspecialchars($cage['str_name'] ?: $cage['strain'] ?: $cage['cross'] ?: '—') ?></div>
+                        <div><strong>Animaux</strong><br><?= $animalCount ?> (<?= htmlspecialchars($cage['sex_summary']) ?>)</div>
+                        <div><strong>Naissance</strong><br><?= htmlspecialchars($cage['dob_summary']) ?></div>
+                        <div><strong><?= $cage['kind'] === 'breeding' ? 'Croisement' : 'Lignée(s)' ?></strong><br><?= htmlspecialchars($cage['line_summary']) ?></div>
                         <div><strong>Responsable</strong><br><?= htmlspecialchars($cage['pi_name'] ?: '—') ?></div>
                     </div>
+                    <?php if ($cage['breeders'] || $cage['litters']) : ?>
+                        <div class="experiments"><span class="section-title">Accouplement</span><br>
+                            <?php if ($cage['breeders']) : ?>
+                                Reproducteurs : <?= htmlspecialchars(implode(', ', array_map(fn($b) => $b['animal_uid'] . ' (' . ($b['sex'] === 'male' ? 'M' : 'F') . ')', $cage['breeders']))) ?><br>
+                            <?php endif; ?>
+                            <?php foreach ($cage['litters'] as $litter) : ?>
+                                Portée née le <?= htmlspecialchars($litter['litter_dob'] ? date('d/m/Y', strtotime($litter['litter_dob'])) : '?') ?> — <?= (int) $litter['pups_alive'] ?> vivant(s)<?= $litter['expected_weaning_date'] ? ', sevrage prévu le ' . htmlspecialchars(date('d/m/Y', strtotime($litter['expected_weaning_date']))) : '' ?><br>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
                     <?php if ($cage['experiments']) : ?>
                         <div class="experiments"><span class="section-title">Expérimentation en cours</span><br>
                             <?php foreach ($cage['experiments'] as $experiment) : ?>

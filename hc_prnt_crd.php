@@ -64,7 +64,7 @@ if (isset($_GET['id'])) {
             // Fetch mouse data for this cage, limit to first 5 records
             $mouseQuery = "SELECT mouse_id, genotype
                            FROM mice
-                           WHERE cage_id = ?
+                           WHERE cage_id = ? AND status = 'active'
                            LIMIT 5";
             $stmtMouse = $con->prepare($mouseQuery);
             $stmtMouse->bind_param("s", $id);

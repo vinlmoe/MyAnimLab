@@ -22,14 +22,11 @@ if (!isset($_SESSION['name'])) {
     exit;
 }
 
-// Fetch the counts for holding and breeding cages
-$holdingCountResult = $con->query("SELECT COUNT(*) AS count FROM holding");
-$holdingCountRow = $holdingCountResult->fetch_assoc();
-$holdingCount = $holdingCountRow['count'];
-
-$matingCountResult = $con->query("SELECT COUNT(*) AS count FROM breeding");
-$matingCountRow = $matingCountResult->fetch_assoc();
-$matingCount = $matingCountRow['count'];
+// Active cages per category (holding, breeding, experimental)
+$cageCounts = array_fill_keys(array_keys(CAGE_KINDS), 0);
+foreach ($con->query("SELECT " . CAGE_KIND_SQL . " AS kind, COUNT(*) AS n FROM cages c WHERE c.status = 'active' GROUP BY kind") as $row) {
+    $cageCounts[$row['kind']] = (int) $row['n'];
+}
 
 // Fetch the task stats for the logged-in user
 $userId = $_SESSION['user_id'];
@@ -195,30 +192,19 @@ require 'header.php';
             <div class="card">
                 <div class="card-body">
                     <div class="row mt-4">
-                        <!-- Holding Cage Stats -->
-                        <div class="col-md-6">
-                            <div class="card text-center">
-                                <div class="card-header bg-primary text-white">
-                                    <a href="hc_dash.php" style="color: white; text-decoration: none;">Holding Cage</a>
-                                </div>
-                                <div class="card-body">
-                                    <h5 class="card-title"><?php echo $holdingCount; ?></h5>
-                                    <p class="card-text">Total Entries</p>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Breeding Cage Stats -->
-                        <div class="col-md-6">
-                            <div class="card text-center">
-                                <div class="card-header bg-primary text-white">
-                                    <a href="bc_dash.php" style="color: white; text-decoration: none;">Breeding Cage</a>
-                                </div>
-                                <div class="card-body">
-                                    <h5 class="card-title"><?php echo $matingCount; ?></h5>
-                                    <p class="card-text">Total Entries</p>
+                        <?php foreach (CAGE_KINDS as $kind => [$kindLabel, $kindDash]) : ?>
+                            <div class="col-md-4">
+                                <div class="card text-center">
+                                    <div class="card-header bg-primary text-white">
+                                        <a href="<?= $kindDash; ?>" style="color: white; text-decoration: none;"><?= htmlspecialchars($kindLabel); ?></a>
+                                    </div>
+                                    <div class="card-body">
+                                        <h5 class="card-title"><?= $cageCounts[$kind]; ?></h5>
+                                        <p class="card-text">Cages actives</p>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        <?php endforeach; ?>
                     </div>
                 </div>
             </div>

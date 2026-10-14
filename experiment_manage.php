@@ -91,7 +91,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $activeCheck->close();
             $insert->close();
-            $_SESSION['message'] = "$added animal(s) ajouté(s) à l’expérience" . ($skipped ? "; $skipped déjà inclus ou inactif(s)." : '.');
+            // Their cages become experimental cages (same cage number).
+            $newExperimentalCages = mark_cages_experimental_for_animals($con, $animalIds, $currentUserId);
+            $_SESSION['message'] = "$added animal(s) ajouté(s) à l’expérience" . ($skipped ? "; $skipped déjà inclus ou inactif(s)." : '.')
+                . ($newExperimentalCages ? ' Cage(s) passée(s) en expérimentation : ' . implode(', ', $newExperimentalCages) . '.' : '');
         }
     } elseif (isset($_POST['end_enrollment'])) {
         $enrollmentId = (int) $_POST['experiment_animal_id'];
