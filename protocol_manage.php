@@ -45,6 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $endpointCriteria = trim($_POST['endpoint_criteria']);
         $startDate = $_POST['start_date'] ?: null;
         $endDate = $_POST['end_date'] ?: null;
+        $expectedSeverity = $_POST['expected_severity'] ?? '';
 
         $check = $con->prepare("SELECT COUNT(*) FROM protocols WHERE protocol_number = ?");
         $check->bind_param("s", $protocolNumber);
@@ -56,16 +57,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $periodError = protocol_period_error($trial, $startDate, $endDate);
         if ($protocolNumber === '' || $title === '') {
             $_SESSION['message'] = tr('The protocol number and the title are required.');
+        } elseif (!isset(RETROSPECTIVE_SEVERITIES[$expectedSeverity])) {
+            $_SESSION['message'] = tr('Choose the expected severity of the protocol.');
         } elseif ($periodError) {
             $_SESSION['message'] = $periodError;
         } elseif ($count > 0) {
             $_SESSION['message'] = tr('Error: Protocol number already exists.');
         } else {
-            $stmt = $con->prepare("INSERT INTO protocols (trial_id, protocol_number, title, methodology, endpoint_criteria, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param("issssss", $trialId, $protocolNumber, $title, $methodology, $endpointCriteria, $startDate, $endDate);
+            $stmt = $con->prepare("INSERT INTO protocols (trial_id, protocol_number, title, methodology, endpoint_criteria, start_date, end_date, expected_severity) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("isssssss", $trialId, $protocolNumber, $title, $methodology, $endpointCriteria, $startDate, $endDate, $expectedSeverity);
             $stmt->execute();
             $_SESSION['message'] = tr('Protocol created successfully.');
             $stmt->close();
+        }
+    } elseif (isset($_POST['set_expected_severity'])) {
+        $protocolId = (int) $_POST['protocol_id'];
+        $expectedSeverity = $_POST['expected_severity'] ?? '';
+        if (!isset(RETROSPECTIVE_SEVERITIES[$expectedSeverity])) {
+            $_SESSION['message'] = tr('Choose the expected severity of the protocol.');
+        } else {
+            $stmt = $con->prepare("UPDATE protocols SET expected_severity = ? WHERE id = ? AND trial_id = ?");
+            $stmt->bind_param("sii", $expectedSeverity, $protocolId, $trialId);
+            $stmt->execute();
+            $stmt->close();
+            log_activity($con, 'set_expected_severity', 'protocol', (string) $protocolId, 'Expected severity: ' . $expectedSeverity, $currentUserId ?? null);
+            $_SESSION['message'] = tr('Expected severity saved for the protocol.');
         }
     } elseif (isset($_POST['set_grid'])) {
         $protocolId = (int) $_POST['protocol_id'];
@@ -250,6 +266,15 @@ require 'header.php';
                                 <label class="form-label"><?= trh('End Date') ?></label>
                                 <input type="date" class="form-control" name="end_date" min="<?= htmlspecialchars($trial['start_date'] ?? ''); ?>" max="<?= htmlspecialchars($trial['end_date'] ?? ''); ?>">
                             </div>
+                            <div class="col-md-3">
+                                <label class="form-label"><?= trh('Expected severity') ?> *</label>
+                                <select class="form-select" name="expected_severity" required>
+                                    <option value="" selected disabled><?= trh('Choose…') ?></option>
+                                    <?php foreach (retrospective_severities() as $key => $label) : ?><option value="<?= $key ?>"><?= htmlspecialchars($label) ?></option><?php endforeach; ?>
+                                </select>
+                                <div class="form-text"><?= trh('As stated in the project authorization.') ?></div>
+                            </div>
+                            <div class="col-md-12"></div>
                             <div class="col-md-6">
                                 <label class="form-label"><?= trh('Methodology') ?></label>
                                 <textarea class="form-control" name="methodology" rows="3"></textarea>
@@ -291,6 +316,20 @@ require 'header.php';
                     </div>
                 </div>
                 <div class="card-body">
+                    <form method="POST" class="row g-2 align-items-center mb-2">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                        <input type="hidden" name="trial_id" value="<?= $trialId; ?>">
+                        <input type="hidden" name="protocol_id" value="<?= $pid; ?>">
+                        <div class="col-auto"><label class="col-form-label fw-bold" for="expectedSeverity<?= $pid; ?>"><?= trh('Expected severity') ?></label></div>
+                        <div class="col-auto">
+                            <select class="form-select form-select-sm <?= $p['expected_severity'] ? '' : 'border-warning'; ?>" id="expectedSeverity<?= $pid; ?>" name="expected_severity" required>
+                                <option value="" disabled <?= $p['expected_severity'] ? '' : 'selected'; ?>><?= trh('Not specified') ?></option>
+                                <?php foreach (retrospective_severities() as $key => $label) : ?><option value="<?= $key ?>" <?= $p['expected_severity'] === $key ? 'selected' : ''; ?>><?= htmlspecialchars($label) ?></option><?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-auto"><button type="submit" name="set_expected_severity" class="btn btn-sm btn-outline-primary"><?= trh('Save') ?></button></div>
+                        <?php if (!$p['expected_severity']) : ?><div class="col-auto small text-warning"><i class="fas fa-exclamation-triangle"></i> <?= trh('To be filled in for the retrospective review.') ?></div><?php endif; ?>
+                    </form>
                     <?php if ($p['methodology'] || $p['endpoint_criteria']) : ?>
                         <div class="row small mb-2">
                             <?php if ($p['methodology']) : ?><div class="col-md-6"><strong><?= trh('Methodology') ?></strong><br><?= nl2br(htmlspecialchars($p['methodology'])); ?></div><?php endif; ?>

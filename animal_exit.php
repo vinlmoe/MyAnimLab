@@ -26,6 +26,11 @@ $animalId = (int) ($_GET['id'] ?? $_POST['animal_id'] ?? 0);
 // On submit, the code chosen in the form wins over the ?code= preselection.
 // No default: the exit code must be chosen explicitly.
 $code = $_SERVER['REQUEST_METHOD'] === 'POST' ? ($_POST['exit_code'] ?? '') : ($_GET['code'] ?? '');
+// After the exit, go back to the page the exit was started from (explicit
+// ?return=, else the referring page), not necessarily the animal's record.
+$returnUrl = $_SERVER['REQUEST_METHOD'] === 'POST'
+    ? safe_local_return($_POST['return'] ?? null, ['animal_exit.php'])
+    : (safe_local_return($_GET['return'] ?? null, ['animal_exit.php']) ?? safe_local_return($_SERVER['HTTP_REFERER'] ?? null, ['animal_exit.php']));
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
@@ -45,11 +50,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } catch (Exception $e) {
         mysqli_rollback($con);
         $_SESSION['message'] = tr('Exit not recorded: {error}', ['error' => $e->getMessage()]);
-        header("Location: animal_exit.php?" . http_build_query(['id' => $animalId, 'code' => $code]));
+        header("Location: animal_exit.php?" . http_build_query(['id' => $animalId, 'code' => $code, 'return' => $returnUrl]));
         exit;
     }
 
-    header("Location: animal_view.php?id=$animalId");
+    header("Location: " . ($returnUrl ?? "animal_view.php?id=$animalId"));
     exit();
 }
 
@@ -89,6 +94,7 @@ $label = $animal['animal_uid'] ?? $animal['mouse_id'] ?? '#' . $animal['id'];
             <form method="POST">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                 <input type="hidden" name="animal_id" value="<?= (int) $animal['id']; ?>">
+                <input type="hidden" name="return" value="<?= htmlspecialchars($returnUrl ?? ''); ?>">
                 <div class="mb-3">
                     <label class="form-label" for="exit_code"><?= trh('Exit code') ?></label>
                     <select class="form-select" id="exit_code" name="exit_code" required>
@@ -111,7 +117,7 @@ $label = $animal['animal_uid'] ?? $animal['mouse_id'] ?? '#' . $animal['id'];
                     <textarea class="form-control" id="reason" name="reason" required></textarea>
                 </div>
                 <button type="submit" class="btn btn-danger" onclick="return confirm(<?= htmlspecialchars(trj('Confirm this animal leaves the facility?')) ?>);"><?= trh('Record exit') ?></button>
-                <a href="animal_view.php?id=<?= (int) $animal['id']; ?>" class="btn btn-secondary"><?= trh('Cancel') ?></a>
+                <a href="<?= htmlspecialchars($returnUrl ?? 'animal_view.php?id=' . (int) $animal['id']); ?>" class="btn btn-secondary"><?= trh('Cancel') ?></a>
             </form>
         <?php endif; ?>
     </div>

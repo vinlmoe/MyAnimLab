@@ -354,6 +354,9 @@ CREATE TABLE `protocols` (
   `end_date` date DEFAULT NULL,
   `status` ENUM('planned','active','completed','cancelled') NOT NULL DEFAULT 'planned',
   `clinical_grid_id` int DEFAULT NULL,
+  -- Expected (prospective) severity, compared with the actual severity of
+  -- the BEA retrospective review.
+  `expected_severity` ENUM('non_recovery','mild','moderate','severe') DEFAULT NULL,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`trial_id`) REFERENCES `trials` (`id`) ON DELETE CASCADE
 );
