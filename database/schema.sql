@@ -859,6 +859,10 @@ CREATE TABLE `settings` (
   PRIMARY KEY (`name`)
 );
 
+-- Cages under experiment need every animal's follow-up to be validated on the
+-- daily round, from installation day on.
+INSERT INTO `settings` (`name`, `value`) VALUES ('experimental_round_since', CURDATE());
+
 -- Insert initial data into the users table
 INSERT INTO `users` (`name`, `username`, `position`, `role`, `password`, `status`, `reset_token`, `reset_token_expiration`, `login_attempts`, `account_locked`, `email_verified`, `email_token`, `initials`, `is_bea_responsible`)
 VALUES ('Administrateur temporaire', 'admin@myvivarium.online', 'Principal Investigator', 'admin', '$2y$10$roVlhpjZsRFXY.m9JtRB/OAaN2dp50O7D2J5idI2MsUotxMyrHRZ6', 'approved', NULL, NULL, 0, NULL, 1, NULL, 'TAN', 1);

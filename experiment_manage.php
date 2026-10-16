@@ -118,11 +118,73 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute();
         $_SESSION['message'] = $stmt->affected_rows ? 'Participation clôturée : classification rétrospective BEA requise.' : 'Participation déjà clôturée.';
         $stmt->close();
+    } elseif (isset($_POST['complete_action'])) {
+        // Endpoint management: record what was done for a pending action. A
+        // required euthanasia is closed by recording the animal's exit instead.
+        $actionId = (int) ($_POST['action_id'] ?? 0);
+        $note = trim((string) ($_POST['done_note'] ?? ''));
+        if ($note === '') {
+            $_SESSION['message'] = tr('Describe what was done (e.g. vet called, decision taken).');
+        } else {
+            $userName = $_SESSION['name'] ?? null;
+            $stmt = $con->prepare(
+                "UPDATE endpoint_actions a JOIN experiment_animals ea ON ea.id = a.experiment_animal_id JOIN experiments e ON e.id = ea.experiment_id
+                 SET a.status = 'done', a.done_at = NOW(), a.done_by = ?, a.done_by_name = ?, a.done_note = ?
+                 WHERE a.id = ? AND e.protocol_id = ? AND a.status = 'pending' AND a.required_action <> 'euthanasia'"
+            );
+            $stmt->bind_param("issii", $currentUserId, $userName, $note, $actionId, $protocolId);
+            $stmt->execute();
+            $done = $stmt->affected_rows === 1;
+            $stmt->close();
+            if ($done) {
+                log_activity($con, 'endpoint_action_done', 'endpoint_action', (string) $actionId, $note, $currentUserId);
+            }
+            $_SESSION['message'] = $done ? tr('Action recorded as done.') : tr('This action cannot be completed here.');
+        }
+        header("Location: experiment_manage.php?protocol_id=$protocolId#endpointManagement");
+        exit();
     }
 
     header("Location: experiment_manage.php?protocol_id=$protocolId");
     exit();
 }
+
+// Endpoint management: actions still to handle, recent alerts that required no
+// action, and the actions resolved in the last 30 days.
+$endpointBase = "FROM endpoint_actions a
+    JOIN experiment_animals ea ON ea.id = a.experiment_animal_id
+    JOIN experiments e ON e.id = ea.experiment_id
+    JOIN mice m ON m.id = ea.animal_id
+    LEFT JOIN experiment_followups f ON f.id = a.followup_id
+    WHERE e.protocol_id = ?";
+$endpointFields = "SELECT a.*, ea.animal_id, e.experiment_number, m.animal_uid, m.cage_id, m.status AS animal_status,
+    f.observed_at, f.weight_g, f.clinical_score ";
+$stmt = $con->prepare($endpointFields . $endpointBase . " AND a.status = 'pending' ORDER BY a.required_action = 'euthanasia' DESC, a.created_at");
+$stmt->bind_param("i", $protocolId);
+$stmt->execute();
+$pendingActions = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+$stmt = $con->prepare($endpointFields . $endpointBase . " AND a.status = 'done' AND a.done_at >= NOW() - INTERVAL 30 DAY ORDER BY a.done_at DESC");
+$stmt->bind_param("i", $protocolId);
+$stmt->execute();
+$resolvedActions = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+$stmt = $con->prepare(
+    "SELECT f.*, ea.id AS experiment_animal_id, ea.animal_id, e.experiment_number, m.animal_uid, m.cage_id
+     FROM experiment_followups f
+     JOIN experiment_animals ea ON ea.id = f.experiment_animal_id
+     JOIN experiments e ON e.id = ea.experiment_id
+     JOIN mice m ON m.id = ea.animal_id
+     WHERE e.protocol_id = ? AND f.endpoint_reached = 1 AND f.observed_at >= CURDATE() - INTERVAL 7 DAY
+       AND NOT EXISTS (SELECT 1 FROM endpoint_actions a WHERE a.followup_id = f.id)
+     ORDER BY f.observed_at DESC"
+);
+$stmt->bind_param("i", $protocolId);
+$stmt->execute();
+$alertOnlyFollowups = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+$pendingByEnrollment = array_count_values(array_map('intval', array_column($pendingActions, 'experiment_animal_id')));
+$followupLink = fn(int $enrollmentId): string => 'experiment_followup.php?' . http_build_query(['experiment_animal_id' => $enrollmentId, 'return' => 'experiment_manage.php?protocol_id=' . $protocolId]);
 
 $experiments = $con->prepare("SELECT * FROM experiments WHERE protocol_id = ? ORDER BY id DESC");
 $experiments->bind_param("i", $protocolId);
@@ -204,6 +266,91 @@ require 'header.php';
         <?php endif; ?>
 
         <?php include('message.php'); ?>
+
+        <?php if ($pendingActions || $alertOnlyFollowups || $resolvedActions) : ?>
+            <div class="card mb-4 <?= $pendingActions ? 'border-danger' : 'border-secondary'; ?>" id="endpointManagement">
+                <div class="card-header <?= $pendingActions ? 'bg-danger text-white' : 'bg-light'; ?> d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <strong><i class="fas fa-exclamation-triangle"></i> <?= trh('Endpoint management') ?></strong>
+                    <span>
+                        <span class="badge bg-light text-danger"><?= trh('{n} action(s) to handle', ['n' => count($pendingActions)]); ?></span>
+                        <?php if ($alertOnlyFollowups) : ?><span class="badge bg-warning text-dark"><?= trh('{n} recent alert(s)', ['n' => count($alertOnlyFollowups)]); ?></span><?php endif; ?>
+                    </span>
+                </div>
+                <div class="card-body">
+                    <?php if ($pendingActions) : ?>
+                        <?php foreach ($pendingActions as $pa) :
+                            $isEuthanasia = $pa['required_action'] === 'euthanasia';
+                            $alive = $pa['animal_status'] === 'active'; ?>
+                            <div class="border rounded p-2 mb-2 <?= $isEuthanasia ? 'border-danger bg-danger bg-opacity-10' : 'border-warning'; ?>" id="endpointAction<?= (int) $pa['id']; ?>">
+                                <div class="d-flex justify-content-between flex-wrap gap-2">
+                                    <div>
+                                        <span class="badge bg-<?= $isEuthanasia ? 'danger' : 'warning text-dark'; ?>"><?= htmlspecialchars(endpoint_required_actions()[$pa['required_action']] ?? $pa['required_action']); ?></span>
+                                        <a href="animal_view.php?id=<?= (int) $pa['animal_id']; ?>" class="fw-bold"><?= htmlspecialchars($pa['animal_uid']); ?></a>
+                                        · <?= htmlspecialchars($pa['experiment_number']); ?> · <?= trh('cage {cage}', ['cage' => $pa['cage_id'] ?? '—']); ?>
+                                        <div class="small"><?= htmlspecialchars($pa['message'] ?? ''); ?></div>
+                                        <div class="small text-muted">
+                                            <?= trh('Raised on {date}', ['date' => substr($pa['created_at'], 0, 16)]); ?>
+                                            <?php if ($pa['observed_at']) : ?> · <?= trh('follow-up of {date}: weight {weight} g, score {score}', ['date' => $pa['observed_at'], 'weight' => $pa['weight_g'] ?? '—', 'score' => $pa['clinical_score'] ?? '—']); ?><?php endif; ?>
+                                        </div>
+                                    </div>
+                                    <div class="text-nowrap">
+                                        <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars($followupLink((int) $pa['experiment_animal_id'])); ?>"><i class="fas fa-clipboard-check"></i> <?= trh('Follow-up') ?></a>
+                                        <?php if ($alive) : ?>
+                                            <a class="btn btn-sm btn-danger" href="animal_exit.php?<?= htmlspecialchars(http_build_query(['id' => $pa['animal_id'], 'code' => 'point_limite'])); ?>"><i class="fas fa-sign-out-alt"></i> <?= trh('Record the euthanasia') ?></a>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                                <?php if (!$isEuthanasia) : ?>
+                                    <form method="POST" class="row g-2 mt-1">
+                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                        <input type="hidden" name="protocol_id" value="<?= $protocolId; ?>">
+                                        <input type="hidden" name="action_id" value="<?= (int) $pa['id']; ?>">
+                                        <div class="col-md-9"><input type="text" class="form-control form-control-sm" name="done_note" required placeholder="<?= trh('What was done (e.g. Dr X called at 10:30 — analgesia, re-check tonight)') ?>"></div>
+                                        <div class="col-md-3"><button type="submit" name="complete_action" class="btn btn-sm btn-success w-100"><i class="fas fa-check"></i> <?= trh('Mark as done') ?></button></div>
+                                    </form>
+                                <?php else : ?>
+                                    <div class="small text-danger mt-1"><?= trh('Closed automatically when the animal’s exit is recorded.') ?></div>
+                                <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php else : ?>
+                        <p class="text-success mb-2"><i class="fas fa-check-circle"></i> <?= trh('No endpoint action to handle.') ?></p>
+                    <?php endif; ?>
+
+                    <?php if ($alertOnlyFollowups) : ?>
+                        <h6 class="mt-3"><?= trh('Endpoints reached without required action (last 7 days)') ?></h6>
+                        <ul class="small mb-0">
+                            <?php foreach ($alertOnlyFollowups as $af) : ?>
+                                <li>
+                                    <?= htmlspecialchars($af['observed_at']); ?> — <a href="animal_view.php?id=<?= (int) $af['animal_id']; ?>"><?= htmlspecialchars($af['animal_uid']); ?></a>
+                                    (<?= htmlspecialchars($af['experiment_number']); ?>) · <?= trh('weight {weight} g · score {score}', ['weight' => $af['weight_g'] ?? '—', 'score' => $af['clinical_score'] ?? '—']); ?>
+                                    · <a href="<?= htmlspecialchars($followupLink((int) $af['experiment_animal_id'])); ?>"><?= trh('Follow-up') ?></a>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
+
+                    <?php if ($resolvedActions) : ?>
+                        <details class="mt-3">
+                            <summary class="small"><?= trh('Actions handled in the last 30 days ({n})', ['n' => count($resolvedActions)]); ?></summary>
+                            <table class="table table-sm small mt-2 mb-0">
+                                <thead><tr><th><?= trh('Animal') ?></th><th><?= trh('Required action') ?></th><th><?= trh('Raised') ?></th><th><?= trh('Resolution') ?></th></tr></thead>
+                                <tbody>
+                                    <?php foreach ($resolvedActions as $ra) : ?>
+                                        <tr>
+                                            <td><?= htmlspecialchars($ra['animal_uid']); ?> <span class="text-muted">(<?= htmlspecialchars($ra['experiment_number']); ?>)</span></td>
+                                            <td><?= htmlspecialchars(endpoint_required_actions()[$ra['required_action']] ?? $ra['required_action']); ?></td>
+                                            <td><?= htmlspecialchars(substr($ra['created_at'], 0, 16)); ?></td>
+                                            <td><?= htmlspecialchars(substr((string) $ra['done_at'], 0, 16) . ' — ' . ($ra['done_by_name'] ?? '') . ' : ' . ($ra['done_note'] ?? '')); ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </details>
+                    <?php endif; ?>
+                </div>
+            </div>
+        <?php endif; ?>
 
         <div class="d-flex justify-content-between align-items-center mb-2">
             <h5 class="mb-0"><?= trh('Experiments') ?> <span class="badge bg-secondary"><?= count($experiments); ?></span></h5>
@@ -307,7 +454,7 @@ require 'header.php';
                                             <td><?= htmlspecialchars($en['cage_id'] ?? '—'); ?></td>
                                             <td><?= htmlspecialchars($en['baseline_weight_g'] ?? '-'); ?></td>
                                             <td><?= htmlspecialchars(substr($en['enrolled_at'], 0, 10)); ?></td>
-                                            <td><?= $en['removed_at'] ? '<span class="badge bg-secondary">Clôturée le ' . htmlspecialchars(substr($en['removed_at'], 0, 10)) . '</span>' : '<span class="badge bg-primary">En cours</span>'; ?></td>
+                                            <td><?= $en['removed_at'] ? '<span class="badge bg-secondary">Clôturée le ' . htmlspecialchars(substr($en['removed_at'], 0, 10)) . '</span>' : '<span class="badge bg-primary">En cours</span>'; ?><?php if (!empty($pendingByEnrollment[(int) $en['id']])) : ?> <a href="#endpointManagement" class="badge bg-danger text-decoration-none"><i class="fas fa-exclamation-triangle"></i> <?= trh('Endpoint') ?></a><?php endif; ?></td>
                                             <td class="text-end text-nowrap">
                                                 <?php if (!$en['removed_at']) : ?>
                                                     <a class="btn btn-sm btn-outline-primary" href="experiment_followup.php?<?= htmlspecialchars(http_build_query(['experiment_animal_id' => $en['id'], 'return' => 'experiment_manage.php?protocol_id=' . $protocolId])); ?>"><i class="fas fa-clipboard-check"></i> Suivi quotidien</a>

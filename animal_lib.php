@@ -195,6 +195,13 @@ function record_cage_check(mysqli $con, string $cageId, string $type, string $re
 }
 
 // All checks of the given day, grouped by cage_id.
+//
+// A cage holding animals under experiment (cage "en essai") is only seen once
+// every one of those animals has its experimental follow-up for the day: its
+// other checks (round, QR, health report) do not count, and the cage shows as
+// not seen until the last follow-up is entered. The rule applies from the
+// date stored in the experimental_round_since setting (migration 024), so
+// days recorded before it are left as they were.
 function cage_checks_for_date(mysqli $con, string $date): array
 {
     $stmt = $con->prepare("SELECT * FROM cage_checks WHERE check_date = ? ORDER BY checked_at, id");
@@ -205,7 +212,102 @@ function cage_checks_for_date(mysqli $con, string $date): array
         $byCage[$row['cage_id']][] = $row;
     }
     $stmt->close();
+
+    if ($date < experimental_round_since($con)) {
+        return $byCage;
+    }
+    foreach (experimental_followup_by_cage($con, $date) as $cageId => $progress) {
+        if ($progress['done'] < $progress['total']) {
+            unset($byCage[$cageId]);
+            continue;
+        }
+        // Complete: keep the day's checks, or show the follow-up itself when
+        // the cage became complete without a recorded check (e.g. the last
+        // pending animal left the experiment).
+        $byCage[$cageId] ??= [[
+            'cage_id' => $cageId, 'check_date' => $date, 'check_type' => 'experimental',
+            'result' => $progress['issues'] ? 'issue' : 'ok', 'method' => 'auto',
+            'note' => tr('{done}/{total} animal(s) evaluated', ['done' => $progress['done'], 'total' => $progress['total']]),
+            'checked_at' => $progress['last_at'] ?? "$date 00:00:00", 'checked_by_name' => null,
+        ]];
+    }
     return $byCage;
+}
+
+// First day on which cages under experiment need every animal's follow-up.
+function experimental_round_since(mysqli $con): string
+{
+    static $since = null;
+    if ($since === null) {
+        $row = $con->query("SELECT value FROM settings WHERE name = 'experimental_round_since'")->fetch_row();
+        $since = $row[0] ?? date('Y-m-d');
+    }
+    return $since;
+}
+
+// Animals under experiment per cage on $date and how many have their
+// follow-up that day: [cage_id => [total, done, issues, last_at]]. Only
+// cages holding such animals are returned. Today uses the current cages and
+// ongoing experiments; a past day uses the enrollments open that day and the
+// cage each animal was in at the end of that day.
+function experimental_followup_by_cage(mysqli $con, string $date, ?string $onlyCage = null): array
+{
+    $isToday = $date >= date('Y-m-d');
+    $cageExpr = $isToday ? 'm.cage_id' : "COALESCE((SELECT mv.to_cage_id FROM animal_movements mv
+        WHERE mv.animal_id = m.id AND mv.moved_at < ? + INTERVAL 1 DAY ORDER BY mv.moved_at DESC, mv.id DESC LIMIT 1), m.cage_id)";
+    $openOnDate = $isToday
+        ? "m.status = 'active' AND ea.removed_at IS NULL AND e.status IN ('planned', 'active')"
+        : "ea.enrolled_at < ? + INTERVAL 1 DAY AND (ea.removed_at IS NULL OR ea.removed_at >= ? + INTERVAL 1 DAY)";
+    $sql = "SELECT cage_id, COUNT(*) AS total, SUM(followup_id IS NOT NULL) AS done,
+                   SUM(COALESCE(endpoint_reached, 0)) AS issues, MAX(followup_at) AS last_at
+            FROM (SELECT $cageExpr AS cage_id, f.id AS followup_id, f.endpoint_reached, f.created_at AS followup_at
+                  FROM experiment_animals ea
+                  JOIN mice m ON m.id = ea.animal_id
+                  JOIN experiments e ON e.id = ea.experiment_id
+                  LEFT JOIN experiment_followups f ON f.experiment_animal_id = ea.id AND f.observed_at = ?
+                  WHERE $openOnDate) x
+            WHERE cage_id IS NOT NULL" . ($onlyCage !== null ? ' AND cage_id = ?' : '') . "
+            GROUP BY cage_id";
+    $params = $isToday ? [$date] : [$date, $date, $date, $date];
+    if ($onlyCage !== null) {
+        $params[] = $onlyCage;
+    }
+    $stmt = $con->prepare($sql);
+    $stmt->bind_param(str_repeat('s', count($params)), ...$params);
+    $stmt->execute();
+    $byCage = [];
+    foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
+        $byCage[$row['cage_id']] = ['total' => (int) $row['total'], 'done' => (int) $row['done'], 'issues' => (int) $row['issues'], 'last_at' => $row['last_at']];
+    }
+    $stmt->close();
+    return $byCage;
+}
+
+// Follow-up progress of one cage today, or null when it holds no animal under experiment.
+function cage_experimental_progress(mysqli $con, string $cageId): ?array
+{
+    return experimental_followup_by_cage($con, date('Y-m-d'), $cageId)[$cageId] ?? null;
+}
+
+// Once every animal under experiment in the cage has today's follow-up,
+// record the cage's daily check (once a day, by whoever completed it).
+function record_experimental_cage_check_if_complete(mysqli $con, string $cageId, ?int $userId, ?string $userName): bool
+{
+    $progress = cage_experimental_progress($con, $cageId);
+    if (!$progress || $progress['done'] < $progress['total']) {
+        return false;
+    }
+    $today = date('Y-m-d');
+    $exists = $con->prepare("SELECT 1 FROM cage_checks WHERE cage_id = ? AND check_date = ? AND check_type = 'experimental'");
+    $exists->bind_param("ss", $cageId, $today);
+    $exists->execute();
+    $already = $exists->get_result()->num_rows > 0;
+    $exists->close();
+    if (!$already) {
+        record_cage_check($con, $cageId, 'experimental', $progress['issues'] ? 'issue' : 'ok', 'auto',
+            tr('{done}/{total} animal(s) evaluated', ['done' => $progress['done'], 'total' => $progress['total']]), null, $userId, $userName);
+    }
+    return true;
 }
 
 // Record a cage entering or leaving service (append-only cage_lifecycle) and
