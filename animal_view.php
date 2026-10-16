@@ -185,6 +185,41 @@ $statusBadge = [
             </div>
         </div>
 
+        <?php $originText = origin_label($animal); $canEditOrigin = !$animal['origin_type'] || ($_SESSION['role'] ?? '') === 'admin'; ?>
+        <div class="card <?= $originText ? '' : 'border-warning'; ?>" id="register">
+            <div class="card-body">
+                <h5 class="card-title d-flex justify-content-between flex-wrap gap-2"><span><i class="fas fa-book"></i> <?= trh('Entry / exit register') ?></span>
+                    <a class="btn btn-sm btn-outline-secondary" href="animal_register.php"><?= trh('Open the register') ?></a></h5>
+                <div class="row">
+                    <div class="col-md-6">
+                        <p class="mb-1"><strong><?= trh('Entry date:') ?></strong> <?= htmlspecialchars($animal['entry_date'] ?? '—'); ?></p>
+                        <p class="mb-1"><strong><?= trh('Origin:') ?></strong>
+                            <?php if ($originText) : ?><?= htmlspecialchars($originText); ?>
+                            <?php else : ?><span class="badge bg-warning text-dark"><?= trh('To complete') ?></span><?php endif; ?></p>
+                    </div>
+                    <div class="col-md-6">
+                        <?php if ($animal['status'] !== 'active') : ?>
+                            <p class="mb-1"><strong><?= trh('Exit date:') ?></strong> <?= htmlspecialchars($animal['exit_date'] ?? '—'); ?></p>
+                            <p class="mb-1"><strong><?= trh('Exit code:') ?></strong> <?= htmlspecialchars(exit_label($animal['exit_code'] ?? null, $animal['status'])); ?><?= !empty($animal['exit_destination']) ? ' → ' . htmlspecialchars($animal['exit_destination']) : ''; ?></p>
+                        <?php else : ?>
+                            <p class="mb-1 text-muted"><?= trh('Still in the facility.') ?></p>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <?php if ($canEditOrigin) : ?>
+                    <details class="mt-2" <?= $originText ? '' : 'open'; ?>>
+                        <summary class="small"><?= $originText ? trh('Correct the entry (administrator)') : trh('Complete the entry into the facility') ?></summary>
+                        <form method="POST" action="animal_origin.php" class="mt-2">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>">
+                            <input type="hidden" name="animal_id" value="<?= (int) $animal['id']; ?>">
+                            <?= animal_origin_fields($animal, true); ?>
+                            <button type="submit" class="btn btn-sm btn-primary"><?= trh('Save the entry') ?></button>
+                        </form>
+                    </details>
+                <?php endif; ?>
+            </div>
+        </div>
+
         <div class="card">
             <div class="card-body">
                 <h5 class="card-title"><?= trh('Parentage') ?></h5>

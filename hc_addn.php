@@ -92,11 +92,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $female_count = max(0, (int) ($_POST['female_count'] ?? 0));
 
     $qty = $male_count + $female_count;
+    [$originError, $origin] = origin_from_input($_POST, $_POST['dob'] ?? null);
 
     if (!$line_id) {
         $_SESSION['message'] = tr('Please select an animal line.');
     } elseif ($qty === 0) {
         $_SESSION['message'] = tr('Enter at least one male or female to create.');
+    } elseif ($originError) {
+        $_SESSION['message'] = $originError;
     } else {
         // Start a transaction
         mysqli_begin_transaction($con);
@@ -138,9 +141,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 for ($i = 0; $i < $count; $i++) {
                     $animal_uid = allocate_animal_uid($con, $line_id);
 
-                    $query3 = "INSERT INTO mice (cage_id, line_id, animal_uid, sex, genotype, dob) VALUES (?, ?, ?, ?, ?, ?)";
+                    $query3 = "INSERT INTO mice (cage_id, line_id, animal_uid, sex, genotype, dob, entry_date, origin_type, origin_detail, origin_reference) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
                     $stmt3 = $con->prepare($query3);
-                    $stmt3->bind_param("sissss", $cage_id, $line_id, $animal_uid, $sex, $genotype, $dob);
+                    $stmt3->bind_param("sissssssss", $cage_id, $line_id, $animal_uid, $sex, $genotype, $dob, $origin['entry_date'], $origin['origin_type'], $origin['origin_detail'], $origin['origin_reference']);
                     $stmt3->execute();
                     $new_animal_id = $con->insert_id;
 
@@ -476,6 +479,8 @@ require 'header.php';
                 <label for="dob" class="form-label"><?= trh('DOB') ?> <span class="required-asterisk">*</span></label>
                 <input type="date" class="form-control" id="dob" name="dob" required min="1900-01-01">
             </div>
+
+            <?= animal_origin_fields([], true); ?>
 
             <div class="mb-3">
                 <label for="genotype" class="form-label"><?= trh('Genotype') ?></label>

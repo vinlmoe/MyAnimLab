@@ -539,6 +539,104 @@ const ANIMAL_EXIT_CODES = [
     'export' => ['Export vers une autre animalerie', 'transferred_out'],
 ];
 
+// Origin of an animal on the entry / exit register.
+const ANIMAL_ORIGINS = [
+    'internal_birth' => 'Born in the facility',
+    'supplier' => 'Supplier / authorised breeder',
+    'other_facility' => 'Other user establishment',
+    'other' => 'Other origin',
+];
+
+// ANIMAL_ORIGINS in the interface language.
+function animal_origins(): array
+{
+    return array_map('tr', ANIMAL_ORIGINS);
+}
+
+// Origin and entry date read from a form (fields origin_type, origin_detail,
+// origin_reference, entry_date). Returns [error message or null, origin].
+// The supplier or establishment is required for an animal coming from
+// outside; the entry date defaults to the date of birth for an animal born
+// here, and to today otherwise.
+function origin_from_input(array $in, ?string $dob): array
+{
+    $type = (string) ($in['origin_type'] ?? '');
+    $origin = [
+        'origin_type' => $type,
+        'origin_detail' => trim((string) ($in['origin_detail'] ?? '')) ?: null,
+        'origin_reference' => trim((string) ($in['origin_reference'] ?? '')) ?: null,
+        'entry_date' => trim((string) ($in['entry_date'] ?? '')) ?: ($type === 'internal_birth' && $dob ? $dob : date('Y-m-d')),
+    ];
+    if (!isset(ANIMAL_ORIGINS[$type])) {
+        return [tr('Choose the origin of the animal(s).'), $origin];
+    }
+    if ($type !== 'internal_birth' && $origin['origin_detail'] === null) {
+        return [tr('Give the supplier or establishment the animal(s) come from.'), $origin];
+    }
+    $date = DateTime::createFromFormat('Y-m-d', $origin['entry_date']);
+    if (!$date || $date->format('Y-m-d') !== $origin['entry_date'] || $origin['entry_date'] > date('Y-m-d')) {
+        return [tr('The entry date is not valid.'), $origin];
+    }
+    if ($dob && $origin['entry_date'] < $dob) {
+        return [tr('The entry date cannot be before the date of birth.'), $origin];
+    }
+    return [null, $origin];
+}
+
+// Record the origin of existing animals (completing the register).
+function set_animal_origin(mysqli $con, int $animalId, array $origin, ?int $userId): void
+{
+    $stmt = $con->prepare("UPDATE mice SET origin_type = ?, origin_detail = ?, origin_reference = ?, entry_date = ? WHERE id = ?");
+    $stmt->bind_param("ssssi", $origin['origin_type'], $origin['origin_detail'], $origin['origin_reference'], $origin['entry_date'], $animalId);
+    $stmt->execute();
+    $stmt->close();
+    log_animal_event($con, $animalId, 'note', ['origin' => $origin], $userId);
+    log_activity($con, 'set_origin', 'animal', (string) $animalId, 'Origin: ' . $origin['origin_type'] . ($origin['origin_detail'] ? ' — ' . $origin['origin_detail'] : '') . ', entry ' . $origin['entry_date'], $userId);
+}
+
+// "Origin — detail (reference)" of an animal, or null when not recorded.
+function origin_label(array $animal): ?string
+{
+    if (empty($animal['origin_type'])) {
+        return null;
+    }
+    return (animal_origins()[$animal['origin_type']] ?? $animal['origin_type'])
+        . (!empty($animal['origin_detail']) ? ' — ' . $animal['origin_detail'] : '')
+        . (!empty($animal['origin_reference']) ? ' (' . $animal['origin_reference'] . ')' : '');
+}
+
+// Form fields for the origin and entry date of new animals. $values holds
+// previously submitted values; $allowInternal offers "born in the facility".
+function animal_origin_fields(array $values = [], bool $allowInternal = false): string
+{
+    $type = $values['origin_type'] ?? '';
+    $options = '<option value="" ' . ($type === '' ? 'selected' : '') . ' disabled>' . trh('Choose…') . '</option>';
+    foreach (animal_origins() as $key => $label) {
+        if ($key === 'internal_birth' && !$allowInternal) {
+            continue;
+        }
+        $options .= '<option value="' . $key . '"' . ($type === $key ? ' selected' : '') . '>' . htmlspecialchars($label) . '</option>';
+    }
+    $v = fn(string $k): string => htmlspecialchars((string) ($values[$k] ?? ''));
+    return '<fieldset class="border rounded p-2 mb-3 origin-fields">'
+        . '<legend class="float-none w-auto px-2 fs-6 mb-0"><i class="fas fa-sign-in-alt"></i> ' . trh('Entry into the facility (register)') . '</legend>'
+        . '<div class="row g-2">'
+        . '<div class="col-md-6"><label class="form-label" for="origin_type">' . trh('Origin') . ' <span class="text-danger">*</span></label>'
+        . '<select class="form-select" id="origin_type" name="origin_type" required>' . $options . '</select></div>'
+        . '<div class="col-md-6"><label class="form-label" for="origin_detail">' . trh('Supplier / establishment') . ' <span class="text-danger origin-detail-required">*</span></label>'
+        . '<input class="form-control" id="origin_detail" name="origin_detail" maxlength="255" value="' . $v('origin_detail') . '" placeholder="' . trh('e.g. Janvier Labs, Inserm U123') . '"></div>'
+        . '<div class="col-md-6"><label class="form-label" for="origin_reference">' . trh('Reference') . '</label>'
+        . '<input class="form-control" id="origin_reference" name="origin_reference" maxlength="100" value="' . $v('origin_reference') . '" placeholder="' . trh('delivery note…') . '"></div>'
+        . '<div class="col-md-6"><label class="form-label" for="entry_date">' . trh('Entry date') . ' <span class="text-danger">*</span></label>'
+        . '<input class="form-control" type="date" id="entry_date" name="entry_date" max="' . date('Y-m-d') . '" value="' . ($v('entry_date') ?: date('Y-m-d')) . '" required></div>'
+        . '</div></fieldset>'
+        . '<script>(function () {'
+        . 'var t = document.getElementById("origin_type"), d = document.getElementById("origin_detail"), mark = document.querySelector(".origin-detail-required");'
+        . 'function sync() { var ext = t.value && t.value !== "internal_birth"; d.required = !!ext; mark.style.visibility = ext ? "visible" : "hidden"; }'
+        . 't.addEventListener("change", sync); sync();'
+        . '})();</script>';
+}
+
 // Label of an animal's exit: its exit code, or its status for exits
 // recorded before exit codes existed.
 function exit_label(?string $code, string $status): string
@@ -931,11 +1029,20 @@ function create_holding_cage(mysqli $con, ?int $piId, ?string $room, ?string $ra
 
 // Create one identified animal (line UID) in an active cage, with optional
 // parentage, its initial placement and creation event. Returns its id.
-function create_animal(mysqli $con, string $cageId, int $lineId, ?string $sex, ?string $dob, ?array $parentage, string $why, ?int $userId): int
+// $origin (see origin_from_input()) feeds the entry / exit register; an
+// animal weaned from a litter is recorded as born in the facility.
+function create_animal(mysqli $con, string $cageId, int $lineId, ?string $sex, ?string $dob, ?array $parentage, string $why, ?int $userId, ?array $origin = null): int
 {
+    if (!$origin && !empty($parentage['litter_id'])) {
+        $origin = ['origin_type' => 'internal_birth', 'origin_detail' => null, 'origin_reference' => tr('Litter #{id}', ['id' => $parentage['litter_id']]), 'entry_date' => $dob ?: date('Y-m-d')];
+    }
     $uid = allocate_animal_uid($con, $lineId);
-    $stmt = $con->prepare("INSERT INTO mice (cage_id, line_id, animal_uid, sex, dob) VALUES (?, ?, ?, ?, ?)");
-    $stmt->bind_param("sisss", $cageId, $lineId, $uid, $sex, $dob);
+    $originType = $origin['origin_type'] ?? null;
+    $originDetail = $origin['origin_detail'] ?? null;
+    $originReference = $origin['origin_reference'] ?? null;
+    $entryDate = $origin['entry_date'] ?? date('Y-m-d');
+    $stmt = $con->prepare("INSERT INTO mice (cage_id, line_id, animal_uid, sex, dob, entry_date, origin_type, origin_detail, origin_reference) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param("sisssssss", $cageId, $lineId, $uid, $sex, $dob, $entryDate, $originType, $originDetail, $originReference);
     $stmt->execute();
     $animalId = $con->insert_id;
     $stmt->close();

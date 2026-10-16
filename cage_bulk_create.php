@@ -29,6 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $rack = trim($_POST['rack'] ?? '') ?: null;
     $remarks = trim($_POST['remarks'] ?? '');
     $userIds = array_values(array_unique(array_filter(array_map('intval', $_POST['user_ids'] ?? []))));
+    [$originError, $origin] = origin_from_input($_POST, $dob ?: null);
 
     if ($animalCount < 1 || $animalCount > 1000) {
         $_SESSION['message'] = tr('Choose between 1 and 1,000 animals.');
@@ -42,6 +43,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['message'] = tr('Select a PI.');
     } elseif (!$lineId || !in_array($sex, ['male', 'female'], true) || !$dob) {
         $_SESSION['message'] = tr('Select an animal line, sex and date of birth.');
+    } elseif ($originError) {
+        $_SESSION['message'] = $originError;
     } else {
         mysqli_begin_transaction($con);
         try {
@@ -60,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $update->close();
                 }
                 for ($animal = 0; $animal < $forThisCage; $animal++) {
-                    create_animal($con, $cageId, $lineId, $sex, $dob, null, tr('Bulk creation'), $_SESSION['user_id'] ?? null);
+                    create_animal($con, $cageId, $lineId, $sex, $dob, null, tr('Bulk creation'), $_SESSION['user_id'] ?? null, $origin);
                 }
                 if (!empty($_POST['is_experimental'])) {
                     set_cages_experimental($con, [$cageId], true, $_SESSION['user_id'] ?? null);
@@ -111,6 +114,7 @@ require 'header.php';
             <div class="col-md-3 mb-3"><label class="form-label" for="sex">Sexe</label><select class="form-control" id="sex" name="sex" required><option value="male">Mâle</option><option value="female">Femelle</option></select></div>
             <div class="col-md-3 mb-3"><label class="form-label" for="dob">Date de naissance</label><input class="form-control" type="date" id="dob" name="dob" max="<?= date('Y-m-d'); ?>" required></div>
         </div>
+        <?= animal_origin_fields($_SERVER['REQUEST_METHOD'] === 'POST' ? $_POST : [], true); ?>
         <div class="row">
             <div class="col-md-6 mb-3">
                 <label class="form-label" for="minimum_per_cage">Minimum d’animaux par cage</label>

@@ -200,6 +200,11 @@ CREATE TABLE `mice` (
   `mouse_id` varchar(255) DEFAULT NULL,
   `sex` ENUM('male','female') DEFAULT NULL,
   `dob` date DEFAULT NULL,
+  -- Entry / exit register: date of entry into the facility and origin.
+  `entry_date` date DEFAULT NULL,
+  `origin_type` ENUM('internal_birth','supplier','other_facility','other') DEFAULT NULL,
+  `origin_detail` varchar(255) DEFAULT NULL,
+  `origin_reference` varchar(100) DEFAULT NULL,
   `distinctive_mark` varchar(255) DEFAULT NULL,
   `genotype` varchar(255) DEFAULT NULL,
   `notes` text DEFAULT NULL,
@@ -209,6 +214,8 @@ CREATE TABLE `mice` (
   `exit_destination` varchar(255) DEFAULT NULL,
   `exit_code` varchar(40) DEFAULT NULL,
   PRIMARY KEY (`id`),
+  KEY `idx_mice_entry_date` (`entry_date`),
+  KEY `idx_mice_exit_date` (`exit_date`),
   FOREIGN KEY (`cage_id`) REFERENCES `cages` (`cage_id`) ON UPDATE CASCADE ON DELETE SET NULL,
   FOREIGN KEY (`line_id`) REFERENCES `animal_lines` (`id`) ON DELETE SET NULL
 );
