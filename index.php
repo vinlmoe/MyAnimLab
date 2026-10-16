@@ -406,6 +406,9 @@ mysqli_close($con);
                 <div class="col-md-6">
                     <div class="login-form">
                         <h3><?= trh('Login') ?></h3>
+                        <?php if (!empty($error_message)) { ?>
+                            <div class="alert alert-danger"><?= htmlspecialchars($error_message); ?></div>
+                        <?php } ?>
                         <?php if (isset($_SESSION['error_message'])) { ?>
                             <div class="alert alert-danger">
                                 <?php 

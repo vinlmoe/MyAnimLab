@@ -87,11 +87,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         die(tr('CSRF token validation failed'));
     }
 
-    $title = htmlspecialchars($_POST['title']);
-    $description = htmlspecialchars($_POST['description']);
-    $assignedBy = htmlspecialchars($_POST['assigned_by_id']);
+    $title = htmlspecialchars($_POST['title'] ?? '');
+    $description = htmlspecialchars($_POST['description'] ?? '');
+    // The creator is the signed-in user when the form did not provide one.
+    $assignedBy = htmlspecialchars((string) (($_POST['assigned_by_id'] ?? '') !== '' ? $_POST['assigned_by_id'] : ($_SESSION['user_id'] ?? '')));
     $assignedTo = htmlspecialchars(implode(',', $_POST['assigned_to'] ?? []));
-    $status = htmlspecialchars($_POST['status']);
+    $status = htmlspecialchars($_POST['status'] ?? '');
     $completionDate = !empty($_POST['completion_date']) ? htmlspecialchars($_POST['completion_date']) : NULL;
     $cageId = empty($_POST['cage_id']) ? NULL : htmlspecialchars($_POST['cage_id']);
     $taskAction = '';

@@ -260,6 +260,7 @@ Pour la configuration initiale, utilisez les identifiants administrateur par dé
 - `logout.php` : déconnecte l’utilisateur en détruisant la session et redirige vers la page de connexion.
 - `delete_file.php` : supprime les fichiers envoyés, sur le serveur et dans la base de données.
 - `export_data.php` : permet aux administrateurs d’exporter toutes les tables de la base en fichiers CSV.
+- `log_export.php` : export des journaux bruts (activité, événements et mouvements des animaux, contrôles et cycle de vie des cages, portées, suivi sanitaire, actions de point limite, notifications, e-mails) tels qu’enregistrés, par journal en CSV ou tous en ZIP, avec filtre de dates ; réservé aux administrateurs et tracé dans le journal d’activité.
 - `manage_tasks.php` : gestion des tâches (ajout, modification, suppression).
 - `get_task.php` : renvoie le détail d’une tâche à partir de son identifiant.
 - `send_email.php` : traite la file des e-mails en attente ; à programmer en tâche cron.
