@@ -27,14 +27,14 @@ $trial = $trialStmt->get_result()->fetch_assoc();
 
 if (!$trial) {
     require 'header.php';
-    echo "<div class='container mt-4'><div class='alert alert-danger'>Trial not found.</div></div>";
+    echo "<div class='container mt-4'><div class='alert alert-danger'>" . trh('Trial not found.') . "</div></div>";
     require 'footer.php';
     exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        die('CSRF token validation failed');
+        die(tr('CSRF token validation failed'));
     }
 
     if (isset($_POST['add_protocol'])) {
@@ -53,12 +53,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $check->close();
 
         if ($count > 0) {
-            $_SESSION['message'] = "Error: Protocol number already exists.";
+            $_SESSION['message'] = tr('Error: Protocol number already exists.');
         } else {
             $stmt = $con->prepare("INSERT INTO protocols (trial_id, protocol_number, title, methodology, endpoint_criteria, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?, ?)");
             $stmt->bind_param("issssss", $trialId, $protocolNumber, $title, $methodology, $endpointCriteria, $startDate, $endDate);
             $stmt->execute();
-            $_SESSION['message'] = "Protocol created successfully.";
+            $_SESSION['message'] = tr('Protocol created successfully.');
             $stmt->close();
         }
     } elseif (isset($_POST['set_grid'])) {
@@ -72,14 +72,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $itemThresholds->fetch();
         $itemThresholds->close();
         if ($nItem > 0) {
-            $_SESSION['message'] = "This protocol has endpoints on grid items: the grid can no longer be changed.";
+            $_SESSION['message'] = tr('This protocol has endpoints on grid items: the grid can no longer be changed.');
         } else {
             $stmt = $con->prepare("UPDATE protocols SET clinical_grid_id = ? WHERE id = ? AND trial_id = ?");
             $stmt->bind_param("iii", $gridId, $protocolId, $trialId);
             $stmt->execute();
             $stmt->close();
-            log_activity($con, 'set_grid', 'protocol', (string) $protocolId, "Clinical grid #" . ($gridId ?? 'none'), $currentUserId ?? null);
-            $_SESSION['message'] = "Clinical grid saved for the protocol.";
+            log_activity($con, 'set_grid', 'protocol', (string) $protocolId, tr('Clinical grid #{id}', ['id' => $gridId ?? tr('none')]), $currentUserId ?? null);
+            $_SESSION['message'] = tr('Clinical grid saved for the protocol.');
         }
     } elseif (isset($_POST['add_obs_field'])) {
         $protocolId = (int) $_POST['protocol_id'];
@@ -88,14 +88,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $unit = $type === 'number' ? (trim($_POST['obs_unit'] ?? '') ?: null) : null;
         $required = !empty($_POST['obs_required']) ? 1 : 0;
         if ($label === '') {
-            $_SESSION['message'] = "Give the observation a label.";
+            $_SESSION['message'] = tr('Give the observation a label.');
         } else {
             $pos = (int) $con->query("SELECT COALESCE(MAX(position), 0) + 1 FROM protocol_observation_fields WHERE protocol_id = $protocolId")->fetch_row()[0];
             $stmt = $con->prepare("INSERT INTO protocol_observation_fields (protocol_id, position, label, value_type, unit, required) VALUES (?, ?, ?, ?, ?, ?)");
             $stmt->bind_param("iisssi", $protocolId, $pos, $label, $type, $unit, $required);
             $stmt->execute();
             $stmt->close();
-            $_SESSION['message'] = "Observation \"$label\" added to the daily follow-up.";
+            $_SESSION['message'] = tr('Observation "{label}" added to the daily follow-up.', ['label' => $label]);
         }
     } elseif (isset($_POST['delete_obs_field'])) {
         // Removing a field only stops asking for it (deactivated, never deleted,
@@ -108,13 +108,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $used->fetch();
         $used->close();
         if ($nUsed > 0) {
-            $_SESSION['message'] = "An endpoint uses this observation: it cannot be removed.";
+            $_SESSION['message'] = tr('An endpoint uses this observation: it cannot be removed.');
         } else {
             $stmt = $con->prepare("UPDATE protocol_observation_fields f JOIN protocols p ON p.id = f.protocol_id SET f.active = 0 WHERE f.id = ? AND p.trial_id = ?");
             $stmt->bind_param("ii", $fieldId, $trialId);
             $stmt->execute();
             $stmt->close();
-            $_SESSION['message'] = "Observation removed from the daily follow-up.";
+            $_SESSION['message'] = tr('Observation removed from the daily follow-up.');
         }
     } elseif (isset($_POST['add_threshold'])) {
         $protocolId = (int) $_POST['protocol_id'];
@@ -127,14 +127,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $obsFieldId = $metric === 'observation' ? ((int) ($_POST['observation_field_id'] ?? 0) ?: null) : null;
 
         if ($metric === 'item_score' && !$gridItemId) {
-            $_SESSION['message'] = "Choose the grid item for this endpoint.";
+            $_SESSION['message'] = tr('Choose the grid item for this endpoint.');
         } elseif ($metric === 'observation' && !$obsFieldId) {
-            $_SESSION['message'] = "Choose the numeric observation for this endpoint.";
+            $_SESSION['message'] = tr('Choose the numeric observation for this endpoint.');
         } else {
             $stmt = $con->prepare("INSERT INTO protocol_endpoint_thresholds (protocol_id, metric, grid_item_id, observation_field_id, operator, value, action_message, required_action) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->bind_param("isiisdss", $protocolId, $metric, $gridItemId, $obsFieldId, $operator, $value, $actionMessage, $requiredAction);
             $stmt->execute();
-            $_SESSION['message'] = "Endpoint threshold added.";
+            $_SESSION['message'] = tr('Endpoint threshold added.');
             $stmt->close();
         }
     }
@@ -158,55 +158,55 @@ require 'header.php';
 <html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
-    <title>Protocols | <?php echo htmlspecialchars($labName); ?></title>
+    <title><?= trh('Protocols') ?> | <?php echo htmlspecialchars($labName); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 
 <body>
     <div class="container mt-4 content">
-        <h4>Protocols for Trial <?= htmlspecialchars($trial['trial_number']); ?> — <?= htmlspecialchars($trial['title']); ?></h4>
-        <a href="trial_manage.php">&laquo; Back to Trials</a>
+        <h4><?= trh('Protocols for Trial {trial}', ['trial' => $trial['trial_number']]); ?> — <?= htmlspecialchars($trial['title']); ?></h4>
+        <a href="trial_manage.php">&laquo; <?= trh('Back to Trials') ?></a>
 
         <?php include('message.php'); ?>
 
         <div class="card my-4">
             <div class="card-body">
-                <h5>New Protocol</h5>
+                <h5><?= trh('New Protocol') ?></h5>
                 <form method="POST">
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                     <input type="hidden" name="trial_id" value="<?= $trialId; ?>">
                     <div class="mb-3">
-                        <label class="form-label">Protocol Number *</label>
+                        <label class="form-label"><?= trh('Protocol Number') ?> *</label>
                         <input type="text" class="form-control" name="protocol_number" required placeholder="e.g. P-2026-001">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Title *</label>
+                        <label class="form-label"><?= trh('Title') ?> *</label>
                         <input type="text" class="form-control" name="title" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Methodology</label>
+                        <label class="form-label"><?= trh('Methodology') ?></label>
                         <textarea class="form-control" name="methodology"></textarea>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Endpoint Criteria (point limite) — narrative description</label>
+                        <label class="form-label"><?= trh('Endpoint criteria — narrative description') ?></label>
                         <textarea class="form-control" name="endpoint_criteria"></textarea>
                     </div>
                     <div class="row">
                         <div class="col mb-3">
-                            <label class="form-label">Start Date</label>
+                            <label class="form-label"><?= trh('Start Date') ?></label>
                             <input type="date" class="form-control" name="start_date">
                         </div>
                         <div class="col mb-3">
-                            <label class="form-label">End Date</label>
+                            <label class="form-label"><?= trh('End Date') ?></label>
                             <input type="date" class="form-control" name="end_date">
                         </div>
                     </div>
-                    <button type="submit" name="add_protocol" class="btn btn-primary">Create Protocol</button>
+                    <button type="submit" name="add_protocol" class="btn btn-primary"><?= trh('Create Protocol') ?></button>
                 </form>
             </div>
         </div>
 
-        <h5>Existing Protocols</h5>
+        <h5><?= trh('Existing Protocols') ?></h5>
         <?php while ($p = $protocols->fetch_assoc()) :
             $grid = $p['clinical_grid_id'] ? load_clinical_grid($con, (int) $p['clinical_grid_id']) : null;
             $obsFields = protocol_observation_fields($con, (int) $p['id']);
@@ -230,72 +230,72 @@ require 'header.php';
                         <input type="hidden" name="trial_id" value="<?= $trialId; ?>">
                         <input type="hidden" name="protocol_id" value="<?= (int) $p['id']; ?>">
                         <div class="col-auto">
-                            <label class="form-label mb-0">Clinical scoring grid for the daily follow-up</label>
+                            <label class="form-label mb-0"><?= trh('Clinical scoring grid for the daily follow-up') ?></label>
                             <select class="form-select" name="clinical_grid_id">
-                                <option value="">No grid (free clinical score)</option>
+                                <option value=""><?= trh('No grid (free clinical score)') ?></option>
                                 <?php foreach ($allGrids as $g) : ?>
                                     <option value="<?= (int) $g['id']; ?>" <?= (int) $p['clinical_grid_id'] === (int) $g['id'] ? 'selected' : ''; ?>><?= htmlspecialchars($g['name']); ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
                         <div class="col-auto">
-                            <button type="submit" name="set_grid" class="btn btn-outline-primary">Save grid</button>
-                            <?php if ($grid) : ?><a href="clinical_grids.php?id=<?= (int) $grid['id']; ?>" class="ms-2">View grid</a><?php endif; ?>
+                            <button type="submit" name="set_grid" class="btn btn-outline-primary"><?= trh('Save grid') ?></button>
+                            <?php if ($grid) : ?><a href="clinical_grids.php?id=<?= (int) $grid['id']; ?>" class="ms-2"><?= trh('View grid') ?></a><?php endif; ?>
                         </div>
                     </form>
 
-                    <h6>Additional observations in the daily follow-up</h6>
+                    <h6><?= trh('Additional observations in the daily follow-up') ?></h6>
                     <table class="table table-sm obs-fields">
                         <?php foreach ($obsFields as $of) : ?>
                             <tr>
                                 <td><?= htmlspecialchars($of['label']); ?></td>
-                                <td><?= $of['value_type'] === 'number' ? 'Number' . ($of['unit'] ? ' (' . htmlspecialchars($of['unit']) . ')' : '') : 'Text'; ?></td>
-                                <td><?= $of['required'] ? 'Required' : 'Optional'; ?></td>
+                                <td><?= $of['value_type'] === 'number' ? trh('Number value') . ($of['unit'] ? ' (' . htmlspecialchars($of['unit']) . ')' : '') : trh('Text'); ?></td>
+                                <td><?= $of['required'] ? trh('Required') : trh('Optional'); ?></td>
                                 <td class="text-end">
-                                    <form method="POST" class="d-inline" onsubmit="return confirm('Stop asking for this observation?');">
+                                    <form method="POST" class="d-inline" onsubmit="return confirm(<?= htmlspecialchars(trj('Stop asking for this observation?')) ?>);">
                                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                                         <input type="hidden" name="trial_id" value="<?= $trialId; ?>">
                                         <input type="hidden" name="field_id" value="<?= (int) $of['id']; ?>">
-                                        <button type="submit" name="delete_obs_field" class="btn btn-sm btn-outline-danger">Remove</button>
+                                        <button type="submit" name="delete_obs_field" class="btn btn-sm btn-outline-danger"><?= trh('Remove') ?></button>
                                     </form>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
-                        <?php if (!$obsFields) : ?><tr><td class="text-muted">None — free observations can still be added to any entry.</td></tr><?php endif; ?>
+                        <?php if (!$obsFields) : ?><tr><td class="text-muted"><?= trh('None — free observations can still be added to any entry.') ?></td></tr><?php endif; ?>
                     </table>
                     <form method="POST" class="row g-2 align-items-end mb-3 obs-field-form">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                         <input type="hidden" name="trial_id" value="<?= $trialId; ?>">
                         <input type="hidden" name="protocol_id" value="<?= (int) $p['id']; ?>">
-                        <div class="col-auto"><input type="text" class="form-control" name="obs_label" placeholder="e.g. Temperature, Tumour volume, Wound aspect" required></div>
+                        <div class="col-auto"><input type="text" class="form-control" name="obs_label" placeholder="<?= trh('e.g. Temperature, Tumour volume, Wound aspect') ?>" required></div>
                         <div class="col-auto">
                             <select class="form-select" name="obs_type">
-                                <option value="number">Number</option>
-                                <option value="text">Text</option>
+                                <option value="number"><?= trh('Number value') ?></option>
+                                <option value="text"><?= trh('Text') ?></option>
                             </select>
                         </div>
-                        <div class="col-auto"><input type="text" class="form-control" name="obs_unit" placeholder="Unit (°C, mm³...)" style="width: 140px;"></div>
+                        <div class="col-auto"><input type="text" class="form-control" name="obs_unit" placeholder="<?= trh('Unit (°C, mm³...)') ?>" style="width: 140px;"></div>
                         <div class="col-auto form-check ms-2">
                             <input class="form-check-input" type="checkbox" name="obs_required" value="1" id="obsReq<?= (int) $p['id']; ?>">
-                            <label class="form-check-label" for="obsReq<?= (int) $p['id']; ?>">Required</label>
+                            <label class="form-check-label" for="obsReq<?= (int) $p['id']; ?>"><?= trh('Required') ?></label>
                         </div>
-                        <div class="col-auto"><button type="submit" name="add_obs_field" class="btn btn-outline-primary">Add observation</button></div>
+                        <div class="col-auto"><button type="submit" name="add_obs_field" class="btn btn-outline-primary"><?= trh('Add observation') ?></button></div>
                     </form>
 
-                    <h6>Endpoints (points limites)</h6>
+                    <h6><?= trh('Endpoints (points limites)') ?></h6>
                     <table class="table table-sm">
                         <thead>
                             <tr>
-                                <th>Condition</th>
-                                <th>Required action</th>
-                                <th>Message</th>
+                                <th><?= trh('Condition') ?></th>
+                                <th><?= trh('Required action') ?></th>
+                                <th><?= trh('Message') ?></th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php while ($th = $thresholds->fetch_assoc()) : ?>
                                 <tr>
                                     <td><?= htmlspecialchars(threshold_label($th, threshold_target_label($th, $grid, $allObsFields))); ?></td>
-                                    <td><?= $th['required_action'] !== 'none' ? '<span class="badge bg-danger">' . htmlspecialchars(endpoint_required_actions()[$th['required_action']]) . '</span>' : 'Alert only'; ?></td>
+                                    <td><?= $th['required_action'] !== 'none' ? '<span class="badge bg-danger">' . htmlspecialchars(endpoint_required_actions()[$th['required_action']]) . '</span>' : trh('Alert only'); ?></td>
                                     <td><?= htmlspecialchars($th['action_message'] ?? ''); ?></td>
                                 </tr>
                             <?php endwhile; ?>
@@ -308,10 +308,10 @@ require 'header.php';
                         <input type="hidden" name="protocol_id" value="<?= (int) $p['id']; ?>">
                         <div class="col-auto">
                             <select class="form-select metric" name="metric">
-                                <option value="weight_loss_pct">Weight loss %</option>
-                                <option value="clinical_score">Total clinical score</option>
-                                <?php if ($grid && $grid['items']) : ?><option value="item_score">Score of one grid item</option><?php endif; ?>
-                                <?php if ($numericFields) : ?><option value="observation">Numeric observation</option><?php endif; ?>
+                                <option value="weight_loss_pct"><?= trh('Weight loss %') ?></option>
+                                <option value="clinical_score"><?= trh('Total clinical score') ?></option>
+                                <?php if ($grid && $grid['items']) : ?><option value="item_score"><?= trh('Score of one grid item') ?></option><?php endif; ?>
+                                <?php if ($numericFields) : ?><option value="observation"><?= trh('Numeric observation') ?></option><?php endif; ?>
                             </select>
                         </div>
                         <?php if ($numericFields) : ?>
@@ -341,7 +341,7 @@ require 'header.php';
                             </select>
                         </div>
                         <div class="col-auto">
-                            <input type="number" step="0.01" class="form-control" name="value" placeholder="Value" required style="width: 100px;">
+                            <input type="number" step="0.01" class="form-control" name="value" placeholder="<?= trh('Value') ?>" required style="width: 100px;">
                         </div>
                         <div class="col-auto">
                             <select class="form-select" name="required_action">
@@ -351,10 +351,10 @@ require 'header.php';
                             </select>
                         </div>
                         <div class="col-auto">
-                            <input type="text" class="form-control" name="action_message" placeholder="Message to the experimenter">
+                            <input type="text" class="form-control" name="action_message" placeholder="<?= trh('Message to the experimenter') ?>">
                         </div>
                         <div class="col-auto">
-                            <button type="submit" name="add_threshold" class="btn btn-warning">Add endpoint</button>
+                            <button type="submit" name="add_threshold" class="btn btn-warning"><?= trh('Add endpoint') ?></button>
                         </div>
                     </form>
                 </div>

@@ -42,7 +42,7 @@ function redirectToPage($message)
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Validate CSRF token
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        die('CSRF token validation failed');
+        die(tr('CSRF token validation failed'));
     }
 
     $title = htmlspecialchars($_POST['title']);
@@ -62,9 +62,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $stmt = $con->prepare("INSERT INTO reminders (cage_id, title, description, assigned_by, assigned_to, recurrence_type, day_of_week, day_of_month, time_of_day, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         $stmt->bind_param("sssissssss", $cageId, $title, $description, $assignedBy, $assignedTo, $recurrenceType, $dayOfWeek, $dayOfMonth, $timeOfDay, $status);
         if ($stmt->execute()) {
-            redirectToPage("Reminder added successfully.");
+            redirectToPage(tr('Reminder added successfully.'));
         } else {
-            redirectToPage("Error: " . $stmt->error);
+            redirectToPage(tr('Error: {error}', ['error' => $stmt->error]));
         }
         $stmt->close();
     } elseif (isset($_POST['edit'])) {
@@ -72,9 +72,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $stmt = $con->prepare("UPDATE reminders SET cage_id = ?, title = ?, description = ?, assigned_to = ?, recurrence_type = ?, day_of_week = ?, day_of_month = ?, time_of_day = ?, status = ? WHERE id = ?");
         $stmt->bind_param("sssisssssi", $cageId, $title, $description, $assignedTo, $recurrenceType, $dayOfWeek, $dayOfMonth, $timeOfDay, $status, $id);
         if ($stmt->execute()) {
-            redirectToPage("Reminder updated successfully.");
+            redirectToPage(tr('Reminder updated successfully.'));
         } else {
-            redirectToPage("Error: " . $stmt->error);
+            redirectToPage(tr('Error: {error}', ['error' => $stmt->error]));
         }
         $stmt->close();
     } elseif (isset($_POST['delete'])) {
@@ -82,9 +82,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $stmt = $con->prepare("DELETE FROM reminders WHERE id = ?");
         $stmt->bind_param("i", $id);
         if ($stmt->execute()) {
-            redirectToPage("Reminder deleted successfully.");
+            redirectToPage(tr('Reminder deleted successfully.'));
         } else {
-            redirectToPage("Error: " . $stmt->error);
+            redirectToPage(tr('Error: {error}', ['error' => $stmt->error]));
         }
         $stmt->close();
     }
@@ -113,7 +113,7 @@ ob_end_flush(); // Flush the output buffer
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manage Reminders</title>
+    <title><?= trh('Manage Reminders') ?></title>
     <!-- Include necessary styles and scripts -->
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -393,7 +393,7 @@ ob_end_flush(); // Flush the output buffer
 <body>
     <div class="container content mt-5">
         <?php include('message.php'); ?>
-        <h2>Manage Reminders</h2>
+        <h2><?= trh('Manage Reminders') ?></h2>
         <?php if (isset($_SESSION['message'])) : ?>
             <div class="alert alert-info">
                 <?= $_SESSION['message']; ?>
@@ -403,28 +403,28 @@ ob_end_flush(); // Flush the output buffer
 
         <!-- Button to add a new reminder -->
         <div class="add-button">
-            <button id="addNewReminderButton" class="btn btn-primary"><i class="fas fa-plus"></i> Add New Reminder</button>
+            <button id="addNewReminderButton" class="btn btn-primary"><i class="fas fa-plus"></i> <?= trh('Add New Reminder') ?></button>
         </div>
 
         <!-- Popup form for adding and editing reminders -->
         <div class="popup-overlay" id="popupOverlay"></div>
         <div class="popup-form" id="popupForm">
-            <h4 id="formTitle">Add New Reminder</h4>
+            <h4 id="formTitle"><?= trh('Add New Reminder') ?></h4>
             <form id="reminderForm" action="manage_reminder.php" method="post">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                 <input type="hidden" name="id" id="id">
                 <div class="form-group">
-                    <label for="title">Title <span class="required-asterisk">*</span></label>
+                    <label for="title"><?= trh('Title') ?> <span class="required-asterisk">*</span></label>
                     <input type="text" name="title" id="title" class="form-control" maxlength="100" required>
-                    <small id="titleCounter" class="form-text text-muted">0/100 characters used</small>
+                    <small id="titleCounter" class="form-text text-muted"><?= trh('{n}/{max} characters used', ['n' => 0, 'max' => 100]) ?></small>
                 </div>
                 <div class="form-group">
-                    <label for="description">Description <span class="required-asterisk">*</span></label>
+                    <label for="description"><?= trh('Description') ?> <span class="required-asterisk">*</span></label>
                     <textarea name="description" id="description" class="form-control" rows="3" maxlength="500" required></textarea>
-                    <small id="descriptionCounter" class="form-text text-muted">0/500 characters used</small>
+                    <small id="descriptionCounter" class="form-text text-muted"><?= trh('{n}/{max} characters used', ['n' => 0, 'max' => 500]) ?></small>
                 </div>
                 <div class="form-group">
-                    <label for="assigned_to">Assigned To <span class="required-asterisk">*</span></label>
+                    <label for="assigned_to"><?= trh('Assigned To') ?> <span class="required-asterisk">*</span></label>
                     <select name="assigned_to[]" id="assigned_to" class="form-control" multiple required>
                         <?php foreach ($users as $userId => $name) : ?>
                             <option value="<?= htmlspecialchars($userId); ?>"><?= htmlspecialchars($name); ?></option>
@@ -432,54 +432,54 @@ ob_end_flush(); // Flush the output buffer
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Recurrence Type <span class="required-asterisk">*</span></label>
+                    <label><?= trh('Recurrence Type') ?> <span class="required-asterisk">*</span></label>
                     <select name="recurrence_type" id="recurrence_type" class="form-control" required>
-                        <option value="daily">Daily</option>
-                        <option value="weekly">Weekly</option>
-                        <option value="monthly">Monthly</option>
+                        <option value="daily"><?= trh('Daily') ?></option>
+                        <option value="weekly"><?= trh('Weekly') ?></option>
+                        <option value="monthly"><?= trh('Monthly') ?></option>
                     </select>
                 </div>
                 <div class="form-group" id="weeklyOptions" style="display: none;">
-                    <label for="day_of_week">Day of the Week <span class="required-asterisk">*</span></label>
+                    <label for="day_of_week"><?= trh('Day of the Week') ?> <span class="required-asterisk">*</span></label>
                     <select name="day_of_week" id="day_of_week" class="form-control">
-                        <option value="">Select Day</option>
-                        <option value="Monday">Monday</option>
-                        <option value="Tuesday">Tuesday</option>
-                        <option value="Wednesday">Wednesday</option>
-                        <option value="Thursday">Thursday</option>
-                        <option value="Friday">Friday</option>
-                        <option value="Saturday">Saturday</option>
-                        <option value="Sunday">Sunday</option>
+                        <option value=""><?= trh('Select Day') ?></option>
+                        <option value="Monday"><?= trh('Monday') ?></option>
+                        <option value="Tuesday"><?= trh('Tuesday') ?></option>
+                        <option value="Wednesday"><?= trh('Wednesday') ?></option>
+                        <option value="Thursday"><?= trh('Thursday') ?></option>
+                        <option value="Friday"><?= trh('Friday') ?></option>
+                        <option value="Saturday"><?= trh('Saturday') ?></option>
+                        <option value="Sunday"><?= trh('Sunday') ?></option>
                     </select>
                 </div>
                 <div class="form-group" id="monthlyOptions" style="display: none;">
-                    <label for="day_of_month">Day of the Month (1-28) <span class="required-asterisk">*</span></label>
+                    <label for="day_of_month"><?= trh('Day of the Month (1-28)') ?> <span class="required-asterisk">*</span></label>
                     <input type="number" name="day_of_month" id="day_of_month" class="form-control" min="1" max="28">
                 </div>
                 <div class="form-group">
-                    <label for="time_of_day">Time of Day <span class="required-asterisk">*</span></label>
+                    <label for="time_of_day"><?= trh('Time of Day') ?> <span class="required-asterisk">*</span></label>
                     <input type="time" name="time_of_day" id="time_of_day" class="form-control" required>
                 </div>
                 <div class="form-group">
-                    <label>Status <span class="required-asterisk">*</span></label>
+                    <label><?= trh('Status') ?> <span class="required-asterisk">*</span></label>
                     <select name="status" id="status" class="form-control" required>
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
+                        <option value="active"><?= trh('Active') ?></option>
+                        <option value="inactive"><?= trh('Inactive') ?></option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="cage_id">Cage ID</label>
+                    <label for="cage_id"><?= trh('Cage ID') ?></label>
                     <select name="cage_id" id="cage_id" class="form-control">
-                        <option value="">Select Cage</option>
+                        <option value=""><?= trh('Select Cage') ?></option>
                         <?php foreach ($cages as $cageId) : ?>
                             <option value="<?= htmlspecialchars($cageId); ?>"><?= htmlspecialchars($cageId); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="form-buttons">
-                    <button type="submit" name="add" id="addButton" class="btn btn-primary"><i class="fas fa-plus"></i> Add Reminder</button>
-                    <button type="submit" name="edit" id="editButton" class="btn btn-success" style="display: none;"><i class="fas fa-save"></i> Update Reminder</button>
-                    <button type="button" class="btn btn-secondary" id="cancelButton">Cancel</button>
+                    <button type="submit" name="add" id="addButton" class="btn btn-primary"><i class="fas fa-plus"></i> <?= trh('Add Reminder') ?></button>
+                    <button type="submit" name="edit" id="editButton" class="btn btn-success" style="display: none;"><i class="fas fa-save"></i> <?= trh('Update Reminder') ?></button>
+                    <button type="button" class="btn btn-secondary" id="cancelButton"><?= trh('Cancel') ?></button>
                 </div>
             </form>
         </div>
@@ -487,69 +487,69 @@ ob_end_flush(); // Flush the output buffer
         <!-- Popup form for viewing reminders -->
         <div class="popup-overlay" id="viewPopupOverlay"></div>
         <div class="popup-form" id="viewPopupForm">
-            <h4>View Reminder Details</h4>
+            <h4><?= trh('View Reminder Details') ?></h4>
             <div class="form-group">
-                <label>Title:</label>
+                <label><?= trh('Title:') ?></label>
                 <p id="viewTitle"></p>
             </div>
             <div class="form-group">
-                <label>Description:</label>
+                <label><?= trh('Description:') ?></label>
                 <p id="viewDescription"></p>
             </div>
             <div class="form-group">
-                <label>Assigned To:</label>
+                <label><?= trh('Assigned To:') ?></label>
                 <p id="viewAssignedTo"></p>
             </div>
             <div class="form-group">
-                <label>Recurrence Type:</label>
+                <label><?= trh('Recurrence Type:') ?></label>
                 <p id="viewRecurrenceType"></p>
             </div>
             <div class="form-group">
-                <label>Time of Day:</label>
+                <label><?= trh('Time of Day:') ?></label>
                 <p id="viewTimeOfDay"></p>
             </div>
             <div class="form-group">
-                <label>Status:</label>
+                <label><?= trh('Status:') ?></label>
                 <p id="viewStatus"></p>
             </div>
             <div class="form-group">
-                <label>Cage ID:</label>
+                <label><?= trh('Cage ID:') ?></label>
                 <p id="viewCageId"></p>
             </div>
             <div class="form-buttons">
-                <button type="button" class="btn btn-secondary" id="closeViewButton">Close</button>
+                <button type="button" class="btn btn-secondary" id="closeViewButton"><?= trh('Close') ?></button>
             </div>
         </div>
 
         <!-- Table for displaying reminders -->
-        <h3>Existing Reminders</h3>
+        <h3><?= trh('Existing Reminders') ?></h3>
         <div class="table-responsive">
             <table class="table">
                 <thead>
                     <tr>
-                        <th>ID</th>
-                        <th>Title</th>
-                        <th>Recurrence</th>
-                        <th>Status</th>
-                        <th>Actions</th>
+                        <th><?= trh('ID') ?></th>
+                        <th><?= trh('Title') ?></th>
+                        <th><?= trh('Recurrence') ?></th>
+                        <th><?= trh('Status') ?></th>
+                        <th><?= trh('Actions') ?></th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php while ($row = $reminderResult->fetch_assoc()) : ?>
                         <tr>
-                            <td data-label="ID"><?= htmlspecialchars($row['id']); ?></td>
-                            <td data-label="Title"><?= htmlspecialchars($row['title']); ?></td>
-                            <td data-label="Recurrence">
-                                <?= ucfirst($row['recurrence_type']); ?>
+                            <td data-label="<?= trh('ID') ?>"><?= htmlspecialchars($row['id']); ?></td>
+                            <td data-label="<?= trh('Title') ?>"><?= htmlspecialchars($row['title']); ?></td>
+                            <td data-label="<?= trh('Recurrence') ?>">
+                                <?= htmlspecialchars(ucfirst(tr(ucfirst($row['recurrence_type'])))); ?>
                                 <?php if ($row['recurrence_type'] == 'weekly') : ?>
-                                    (<?= $row['day_of_week']; ?>)
+                                    (<?= trh((string) $row['day_of_week']); ?>)
                                 <?php elseif ($row['recurrence_type'] == 'monthly') : ?>
-                                    (Day <?= $row['day_of_month']; ?>)
+                                    (<?= trh('Day {n}', ['n' => $row['day_of_month']]); ?>)
                                 <?php endif; ?>
-                                at <?= date('h:i A', strtotime($row['time_of_day'])); ?>
+                                <?= trh('at {time}', ['time' => date('H:i', strtotime($row['time_of_day']))]); ?>
                             </td>
-                            <td data-label="Status"><?= htmlspecialchars(ucfirst($row['status'])); ?></td>
-                            <td data-label="Actions" class="table-actions">
+                            <td data-label="<?= trh('Status') ?>"><?= htmlspecialchars(ucfirst(tr(ucfirst($row['status'])))); ?></td>
+                            <td data-label="<?= trh('Actions') ?>" class="table-actions">
                                 <div class="action-buttons">
                                     <!-- Add the View button here -->
                                     <button class="btn btn-info btn-sm viewButton" data-id="<?= $row['id']; ?>">
@@ -563,7 +563,7 @@ ob_end_flush(); // Flush the output buffer
                                     <form action="manage_reminder.php" method="post" style="display:inline-block;">
                                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                                         <input type="hidden" name="id" value="<?= $row['id']; ?>">
-                                        <button type="submit" name="delete" class="btn btn-danger btn-sm" title="Delete" onclick="return confirm('Are you sure you want to delete this reminder?');">
+                                        <button type="submit" name="delete" class="btn btn-danger btn-sm" title="<?= trh('Delete') ?>" onclick="return confirm(<?= htmlspecialchars(trj('Are you sure you want to delete this reminder?')) ?>);">
                                             <i class="fas fa-trash-alt"></i>
                                         </button>
                                     </form>
@@ -581,13 +581,17 @@ ob_end_flush(); // Flush the output buffer
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script>
+        // Interface translations of the values shown by the scripts below.
+        const reminderLabels = <?= json_encode(array_map('tr', ['daily' => 'Daily', 'weekly' => 'Weekly', 'monthly' => 'Monthly', 'active' => 'Active', 'inactive' => 'Inactive', 'Monday' => 'Monday', 'Tuesday' => 'Tuesday', 'Wednesday' => 'Wednesday', 'Thursday' => 'Thursday', 'Friday' => 'Friday', 'Saturday' => 'Saturday', 'Sunday' => 'Sunday']), JSON_HEX_TAG | JSON_UNESCAPED_UNICODE) ?>;
+        const reminderLabel = value => reminderLabels[value] || value;
+        const charactersUsed = (n, max) => <?= trj('{n}/{max} characters used') ?>.replace('{n}', n).replace('{max}', max);
         // Map PHP users array to JavaScript
         const users = <?= json_encode($users); ?>;
 
         // JavaScript code to handle form interactions
         $(document).ready(function() {
             $('#assigned_to').select2({
-                placeholder: "Select users",
+                placeholder: <?= trj('Select users') ?>,
                 allowClear: true
             });
 
@@ -613,7 +617,7 @@ ob_end_flush(); // Flush the output buffer
             // Open the add reminder form
             $('#addNewReminderButton').on('click', function() {
                 resetForm();
-                $('#formTitle').text('Add New Reminder');
+                $('#formTitle').text(<?= trj('Add New Reminder') ?>);
                 $('#addButton').show();
                 $('#editButton').hide();
                 $('#popupOverlay').show();
@@ -641,11 +645,11 @@ ob_end_flush(); // Flush the output buffer
             // Character counters
             $('#title').on('input', function() {
                 const currentLength = $(this).val().length;
-                $('#titleCounter').text(`${currentLength}/100 characters used`);
+                $('#titleCounter').text(charactersUsed(currentLength, 100));
             });
             $('#description').on('input', function() {
                 const currentLength = $(this).val().length;
-                $('#descriptionCounter').text(`${currentLength}/500 characters used`);
+                $('#descriptionCounter').text(charactersUsed(currentLength, 500));
             });
 
             // View reminder
@@ -678,8 +682,8 @@ ob_end_flush(); // Flush the output buffer
             $('#assigned_to').val(null).trigger('change');
             $('#weeklyOptions').hide();
             $('#monthlyOptions').hide();
-            $('#titleCounter').text(`0/100 characters used`);
-            $('#descriptionCounter').text(`0/500 characters used`);
+            $('#titleCounter').text(charactersUsed(0, 100));
+            $('#descriptionCounter').text(charactersUsed(0, 500));
             $('#assigned_by').val('<?= $currentUserName; ?>');
         }
 
@@ -714,14 +718,14 @@ ob_end_flush(); // Flush the output buffer
                     $('#descriptionCounter').text(`${response.description.length}/500 characters used`);
 
                     // Show the form
-                    $('#formTitle').text('Edit Reminder');
+                    $('#formTitle').text(<?= trj('Edit Reminder') ?>);
                     $('#addButton').hide();
                     $('#editButton').show();
                     $('#popupOverlay').show();
                     $('#popupForm').show();
                 },
                 error: function(xhr, status, error) {
-                    alert('Error fetching reminder data: ' + error);
+                    alert(<?= trj('Error fetching reminder data: {error}') ?>.replace('{error}', error));
                 }
             });
         }
@@ -753,23 +757,23 @@ ob_end_flush(); // Flush the output buffer
                             if (name) {
                                 assignedToNames.push(name);
                             } else {
-                                assignedToNames.push('Unknown');
+                                assignedToNames.push(<?= trj('Unknown') ?>);
                             }
                         });
                     }
                     $('#viewAssignedTo').text(assignedToNames.join(', '));
 
                     // Display recurrence type and details
-                    let recurrenceDetails = response.recurrence_type;
+                    let recurrenceDetails = reminderLabel(response.recurrence_type);
                     if (response.recurrence_type === 'weekly') {
-                        recurrenceDetails += ' (' + response.day_of_week + ')';
+                        recurrenceDetails += ' (' + reminderLabel(response.day_of_week) + ')';
                     } else if (response.recurrence_type === 'monthly') {
-                        recurrenceDetails += ' (Day ' + response.day_of_month + ')';
+                        recurrenceDetails += ' (' + <?= trj('Day {n}') ?>.replace('{n}', response.day_of_month) + ')';
                     }
                     $('#viewRecurrenceType').text(recurrenceDetails);
 
                     $('#viewTimeOfDay').text(response.time_of_day);
-                    $('#viewStatus').text(response.status);
+                    $('#viewStatus').text(reminderLabel(response.status));
                     $('#viewCageId').text(response.cage_id);
 
                     // Show the view popup
@@ -777,7 +781,7 @@ ob_end_flush(); // Flush the output buffer
                     $('#viewPopupForm').show();
                 },
                 error: function(xhr, status, error) {
-                    alert('Error fetching reminder data: ' + error);
+                    alert(<?= trj('Error fetching reminder data: {error}') ?>.replace('{error}', error));
                 }
             });
         }

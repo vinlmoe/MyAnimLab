@@ -52,7 +52,7 @@ $stmt->close();
 
 if (!$cage || ($litterId && !$litter)) {
     require 'header.php';
-    echo "<div class='container mt-4'><div class='alert alert-danger'>Cage or litter not found.</div></div>";
+    echo "<div class='container mt-4'><div class='alert alert-danger'>" . trh('Cage or litter not found.') . "</div></div>";
     require 'footer.php';
     exit;
 }
@@ -69,7 +69,7 @@ $selfUrl = $litter ? "litter_manage.php?litter_id={$litter['id']}" : "litter_man
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        die('CSRF token validation failed');
+        die(tr('CSRF token validation failed'));
     }
     $action = $_POST['action'] ?? '';
 
@@ -77,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         if ($action === 'birth') {
             if ($cage['status'] !== 'active') {
-                throw new Exception("This cage is retired.");
+                throw new Exception(tr('This cage is retired.'));
             }
             $dob = $_POST['litter_dob'] ?? '';
             $dom = ($_POST['dom'] ?? '') ?: null;
@@ -88,19 +88,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $remarks = trim($_POST['remarks'] ?? '') ?: null;
 
             if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dob) || $dob > $today) {
-                throw new Exception("Give a valid date of birth (not in the future).");
+                throw new Exception(tr('Give a valid date of birth (not in the future).'));
             }
             if ($dom !== null && $dom > $dob) {
-                throw new Exception("The mating date cannot be after the date of birth.");
+                throw new Exception(tr('The mating date cannot be after the date of birth.'));
             }
             if ($alive < 0 || $dead < 0 || $alive + $dead === 0) {
-                throw new Exception("Enter the number of pups born alive and dead (at least one pup).");
+                throw new Exception(tr('Enter the number of pups born alive and dead (at least one pup).'));
             }
             if (!$damId || ($breederById[$damId]['sex'] ?? '') !== 'female') {
-                throw new Exception("Choose the dam among the cage's females.");
+                throw new Exception(tr('Choose the dam among the cage’s females.'));
             }
             if ($sireId && ($breederById[$sireId]['sex'] ?? '') !== 'male') {
-                throw new Exception("The sire must be one of the cage's males.");
+                throw new Exception(tr('The sire must be one of the cage’s males.'));
             }
             $expected = date('Y-m-d', strtotime("$dob +$weaningAge days"));
             $ins = $con->prepare("INSERT INTO litters (cage_id, dom, litter_dob, pups_alive, pups_dead, remarks, sire_id, dam_id, status, expected_weaning_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'nursing', ?)");
@@ -108,67 +108,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ins->execute();
             $newId = $con->insert_id;
             $ins->close();
-            log_litter_event($con, $newId, 'birth', $dob, $alive, null, null, "$alive alive, $dead dead at birth" . ($remarks ? " — $remarks" : ''), $userId, $userName);
-            log_activity($con, 'litter_birth', 'cage', $cageId, "Litter #$newId: $alive alive, $dead dead", $userId);
+            log_litter_event($con, $newId, 'birth', $dob, $alive, null, null, tr('{alive} alive, {dead} dead at birth', ['alive' => $alive, 'dead' => $dead]) . ($remarks ? " — $remarks" : ''), $userId, $userName);
+            log_activity($con, 'litter_birth', 'cage', $cageId, tr('Litter #{id}: {alive} alive, {dead} dead', ['id' => $newId, 'alive' => $alive, 'dead' => $dead]), $userId);
             $selfUrl = "litter_manage.php?litter_id=$newId";
-            $_SESSION['message'] = "Litter recorded: $alive pup(s) alive. Expected weaning on $expected.";
+            $_SESSION['message'] = tr('Litter recorded: {n} pup(s) alive. Expected weaning on {date}.', ['n' => $alive, 'date' => $expected]);
         } elseif (in_array($action, ['death', 'sexing', 'wean', 'close'], true)) {
             if (!$litter || $litter['status'] !== 'nursing') {
-                throw new Exception("This litter is no longer nursing.");
+                throw new Exception(tr('This litter is no longer nursing.'));
             }
             $aliveNow = litter_alive_now($con, $litter);
             $date = $_POST['event_date'] ?? $today;
             if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || $date > $today || $date < $litter['litter_dob']) {
-                throw new Exception("The date must be between the birth ({$litter['litter_dob']}) and today.");
+                throw new Exception(tr('The date must be between the birth ({date}) and today.', ['date' => $litter['litter_dob']]));
             }
 
             if ($action === 'death') {
                 $count = (int) ($_POST['count'] ?? 0);
                 $note = trim($_POST['note'] ?? '');
                 if ($count < 1 || $count > $aliveNow) {
-                    throw new Exception("Number of dead pups must be between 1 and $aliveNow.");
+                    throw new Exception(tr('Number of dead pups must be between 1 and {n}.', ['n' => $aliveNow]));
                 }
                 if ($note === '') {
-                    throw new Exception("Describe the circumstances (found dead, culled, cannibalism...).");
+                    throw new Exception(tr('Describe the circumstances (found dead, culled, cannibalism...).'));
                 }
                 log_litter_event($con, $litter['id'], 'death', $date, $count, null, null, $note, $userId, $userName);
-                $_SESSION['message'] = "$count pup death(s) recorded. " . ($aliveNow - $count) . " pup(s) alive.";
+                $_SESSION['message'] = tr('{n} pup death(s) recorded. {alive} pup(s) alive.', ['n' => $count, 'alive' => $aliveNow - $count]);
                 if ($aliveNow - $count === 0) {
-                    $upd = $con->prepare("UPDATE litters SET status = 'closed', closed_reason = 'All pups died before weaning' WHERE id = ?");
-                    $upd->bind_param("i", $litter['id']);
+                    $upd = $con->prepare("UPDATE litters SET status = 'closed', closed_reason = ? WHERE id = ?");
+                    $allDied = tr('All pups died before weaning');
+                    $upd->bind_param("si", $allDied, $litter['id']);
                     $upd->execute();
-                    log_litter_event($con, $litter['id'], 'closed', $date, 0, null, null, 'All pups died before weaning', $userId, $userName);
-                    $_SESSION['message'] .= " The litter is closed.";
+                    log_litter_event($con, $litter['id'], 'closed', $date, 0, null, null, $allDied, $userId, $userName);
+                    $_SESSION['message'] .= ' ' . tr('The litter is closed.');
                 }
             } elseif ($action === 'sexing') {
                 $males = (int) ($_POST['males'] ?? -1);
                 $females = (int) ($_POST['females'] ?? -1);
                 if ($males < 0 || $females < 0 || $males + $females !== $aliveNow) {
-                    throw new Exception("Males + females must equal the $aliveNow pup(s) alive.");
+                    throw new Exception(tr('Males + females must equal the {n} pup(s) alive.', ['n' => $aliveNow]));
                 }
                 $upd = $con->prepare("UPDATE litters SET pups_male = ?, pups_female = ? WHERE id = ?");
                 $upd->bind_param("iii", $males, $females, $litter['id']);
                 $upd->execute();
                 log_litter_event($con, $litter['id'], 'sexing', $date, $aliveNow, $males, $females, null, $userId, $userName);
-                $_SESSION['message'] = "Sexing recorded: $males male(s), $females female(s).";
+                $_SESSION['message'] = tr('Sexing recorded: {males} male(s), {females} female(s).', ['males' => $males, 'females' => $females]);
             } elseif ($action === 'close') {
                 $reason = trim($_POST['reason'] ?? '');
                 if ($reason === '') {
-                    throw new Exception("Give the reason for closing the litter.");
+                    throw new Exception(tr('Give the reason for closing the litter.'));
                 }
                 if ($aliveNow > 0) {
-                    log_litter_event($con, $litter['id'], 'death', $date, $aliveNow, null, null, "Not weaned: $reason", $userId, $userName);
+                    log_litter_event($con, $litter['id'], 'death', $date, $aliveNow, null, null, tr('Not weaned: {reason}', ['reason' => $reason]), $userId, $userName);
                 }
                 $upd = $con->prepare("UPDATE litters SET status = 'closed', closed_reason = ? WHERE id = ?");
                 $upd->bind_param("si", $reason, $litter['id']);
                 $upd->execute();
                 log_litter_event($con, $litter['id'], 'closed', $date, $aliveNow, null, null, $reason, $userId, $userName);
-                $_SESSION['message'] = "Litter closed without weaning.";
+                $_SESSION['message'] = tr('Litter closed without weaning.');
             } else { // wean
                 $lineId = (int) ($_POST['line_id'] ?? 0);
                 $lineOk = $con->query("SELECT COUNT(*) FROM animal_lines WHERE id = $lineId")->fetch_row()[0];
                 if (!$lineOk) {
-                    throw new Exception("Choose the line of the weaned animals.");
+                    throw new Exception(tr('Choose the line of the weaned animals.'));
                 }
                 $groups = [];
                 $total = 0;
@@ -179,7 +180,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     $sex = ($_POST['group_sex'][$i] ?? '') === 'female' ? 'female' : (($_POST['group_sex'][$i] ?? '') === 'male' ? 'male' : null);
                     if ($sex === null) {
-                        throw new Exception("Give the sex of each weaning group.");
+                        throw new Exception(tr('Give the sex of each weaning group.'));
                     }
                     $dest = $_POST['group_dest'][$i] ?? 'new';
                     if ($dest !== 'new') {
@@ -187,7 +188,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $chk->bind_param("s", $dest);
                         $chk->execute();
                         if ($chk->get_result()->num_rows === 0) {
-                            throw new Exception("Destination cage $dest does not exist or is retired.");
+                            throw new Exception(tr('Destination cage {cage} does not exist or is retired.', ['cage' => $dest]));
                         }
                         $chk->close();
                     }
@@ -195,15 +196,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $total += $count;
                 }
                 if ($total === 0) {
-                    throw new Exception("Wean at least one pup (or close the litter if none survived).");
+                    throw new Exception(tr('Wean at least one pup (or close the litter if none survived).'));
                 }
                 if ($total > $aliveNow) {
-                    throw new Exception("You are weaning $total pups but only $aliveNow are alive.");
+                    throw new Exception(tr('You are weaning {total} pups but only {alive} are alive.', ['total' => $total, 'alive' => $aliveNow]));
                 }
                 $remainder = $aliveNow - $total;
                 $remainderNote = trim($_POST['remainder_note'] ?? '');
                 if ($remainder > 0 && $remainderNote === '') {
-                    throw new Exception("$remainder pup(s) are not weaned: say what happened to them.");
+                    throw new Exception(tr('{n} pup(s) are not weaned: say what happened to them.', ['n' => $remainder]));
                 }
 
                 $usersStmt = $con->prepare("SELECT user_id FROM cage_users WHERE cage_id = ?");
@@ -213,7 +214,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $usersStmt->close();
 
                 $parentage = ['litter_id' => (int) $litter['id'], 'sire_id' => $litter['sire_id'] ? (int) $litter['sire_id'] : null, 'dam_id' => $litter['dam_id'] ? (int) $litter['dam_id'] : null];
-                $why = "Weaned from litter #{$litter['id']} (cage $cageId)";
+                $why = tr('Weaned from litter #{id} (cage {cage})', ['id' => $litter['id'], 'cage' => $cageId]);
                 $summary = [];
                 $males = $females = 0;
                 foreach ($groups as $g) {
@@ -225,18 +226,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $aid = create_animal($con, $dest, $lineId, $g['sex'], $litter['litter_dob'], $parentage, $why, $userId);
                         $uids[] = $con->query("SELECT animal_uid FROM mice WHERE id = $aid")->fetch_row()[0];
                     }
-                    $summary[] = "{$g['count']} {$g['sex']}(s) → $dest (" . reset($uids) . ($g['count'] > 1 ? '…' . end($uids) : '') . ")";
+                    $summary[] = tr('{n} {sex}(s) → {cage}', ['n' => $g['count'], 'sex' => tr($g['sex']), 'cage' => $dest]) . ' (' . reset($uids) . ($g['count'] > 1 ? '…' . end($uids) : '') . ")";
                     $g['sex'] === 'male' ? $males += $g['count'] : $females += $g['count'];
                 }
                 if ($remainder > 0) {
-                    log_litter_event($con, $litter['id'], 'death', $date, $remainder, null, null, "Not weaned: $remainderNote", $userId, $userName);
+                    log_litter_event($con, $litter['id'], 'death', $date, $remainder, null, null, tr('Not weaned: {reason}', ['reason' => $remainderNote]), $userId, $userName);
                 }
                 $upd = $con->prepare("UPDATE litters SET status = 'weaned', weaned_at = ?, weaned_males = ?, weaned_females = ? WHERE id = ?");
                 $upd->bind_param("siii", $date, $males, $females, $litter['id']);
                 $upd->execute();
                 log_litter_event($con, $litter['id'], 'weaning', $date, $total, $males, $females, implode('; ', $summary), $userId, $userName);
-                log_activity($con, 'weaning', 'cage', $cageId, "Litter #{$litter['id']}: " . implode('; ', $summary), $userId);
-                $_SESSION['message'] = "Litter weaned: " . implode('; ', $summary) . ".";
+                log_activity($con, 'weaning', 'cage', $cageId, tr('Litter #{id}', ['id' => $litter['id']]) . ' : ' . implode('; ', $summary), $userId);
+                $_SESSION['message'] = tr('Litter weaned: {summary}.', ['summary' => implode('; ', $summary)]);
             }
         }
         // A breeding cage left without animals nor nursing litter is retired.
@@ -246,7 +247,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         mysqli_commit($con);
     } catch (Exception $e) {
         mysqli_rollback($con);
-        $_SESSION['message'] = "Not saved: " . $e->getMessage();
+        $_SESSION['message'] = tr('Not saved: {error}', ['error' => $e->getMessage()]);
     }
     header("Location: $selfUrl");
     exit;
@@ -281,7 +282,7 @@ require 'header.php';
 <html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
-    <title>Litters <?= htmlspecialchars($cageId); ?> | <?php echo htmlspecialchars($labName); ?></title>
+    <title><?= trh('Litters {cage}', ['cage' => $cageId]); ?> | <?php echo htmlspecialchars($labName); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         .container {
@@ -292,15 +293,15 @@ require 'header.php';
 
 <body>
     <div class="container mt-4 content">
-        <a href="bc_view.php?id=<?= rawurlencode($cageId); ?>">&laquo; Breeding cage <?= htmlspecialchars($cageId); ?></a>
+        <a href="bc_view.php?id=<?= rawurlencode($cageId); ?>">&laquo; <?= trh('Breeding cage {cage}', ['cage' => $cageId]); ?></a>
 
         <?php if (!$litter) : ?>
-            <h4 class="mt-2">Litters of cage <?= htmlspecialchars($cageId); ?> <small class="text-muted"><?= htmlspecialchars($cage['cross'] ?? ''); ?></small></h4>
+            <h4 class="mt-2"><?= trh('Litters of cage {cage}', ['cage' => $cageId]); ?> <small class="text-muted"><?= htmlspecialchars($cage['cross'] ?? ''); ?></small></h4>
             <?php include('message.php'); ?>
 
             <table class="table table-sm align-middle" id="litterList">
                 <thead class="table-light">
-                    <tr><th>#</th><th>Born</th><th>Dam / Sire</th><th>Born alive / dead</th><th>Status</th><th>Weaning</th><th></th></tr>
+                    <tr><th>#</th><th><?= trh('Born') ?></th><th><?= trh('Dam / Sire') ?></th><th><?= trh('Born alive / dead') ?></th><th><?= trh('Status') ?></th><th><?= trh('Weaning') ?></th><th></th></tr>
                 </thead>
                 <tbody>
                     <?php foreach ($litters as $l) :
@@ -310,28 +311,28 @@ require 'header.php';
                             <td><?= htmlspecialchars($l['litter_dob'] ?? '?'); ?></td>
                             <td><?= htmlspecialchars(($l['dam_uid'] ?? '?') . ' / ' . ($l['sire_uid'] ?? '?')); ?></td>
                             <td><?= (int) $l['pups_alive']; ?> / <?= (int) $l['pups_dead']; ?></td>
-                            <td><span class="badge bg-<?= $statusBadge[$l['status']]; ?>"><?= $l['status']; ?></span></td>
+                            <td><span class="badge bg-<?= $statusBadge[$l['status']]; ?>"><?= trh($l['status']); ?></span></td>
                             <td class="<?= $late ? 'text-danger fw-bold' : ''; ?>">
-                                <?= $l['status'] === 'weaned' ? 'weaned ' . htmlspecialchars($l['weaned_at']) : ($l['status'] === 'nursing' ? 'expected ' . htmlspecialchars($l['expected_weaning_date'] ?? '?') . ($late ? ' (overdue)' : '') : '-'); ?>
+                                <?= $l['status'] === 'weaned' ? trh('weaned {date}', ['date' => $l['weaned_at']]) : ($l['status'] === 'nursing' ? trh('expected {date}', ['date' => $l['expected_weaning_date'] ?? '?']) . ($late ? ' (' . trh('overdue') . ')' : '') : '-'); ?>
                             </td>
-                            <td><a href="litter_manage.php?litter_id=<?= (int) $l['id']; ?>" class="btn btn-sm btn-outline-primary">Open</a></td>
+                            <td><a href="litter_manage.php?litter_id=<?= (int) $l['id']; ?>" class="btn btn-sm btn-outline-primary"><?= trh('Open') ?></a></td>
                         </tr>
                     <?php endforeach; ?>
-                    <?php if (!$litters) : ?><tr><td colspan="7" class="text-muted">No litter yet.</td></tr><?php endif; ?>
+                    <?php if (!$litters) : ?><tr><td colspan="7" class="text-muted"><?= trh('No litter yet.') ?></td></tr><?php endif; ?>
                 </tbody>
             </table>
 
             <?php if ($cage['status'] === 'active') : ?>
                 <div class="card card-body">
-                    <h5>Record a birth</h5>
+                    <h5><?= trh('Record a birth') ?></h5>
                     <form method="POST" id="birthForm">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>">
                         <input type="hidden" name="cage_id" value="<?= htmlspecialchars($cageId); ?>">
                         <div class="row g-2">
-                            <div class="col-md-3"><label class="form-label">Date of birth *</label><input type="date" class="form-control" name="litter_dob" required max="<?= $today; ?>" value="<?= $today; ?>"></div>
-                            <div class="col-md-3"><label class="form-label">Mating date</label><input type="date" class="form-control" name="dom" max="<?= $today; ?>"></div>
+                            <div class="col-md-3"><label class="form-label"><?= trh('Date of birth') ?> *</label><input type="date" class="form-control" name="litter_dob" required max="<?= $today; ?>" value="<?= $today; ?>"></div>
+                            <div class="col-md-3"><label class="form-label"><?= trh('Mating date') ?></label><input type="date" class="form-control" name="dom" max="<?= $today; ?>"></div>
                             <div class="col-md-3">
-                                <label class="form-label">Dam *</label>
+                                <label class="form-label"><?= trh('Dam') ?> *</label>
                                 <select class="form-select" name="dam_id" required>
                                     <?php foreach ($breeders as $b) if ($b['sex'] === 'female') : ?>
                                         <option value="<?= (int) $b['id']; ?>"><?= htmlspecialchars($b['animal_uid']); ?></option>
@@ -339,44 +340,44 @@ require 'header.php';
                                 </select>
                             </div>
                             <div class="col-md-3">
-                                <label class="form-label">Sire</label>
+                                <label class="form-label"><?= trh('Sire') ?></label>
                                 <select class="form-select" name="sire_id">
-                                    <option value="">Unknown</option>
+                                    <option value=""><?= trh('Unknown') ?></option>
                                     <?php foreach ($breeders as $b) if ($b['sex'] === 'male') : ?>
                                         <option value="<?= (int) $b['id']; ?>" <?= count(array_filter($breeders, fn($x) => $x['sex'] === 'male')) === 1 ? 'selected' : ''; ?>><?= htmlspecialchars($b['animal_uid']); ?></option>
                                     <?php endif; ?>
                                 </select>
                             </div>
-                            <div class="col-md-3"><label class="form-label">Pups born alive *</label><input type="number" class="form-control" name="pups_alive" min="0" required></div>
-                            <div class="col-md-3"><label class="form-label">Pups born dead</label><input type="number" class="form-control" name="pups_dead" min="0" value="0"></div>
-                            <div class="col-md-6"><label class="form-label">Remarks</label><input type="text" class="form-control" name="remarks"></div>
+                            <div class="col-md-3"><label class="form-label"><?= trh('Pups born alive') ?> *</label><input type="number" class="form-control" name="pups_alive" min="0" required></div>
+                            <div class="col-md-3"><label class="form-label"><?= trh('Pups born dead') ?></label><input type="number" class="form-control" name="pups_dead" min="0" value="0"></div>
+                            <div class="col-md-6"><label class="form-label"><?= trh('Remarks') ?></label><input type="text" class="form-control" name="remarks"></div>
                         </div>
-                        <p class="text-muted small mt-2 mb-2">Expected weaning: date of birth + <?= $weaningAge; ?> days (Manage Lab).</p>
-                        <button name="action" value="birth" class="btn btn-primary">Record birth</button>
+                        <p class="text-muted small mt-2 mb-2"><?= trh('Expected weaning: date of birth + {n} days (Manage Lab).', ['n' => $weaningAge]); ?></p>
+                        <button name="action" value="birth" class="btn btn-primary"><?= trh('Record birth') ?></button>
                     </form>
                 </div>
             <?php endif; ?>
 
         <?php else : ?>
-            <h4 class="mt-2">Litter #<?= (int) $litter['id']; ?> — cage <?= htmlspecialchars($cageId); ?>
-                <span class="badge bg-<?= $statusBadge[$litter['status']]; ?>" id="litterStatus"><?= $litter['status']; ?></span>
+            <h4 class="mt-2"><?= trh('Litter #{id}', ['id' => (int) $litter['id']]); ?> — <?= trh('cage {cage}', ['cage' => $cageId]); ?>
+                <span class="badge bg-<?= $statusBadge[$litter['status']]; ?>" id="litterStatus"><?= trh($litter['status']); ?></span>
             </h4>
             <?php include('message.php'); ?>
 
             <div class="card card-body mb-3" id="litterSummary">
                 <div class="row">
-                    <div class="col-md-4"><strong>Born:</strong> <?= htmlspecialchars($litter['litter_dob'] ?? '?'); ?><?= $litter['dom'] ? ' (mating ' . htmlspecialchars($litter['dom']) . ')' : ''; ?></div>
-                    <div class="col-md-4"><strong>Dam / Sire:</strong> <?= htmlspecialchars(($litter['dam_uid'] ?? '?') . ' / ' . ($litter['sire_uid'] ?? 'unknown')); ?></div>
-                    <div class="col-md-4"><strong>Pups alive now:</strong> <span id="aliveNow"><?= $aliveNow; ?></span> <small class="text-muted">(born <?= (int) $litter['pups_alive']; ?> alive, <?= (int) $litter['pups_dead']; ?> dead)</small></div>
-                    <div class="col-md-4"><strong>Sexing:</strong> <?= $litter['pups_male'] !== null ? (int) $litter['pups_male'] . ' ♂ / ' . (int) $litter['pups_female'] . ' ♀' : 'not done'; ?></div>
-                    <div class="col-md-4"><strong>Weaning:</strong>
+                    <div class="col-md-4"><strong><?= trh('Born:') ?></strong> <?= htmlspecialchars($litter['litter_dob'] ?? '?'); ?><?= $litter['dom'] ? ' (' . trh('mating {date}', ['date' => $litter['dom']]) . ')' : ''; ?></div>
+                    <div class="col-md-4"><strong><?= trh('Dam / Sire:') ?></strong> <?= htmlspecialchars(($litter['dam_uid'] ?? '?') . ' / ' . ($litter['sire_uid'] ?? tr('unknown'))); ?></div>
+                    <div class="col-md-4"><strong><?= trh('Pups alive now:') ?></strong> <span id="aliveNow"><?= $aliveNow; ?></span> <small class="text-muted">(<?= trh('born {alive} alive, {dead} dead', ['alive' => (int) $litter['pups_alive'], 'dead' => (int) $litter['pups_dead']]); ?>)</small></div>
+                    <div class="col-md-4"><strong><?= trh('Sexing:') ?></strong> <?= $litter['pups_male'] !== null ? (int) $litter['pups_male'] . ' ♂ / ' . (int) $litter['pups_female'] . ' ♀' : trh('not done'); ?></div>
+                    <div class="col-md-4"><strong><?= trh('Weaning:') ?></strong>
                         <?php if ($litter['status'] === 'weaned') : ?>
-                            done on <?= htmlspecialchars($litter['weaned_at']); ?> (<?= (int) $litter['weaned_males']; ?> ♂, <?= (int) $litter['weaned_females']; ?> ♀)
+                            <?= trh('done on {date}', ['date' => $litter['weaned_at']]); ?> (<?= (int) $litter['weaned_males']; ?> ♂, <?= (int) $litter['weaned_females']; ?> ♀)
                         <?php elseif ($litter['status'] === 'nursing') : ?>
-                            expected <?= htmlspecialchars($litter['expected_weaning_date'] ?? '?'); ?>
-                            <?php if (($litter['expected_weaning_date'] ?? '9999') < $today) : ?><span class="badge bg-danger">overdue</span><?php endif; ?>
+                            <?= trh('expected {date}', ['date' => $litter['expected_weaning_date'] ?? '?']); ?>
+                            <?php if (($litter['expected_weaning_date'] ?? '9999') < $today) : ?><span class="badge bg-danger"><?= trh('overdue') ?></span><?php endif; ?>
                         <?php else : ?>
-                            closed — <?= htmlspecialchars($litter['closed_reason'] ?? ''); ?>
+                            <?= trh('closed') ?> — <?= htmlspecialchars($litter['closed_reason'] ?? ''); ?>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -386,42 +387,42 @@ require 'header.php';
                 <div class="row g-3 mb-3">
                     <div class="col-md-6">
                         <div class="card card-body h-100">
-                            <h6>Record pup deaths</h6>
+                            <h6><?= trh('Record pup deaths') ?></h6>
                             <form method="POST" class="row g-2" id="deathForm">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>">
                                 <input type="hidden" name="litter_id" value="<?= (int) $litter['id']; ?>">
                                 <div class="col-4"><input type="date" class="form-control" name="event_date" value="<?= $today; ?>" max="<?= $today; ?>" min="<?= htmlspecialchars($litter['litter_dob']); ?>"></div>
-                                <div class="col-3"><input type="number" class="form-control" name="count" min="1" max="<?= $aliveNow; ?>" placeholder="Nb" required></div>
-                                <div class="col-5"><input type="text" class="form-control" name="note" placeholder="Found dead, culled..." required></div>
-                                <div class="col-12"><button name="action" value="death" class="btn btn-outline-danger btn-sm">Record deaths</button></div>
+                                <div class="col-3"><input type="number" class="form-control" name="count" min="1" max="<?= $aliveNow; ?>" placeholder="<?= trh('Nb') ?>" required></div>
+                                <div class="col-5"><input type="text" class="form-control" name="note" placeholder="<?= trh('Found dead, culled...') ?>" required></div>
+                                <div class="col-12"><button name="action" value="death" class="btn btn-outline-danger btn-sm"><?= trh('Record deaths') ?></button></div>
                             </form>
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="card card-body h-100">
-                            <h6>Sexing</h6>
+                            <h6><?= trh('Sexing') ?></h6>
                             <form method="POST" class="row g-2" id="sexingForm">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>">
                                 <input type="hidden" name="litter_id" value="<?= (int) $litter['id']; ?>">
                                 <div class="col-4"><input type="date" class="form-control" name="event_date" value="<?= $today; ?>" max="<?= $today; ?>" min="<?= htmlspecialchars($litter['litter_dob']); ?>"></div>
-                                <div class="col-4"><input type="number" class="form-control" name="males" min="0" placeholder="Males ♂" required></div>
-                                <div class="col-4"><input type="number" class="form-control" name="females" min="0" placeholder="Females ♀" required></div>
-                                <div class="col-12"><button name="action" value="sexing" class="btn btn-outline-primary btn-sm">Record sexing</button> <small class="text-muted">must total <?= $aliveNow; ?></small></div>
+                                <div class="col-4"><input type="number" class="form-control" name="males" min="0" placeholder="<?= trh('Males') ?> ♂" required></div>
+                                <div class="col-4"><input type="number" class="form-control" name="females" min="0" placeholder="<?= trh('Females') ?> ♀" required></div>
+                                <div class="col-12"><button name="action" value="sexing" class="btn btn-outline-primary btn-sm"><?= trh('Record sexing') ?></button> <small class="text-muted"><?= trh('must total {n}', ['n' => $aliveNow]); ?></small></div>
                             </form>
                         </div>
                     </div>
                 </div>
 
                 <div class="card card-body mb-3 border-success">
-                    <h5>Weaning</h5>
-                    <p class="text-muted small">Each pup becomes an identified animal (line number, sex, date of birth <?= htmlspecialchars($litter['litter_dob']); ?>, parentage). Put them in new holding cages or existing ones.</p>
+                    <h5><?= trh('Weaning') ?></h5>
+                    <p class="text-muted small"><?= trh('Each pup becomes an identified animal (line number, sex, date of birth {date}, parentage). Put them in new holding cages or existing ones.', ['date' => $litter['litter_dob']]); ?></p>
                     <form method="POST" id="weanForm">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>">
                         <input type="hidden" name="litter_id" value="<?= (int) $litter['id']; ?>">
                         <div class="row g-2 mb-2">
-                            <div class="col-md-3"><label class="form-label">Weaning date</label><input type="date" class="form-control" name="event_date" value="<?= $today; ?>" max="<?= $today; ?>" min="<?= htmlspecialchars($litter['litter_dob']); ?>"></div>
+                            <div class="col-md-3"><label class="form-label"><?= trh('Weaning date') ?></label><input type="date" class="form-control" name="event_date" value="<?= $today; ?>" max="<?= $today; ?>" min="<?= htmlspecialchars($litter['litter_dob']); ?>"></div>
                             <div class="col-md-4">
-                                <label class="form-label">Line</label>
+                                <label class="form-label"><?= trh('Line') ?></label>
                                 <select class="form-select" name="line_id">
                                     <?php foreach ($lines as $ln) : ?>
                                         <option value="<?= (int) $ln['id']; ?>" <?= (int) $ln['id'] === (int) $damLine ? 'selected' : ''; ?>><?= htmlspecialchars($ln['code'] . ' - ' . $ln['name']); ?></option>
@@ -430,17 +431,17 @@ require 'header.php';
                             </div>
                         </div>
                         <table class="table table-sm align-middle" id="weanGroups">
-                            <thead><tr><th>Sex</th><th>Number</th><th>Destination</th><th>Room</th><th>Rack</th><th></th></tr></thead>
+                            <thead><tr><th><?= trh('Sex') ?></th><th><?= trh('Count') ?></th><th><?= trh('Destination') ?></th><th><?= trh('Room') ?></th><th><?= trh('Rack') ?></th><th></th></tr></thead>
                             <tbody>
                                 <?php foreach (['male' => $litter['pups_male'], 'female' => $litter['pups_female']] as $sex => $n) : ?>
                                     <tr class="wean-group">
-                                        <td><select class="form-select form-select-sm" name="group_sex[]"><option value="male" <?= $sex === 'male' ? 'selected' : ''; ?>>Male</option><option value="female" <?= $sex === 'female' ? 'selected' : ''; ?>>Female</option></select></td>
+                                        <td><select class="form-select form-select-sm" name="group_sex[]"><option value="male" <?= $sex === 'male' ? 'selected' : ''; ?>><?= trh('Male') ?></option><option value="female" <?= $sex === 'female' ? 'selected' : ''; ?>><?= trh('Female') ?></option></select></td>
                                         <td><input type="number" class="form-control form-control-sm group-count" name="group_count[]" min="0" value="<?= (int) $n; ?>" style="width: 80px;"></td>
                                         <td>
                                             <select class="form-select form-select-sm group-dest" name="group_dest[]">
-                                                <option value="new">New holding cage</option>
+                                                <option value="new"><?= trh('New holding cage') ?></option>
                                                 <?php foreach ($destCages as $dc) : ?>
-                                                    <option value="<?= htmlspecialchars($dc['cage_id']); ?>"><?= htmlspecialchars($dc['cage_id'] . ($dc['room'] ? " (room {$dc['room']})" : '')); ?></option>
+                                                    <option value="<?= htmlspecialchars($dc['cage_id']); ?>"><?= htmlspecialchars($dc['cage_id'] . ($dc['room'] ? ' (' . tr('room {room}', ['room' => $dc['room']]) . ')' : '')); ?></option>
                                                 <?php endforeach; ?>
                                             </select>
                                         </td>
@@ -451,49 +452,49 @@ require 'header.php';
                                 <?php endforeach; ?>
                             </tbody>
                         </table>
-                        <button type="button" class="btn btn-sm btn-outline-secondary mb-2" id="addGroup">+ Add a group (split into several cages)</button>
-                        <div class="mb-2"><strong>Weaned: <span id="weanTotal">0</span> / <?= $aliveNow; ?> alive</strong> <span id="weanRemainderInfo" class="text-danger"></span></div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary mb-2" id="addGroup">+ <?= trh('Add a group (split into several cages)') ?></button>
+                        <div class="mb-2"><strong><?= tr('Weaned: {total} / {alive} alive', ['total' => '<span id="weanTotal">0</span>', 'alive' => $aliveNow]); ?></strong> <span id="weanRemainderInfo" class="text-danger"></span></div>
                         <div class="mb-2" id="remainderBox">
-                            <input type="text" class="form-control" name="remainder_note" placeholder="Pups not weaned: what happened (died, culled...)">
+                            <input type="text" class="form-control" name="remainder_note" placeholder="<?= trh('Pups not weaned: what happened (died, culled...)') ?>">
                         </div>
-                        <button name="action" value="wean" class="btn btn-success">Wean the litter</button>
+                        <button name="action" value="wean" class="btn btn-success"><?= trh('Wean the litter') ?></button>
                     </form>
                 </div>
 
                 <details class="mb-3">
-                    <summary>Close the litter without weaning</summary>
+                    <summary><?= trh('Close the litter without weaning') ?></summary>
                     <form method="POST" class="row g-2 mt-2">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>">
                         <input type="hidden" name="litter_id" value="<?= (int) $litter['id']; ?>">
                         <div class="col-md-3"><input type="date" class="form-control" name="event_date" value="<?= $today; ?>" max="<?= $today; ?>" min="<?= htmlspecialchars($litter['litter_dob']); ?>"></div>
-                        <div class="col-md-6"><input type="text" class="form-control" name="reason" placeholder="Reason (litter lost, culled...)" required></div>
-                        <div class="col-md-3"><button name="action" value="close" class="btn btn-outline-secondary w-100" onclick="return confirm('Close this litter? Remaining pups are recorded as not weaned.');">Close litter</button></div>
+                        <div class="col-md-6"><input type="text" class="form-control" name="reason" placeholder="<?= trh('Reason (litter lost, culled...)') ?>" required></div>
+                        <div class="col-md-3"><button name="action" value="close" class="btn btn-outline-secondary w-100" onclick="return confirm(<?= htmlspecialchars(trj('Close this litter? Remaining pups are recorded as not weaned.')) ?>);"><?= trh('Close litter') ?></button></div>
                     </form>
                 </details>
             <?php endif; ?>
 
             <?php if ($offspring) : ?>
-                <h5>Weaned animals</h5>
+                <h5><?= trh('Weaned animals') ?></h5>
                 <table class="table table-sm" id="offspring">
-                    <thead><tr><th>Animal</th><th>Sex</th><th>Cage</th><th>Status</th></tr></thead>
+                    <thead><tr><th><?= trh('Animal') ?></th><th><?= trh('Sex') ?></th><th><?= trh('Cage') ?></th><th><?= trh('Status') ?></th></tr></thead>
                     <?php foreach ($offspring as $o) : ?>
                         <tr>
                             <td><a href="animal_view.php?id=<?= (int) $o['id']; ?>"><?= htmlspecialchars($o['animal_uid']); ?></a></td>
-                            <td><?= htmlspecialchars($o['sex']); ?></td>
+                            <td><?= trh((string) $o['sex']); ?></td>
                             <td><a href="hc_view.php?id=<?= rawurlencode($o['cage_id']); ?>"><?= htmlspecialchars($o['cage_id']); ?></a></td>
-                            <td><?= htmlspecialchars($o['status']); ?></td>
+                            <td><?= trh(str_replace('_', ' ', $o['status'])); ?></td>
                         </tr>
                     <?php endforeach; ?>
                 </table>
             <?php endif; ?>
 
-            <h5>Journal</h5>
+            <h5><?= trh('Journal') ?></h5>
             <table class="table table-sm" id="litterJournal">
-                <thead><tr><th>Date</th><th>Event</th><th>Count</th><th>Details</th><th>By</th></tr></thead>
+                <thead><tr><th><?= trh('Date') ?></th><th><?= trh('Event') ?></th><th><?= trh('Count') ?></th><th><?= trh('Details') ?></th><th><?= trh('By') ?></th></tr></thead>
                 <?php foreach ($events as $ev) : ?>
                     <tr>
                         <td><?= htmlspecialchars($ev['event_date']); ?></td>
-                        <td><?= htmlspecialchars($ev['event']); ?></td>
+                        <td><?= trh($ev['event']); ?></td>
                         <td><?= $ev['count'] !== null ? (int) $ev['count'] : ''; ?><?= $ev['males'] !== null ? " ({$ev['males']} ♂ / {$ev['females']} ♀)" : ''; ?></td>
                         <td><?= htmlspecialchars($ev['note'] ?? ''); ?></td>
                         <td><?= htmlspecialchars($ev['user_name'] ?? ''); ?></td>
@@ -519,7 +520,7 @@ require 'header.php';
                 });
                 document.getElementById('weanTotal').textContent = total;
                 const rest = alive - total;
-                document.getElementById('weanRemainderInfo').textContent = rest > 0 ? rest + ' pup(s) not weaned: explain below' : (rest < 0 ? 'more than the pups alive!' : '');
+                document.getElementById('weanRemainderInfo').textContent = rest > 0 ? <?= trj('{n} pup(s) not weaned: explain below') ?>.replace('{n}', rest) : (rest < 0 ? <?= trj('more than the pups alive!') ?> : '');
                 document.getElementById('remainderBox').style.display = rest > 0 ? '' : 'none';
             };
             const wire = row => {

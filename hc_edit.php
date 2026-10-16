@@ -67,8 +67,8 @@ $strainOptions = [];
 
 // Process each row to generate options
 while ($strainrow = $strainResult->fetch_assoc()) {
-    $str_id = htmlspecialchars($strainrow['str_id'] ?? 'Unknown');
-    $str_name = htmlspecialchars($strainrow['str_name'] ?? 'Unnamed Strain');
+    $str_id = htmlspecialchars($strainrow['str_id'] ?? tr('Unknown'));
+    $str_name = htmlspecialchars($strainrow['str_name'] ?? tr('Unnamed Strain'));
     $str_aka = $strainrow['str_aka'] ? htmlspecialchars($strainrow['str_aka']) : '';
 
     // Add the main strain option
@@ -137,7 +137,7 @@ if (isset($_GET['id'])) {
 
         // Check if the user is either an admin or one of the users associated with the cage
         if ($userRole !== 'admin' && !in_array($currentUserId, $cageUsers)) {
-            $_SESSION['message'] = 'Access denied. Only the admin or the assigned user can edit.';
+            $_SESSION['message'] = tr('Access denied. Only the admin or the assigned user can edit.');
             header("Location: hc_dash.php?" . getCurrentUrlParams());
             exit();
         }
@@ -162,7 +162,7 @@ if (isset($_GET['id'])) {
 
             // Validate CSRF token
             if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-                die('CSRF token validation failed');
+                die(tr('CSRF token validation failed'));
             }
 
             // Retrieve and sanitize form data
@@ -319,7 +319,7 @@ if (isset($_GET['id'])) {
                     $stmtUpdateLog->close();
                 }
 
-                $_SESSION['message'] = 'Maintenance logs updated successfully.';
+                $_SESSION['message'] = tr('Maintenance logs updated successfully.');
             }
 
             // Process maintenance logs deletion
@@ -344,13 +344,13 @@ if (isset($_GET['id'])) {
 
                 // Validate file size
                 if ($_FILES['fileUpload']['size'] > $maxFileSize) {
-                    $_SESSION['message'] .= " File size exceeds 10MB limit.";
+                    $_SESSION['message'] .= ' ' . tr('File size exceeds 10MB limit.');
                 } else {
                     // Get and validate file extension
                     $fileExtension = strtolower(pathinfo($_FILES['fileUpload']['name'], PATHINFO_EXTENSION));
 
                     if (!in_array($fileExtension, $allowedExtensions)) {
-                        $_SESSION['message'] .= " Invalid file type. Allowed: pdf, doc, docx, txt, xls, xlsx, ppt, pptx, jpg, jpeg, png, gif, bmp, svg, webp";
+                        $_SESSION['message'] .= ' ' . tr('Invalid file type. Allowed: {types}', ['types' => 'pdf, doc, docx, txt, xls, xlsx, ppt, pptx, jpg, jpeg, png, gif, bmp, svg, webp']);
                     } else {
                         // Sanitize filename to prevent directory traversal
                         $originalFileName = preg_replace("/[^a-zA-Z0-9._-]/", "_", basename($_FILES['fileUpload']['name']));
@@ -360,7 +360,7 @@ if (isset($_GET['id'])) {
                         // Create the cage_id specific sub-directory if it doesn't exist
                         if (!file_exists($targetDirectory)) {
                             if (!mkdir($targetDirectory, 0777, true)) {
-                                $_SESSION['message'] .= " Failed to create directory.";
+                                $_SESSION['message'] .= ' ' . tr('Failed to create directory.');
                                 exit;
                             }
                         }
@@ -374,22 +374,22 @@ if (isset($_GET['id'])) {
                                 $insert = $con->prepare("INSERT INTO files (file_name, file_path, cage_id) VALUES (?, ?, ?)");
                                 $insert->bind_param("sss", $originalFileName, $targetFilePath, $cage_id);
                                 if ($insert->execute()) {
-                                    $_SESSION['message'] .= " File uploaded successfully.";
+                                    $_SESSION['message'] .= ' ' . tr('File uploaded successfully.');
                                 } else {
-                                    $_SESSION['message'] .= " File upload failed, please try again.";
+                                    $_SESSION['message'] .= ' ' . tr('File upload failed, please try again.');
                                 }
                             } else {
-                                $_SESSION['message'] .= " Sorry, there was an error uploading your file.";
+                                $_SESSION['message'] .= ' ' . tr('Sorry, there was an error uploading your file.');
                             }
                         } else {
-                            $_SESSION['message'] .= " Sorry, file already exists.";
+                            $_SESSION['message'] .= ' ' . tr('Sorry, file already exists.');
                         }
                     }
                 }
             }
 
             if (retire_cage_if_empty($con, $cage_id, 'last animal removed from the cage form', $_SESSION['user_id'] ?? null, $_SESSION['name'] ?? null)) {
-                $_SESSION['message'] = ($_SESSION['message'] ?? '') . " Cage $cage_id has no animal left and was retired automatically.";
+                $_SESSION['message'] = ($_SESSION['message'] ?? '') . ' ' . tr('Cage {cage} has no animal left and was retired automatically.', ['cage' => $cage_id]);
             }
 
             // Redirect to the same page to prevent resubmission on refresh
@@ -398,13 +398,13 @@ if (isset($_GET['id'])) {
         }
     } else {
         // Set an error message if the ID is invalid
-        $_SESSION['message'] = 'Invalid ID.';
+        $_SESSION['message'] = tr('Invalid ID.');
         header("Location: hc_dash.php?" . getCurrentUrlParams());
         exit();
     }
 } else {
     // Set an error message if the ID parameter is missing
-    $_SESSION['message'] = 'ID parameter is missing.';
+    $_SESSION['message'] = tr('ID parameter is missing.');
     header("Location: hc_dash.php?" . getCurrentUrlParams());
     exit();
 }
@@ -432,7 +432,7 @@ function getUserDetailsByIds($con, $userIds)
 
 // Fetch currently selected PI details
 $piDetails = getUserDetailsByIds($con, [$selectedPiId]);
-$piDisplay = isset($piDetails[$selectedPiId]) ? $piDetails[$selectedPiId] : 'Unknown PI';
+$piDisplay = isset($piDetails[$selectedPiId]) ? $piDetails[$selectedPiId] : tr('Unknown PI');
 
 // Include the header file
 require 'header.php';
@@ -442,7 +442,7 @@ require 'header.php';
 <html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
-    <title>Edit Holding Cage | <?php echo htmlspecialchars($labName); ?></title>
+    <title><?= trh('Edit Holding Cage') ?> | <?php echo htmlspecialchars($labName); ?></title>
 
     <!-- Include Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous">
@@ -604,19 +604,19 @@ require 'header.php';
             const mouseFieldHTML = `
                 <div id="mouse_fields_${mouseCount}" class="mouse-field">
                     <br>
-                    <h4>Mouse #${mouseCount}</h4>
+                    <h4><?= trh('Mouse #{n}', ['n' => '${mouseCount}']) ?></h4>
                     <div class="mb-3">
-                        <label for="mouse_id_${mouseCount}" class="form-label">Mouse ID</label>
+                        <label for="mouse_id_${mouseCount}" class="form-label"><?= trh('Mouse ID') ?></label>
                         <input type="text" class="form-control" id="mouse_id_${mouseCount}" name="mouse_id[]" value="">
                     </div>
 
                     <div class="mb-3">
-                        <label for="genotype_${mouseCount}" class="form-label">Genotype</label>
+                        <label for="genotype_${mouseCount}" class="form-label"><?= trh('Genotype') ?></label>
                         <input type="text" class="form-control" id="genotype_${mouseCount}" name="genotype[]" value="">
                     </div>
 
                     <div class="mb-3">
-                        <label for="notes_${mouseCount}" class="form-label">Maintenance Notes</label>
+                        <label for="notes_${mouseCount}" class="form-label"><?= trh('Maintenance Notes') ?></label>
                         <textarea class="form-control" id="notes_${mouseCount}" name="notes[]" oninput="adjustTextareaHeight(this)"></textarea>
                     </div>
 
@@ -673,7 +673,7 @@ require 'header.php';
                 const dobValue = dobInput.value;
                 const isValidDate = validateDate(dobValue);
                 if (!isValidDate) {
-                    warningText.textContent = 'Invalid Date. Please enter a valid date.';
+                    warningText.textContent = <?= trj('Invalid Date. Please enter a valid date.') ?>;
                     warningText.style.display = 'block';
                 } else {
                     warningText.textContent = '';
@@ -686,7 +686,7 @@ require 'header.php';
                 const dobValue = dobInput.value;
                 if (!validateDate(dobValue)) {
                     event.preventDefault(); // Prevent form submission
-                    warningText.textContent = 'Invalid Date. Please enter a valid date.';
+                    warningText.textContent = <?= trj('Invalid Date. Please enter a valid date.') ?>;
                     warningText.style.display = 'block';
                     dobInput.focus();
                 }
@@ -695,19 +695,19 @@ require 'header.php';
 
         $(document).ready(function() {
             $('#user').select2({
-                placeholder: "Select User(s)",
+                placeholder: <?= trj('Select User(s)') ?>,
                 allowClear: true
             });
         });
 
         $(document).ready(function() {
             $('#strain').select2({
-                placeholder: "Select Strain",
+                placeholder: <?= trj('Select Strain') ?>,
                 allowClear: true
             });
 
             $('#iacuc').select2({
-                placeholder: "Select IACUC",
+                placeholder: <?= trj('Select IACUC') ?>,
                 allowClear: true,
                 templateResult: function(data) {
                     if (!data.id) {
@@ -727,9 +727,9 @@ require 'header.php';
                 const selectedPiText = piSelect.options[piSelect.selectedIndex].text;
 
                 // Check if "Unknown PI" is selected
-                if (selectedPiText.includes('Unknown PI')) {
+                if (selectedPiText.includes(<?= trj('Unknown PI') ?>)) {
                     event.preventDefault(); // Prevent form submission
-                    alert('Cannot proceed with "Unknown PI". Please select a valid PI.');
+                    alert(<?= trj('Cannot proceed with "Unknown PI". Please select a valid PI.') ?>);
                 }
             });
         });
@@ -741,16 +741,16 @@ require 'header.php';
                 const selectedStrainText = strainSelect.options[strainSelect.selectedIndex].text;
 
                 // Check if "Unknown Strain" is selected
-                if (selectedStrainText.includes('Unknown Strain')) {
+                if (selectedStrainText.includes(<?= trj('Unknown Strain') ?>)) {
                     event.preventDefault(); // Prevent form submission
-                    alert('Cannot proceed with "Unknown Strain". Please select a valid Strain.');
+                    alert(<?= trj('Cannot proceed with "Unknown Strain". Please select a valid Strain.') ?>);
                 }
             });
         });
 
         // Function to mark maintenance log for deletion and hide the row
         function markLogForDeletion(logId) {
-            if (confirm('Are you sure you want to delete this maintenance record?')) {
+            if (confirm(<?= trj('Are you sure you want to delete this maintenance record?') ?>)) {
                 const logIdsInput = document.getElementById('logs_to_delete');
                 let logsToDelete = logIdsInput.value ? logIdsInput.value.split(',') : [];
                 logsToDelete.push(logId);
@@ -775,14 +775,14 @@ require 'header.php';
             <div class="col-md-12">
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <h4>Edit Holding Cage</h4>
+                        <h4><?= trh('Edit Holding Cage') ?></h4>
                         <div class="action-buttons">
                             <!-- Button to go back to the previous page -->
-                            <a href="javascript:void(0);" onclick="goBack()" class="btn btn-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Go Back">
+                            <a href="javascript:void(0);" onclick="goBack()" class="btn btn-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="<?= trh('Go Back') ?>">
                                 <i class="fas fa-arrow-circle-left"></i>
                             </a>
                             <!-- Button to save the form -->
-                            <a href="javascript:void(0);" onclick="document.getElementById('editForm').submit();" class="btn btn-success btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Save">
+                            <a href="javascript:void(0);" onclick="document.getElementById('editForm').submit();" class="btn btn-success btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="<?= trh('Save') ?>">
                                 <i class="fas fa-save"></i>
                             </a>
                         </div>
@@ -790,20 +790,20 @@ require 'header.php';
 
                     <div class="card-body">
                     <form id="editForm" method="POST" action="hc_edit.php?id=<?= $id; ?>&<?= getCurrentUrlParams(); ?>" enctype="multipart/form-data">
-                            <p class="warning-text">Fields marked with <span class="required-asterisk">*</span> are required.</p>
+                            <p class="warning-text"><?= tr('Fields marked with {asterisk} are required.', ['asterisk' => '<span class="required-asterisk">*</span>']) ?></p>
                             <input type="hidden" id="mice_to_delete" name="mice_to_delete" value="">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
 
                             <div class="mb-3">
-                                <label for="cage_id" class="form-label">Cage ID <span class="required-asterisk">*</span></label>
+                                <label for="cage_id" class="form-label"><?= trh('Cage ID') ?> <span class="required-asterisk">*</span></label>
                                 <input type="text" class="form-control" id="cage_id" name="cage_id" value="<?= htmlspecialchars($holdingcage['cage_id']); ?>" readonly required>
                             </div>
 
                             <div class="mb-3">
-                                <label for="pi_name" class="form-label">PI Name <span class="required-asterisk">*</span></label>
+                                <label for="pi_name" class="form-label"><?= trh('PI Name') ?> <span class="required-asterisk">*</span></label>
                                 <select class="form-control" id="pi_name" name="pi_name" required>
                                     <!-- Display a placeholder option for selection -->
-                                    <option value="" disabled>Select PI</option>
+                                    <option value="" disabled><?= trh('Select PI') ?></option>
                                     <?php while ($row = $piResult->fetch_assoc()) : ?>
                                         <option value="<?= htmlspecialchars($row['id']); ?>" <?= ($row['id'] == $selectedPiId) ? 'selected' : ''; ?>>
                                             <?= htmlspecialchars($row['initials']) . ' [' . htmlspecialchars($row['name']) . ']'; ?>
@@ -813,9 +813,9 @@ require 'header.php';
                             </div>
 
                             <div class="mb-3">
-                                <label for="strain" class="form-label">Strain <span class="required-asterisk">*</span></label>
+                                <label for="strain" class="form-label"><?= trh('Strain') ?> <span class="required-asterisk">*</span></label>
                                 <select class="form-control" id="strain" name="strain" required>
-                                    <option value="" disabled <?= empty($holdingcage['strain']) ? 'selected' : ''; ?>>Select Strain</option>
+                                    <option value="" disabled <?= empty($holdingcage['strain']) ? 'selected' : ''; ?>><?= trh('Select Strain') ?></option>
                                     <?php
                                     // Initialize a flag to check if the current strain exists in the options
                                     $strainExists = false;
@@ -835,16 +835,16 @@ require 'header.php';
                                     // If the current strain is not in the list, add it as a separate option
                                     if (!$strainExists && !empty($holdingcage['strain'])) {
                                         $currentStrainId = htmlspecialchars($holdingcage['strain']);
-                                        echo "<option value='$currentStrainId' disabled selected>$currentStrainId | Unknown Strain</option>";
+                                        echo "<option value='$currentStrainId' disabled selected>$currentStrainId | " . trh('Unknown Strain') . "</option>";
                                     }
                                     ?>
                                 </select>
                             </div>
 
                             <div class="mb-3">
-                                <label for="iacuc" class="form-label">IACUC</label>
+                                <label for="iacuc" class="form-label"><?= trh('IACUC') ?></label>
                                 <select class="form-control" id="iacuc" name="iacuc[]" multiple>
-                                    <option value="" disabled>Select IACUC</option>
+                                    <option value="" disabled><?= trh('Select IACUC') ?></option>
                                     <?php
                                     if ($iacucResult->num_rows > 0) {
                                         // Populate the dropdown with IACUC values from the database
@@ -856,14 +856,14 @@ require 'header.php';
                                             echo "<option value='$iacuc_id' title='$iacuc_title' $selected>$iacuc_id | $truncated_title</option>";
                                         }
                                     } else {
-                                        echo "<option value='' disabled>No IACUC available</option>";
+                                        echo "<option value='' disabled>" . trh('No IACUC available') . "</option>";
                                     }
                                     ?>
                                 </select>
                             </div>
 
                             <div class="mb-3">
-                                <label for="user" class="form-label">User <span class="required-asterisk">*</span></label>
+                                <label for="user" class="form-label"><?= trh('User') ?> <span class="required-asterisk">*</span></label>
                                 <select class="form-control" id="user" name="user[]" multiple required>
                                     <?php
                                     // Populate the dropdown with options from the database
@@ -879,31 +879,31 @@ require 'header.php';
                             </div>
 
                             <div class="mb-3">
-                                <label for="dob" class="form-label">DOB <span class="required-asterisk">*</span></label>
+                                <label for="dob" class="form-label"><?= trh('DOB') ?> <span class="required-asterisk">*</span></label>
                                 <input type="date" class="form-control" id="dob" name="dob" value="<?= htmlspecialchars($holdingcage['dob']); ?>" required min="1900-01-01">
                             </div>
 
                             <div class="mb-3">
-                                <label for="sex" class="form-label">Cage Sex</label>
+                                <label for="sex" class="form-label"><?= trh('Cage Sex') ?></label>
                                 <select class="form-control" id="sex" name="sex">
-                                    <option value="" <?= empty($holdingcage['sex']) ? 'selected' : ''; ?>>Mixed / set per animal</option>
-                                    <option value="Male" <?= $holdingcage['sex'] === 'male' ? 'selected' : ''; ?>>Male</option>
-                                    <option value="Female" <?= $holdingcage['sex'] === 'female' ? 'selected' : ''; ?>>Female</option>
+                                    <option value="" <?= empty($holdingcage['sex']) ? 'selected' : ''; ?>><?= trh('Mixed / set per animal') ?></option>
+                                    <option value="Male" <?= $holdingcage['sex'] === 'male' ? 'selected' : ''; ?>><?= trh('Male') ?></option>
+                                    <option value="Female" <?= $holdingcage['sex'] === 'female' ? 'selected' : ''; ?>><?= trh('Female') ?></option>
                                 </select>
                             </div>
 
                             <div class="mb-3">
-                                <label for="parent_cg" class="form-label">Parent Cage</label>
+                                <label for="parent_cg" class="form-label"><?= trh('Parent Cage') ?></label>
                                 <input type="text" class="form-control" id="parent_cg" name="parent_cg" value="<?= htmlspecialchars($holdingcage['parent_cg'] ?? ''); ?>">
                             </div>
 
                             <div class="row">
                                 <div class="col-md-6 mb-3">
-                                    <label for="room" class="form-label">Room</label>
-                                    <input type="text" class="form-control" id="room" name="room" list="roomList" value="<?= htmlspecialchars($holdingcage['room'] ?? ''); ?>" placeholder="Used to organise the daily round">
+                                    <label for="room" class="form-label"><?= trh('Room') ?></label>
+                                    <input type="text" class="form-control" id="room" name="room" list="roomList" value="<?= htmlspecialchars($holdingcage['room'] ?? ''); ?>" placeholder="<?= trh('Used to organise the daily round') ?>">
                                 </div>
                                 <div class="col-md-6 mb-3">
-                                    <label for="rack" class="form-label">Rack</label>
+                                    <label for="rack" class="form-label"><?= trh('Rack') ?></label>
                                     <input type="text" class="form-control" id="rack" name="rack" value="<?= htmlspecialchars($holdingcage['rack'] ?? ''); ?>">
                                 </div>
                                 <datalist id="roomList">
@@ -914,7 +914,7 @@ require 'header.php';
                             </div>
 
                             <div class="mb-3">
-                                <label for="remarks" class="form-label">Remarks</label>
+                                <label for="remarks" class="form-label"><?= trh('Remarks') ?></label>
                                 <textarea class="form-control" id="remarks" name="remarks" oninput="adjustTextareaHeight(this)"><?= htmlspecialchars($holdingcage['remarks']); ?></textarea>
                             </div>
 
@@ -927,20 +927,20 @@ require 'header.php';
                                 <?php foreach ($mice as $i => $mouse) : ?>
                                     <div id="mouse_fields_<?= $i + 1 ?>" class="mouse-field" data-mouse-id="<?= $mouse['id'] ?>">
                                         <br>
-                                        <h4>Mouse #<?= $i + 1 ?></h4>
+                                        <h4><?= trh('Mouse #{n}', ['n' => $i + 1]) ?></h4>
                                         <input type="hidden" name="existing_mouse_id[]" value="<?= htmlspecialchars($mouse['id']) ?>">
                                         <div class="mb-3">
-                                            <label for="mouse_id_<?= $i + 1 ?>" class="form-label">Mouse ID</label>
+                                            <label for="mouse_id_<?= $i + 1 ?>" class="form-label"><?= trh('Mouse ID') ?></label>
                                             <input type="text" class="form-control" id="mouse_id_<?= $i + 1 ?>" name="mouse_id[]" value="<?= htmlspecialchars($mouse['mouse_id'] ?? '') ?>">
                                         </div>
 
                                         <div class="mb-3">
-                                            <label for="genotype_<?= $i + 1 ?>" class="form-label">Genotype</label>
+                                            <label for="genotype_<?= $i + 1 ?>" class="form-label"><?= trh('Genotype') ?></label>
                                             <input type="text" class="form-control" id="genotype_<?= $i + 1 ?>" name="genotype[]" value="<?= htmlspecialchars($mouse['genotype']) ?>">
                                         </div>
 
                                         <div class="mb-3">
-                                            <label for="notes_<?= $i + 1 ?>" class="form-label">Maintenance Notes</label>
+                                            <label for="notes_<?= $i + 1 ?>" class="form-label"><?= trh('Maintenance Notes') ?></label>
                                             <textarea class="form-control" id="notes_<?= $i + 1 ?>" name="notes[]" oninput="adjustTextareaHeight(this)"><?= htmlspecialchars($mouse['notes'] ?? '') ?></textarea>
                                         </div>
 
@@ -954,7 +954,7 @@ require 'header.php';
                             <!-- Button to add new mouse fields -->
                             <div class="button-group">
                                 <button type="button" class="btn btn-primary" onclick="addMouseField()">
-                                    <i class="fas fa-plus"></i> Add Mouse
+                                    <i class="fas fa-plus"></i> <?= trh('Add Mouse') ?>
                                 </button>
                             </div>
 
@@ -964,15 +964,15 @@ require 'header.php';
                             <!-- Display Files Section -->
                             <div class="card mt-4">
                                 <div class="card-header">
-                                    <h4>Manage Files</h4>
+                                    <h4><?= trh('Manage Files') ?></h4>
                                 </div>
                                 <div class="card-body">
                                     <div class="table-responsive">
                                         <table class="table table-hover">
                                             <thead>
                                                 <tr>
-                                                    <th>File Name</th>
-                                                    <th>Actions</th>
+                                                    <th><?= trh('File Name') ?></th>
+                                                    <th><?= trh('Actions') ?></th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -986,7 +986,7 @@ require 'header.php';
                                                     echo "<td>$file_name</td>";
                                                     echo "<td>
                                                     <a href='$file_path' download='$file_name' class='btn btn-sm btn-outline-primary'><i class='fas fa-cloud-download-alt fa-sm'></i></a>
-                                                    <a href='delete_file.php?url=hc_edit&id=$file_id' class='btn-sm' onclick='return confirm(\"Are you sure you want to delete this file?\");' aria-label='Delete $file_name'><i class='fas fa-trash fa-sm' style='color:red'></i></a>
+                                                    <a href='delete_file.php?url=hc_edit&id=$file_id' class='btn-sm' onclick='return confirm(" . htmlspecialchars(trj('Are you sure you want to delete this file?'), ENT_QUOTES) . ");' aria-label='" . trh('Delete {file}', ['file' => $file_name]) . "'><i class='fas fa-trash fa-sm' style='color:red'></i></a>
                                                     </td>";
                                                     echo "</tr>";
                                                 }
@@ -1000,7 +1000,7 @@ require 'header.php';
                             <!-- Upload Files Section -->
                             <div class="card mt-4">
                                 <div class="card-header">
-                                    <h4>Upload New File</h4>
+                                    <h4><?= trh('Upload New File') ?></h4>
                                 </div>
                                 <div class="card-body">
                                     <div class="input-group mb-3">
@@ -1016,10 +1016,10 @@ require 'header.php';
 
                             <div class="card-body">
                                 <div class="card-header d-flex flex-column flex-md-row justify-content-between">
-                                    <h4>Maintenance Log for Cage ID: <?= htmlspecialchars($id ?? 'Unknown'); ?></h4>
+                                    <h4><?= trh('Maintenance Log for Cage ID: {cage}', ['cage' => $id ?? tr('Unknown')]); ?></h4>
                                     <div class="action-icons mt-3 mt-md-0">
                                         <!-- Maintenance button with tooltip -->
-                                        <a href="maintenance.php?from=hc_dash" class="btn btn-warning btn-icon" data-toggle="tooltip" data-placement="top" title="Add Maintenance Record">
+                                        <a href="maintenance.php?from=hc_dash" class="btn btn-warning btn-icon" data-toggle="tooltip" data-placement="top" title="<?= trh('Add Maintenance Record') ?>">
                                             <i class="fas fa-wrench"></i>
                                         </a>
                                     </div>
@@ -1044,20 +1044,20 @@ require 'header.php';
                                         <table class="table table-hover">
                                             <thead>
                                                 <tr>
-                                                    <th style="width: 25%;">Date</th>
-                                                    <th style="width: 25%;">User</th>
-                                                    <th style="width: 40%;">Comment</th>
-                                                    <th style="width: 10%;">Action</th>
+                                                    <th style="width: 25%;"><?= trh('Date') ?></th>
+                                                    <th style="width: 25%;"><?= trh('User') ?></th>
+                                                    <th style="width: 40%;"><?= trh('Comment') ?></th>
+                                                    <th style="width: 10%;"><?= trh('Action') ?></th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 <?php while ($log = $maintenanceLogs->fetch_assoc()) : ?>
                                                     <tr id="log-row-<?= $log['id']; ?>">
                                                         <td style="width: 25%;"><?= htmlspecialchars($log['timestamp'] ?? ''); ?></td>
-                                                        <td style="width: 25%;"><?= htmlspecialchars($log['user_name'] ?? 'Unknown'); ?></td>
+                                                        <td style="width: 25%;"><?= htmlspecialchars($log['user_name'] ?? tr('Unknown')); ?></td>
                                                         <td style="width: 40%;">
                                                             <input type="hidden" name="log_ids[]" value="<?= htmlspecialchars($log['id']); ?>">
-                                                            <textarea name="log_comments[]" class="form-control"><?= htmlspecialchars($log['comments'] ?? 'No comment'); ?></textarea>
+                                                            <textarea name="log_comments[]" class="form-control"><?= htmlspecialchars($log['comments'] ?? tr('No comment')); ?></textarea>
                                                         </td>
                                                         <td style="width: 10%;">
                                                             <button type="button" class="btn btn-danger btn-icon" onclick="markLogForDeletion(<?= $log['id']; ?>)">
@@ -1070,7 +1070,7 @@ require 'header.php';
                                         </table>
                                     </div>
                                 <?php else : ?>
-                                    <p>No maintenance records found for this cage.</p>
+                                    <p><?= trh('No maintenance records found for this cage.') ?></p>
                                 <?php endif; ?>
                             </div>
 
@@ -1080,8 +1080,8 @@ require 'header.php';
                             <input type="hidden" id="logs_to_delete" name="logs_to_delete" value="">
 
                             <br>
-                            <button type="submit" class="btn btn-primary">Save Changes</button>
-                            <button type="button" class="btn btn-secondary" onclick="goBack()">Go Back</button>
+                            <button type="submit" class="btn btn-primary"><?= trh('Save Changes') ?></button>
+                            <button type="button" class="btn btn-secondary" onclick="goBack()"><?= trh('Go Back') ?></button>
 
                         </form>
                     </div>

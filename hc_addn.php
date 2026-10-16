@@ -52,8 +52,8 @@ $strainOptions = [];
 
 // Process each row to generate options
 while ($strainRow = $strainResult->fetch_assoc()) {
-    $str_id = htmlspecialchars($strainRow['str_id'] ?? 'Unknown');
-    $str_name = htmlspecialchars($strainRow['str_name'] ?? 'Unnamed Strain');
+    $str_id = htmlspecialchars($strainRow['str_id'] ?? tr('Unknown'));
+    $str_name = htmlspecialchars($strainRow['str_name'] ?? tr('Unnamed Strain'));
     $str_aka = $strainRow['str_aka'] ? htmlspecialchars($strainRow['str_aka']) : '';
 
     // Add the main strain option
@@ -76,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Validate CSRF token
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        die('CSRF token validation failed');
+        die(tr('CSRF token validation failed'));
     }
 
     // Retrieve form data (cage_id is never submitted: it's auto-generated below)
@@ -94,9 +94,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $qty = $male_count + $female_count;
 
     if (!$line_id) {
-        $_SESSION['message'] = "Please select an animal line.";
+        $_SESSION['message'] = tr('Please select an animal line.');
     } elseif ($qty === 0) {
-        $_SESSION['message'] = "Enter at least one male or female to create.";
+        $_SESSION['message'] = tr('Enter at least one male or female to create.');
     } else {
         // Start a transaction
         mysqli_begin_transaction($con);
@@ -174,18 +174,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Start of the cage's life: from today it must be seen daily. Creating it
             // means its animals were just handled, so it counts as today's check.
             log_cage_lifecycle($con, $cage_id, 'created', null, $_SESSION['user_id'] ?? null, $_SESSION['name'] ?? null);
-            record_cage_check($con, $cage_id, 'creation', 'ok', 'auto', 'Cage created', null, $_SESSION['user_id'] ?? null, $_SESSION['name'] ?? null);
+            record_cage_check($con, $cage_id, 'creation', 'ok', 'auto', tr('Cage created'), null, $_SESSION['user_id'] ?? null, $_SESSION['name'] ?? null);
 
-            log_activity($con, 'create', 'cage', $cage_id, "Holding cage created with $male_count male(s) and $female_count female(s).", $_SESSION['user_id'] ?? null);
+            log_activity($con, 'create', 'cage', $cage_id, tr('Holding cage created with {males} male(s) and {females} female(s).', ['males' => $male_count, 'females' => $female_count]), $_SESSION['user_id'] ?? null);
 
             // Commit the transaction
             mysqli_commit($con);
 
-            $_SESSION['message'] = "New holding cage $cage_id added successfully.";
+            $_SESSION['message'] = tr('New holding cage {cage} added successfully.', ['cage' => $cage_id]);
         } catch (Exception $e) {
             // Rollback the transaction in case of an error
             mysqli_rollback($con);
-            $_SESSION['message'] = "Failed to add new holding cage.";
+            $_SESSION['message'] = tr('Failed to add new holding cage.');
         }
 
         // Close the prepared statement
@@ -208,7 +208,7 @@ require 'header.php';
 <html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
-    <title>Add New Holding Cage | <?php echo htmlspecialchars($labName); ?></title>
+    <title><?= trh('Add New Holding Cage') ?> | <?php echo htmlspecialchars($labName); ?></title>
 
     <!-- Include Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous">
@@ -320,7 +320,7 @@ require 'header.php';
                 const dobValue = dobInput.value;
                 const isValidDate = validateDate(dobValue);
                 if (!isValidDate) {
-                    warningText.textContent = 'Invalid Date. Please enter a valid date.';
+                    warningText.textContent = <?= trj('Invalid Date. Please enter a valid date.') ?>;
                     warningText.style.display = 'block';
                 } else {
                     warningText.textContent = '';
@@ -333,7 +333,7 @@ require 'header.php';
                 const dobValue = dobInput.value;
                 if (!validateDate(dobValue)) {
                     event.preventDefault();
-                    warningText.textContent = 'Invalid Date. Please enter a valid date.';
+                    warningText.textContent = <?= trj('Invalid Date. Please enter a valid date.') ?>;
                     warningText.style.display = 'block';
                     dobInput.focus();
                     return;
@@ -343,29 +343,29 @@ require 'header.php';
                 const femaleCount = parseInt(document.getElementById('female_count').value || '0', 10);
                 if (maleCount + femaleCount <= 0) {
                     event.preventDefault();
-                    alert('Enter at least one male or female to create.');
+                    alert(<?= trj('Enter at least one male or female to create.') ?>);
                 }
             });
         });
 
         $(document).ready(function() {
             $('#user').select2({
-                placeholder: "Select User(s)",
+                placeholder: <?= trj('Select User(s)') ?>,
                 allowClear: true
             });
 
             $('#strain').select2({
-                placeholder: "Select Strain",
+                placeholder: <?= trj('Select Strain') ?>,
                 allowClear: true
             });
 
             $('#line_id').select2({
-                placeholder: "Select Line",
+                placeholder: <?= trj('Select Line') ?>,
                 allowClear: true
             });
 
             $('#iacuc').select2({
-                placeholder: "Select IACUC",
+                placeholder: <?= trj('Select IACUC') ?>,
                 allowClear: true,
                 templateResult: function(data) {
                     if (!data.id) {
@@ -384,12 +384,12 @@ require 'header.php';
 <body>
     <div class="container mt-4 content">
 
-        <h4>Add New Holding Cage</h4>
+        <h4><?= trh('Add New Holding Cage') ?></h4>
 
         <?php include('message.php'); ?>
 
-        <p class="warning-text">Fields marked with <span class="required-asterisk">*</span> are required.</p>
-        <p class="text-muted">The Cage ID and each animal's ID are generated automatically — nothing to type.</p>
+        <p class="warning-text"><?= tr('Fields marked with {asterisk} are required.', ['asterisk' => '<span class="required-asterisk">*</span>']) ?></p>
+        <p class="text-muted"><?= trh('The Cage ID and each animal’s ID are generated automatically — nothing to type.') ?></p>
 
         <form method="POST">
 
@@ -397,9 +397,9 @@ require 'header.php';
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
 
             <div class="mb-3">
-                <label for="pi_name" class="form-label">PI Name <span class="required-asterisk">*</span></label>
+                <label for="pi_name" class="form-label"><?= trh('PI Name') ?> <span class="required-asterisk">*</span></label>
                 <select class="form-control" id="pi_name" name="pi_name" required>
-                    <option value="" disabled selected>Select PI</option>
+                    <option value="" disabled selected><?= trh('Select PI') ?></option>
                     <?php
                     // Populate dropdown with options from the database
                     while ($row = $piResult->fetch_assoc()) {
@@ -413,9 +413,9 @@ require 'header.php';
             </div>
 
             <div class="mb-3">
-                <label for="line_id" class="form-label">Line <span class="required-asterisk">*</span></label>
+                <label for="line_id" class="form-label"><?= trh('Line') ?> <span class="required-asterisk">*</span></label>
                 <select class="form-control" id="line_id" name="line_id" required>
-                    <option value="" disabled selected>Select Line</option>
+                    <option value="" disabled selected><?= trh('Select Line') ?></option>
                     <?php
                     $lineResult->data_seek(0);
                     while ($lineRow = $lineResult->fetch_assoc()) {
@@ -429,9 +429,9 @@ require 'header.php';
             </div>
 
             <div class="mb-3">
-                <label for="strain" class="form-label">Strain <span class="required-asterisk">*</span></label>
+                <label for="strain" class="form-label"><?= trh('Strain') ?> <span class="required-asterisk">*</span></label>
                 <select class="form-control" id="strain" name="strain" required>
-                    <option value="" disabled selected>Select Strain</option>
+                    <option value="" disabled selected><?= trh('Select Strain') ?></option>
                     <?php
                     // Populate the dropdown with all the options generated
                     foreach ($strainOptions as $option) {
@@ -442,9 +442,9 @@ require 'header.php';
             </div>
 
             <div class="mb-3">
-                <label for="iacuc" class="form-label">IACUC</label>
+                <label for="iacuc" class="form-label"><?= trh('IACUC') ?></label>
                 <select class="form-control" id="iacuc" name="iacuc[]" multiple>
-                    <option value="" disabled>Select IACUC</option>
+                    <option value="" disabled><?= trh('Select IACUC') ?></option>
                     <?php
                     // Populate the dropdown with IACUC values from the database
                     while ($iacucRow = $iacucResult->fetch_assoc()) {
@@ -458,7 +458,7 @@ require 'header.php';
             </div>
 
             <div class="mb-3">
-                <label for="user" class="form-label">User <span class="required-asterisk">*</span></label>
+                <label for="user" class="form-label"><?= trh('User') ?> <span class="required-asterisk">*</span></label>
                 <select class="form-control" id="user" name="user[]" multiple required>
                     <?php
                     // Populate the dropdown with options from the database
@@ -473,33 +473,33 @@ require 'header.php';
             </div>
 
             <div class="mb-3">
-                <label for="dob" class="form-label">DOB <span class="required-asterisk">*</span></label>
+                <label for="dob" class="form-label"><?= trh('DOB') ?> <span class="required-asterisk">*</span></label>
                 <input type="date" class="form-control" id="dob" name="dob" required min="1900-01-01">
             </div>
 
             <div class="mb-3">
-                <label for="genotype" class="form-label">Genotype</label>
-                <input type="text" class="form-control" id="genotype" name="genotype" placeholder="Applies to all animals created in this cage">
+                <label for="genotype" class="form-label"><?= trh('Genotype') ?></label>
+                <input type="text" class="form-control" id="genotype" name="genotype" placeholder="<?= trh('Applies to all animals created in this cage') ?>">
             </div>
 
             <div class="row">
                 <div class="col mb-3">
-                    <label for="male_count" class="form-label">Number of Males <span class="required-asterisk">*</span></label>
+                    <label for="male_count" class="form-label"><?= trh('Number of Males') ?> <span class="required-asterisk">*</span></label>
                     <input type="number" class="form-control" id="male_count" name="male_count" min="0" value="0" required>
                 </div>
                 <div class="col mb-3">
-                    <label for="female_count" class="form-label">Number of Females <span class="required-asterisk">*</span></label>
+                    <label for="female_count" class="form-label"><?= trh('Number of Females') ?> <span class="required-asterisk">*</span></label>
                     <input type="number" class="form-control" id="female_count" name="female_count" min="0" value="0" required>
                 </div>
             </div>
 
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label for="room" class="form-label">Room</label>
-                    <input type="text" class="form-control" id="room" name="room" list="roomList" value="" placeholder="Used to organise the daily round">
+                    <label for="room" class="form-label"><?= trh('Room') ?></label>
+                    <input type="text" class="form-control" id="room" name="room" list="roomList" value="" placeholder="<?= trh('Used to organise the daily round') ?>">
                 </div>
                 <div class="col-md-6 mb-3">
-                    <label for="rack" class="form-label">Rack</label>
+                    <label for="rack" class="form-label"><?= trh('Rack') ?></label>
                     <input type="text" class="form-control" id="rack" name="rack" value="">
                 </div>
                 <div class="col-12 mb-3 form-check ms-2">
@@ -514,14 +514,14 @@ require 'header.php';
             </div>
 
             <div class="mb-3">
-                <label for="remarks" class="form-label">Remarks</label>
+                <label for="remarks" class="form-label"><?= trh('Remarks') ?></label>
                 <textarea class="form-control" id="remarks" name="remarks" oninput="adjustTextareaHeight(this)"></textarea>
             </div>
 
             <br>
 
-            <button type="submit" class="btn btn-primary">Add Cage</button>
-            <button type="button" class="btn btn-secondary" onclick="goBack()">Go Back</button>
+            <button type="submit" class="btn btn-primary"><?= trh('Add Cage') ?></button>
+            <button type="button" class="btn btn-secondary" onclick="goBack()"><?= trh('Go Back') ?></button>
 
         </form>
     </div>
