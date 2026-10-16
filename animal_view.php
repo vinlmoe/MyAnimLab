@@ -39,7 +39,7 @@ $animal = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
 if (!$animal) {
-    echo "<div class='container mt-4'><div class='alert alert-danger'>Animal not found.</div></div>";
+    echo "<div class='container mt-4'><div class='alert alert-danger'>" . trh('Animal not found.') . "</div></div>";
     require 'footer.php';
     exit;
 }
@@ -111,7 +111,7 @@ $statusBadge = [
 <html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
-    <title>Animal <?= htmlspecialchars($animal['animal_uid'] ?? $animal['mouse_id'] ?? ('#' . $animal['id'])); ?> | <?php echo htmlspecialchars($labName); ?></title>
+    <title><?= trh('Animal {uid}', ['uid' => $animal['animal_uid'] ?? $animal['mouse_id'] ?? ('#' . $animal['id'])]); ?> | <?php echo htmlspecialchars($labName); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         .container {
@@ -127,18 +127,18 @@ $statusBadge = [
 <body>
     <div class="container mt-4 content">
         <h4>
-            Animal <?= htmlspecialchars($animal['animal_uid'] ?? $animal['mouse_id'] ?? ('#' . $animal['id'])); ?>
-            <span class="badge bg-<?= $statusBadge; ?>"><?= htmlspecialchars($animal['status']); ?></span>
+            <?= trh('Animal {uid}', ['uid' => $animal['animal_uid'] ?? $animal['mouse_id'] ?? ('#' . $animal['id'])]); ?>
+            <span class="badge bg-<?= $statusBadge; ?>"><?= trh(str_replace('_', ' ', $animal['status'])); ?></span>
             <?php if ($openHealthIssues) : ?>
-                <a href="#health" class="badge bg-danger text-decoration-none"><?= $openHealthIssues; ?> open health issue(s)</a>
+                <a href="#health" class="badge bg-danger text-decoration-none"><?= trh('{n} open health issue(s)', ['n' => $openHealthIssues]); ?></a>
             <?php endif; ?>
             <?php if ($animal['status'] === 'active') : ?>
-                <a href="animal_transfer.php?animal_id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-primary">Transfer</a>
-                <a href="health_report.php?animal_id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-warning">Report Health Issue</a>
-                <a href="animal_exit.php?id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-danger">Exit (sacrifice / death / export)</a>
+                <a href="animal_transfer.php?animal_id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-primary"><?= trh('Transfer') ?></a>
+                <a href="health_report.php?animal_id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-warning"><?= trh('Report Health Issue') ?></a>
+                <a href="animal_exit.php?id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-danger"><?= trh('Exit (sacrifice / death / export)') ?></a>
             <?php endif; ?>
             <?php if (($_SESSION['role'] ?? '') === 'admin') : ?>
-                <a href="animal_hard_delete.php?id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-dark">Permanently Delete (admin)</a>
+                <a href="animal_hard_delete.php?id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-dark"><?= trh('Permanently Delete (admin)') ?></a>
             <?php endif; ?>
         </h4>
 
@@ -146,60 +146,60 @@ $statusBadge = [
 
         <div class="card">
             <div class="card-body">
-                <h5 class="card-title">Identity</h5>
-                <p><strong>Line:</strong> <?= htmlspecialchars($animal['line_code'] ? "{$animal['line_code']} - {$animal['line_name']} ({$animal['species']})" : 'N/A'); ?></p>
-                <p><strong>Sex:</strong> <?= htmlspecialchars($animal['sex'] ?? 'N/A'); ?></p>
-                <p><strong>Date of birth:</strong> <?= htmlspecialchars($animal['dob'] ?? 'N/A'); ?></p>
-                <p><strong>Tag / mouse_id:</strong> <?= htmlspecialchars($animal['mouse_id'] ?? 'N/A'); ?></p>
-                <p><strong>Genotype:</strong> <?= htmlspecialchars($animal['genotype'] ?? 'N/A'); ?></p>
+                <h5 class="card-title"><?= trh('Identity') ?></h5>
+                <p><strong><?= trh('Line:') ?></strong> <?= htmlspecialchars($animal['line_code'] ? "{$animal['line_code']} - {$animal['line_name']} ({$animal['species']})" : tr('N/A')); ?></p>
+                <p><strong><?= trh('Sex:') ?></strong> <?= trh($animal['sex'] ?? 'N/A'); ?></p>
+                <p><strong><?= trh('Date of birth:') ?></strong> <?= htmlspecialchars($animal['dob'] ?? tr('N/A')); ?></p>
+                <p><strong><?= trh('Tag / mouse_id:') ?></strong> <?= htmlspecialchars($animal['mouse_id'] ?? tr('N/A')); ?></p>
+                <p><strong><?= trh('Genotype:') ?></strong> <?= htmlspecialchars($animal['genotype'] ?? tr('N/A')); ?></p>
                 <form method="POST" action="animal_mark.php" class="row g-2 align-items-center mb-3" id="markForm">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>">
                     <input type="hidden" name="animal_id" value="<?= (int) $animal['id']; ?>">
-                    <div class="col-auto"><label for="distinctive_mark" class="col-form-label fw-bold">Distinctive mark:</label></div>
+                    <div class="col-auto"><label for="distinctive_mark" class="col-form-label fw-bold"><?= trh('Distinctive mark:') ?></label></div>
                     <div class="col">
                         <input type="text" class="form-control" id="distinctive_mark" name="distinctive_mark" maxlength="255" list="markSuggestions"
-                            value="<?= htmlspecialchars($animal['distinctive_mark'] ?? ''); ?>" placeholder="e.g. left ear punch, tail mark 2 stripes, chip 250269..., white spot on head">
+                            value="<?= htmlspecialchars($animal['distinctive_mark'] ?? ''); ?>" placeholder="<?= trh('e.g. left ear punch, tail mark 2 stripes, chip 250269..., white spot on head') ?>">
                         <datalist id="markSuggestions">
-                            <option value="Right ear punch"><option value="Left ear punch"><option value="Both ears punched">
-                            <option value="Tail mark: 1 stripe"><option value="Tail mark: 2 stripes"><option value="Tattoo: ">
-                            <option value="RFID chip: "><option value="Coat colour: "><option value="Scar: ">
+                            <option value="<?= trh('Right ear punch') ?>"><option value="<?= trh('Left ear punch') ?>"><option value="<?= trh('Both ears punched') ?>">
+                            <option value="<?= trh('Tail mark: 1 stripe') ?>"><option value="<?= trh('Tail mark: 2 stripes') ?>"><option value="<?= trh('Tattoo: ') ?>">
+                            <option value="<?= trh('RFID chip: ') ?>"><option value="<?= trh('Coat colour: ') ?>"><option value="<?= trh('Scar: ') ?>">
                         </datalist>
                     </div>
-                    <div class="col-auto"><button type="submit" class="btn btn-outline-primary btn-sm">Save mark</button></div>
+                    <div class="col-auto"><button type="submit" class="btn btn-outline-primary btn-sm"><?= trh('Save mark') ?></button></div>
                 </form>
-                <p><strong>Current cage:</strong>
+                <p><strong><?= trh('Current cage:') ?></strong>
                     <?php if ($animal['cage_id']) : ?>
                         <?= htmlspecialchars($animal['cage_id']); ?>
-                        <a href="animal_search.php?list=1&amp;status=all&amp;cage_id=<?= rawurlencode($animal['cage_id']); ?>" class="small">(cage mates)</a>
-                    <?php else : ?>N/A<?php endif; ?>
+                        <a href="animal_search.php?list=1&amp;status=all&amp;cage_id=<?= rawurlencode($animal['cage_id']); ?>" class="small">(<?= trh('cage mates') ?>)</a>
+                    <?php else : ?><?= trh('N/A') ?><?php endif; ?>
                 </p>
                 <?php if ($animal['status'] !== 'active') : ?>
-                    <p><strong>Exit date:</strong> <?= htmlspecialchars($animal['exit_date'] ?? 'N/A'); ?></p>
-                    <p><strong>Exit code:</strong> <?= htmlspecialchars(exit_label($animal['exit_code'] ?? null, $animal['status'])); ?></p>
-                    <p><strong>Exit reason:</strong> <?= htmlspecialchars($animal['exit_reason'] ?? 'N/A'); ?></p>
+                    <p><strong><?= trh('Exit date:') ?></strong> <?= htmlspecialchars($animal['exit_date'] ?? tr('N/A')); ?></p>
+                    <p><strong><?= trh('Exit code:') ?></strong> <?= htmlspecialchars(exit_label($animal['exit_code'] ?? null, $animal['status'])); ?></p>
+                    <p><strong><?= trh('Exit reason:') ?></strong> <?= htmlspecialchars($animal['exit_reason'] ?? tr('N/A')); ?></p>
                     <?php if (!empty($animal['exit_destination'])) : ?>
-                        <p><strong>Exported to:</strong> <?= htmlspecialchars($animal['exit_destination']); ?></p>
+                        <p><strong><?= trh('Exported to:') ?></strong> <?= htmlspecialchars($animal['exit_destination']); ?></p>
                     <?php endif; ?>
                 <?php endif; ?>
-                <p><strong>Notes:</strong> <?= nl2br(htmlspecialchars($animal['notes'] ?? '')); ?></p>
+                <p><strong><?= trh('Notes:') ?></strong> <?= nl2br(htmlspecialchars($animal['notes'] ?? '')); ?></p>
             </div>
         </div>
 
         <div class="card">
             <div class="card-body">
-                <h5 class="card-title">Parentage</h5>
+                <h5 class="card-title"><?= trh('Parentage') ?></h5>
                 <?php if ($parentage) : ?>
-                    <p><strong>Sire:</strong> <?= htmlspecialchars($parentage['sire_uid'] ?? 'Unknown/external'); ?></p>
-                    <p><strong>Dam:</strong> <?= htmlspecialchars($parentage['dam_uid'] ?? 'Unknown/external'); ?></p>
+                    <p><strong><?= trh('Sire:') ?></strong> <?= htmlspecialchars($parentage['sire_uid'] ?? tr('Unknown/external')); ?></p>
+                    <p><strong><?= trh('Dam:') ?></strong> <?= htmlspecialchars($parentage['dam_uid'] ?? tr('Unknown/external')); ?></p>
                     <?php if (!empty($parentage['litter_id'])) : ?>
-                        <p><strong>Litter:</strong> <a href="litter_manage.php?litter_id=<?= (int) $parentage['litter_id']; ?>">#<?= (int) $parentage['litter_id']; ?></a></p>
+                        <p><strong><?= trh('Litter:') ?></strong> <a href="litter_manage.php?litter_id=<?= (int) $parentage['litter_id']; ?>">#<?= (int) $parentage['litter_id']; ?></a></p>
                     <?php endif; ?>
                 <?php else : ?>
-                    <p class="text-muted">No recorded parentage (external origin).</p>
+                    <p class="text-muted"><?= trh('No recorded parentage (external origin).') ?></p>
                 <?php endif; ?>
 
                 <?php if ($offspring->num_rows > 0) : ?>
-                    <p><strong>Offspring:</strong></p>
+                    <p><strong><?= trh('Offspring:') ?></strong></p>
                     <ul>
                         <?php while ($o = $offspring->fetch_assoc()) : ?>
                             <li><a href="animal_view.php?id=<?= (int) $o['id']; ?>"><?= htmlspecialchars($o['animal_uid']); ?></a></li>
@@ -211,24 +211,24 @@ $statusBadge = [
 
         <div class="card">
             <div class="card-body">
-                <h5 class="card-title">Cage History</h5>
+                <h5 class="card-title"><?= trh('Cage History') ?></h5>
                 <table class="table table-sm">
                     <thead>
                         <tr>
-                            <th>Date</th>
-                            <th>From</th>
-                            <th>To</th>
-                            <th>Moved by</th>
-                            <th>Reason</th>
+                            <th><?= trh('Date') ?></th>
+                            <th><?= trh('From') ?></th>
+                            <th><?= trh('To') ?></th>
+                            <th><?= trh('Moved by') ?></th>
+                            <th><?= trh('Reason') ?></th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php while ($m = $movements->fetch_assoc()) : ?>
                             <tr>
                                 <td><?= htmlspecialchars($m['moved_at']); ?></td>
-                                <td><?= htmlspecialchars($m['from_cage_id'] ?? '(created)'); ?></td>
+                                <td><?= htmlspecialchars($m['from_cage_id'] ?? '(' . tr('created') . ')'); ?></td>
                                 <td><?= htmlspecialchars($m['to_cage_id']); ?></td>
-                                <td><?= htmlspecialchars($m['moved_by_name'] ?? 'N/A'); ?></td>
+                                <td><?= htmlspecialchars($m['moved_by_name'] ?? tr('N/A')); ?></td>
                                 <td><?= htmlspecialchars($m['reason'] ?? ''); ?></td>
                             </tr>
                         <?php endwhile; ?>
@@ -239,18 +239,18 @@ $statusBadge = [
 
         <div class="card">
             <div class="card-body">
-                <h5 class="card-title">Experimentation</h5>
+                <h5 class="card-title"><?= trh('Experimentation') ?></h5>
                 <?php if ($experiments->num_rows === 0) : ?>
-                    <p class="text-muted">Not enrolled in any experiment.</p>
+                    <p class="text-muted"><?= trh('Not enrolled in any experiment.') ?></p>
                 <?php else : ?>
                     <table class="table table-sm">
                         <thead>
                             <tr>
-                                <th>Trial</th>
-                                <th>Protocol</th>
-                                <th>Experiment</th>
-                                <th>Enrolled</th>
-                                <th>Removed</th>
+                                <th><?= trh('Trial') ?></th>
+                                <th><?= trh('Protocol') ?></th>
+                                <th><?= trh('Experiment') ?></th>
+                                <th><?= trh('Enrolled') ?></th>
+                                <th><?= trh('Removed') ?></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -271,19 +271,19 @@ $statusBadge = [
 
         <div class="card" id="health">
             <div class="card-body">
-                <h5 class="card-title">Health Reports</h5>
+                <h5 class="card-title"><?= trh('Health Reports') ?></h5>
                 <?php if (empty($healthReports)) : ?>
-                    <p class="text-muted">No health issue reported.</p>
+                    <p class="text-muted"><?= trh('No health issue reported.') ?></p>
                 <?php else : ?>
                     <table class="table table-sm">
                         <thead>
                             <tr>
                                 <th>#</th>
-                                <th>Observed</th>
-                                <th>Category</th>
-                                <th>Severity</th>
-                                <th>Status</th>
-                                <th>Cage</th>
+                                <th><?= trh('Observed') ?></th>
+                                <th><?= trh('Category') ?></th>
+                                <th><?= trh('Severity') ?></th>
+                                <th><?= trh('Status') ?></th>
+                                <th><?= trh('Cage') ?></th>
                                 <th></th>
                             </tr>
                         </thead>
@@ -296,7 +296,7 @@ $statusBadge = [
                                     <td><?= health_badge($hr['current_severity'], HEALTH_SEVERITIES); ?></td>
                                     <td><?= health_badge($hr['current_status'], HEALTH_STATUSES); ?></td>
                                     <td><?= htmlspecialchars($hr['cage_id'] ?? '-'); ?></td>
-                                    <td><a href="health_report_view.php?id=<?= (int) $hr['id']; ?>" class="btn btn-sm btn-outline-primary">Follow-up</a></td>
+                                    <td><a href="health_report_view.php?id=<?= (int) $hr['id']; ?>" class="btn btn-sm btn-outline-primary"><?= trh('Follow-up') ?></a></td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -307,20 +307,20 @@ $statusBadge = [
 
         <div class="card">
             <div class="card-body">
-                <h5 class="card-title">Event Log</h5>
+                <h5 class="card-title"><?= trh('Event Log') ?></h5>
                 <table class="table table-sm">
                     <thead>
                         <tr>
-                            <th>Date</th>
-                            <th>Event</th>
-                            <th>Details</th>
+                            <th><?= trh('Date') ?></th>
+                            <th><?= trh('Event') ?></th>
+                            <th><?= trh('Details') ?></th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php while ($ev = $events->fetch_assoc()) : ?>
                             <tr>
                                 <td><?= htmlspecialchars($ev['created_at']); ?></td>
-                                <td><?= htmlspecialchars($ev['event_type']); ?></td>
+                                <td><?= trh(str_replace('_', ' ', $ev['event_type'])); ?></td>
                                 <td><code><?= htmlspecialchars($ev['payload'] ?? ''); ?></code></td>
                             </tr>
                         <?php endwhile; ?>

@@ -125,7 +125,7 @@ if (isset($_GET['id'])) {
 
         // Check if the user is either an admin or one of the users associated with the cage
         if ($userRole !== 'admin' && !in_array($currentUserId, $cageUsers)) {
-            $_SESSION['message'] = 'Access denied. Only the admin or the assigned user can edit.';
+            $_SESSION['message'] = tr('Access denied. Only the admin or the assigned user can edit.');
             header("Location: bc_dash.php?" . getCurrentUrlParams());
             exit();
         }
@@ -138,7 +138,7 @@ if (isset($_GET['id'])) {
 
             // Validate CSRF token
             if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-                die('CSRF token validation failed');
+                die(tr('CSRF token validation failed'));
             }
 
             /// Retrieve and sanitize form data
@@ -246,11 +246,11 @@ if (isset($_GET['id'])) {
                 // Commit transaction
                 $con->commit();
 
-                $_SESSION['message'] = 'Entry updated successfully.';
+                $_SESSION['message'] = tr('Entry updated successfully.');
             } catch (Exception $e) {
                 // Rollback transaction on error
                 $con->rollback();
-                $_SESSION['message'] = 'Update failed: ' . $e->getMessage();
+                $_SESSION['message'] = tr('Update failed: {error}', ['error' => $e->getMessage()]);
             }
 
 
@@ -263,13 +263,13 @@ if (isset($_GET['id'])) {
 
                 // Validate file size
                 if ($_FILES['fileUpload']['size'] > $maxFileSize) {
-                    $_SESSION['message'] .= " File size exceeds 10MB limit.";
+                    $_SESSION['message'] .= ' ' . tr('File size exceeds 10MB limit.');
                 } else {
                     // Get and validate file extension
                     $fileExtension = strtolower(pathinfo($_FILES['fileUpload']['name'], PATHINFO_EXTENSION));
 
                     if (!in_array($fileExtension, $allowedExtensions)) {
-                        $_SESSION['message'] .= " Invalid file type. Allowed: pdf, doc, docx, txt, xls, xlsx, ppt, pptx, jpg, jpeg, png, gif, bmp, svg, webp";
+                        $_SESSION['message'] .= ' ' . tr('Invalid file type. Allowed: {types}', ['types' => 'pdf, doc, docx, txt, xls, xlsx, ppt, pptx, jpg, jpeg, png, gif, bmp, svg, webp']);
                     } else {
                         // Sanitize filename to prevent directory traversal
                         $originalFileName = preg_replace("/[^a-zA-Z0-9._-]/", "_", basename($_FILES['fileUpload']['name']));
@@ -279,7 +279,7 @@ if (isset($_GET['id'])) {
                         // Create the cage_id specific sub-directory if it doesn't exist
                         if (!file_exists($targetDirectory)) {
                             if (!mkdir($targetDirectory, 0777, true)) {
-                                $_SESSION['message'] .= " Failed to create directory.";
+                                $_SESSION['message'] .= ' ' . tr('Failed to create directory.');
                                 exit;
                             }
                         }
@@ -293,15 +293,15 @@ if (isset($_GET['id'])) {
                                 $insert = $con->prepare("INSERT INTO files (file_name, file_path, cage_id) VALUES (?, ?, ?)");
                                 $insert->bind_param("sss", $originalFileName, $targetFilePath, $cage_id);
                                 if ($insert->execute()) {
-                                    $_SESSION['message'] .= " File uploaded successfully.";
+                                    $_SESSION['message'] .= ' ' . tr('File uploaded successfully.');
                                 } else {
-                                    $_SESSION['message'] .= " File upload failed, please try again.";
+                                    $_SESSION['message'] .= ' ' . tr('File upload failed, please try again.');
                                 }
                             } else {
-                                $_SESSION['message'] .= " Sorry, there was an error uploading your file.";
+                                $_SESSION['message'] .= ' ' . tr('Sorry, there was an error uploading your file.');
                             }
                         } else {
-                            $_SESSION['message'] .= " Sorry, file already exists.";
+                            $_SESSION['message'] .= ' ' . tr('Sorry, file already exists.');
                         }
                     }
                 }
@@ -384,13 +384,13 @@ if (isset($_GET['id'])) {
         }
     } else {
         // Set an error message if the ID is invalid
-        $_SESSION['message'] = 'Invalid ID.';
+        $_SESSION['message'] = tr('Invalid ID.');
         header("Location: bc_dash.php?" . getCurrentUrlParams());
         exit();
     }
 } else {
     // Set an error message if the ID parameter is missing
-    $_SESSION['message'] = 'ID parameter is missing.';
+    $_SESSION['message'] = tr('ID parameter is missing.');
     header("Location: bc_dash.php?" . getCurrentUrlParams());
     exit();
 }
@@ -417,7 +417,7 @@ function getUserDetailsByIds($con, $userIds)
 
 // Fetch currently selected PI details
 $piDetails = getUserDetailsByIds($con, [$selectedPiId]);
-$piDisplay = isset($piDetails[$selectedPiId]) ? $piDetails[$selectedPiId] : 'Unknown PI';
+$piDisplay = isset($piDetails[$selectedPiId]) ? $piDetails[$selectedPiId] : tr('Unknown PI');
 
 // Include the header file
 require 'header.php';
@@ -466,35 +466,35 @@ require 'header.php';
                 litterDiv.innerHTML = `
             <hr>
             <div class="mb-3">
-                <label for="dom[]" class="form-label">DOM <span class="required-asterisk">*</span></label>
+                <label for="dom[]" class="form-label"><?= trh('DOM') ?> <span class="required-asterisk">*</span></label>
                 <input type="date" class="form-control" name="dom[]" required min="1900-01-01">
             </div>
             <div class="mb-3">
-                <label for="litter_dob[]" class="form-label">Litter DOB </label>
+                <label for="litter_dob[]" class="form-label"><?= trh('Litter DOB') ?> </label>
                 <input type="date" class="form-control" name="litter_dob[]" min="1900-01-01">
             </div>
             <div class="mb-3">
-                <label for="pups_alive[]" class="form-label">Pups Alive <span class="required-asterisk">*</span></label>
+                <label for="pups_alive[]" class="form-label"><?= trh('Pups Alive') ?> <span class="required-asterisk">*</span></label>
                 <input type="number" class="form-control" name="pups_alive[]" required min="0" step="1">
             </div>
             <div class="mb-3">
-                <label for="pups_dead[]" class="form-label">Pups Dead <span class="required-asterisk">*</span></label>
+                <label for="pups_dead[]" class="form-label"><?= trh('Pups Dead') ?> <span class="required-asterisk">*</span></label>
                 <input type="number" class="form-control" name="pups_dead[]" required min="0" step="1">
             </div>
             <div class="mb-3">
-                <label for="pups_male[]" class="form-label">Pups Male</label>
+                <label for="pups_male[]" class="form-label"><?= trh('Pups Male') ?></label>
                 <input type="number" class="form-control" name="pups_male[]" min="0" step="1">
             </div>
             <div class="mb-3">
-                <label for="pups_female[]" class="form-label">Pups Female</label>
+                <label for="pups_female[]" class="form-label"><?= trh('Pups Female') ?></label>
                 <input type="number" class="form-control" name="pups_female[]" min="0" step="1">
             </div>
             <div class="mb-3">
-                <label for="remarks_litter[]" class="form-label">Remarks</label>
+                <label for="remarks_litter[]" class="form-label"><?= trh('Remarks') ?></label>
                 <textarea class="form-control" name="remarks_litter[]" oninput="adjustTextareaHeight(this)"></textarea>
             </div>
             <input type="hidden" name="litter_id[]" value="">
-            <button type="button" class="btn btn-danger" onclick="removeLitter(this)">Remove</button>
+            <button type="button" class="btn btn-danger" onclick="removeLitter(this)"><?= trh('Remove') ?></button>
         `;
 
                 document.getElementById('litterEntries').appendChild(litterDiv);
@@ -540,7 +540,7 @@ require 'header.php';
                             const dateValue = field.value;
                             const isValidDate = validateDate(dateValue);
                             if (!isValidDate) {
-                                warningText.textContent = 'Invalid Date. Please enter a valid date.';
+                                warningText.textContent = <?= trj('Invalid Date. Please enter a valid date.') ?>;
                                 warningText.style.display = 'block';
                             } else {
                                 warningText.textContent = '';
@@ -577,7 +577,7 @@ require 'header.php';
                     const dateValue = field.value;
                     const warningText = field.nextElementSibling;
                     if (!validateDate(dateValue)) {
-                        warningText.textContent = 'Invalid Date. Please enter a valid date.';
+                        warningText.textContent = <?= trj('Invalid Date. Please enter a valid date.') ?>;
                         warningText.style.display = 'block';
                         isValid = false;
                     }
@@ -607,12 +607,12 @@ require 'header.php';
 
         $(document).ready(function() {
             $('#user').select2({
-                placeholder: "Select User(s)",
+                placeholder: <?= trj('Select User(s)') ?>,
                 allowClear: true
             });
 
             $('#iacuc').select2({
-                placeholder: "Select IACUC",
+                placeholder: <?= trj('Select IACUC') ?>,
                 allowClear: true,
                 templateResult: function(data) {
                     if (!data.id) {
@@ -632,16 +632,16 @@ require 'header.php';
                 const selectedPiText = piSelect.options[piSelect.selectedIndex].text;
 
                 // Check if "Unknown PI" is selected
-                if (selectedPiText.includes('Unknown PI')) {
+                if (selectedPiText.includes(<?= trj('Unknown PI') ?>)) {
                     event.preventDefault(); // Prevent form submission
-                    alert('Cannot proceed with "Unknown PI". Please select a valid PI.');
+                    alert(<?= trj('Cannot proceed with "Unknown PI". Please select a valid PI.') ?>);
                 }
             });
         });
 
         // Function to mark maintenance log for deletion and hide the row
         function markLogForDeletion(logId) {
-            if (confirm('Are you sure you want to delete this maintenance record?')) {
+            if (confirm(<?= trj('Are you sure you want to delete this maintenance record?') ?>)) {
                 const logIdsInput = document.getElementById('logs_to_delete');
                 let logsToDelete = logIdsInput.value ? logIdsInput.value.split(',') : [];
                 logsToDelete.push(logId);
@@ -657,7 +657,7 @@ require 'header.php';
 
     </script>
 
-    <title>Edit Breeding Cage | <?php echo htmlspecialchars($labName); ?></title>
+    <title><?= trh('Edit Breeding Cage') ?> | <?php echo htmlspecialchars($labName); ?></title>
 
     <!-- Include Select2 CSS -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-beta.1/css/select2.min.css" rel="stylesheet" />
@@ -778,15 +778,15 @@ require 'header.php';
             <div class="col-md-12">
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <h4>Edit Breeding Cage</h4>
+                        <h4><?= trh('Edit Breeding Cage') ?></h4>
                         <div class="action-buttons">
                             <!-- Button to go back to the previous page -->
                             <!-- Button to go back to the previous page -->
-                            <a href="javascript:void(0);" onclick="goBack()" class="btn btn-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Go Back">
+                            <a href="javascript:void(0);" onclick="goBack()" class="btn btn-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="<?= trh('Go Back') ?>">
                                 <i class="fas fa-arrow-circle-left"></i>
                             </a>
                             <!-- Button to save the form -->
-                            <a href="javascript:void(0);" onclick="document.getElementById('editForm').submit();" class="btn btn-success btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Save">
+                            <a href="javascript:void(0);" onclick="document.getElementById('editForm').submit();" class="btn btn-success btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="<?= trh('Save') ?>">
                                 <i class="fas fa-save"></i>
                             </a>
                         </div>
@@ -794,16 +794,16 @@ require 'header.php';
 
                     <div class="card-body">
                     <form id="editForm" method="POST" action="bc_edit.php?id=<?= $id; ?>&<?= getCurrentUrlParams(); ?>" enctype="multipart/form-data">
-                            <p class="warning-text">Fields marked with <span class="required-asterisk">*</span> are required.</p>
+                            <p class="warning-text"><?= tr('Fields marked with {asterisk} are required.', ['asterisk' => '<span class="required-asterisk">*</span>']) ?></p>
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
 
                             <div class="mb-3">
-                                <label for="cage_id" class="form-label">Cage ID <span class="required-asterisk">*</span></label>
+                                <label for="cage_id" class="form-label"><?= trh('Cage ID') ?> <span class="required-asterisk">*</span></label>
                                 <input type="text" class="form-control" id="cage_id" name="cage_id" value="<?= htmlspecialchars($breedingcage['cage_id']); ?>" readonly required>
                             </div>
 
                             <div class="mb-3">
-                                <label for="pi_name" class="form-label">PI Name <span class="required-asterisk">*</span></label>
+                                <label for="pi_name" class="form-label"><?= trh('PI Name') ?> <span class="required-asterisk">*</span></label>
                                 <select class="form-control" id="pi_name" name="pi_name" required>
                                     <!-- Display the currently selected PI, with the option to disable if "Unknown PI" -->
                                     <option value="<?= htmlspecialchars($selectedPiId); ?>" <?= ($piDisplay === 'Unknown PI') ? 'disabled' : '' ?> selected>
@@ -821,14 +821,14 @@ require 'header.php';
                             </div>
 
                             <div class="mb-3">
-                                <label for="cross" class="form-label">Cross <span class="required-asterisk">*</span></label>
+                                <label for="cross" class="form-label"><?= trh('Cross') ?> <span class="required-asterisk">*</span></label>
                                 <input type="text" class="form-control" id="cross" name="cross" value="<?= htmlspecialchars($breedingcage['cross']); ?>" required>
                             </div>
 
                             <div class="mb-3">
-                                <label for="iacuc" class="form-label">IACUC</label>
+                                <label for="iacuc" class="form-label"><?= trh('IACUC') ?></label>
                                 <select class="form-control" id="iacuc" name="iacuc[]" multiple>
-                                    <option value="" disabled>Select IACUC</option>
+                                    <option value="" disabled><?= trh('Select IACUC') ?></option>
                                     <?php
                                     // Check if there are any IACUC values from the database
                                     if ($iacucResult->num_rows > 0) {
@@ -842,14 +842,14 @@ require 'header.php';
                                         }
                                     } else {
                                         // Show an empty option if there are no IACUC values
-                                        echo "<option value='' disabled>No IACUC available</option>";
+                                        echo "<option value='' disabled>" . trh('No IACUC available') . "</option>";
                                     }
                                     ?>
                                 </select>
                             </div>
 
                             <div class="mb-3">
-                                <label for="user" class="form-label">User <span class="required-asterisk">*</span></label>
+                                <label for="user" class="form-label"><?= trh('User') ?> <span class="required-asterisk">*</span></label>
                                 <select class="form-control" id="user" name="user[]" multiple required>
                                     <?php
                                     // Populate the dropdown with options from the database
@@ -865,32 +865,32 @@ require 'header.php';
                             </div>
 
                             <div class="mb-3">
-                                <label for="male_id" class="form-label">Male ID (legacy, optional)</label>
+                                <label for="male_id" class="form-label"><?= trh('Male ID (legacy, optional)') ?></label>
                                 <input type="text" class="form-control" id="male_id" name="male_id" value="<?= htmlspecialchars($breedingcage['male_id'] ?? ''); ?>">
                             </div>
 
                             <div class="mb-3">
-                                <label for="female_id" class="form-label">Female ID (legacy, optional)</label>
+                                <label for="female_id" class="form-label"><?= trh('Female ID (legacy, optional)') ?></label>
                                 <input type="text" class="form-control" id="female_id" name="female_id" value="<?= htmlspecialchars($breedingcage['female_id'] ?? ''); ?>">
                             </div>
 
                             <div class="mb-3">
-                                <label for="male_dob" class="form-label">Male DOB (legacy, optional)</label>
+                                <label for="male_dob" class="form-label"><?= trh('Male DOB (legacy, optional)') ?></label>
                                 <input type="date" class="form-control" id="male_dob" name="male_dob" value="<?= htmlspecialchars($breedingcage['male_dob'] ?? ''); ?>" min="1900-01-01">
                             </div>
 
                             <div class="mb-3">
-                                <label for="female_dob" class="form-label">Female DOB (legacy, optional)</label>
+                                <label for="female_dob" class="form-label"><?= trh('Female DOB (legacy, optional)') ?></label>
                                 <input type="date" class="form-control" id="female_dob" name="female_dob" value="<?= htmlspecialchars($breedingcage['female_dob'] ?? ''); ?>" min="1900-01-01">
                             </div>
 
                             <div class="row">
                                 <div class="col-md-6 mb-3">
-                                    <label for="room" class="form-label">Room</label>
-                                    <input type="text" class="form-control" id="room" name="room" list="roomList" value="<?= htmlspecialchars($breedingcage['room'] ?? ''); ?>" placeholder="Used to organise the daily round">
+                                    <label for="room" class="form-label"><?= trh('Room') ?></label>
+                                    <input type="text" class="form-control" id="room" name="room" list="roomList" value="<?= htmlspecialchars($breedingcage['room'] ?? ''); ?>" placeholder="<?= trh('Used to organise the daily round') ?>">
                                 </div>
                                 <div class="col-md-6 mb-3">
-                                    <label for="rack" class="form-label">Rack</label>
+                                    <label for="rack" class="form-label"><?= trh('Rack') ?></label>
                                     <input type="text" class="form-control" id="rack" name="rack" value="<?= htmlspecialchars($breedingcage['rack'] ?? ''); ?>">
                                 </div>
                                 <datalist id="roomList">
@@ -901,7 +901,7 @@ require 'header.php';
                             </div>
 
                             <div class="mb-3">
-                                <label for="remarks" class="form-label">Remarks</label>
+                                <label for="remarks" class="form-label"><?= trh('Remarks') ?></label>
                                 <textarea class="form-control" id="remarks" name="remarks" oninput="adjustTextareaHeight(this)"><?= htmlspecialchars($breedingcage['remarks']); ?></textarea>
                             </div>
 
@@ -911,15 +911,15 @@ require 'header.php';
                             <!-- Display Files Section -->
                             <div class="card mt-4">
                                 <div class="card-header">
-                                    <h4>Manage Files</h4>
+                                    <h4><?= trh('Manage Files') ?></h4>
                                 </div>
                                 <div class="card-body">
                                     <div class="table-responsive">
                                         <table class="table table-hover">
                                             <thead>
                                                 <tr>
-                                                    <th>File Name</th>
-                                                    <th>Actions</th>
+                                                    <th><?= trh('File Name') ?></th>
+                                                    <th><?= trh('Actions') ?></th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -930,7 +930,7 @@ require 'header.php';
                                                             <a href="<?= htmlspecialchars($file['file_path']); ?>" download="<?= htmlspecialchars($file['file_name']); ?>" class="btn btn-sm btn-outline-primary">
                                                                 <i class="fas fa-cloud-download-alt fa-sm"></i>
                                                             </a>
-                                                            <a href="delete_file.php?url=bc_edit&id=<?= intval($file['id']); ?>" class="btn-sm" onclick="return confirm('Are you sure you want to delete this file?');" aria-label="Delete <?= htmlspecialchars($file['file_name']); ?>">
+                                                            <a href="delete_file.php?url=bc_edit&id=<?= intval($file['id']); ?>" class="btn-sm" onclick="return confirm(<?= htmlspecialchars(trj('Are you sure you want to delete this file?')) ?>);" aria-label="<?= trh('Delete {file}', ['file' => $file['file_name']]); ?>">
                                                                 <i class="fas fa-trash fa-sm" style="color:red"></i>
                                                             </a>
                                                         </td>
@@ -945,7 +945,7 @@ require 'header.php';
                             <!-- Upload Files Section -->
                             <div class="card mt-4">
                                 <div class="card-header">
-                                    <h4>Upload New File</h4>
+                                    <h4><?= trh('Upload New File') ?></h4>
                                 </div>
                                 <div class="card-body">
                                     <div class="input-group mb-3">
@@ -960,7 +960,7 @@ require 'header.php';
                             <div class="card mt-4">
                                 <div class="card-header d-flex justify-content-between align-items-center">
                                     <h4 class="mb-0">Litter Details - <?= htmlspecialchars($id) ?>
-                                        <button type="button" class="btn btn-primary btn-icon" onclick="addLitter()" data-toggle="tooltip" data-placement="top" title="Add New Litter Data">
+                                        <button type="button" class="btn btn-primary btn-icon" onclick="addLitter()" data-toggle="tooltip" data-placement="top" title="<?= trh('Add New Litter Data') ?>">
                                             <i class="fas fa-plus"></i>
                                         </button>
                                     </h4>
@@ -971,19 +971,19 @@ require 'header.php';
                                     // shown read-only here so this form never alters their history. ?>
                                     <?php if ($litters->num_rows > 0) : ?>
                                         <table class="table table-sm" id="existingLitters">
-                                            <thead><tr><th>#</th><th>Born</th><th>Alive / dead at birth</th><th>Status</th><th></th></tr></thead>
+                                            <thead><tr><th>#</th><th><?= trh('Born') ?></th><th><?= trh('Alive / dead at birth') ?></th><th><?= trh('Status') ?></th><th></th></tr></thead>
                                             <?php while ($litter = mysqli_fetch_assoc($litters)) : ?>
                                                 <tr>
                                                     <td><?= (int) $litter['id']; ?></td>
                                                     <td><?= htmlspecialchars($litter['litter_dob'] ?? '?'); ?></td>
                                                     <td><?= (int) $litter['pups_alive']; ?> / <?= (int) $litter['pups_dead']; ?></td>
                                                     <td><?= htmlspecialchars($litter['status'] ?? ''); ?></td>
-                                                    <td><a href="litter_manage.php?litter_id=<?= (int) $litter['id']; ?>">Open</a></td>
+                                                    <td><a href="litter_manage.php?litter_id=<?= (int) $litter['id']; ?>"><?= trh('Open') ?></a></td>
                                                 </tr>
                                             <?php endwhile; ?>
                                         </table>
                                     <?php endif; ?>
-                                    <p class="small"><a href="litter_manage.php?cage_id=<?= rawurlencode($breedingcage['cage_id']); ?>">Record births, deaths, sexing and weaning on the litters page &raquo;</a></p>
+                                    <p class="small"><a href="litter_manage.php?cage_id=<?= rawurlencode($breedingcage['cage_id']); ?>"><?= trh('Record births, deaths, sexing and weaning on the litters page') ?> &raquo;</a></p>
                                 </div>
                             </div>
 
@@ -992,10 +992,10 @@ require 'header.php';
                             <!-- Display Maintenance Logs Section -->
                             <div class="card mt-4">
                                 <div class="card-header d-flex flex-column flex-md-row justify-content-between">
-                                    <h4>Maintenance Log for Cage ID: <?= htmlspecialchars($id ?? 'Unknown'); ?></h4>
+                                    <h4><?= trh('Maintenance Log for Cage ID: {cage}', ['cage' => $id ?? tr('Unknown')]); ?></h4>
                                     <div class="action-icons mt-3 mt-md-0">
                                         <!-- Maintenance button with tooltip -->
-                                        <a href="maintenance.php?from=bc_dash" class="btn btn-warning btn-icon" data-toggle="tooltip" data-placement="top" title="Add Maintenance Record">
+                                        <a href="maintenance.php?from=bc_dash" class="btn btn-warning btn-icon" data-toggle="tooltip" data-placement="top" title="<?= trh('Add Maintenance Record') ?>">
                                             <i class="fas fa-wrench"></i>
                                         </a>
                                     </div>
@@ -1019,20 +1019,20 @@ require 'header.php';
                                         <table class="table table-hover">
                                             <thead>
                                                 <tr>
-                                                    <th style="width: 25%;">Date</th>
-                                                    <th style="width: 25%;">User</th>
-                                                    <th style="width: 40%;">Comment</th>
-                                                    <th style="width: 10%;">Action</th>
+                                                    <th style="width: 25%;"><?= trh('Date') ?></th>
+                                                    <th style="width: 25%;"><?= trh('User') ?></th>
+                                                    <th style="width: 40%;"><?= trh('Comment') ?></th>
+                                                    <th style="width: 10%;"><?= trh('Action') ?></th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 <?php while ($log = $maintenanceLogs->fetch_assoc()) : ?>
                                                     <tr id="log-row-<?= $log['id']; ?>">
                                                         <td style="width: 25%;"><?= htmlspecialchars($log['timestamp'] ?? ''); ?></td>
-                                                        <td style="width: 25%;"><?= htmlspecialchars($log['user_name'] ?? 'Unknown'); ?></td>
+                                                        <td style="width: 25%;"><?= htmlspecialchars($log['user_name'] ?? tr('Unknown')); ?></td>
                                                         <td style="width: 40%;">
                                                             <input type="hidden" name="log_ids[]" value="<?= htmlspecialchars($log['id']); ?>">
-                                                            <textarea name="log_comments[]" class="form-control"><?= htmlspecialchars($log['comments'] ?? 'No comment'); ?></textarea>
+                                                            <textarea name="log_comments[]" class="form-control"><?= htmlspecialchars($log['comments'] ?? tr('No comment')); ?></textarea>
                                                         </td>
                                                         <td style="width: 10%;">
                                                             <button type="button" class="btn btn-danger btn-icon" onclick="markLogForDeletion(<?= $log['id']; ?>)">
@@ -1045,7 +1045,7 @@ require 'header.php';
                                         </table>
                                     </div>
                                 <?php else : ?>
-                                    <p>No maintenance records found for this cage.</p>
+                                    <p><?= trh('No maintenance records found for this cage.') ?></p>
                                 <?php endif; ?>
                             </div>
 
@@ -1053,8 +1053,8 @@ require 'header.php';
                             <input type="hidden" id="logs_to_delete" name="logs_to_delete" value="">
 
                             <br>
-                            <button type="submit" class="btn btn-primary">Save Changes</button>
-                            <button type="button" class="btn btn-secondary" onclick="goBack()">Go Back</button>
+                            <button type="submit" class="btn btn-primary"><?= trh('Save Changes') ?></button>
+                            <button type="button" class="btn btn-secondary" onclick="goBack()"><?= trh('Go Back') ?></button>
 
                         </form>
                     </div>

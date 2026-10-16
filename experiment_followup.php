@@ -45,7 +45,7 @@ $ea = $eaStmt->get_result()->fetch_assoc();
 
 if (!$ea) {
     require 'header.php';
-    echo "<div class='container mt-4'><div class='alert alert-danger'>Enrollment not found.</div></div>";
+    echo "<div class='container mt-4'><div class='alert alert-danger'>" . trh('Enrollment not found.') . "</div></div>";
     require 'footer.php';
     exit;
 }
@@ -77,7 +77,7 @@ $backUrl = $returnUrl ?: $experimentUrl;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        die('CSRF token validation failed');
+        die(tr('CSRF token validation failed'));
     }
 
     // Completing a pending endpoint action (other than euthanasia) with a note.
@@ -85,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $actionId = (int) $_POST['action_id'];
         $note = trim($_POST['done_note'] ?? '');
         if ($note === '') {
-            $_SESSION['message'] = "Describe what was done (e.g. vet called, decision taken).";
+            $_SESSION['message'] = tr('Describe what was done (e.g. vet called, decision taken).');
         } else {
             $stmt = $con->prepare(
                 "UPDATE endpoint_actions SET status = 'done', done_at = NOW(), done_by = ?, done_by_name = ?, done_note = ?
@@ -96,16 +96,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $done = $stmt->affected_rows === 1;
             $stmt->close();
             if ($done) {
-                log_activity($con, 'endpoint_action_done', 'animal', (string) $ea['animal_id'], "Action #$actionId: $note", $currentUserId);
+                log_activity($con, 'endpoint_action_done', 'animal', (string) $ea['animal_id'], tr('Action #{id}: {note}', ['id' => $actionId, 'note' => $note]), $currentUserId);
             }
-            $_SESSION['message'] = $done ? "Action recorded as done." : "This action cannot be completed here.";
+            $_SESSION['message'] = $done ? tr('Action recorded as done.') : tr('This action cannot be completed here.');
         }
         header("Location: $selfUrl");
         exit;
     }
 
     if ($ea['animal_status'] !== 'active' || $ea['removed_at'] !== null) {
-        $_SESSION['message'] = "This animal is no longer followed in this experiment.";
+        $_SESSION['message'] = tr('This animal is no longer followed in this experiment.');
         header("Location: $selfUrl");
         exit;
     }
@@ -126,7 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             if ($level === null) {
-                $_SESSION['message'] = "Score every item of the clinical grid (missing: {$item['label']}).";
+                $_SESSION['message'] = tr('Score every item of the clinical grid (missing: {item}).', ['item' => $item['label']]);
                 header("Location: $selfUrl");
                 exit;
             }
@@ -148,13 +148,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $raw = trim($_POST['obs'][$fieldId] ?? '');
         if ($raw === '') {
             if ($field['required']) {
-                $fail("Observation \"{$field['label']}\" is required.");
+                $fail(tr('Observation "{label}" is required.', ['label' => $field['label']]));
             }
             continue;
         }
         $number = $field['value_type'] === 'number' ? parse_number($raw) : null;
         if ($field['value_type'] === 'number' && $number === null) {
-            $fail("Observation \"{$field['label']}\" must be a number.");
+            $fail(tr('Observation "{label}" must be a number.', ['label' => $field['label']]));
         }
         $observationRows[] = ['field_id' => $fieldId, 'label' => $field['label'], 'value_type' => $field['value_type'], 'unit' => $field['unit'], 'number' => $number, 'text' => $field['value_type'] === 'text' ? $raw : null];
     }
@@ -165,12 +165,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             continue;
         }
         if ($label === '' || $raw === '') {
-            $fail("Each free observation needs a label and a value.");
+            $fail(tr('Each free observation needs a label and a value.'));
         }
         $type = ($_POST['extra_type'][$i] ?? '') === 'number' ? 'number' : 'text';
         $number = $type === 'number' ? parse_number($raw) : null;
         if ($type === 'number' && $number === null) {
-            $fail("Free observation \"$label\" must be a number.");
+            $fail(tr('Free observation "{label}" must be a number.', ['label' => $label]));
         }
         $unit = $type === 'number' ? (trim($_POST['extra_unit'][$i] ?? '') ?: null) : null;
         $observationRows[] = ['field_id' => null, 'label' => $label, 'value_type' => $type, 'unit' => $unit, 'number' => $number, 'text' => $type === 'text' ? $raw : null];
@@ -200,7 +200,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $breaches[] = [
                 'threshold' => $t,
                 'actual' => $actual,
-                'text' => ($t['action_message'] ?: $condition) . " ($condition, measured: " . round($actual, 2) . ")",
+                'text' => ($t['action_message'] ?: $condition) . ' (' . tr('{condition}, measured: {value}', ['condition' => $condition, 'value' => round($actual, 2)]) . ')',
             ];
         }
     }
@@ -279,7 +279,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $animalCage = $cageStmt->get_result()->fetch_assoc()['cage_id'] ?? null;
         $cageStmt->close();
         if ($animalCage && $observedAt === date('Y-m-d')) {
-            record_cage_check($con, $animalCage, 'experimental', $endpointReached ? 'issue' : 'ok', 'auto', "{$ea['animal_uid']} — experiment {$ea['experiment_number']}", null, $currentUserId, $currentUserName);
+            record_cage_check($con, $animalCage, 'experimental', $endpointReached ? 'issue' : 'ok', 'auto', $ea['animal_uid'] . ' — ' . tr('experiment {number}', ['number' => $ea['experiment_number']]), null, $currentUserId, $currentUserName);
         }
 
         if ($endpointReached) {
@@ -292,8 +292,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             log_activity($con, 'endpoint_alert', 'animal', (string) $ea['animal_id'], implode(' | ', $breachedMessages), $currentUserId);
             notify_admins(
                 $con,
-                ($newActions ? "ACTION REQUIRED (" . implode(', ', $newActions) . "): " : "Endpoint reached: ") . $ea['animal_uid'],
-                "Experiment {$ea['experiment_number']} ({$ea['protocol_number']}): " . implode(' | ', $breachedMessages),
+                ($newActions ? tr('ACTION REQUIRED ({actions}): ', ['actions' => implode(', ', $newActions)]) : tr('Endpoint reached: ')) . $ea['animal_uid'],
+                tr('Experiment {number} ({protocol}): ', ['number' => $ea['experiment_number'], 'protocol' => $ea['protocol_number']]) . implode(' | ', $breachedMessages),
                 $selfUrl,
                 'endpoint_alert'
             );
@@ -301,14 +301,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         mysqli_commit($con);
     } catch (Exception $e) {
         mysqli_rollback($con);
-        $_SESSION['message'] = "Follow-up not saved: " . $e->getMessage();
+        $_SESSION['message'] = tr('Follow-up not saved: {error}', ['error' => $e->getMessage()]);
         header("Location: $selfUrl");
         exit;
     }
 
     $_SESSION['message'] = $endpointReached
-        ? "Saved. ENDPOINT REACHED: " . implode(' | ', $breachedMessages) . ($newActions ? " — ACTION REQUIRED: " . implode(', ', $newActions) : '')
-        : "Follow-up saved." . ($hasGrid ? " Clinical score: $clinicalScore / {$grid['max_total']}." : '');
+        ? tr('Saved. ENDPOINT REACHED: {details}', ['details' => implode(' | ', $breachedMessages)]) . ($newActions ? ' — ' . tr('ACTION REQUIRED: {actions}', ['actions' => implode(', ', $newActions)]) : '')
+        : tr('Follow-up saved.') . ($hasGrid ? ' ' . tr('Clinical score: {score} / {max}.', ['score' => $clinicalScore, 'max' => $grid['max_total']]) : '');
 
     header("Location: " . ($returnUrl ?? $selfUrl));
     exit();
@@ -369,7 +369,7 @@ require 'header.php';
 <html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
-    <title>Daily Follow-up | <?php echo htmlspecialchars($labName); ?></title>
+    <title><?= trh('Daily Follow-up') ?> | <?php echo htmlspecialchars($labName); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         .container {
@@ -384,10 +384,10 @@ require 'header.php';
 
 <body>
     <div class="container mt-4 content">
-        <h4>Daily Follow-up — <?= htmlspecialchars($ea['animal_uid']); ?>
+        <h4><?= trh('Daily Follow-up') ?> — <?= htmlspecialchars($ea['animal_uid']); ?>
             <?php if ($ea['distinctive_mark']) : ?><small class="text-muted" id="animalMark">[<?= htmlspecialchars($ea['distinctive_mark']); ?>]</small><?php endif; ?></h4>
-        <p class="text-muted">Experiment <?= htmlspecialchars($ea['experiment_number']); ?> — <?= htmlspecialchars($ea['experiment_title']); ?> (Protocol <?= htmlspecialchars($ea['protocol_number']); ?>)
-            · baseline weight <?= htmlspecialchars($ea['baseline_weight_g'] ?? 'N/A'); ?> g</p>
+        <p class="text-muted"><?= trh('Experiment {number}', ['number' => $ea['experiment_number']]); ?> — <?= htmlspecialchars($ea['experiment_title']); ?> (<?= trh('Protocol {number}', ['number' => $ea['protocol_number']]); ?>)
+            · <?= trh('baseline weight {weight} g', ['weight' => $ea['baseline_weight_g'] ?? tr('N/A')]); ?></p>
         <div class="d-flex gap-2 mb-3">
             <a href="<?= htmlspecialchars($backUrl); ?>">&laquo; Retour à l’expérimentation</a>
             <a href="animal_view.php?id=<?= (int) $ea['animal_id']; ?>" class="text-muted">Voir la fiche de l’animal</a>
@@ -397,10 +397,10 @@ require 'header.php';
 
         <?php foreach ($pendingActions as $a) : ?>
             <div class="alert alert-danger" id="pendingAction<?= (int) $a['id']; ?>">
-                <h5 class="alert-heading"><i class="fas fa-exclamation-triangle"></i> ACTION REQUIRED: <?= htmlspecialchars(endpoint_required_actions()[$a['required_action']]); ?></h5>
-                <p class="mb-2"><?= htmlspecialchars($a['message'] ?? ''); ?> — since <?= htmlspecialchars($a['created_at']); ?></p>
+                <h5 class="alert-heading"><i class="fas fa-exclamation-triangle"></i> <?= trh('ACTION REQUIRED: {actions}', ['actions' => endpoint_required_actions()[$a['required_action']]]); ?></h5>
+                <p class="mb-2"><?= htmlspecialchars($a['message'] ?? ''); ?> — <?= trh('since {date}', ['date' => $a['created_at']]); ?></p>
                 <?php if ($a['required_action'] === 'euthanasia') : ?>
-                    <a href="animal_exit.php?<?= htmlspecialchars(http_build_query(['id' => $ea['animal_id'], 'code' => 'point_limite'])); ?>" class="btn btn-danger">Record the euthanasia (exit: Atteinte de point limite)</a>
+                    <a href="animal_exit.php?<?= htmlspecialchars(http_build_query(['id' => $ea['animal_id'], 'code' => 'point_limite'])); ?>" class="btn btn-danger"><?= trh('Record the euthanasia (exit: endpoint reached)') ?></a>
                 <?php else : ?>
                     <form method="POST" class="row g-2">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>">
@@ -408,10 +408,10 @@ require 'header.php';
                         <input type="hidden" name="return" value="<?= htmlspecialchars($returnUrl ?? '') ?>">
                         <input type="hidden" name="action_id" value="<?= (int) $a['id']; ?>">
                         <div class="col-md-9">
-                            <input type="text" class="form-control" name="done_note" required placeholder="What was done (e.g. Dr X called at 10:30 — analgesia, re-check tonight)">
+                            <input type="text" class="form-control" name="done_note" required placeholder="<?= trh('What was done (e.g. Dr X called at 10:30 — analgesia, re-check tonight)') ?>">
                         </div>
                         <div class="col-md-3">
-                            <button type="submit" name="complete_action" class="btn btn-outline-light bg-danger w-100">Mark as done</button>
+                            <button type="submit" name="complete_action" class="btn btn-outline-light bg-danger w-100"><?= trh('Mark as done') ?></button>
                         </div>
                     </form>
                 <?php endif; ?>
@@ -420,7 +420,7 @@ require 'header.php';
 
         <?php if ($thresholds || $ea['endpoint_criteria']) : ?>
             <div class="alert alert-secondary">
-                <strong>Endpoints (points limites) of this protocol:</strong>
+                <strong><?= trh('Endpoints (points limites) of this protocol:') ?></strong>
                 <?php if ($ea['endpoint_criteria']) : ?><div><?= nl2br(htmlspecialchars($ea['endpoint_criteria'])); ?></div><?php endif; ?>
                 <ul class="mb-0">
                     <?php foreach ($thresholds as $t) : ?>
@@ -435,22 +435,22 @@ require 'header.php';
         <?php if ($isFollowed) : ?>
             <div class="card my-4">
                 <div class="card-body">
-                    <h5>New / Update Entry (one per day)</h5>
+                    <h5><?= trh('New / Update Entry (one per day)') ?></h5>
                     <form method="POST" id="followupForm">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                         <input type="hidden" name="experiment_animal_id" value="<?= $experimentAnimalId; ?>">
                         <input type="hidden" name="return" value="<?= htmlspecialchars($returnUrl ?? '') ?>">
                         <div class="row">
                             <div class="col-md-4 mb-3">
-                                <label class="form-label">Date *</label>
+                                <label class="form-label"><?= trh('Date') ?> *</label>
                                 <input type="date" class="form-control" name="observed_at" required value="<?= date('Y-m-d'); ?>" max="<?= date('Y-m-d'); ?>">
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label class="form-label">Weight (g)</label>
+                                <label class="form-label"><?= trh('Weight (g)') ?></label>
                                 <input type="number" step="0.01" class="form-control" name="weight_g" id="weight_g">
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label class="form-label">Clinical score<?= $hasGrid ? ' (grid total)' : ''; ?></label>
+                                <label class="form-label"><?= trh('Clinical score') ?><?= $hasGrid ? ' (' . trh('grid total') . ')' : ''; ?></label>
                                 <?php if ($hasGrid) : ?>
                                     <div class="form-control-plaintext fs-5"><strong id="gridTotal">–</strong> / <?= (int) $grid['max_total']; ?></div>
                                 <?php else : ?>
@@ -479,7 +479,7 @@ require 'header.php';
                         <?php endif; ?>
 
                         <?php if ($obsFields) : ?>
-                            <h6>Observations of the protocol</h6>
+                            <h6><?= trh('Observations of the protocol') ?></h6>
                             <div class="row">
                                 <?php foreach ($obsFields as $fieldId => $field) : ?>
                                     <div class="col-md-4 mb-3">
@@ -494,51 +494,51 @@ require 'header.php';
                             </div>
                         <?php endif; ?>
 
-                        <h6>Free observations <small class="text-muted">(written or numeric, for this entry only)</small></h6>
+                        <h6><?= trh('Free observations') ?> <small class="text-muted">(<?= trh('written or numeric, for this entry only') ?>)</small></h6>
                         <div id="extraObs"></div>
-                        <button type="button" class="btn btn-sm btn-outline-secondary mb-3" id="addExtraObs"><i class="fas fa-plus"></i> Add an observation</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary mb-3" id="addExtraObs"><i class="fas fa-plus"></i> <?= trh('Add an observation') ?></button>
                         <template id="extraObsTpl">
                             <div class="row g-2 mb-2 extra-obs">
-                                <div class="col-md-3"><input type="text" class="form-control form-control-sm" name="extra_label[]" placeholder="Label (e.g. Food intake)"></div>
+                                <div class="col-md-3"><input type="text" class="form-control form-control-sm" name="extra_label[]" placeholder="<?= trh('Label (e.g. Food intake)') ?>"></div>
                                 <div class="col-md-2">
                                     <select class="form-select form-select-sm extra-type" name="extra_type[]">
-                                        <option value="text">Text</option>
-                                        <option value="number">Number</option>
+                                        <option value="text"><?= trh('Text') ?></option>
+                                        <option value="number"><?= trh('Number value') ?></option>
                                     </select>
                                 </div>
-                                <div class="col-md-4"><input type="text" class="form-control form-control-sm" name="extra_value[]" placeholder="Value"></div>
-                                <div class="col-md-2"><input type="text" class="form-control form-control-sm extra-unit" name="extra_unit[]" placeholder="Unit"></div>
-                                <div class="col-md-1"><button type="button" class="btn btn-sm btn-outline-danger remove-extra" title="Remove">&times;</button></div>
+                                <div class="col-md-4"><input type="text" class="form-control form-control-sm" name="extra_value[]" placeholder="<?= trh('Value') ?>"></div>
+                                <div class="col-md-2"><input type="text" class="form-control form-control-sm extra-unit" name="extra_unit[]" placeholder="<?= trh('Unit') ?>"></div>
+                                <div class="col-md-1"><button type="button" class="btn btn-sm btn-outline-danger remove-extra" title="<?= trh('Remove') ?>">&times;</button></div>
                             </div>
                         </template>
 
                         <div class="mb-3">
-                            <label class="form-label">General observations</label>
+                            <label class="form-label"><?= trh('General observations') ?></label>
                             <textarea class="form-control" name="observations"></textarea>
                         </div>
-                        <button type="submit" class="btn btn-primary">Save Follow-up</button>
+                        <button type="submit" class="btn btn-primary"><?= trh('Save Follow-up') ?></button>
                     </form>
                 </div>
             </div>
         <?php else : ?>
-            <div class="alert alert-secondary my-3">This animal is no longer followed in this experiment<?= $ea['removed_at'] ? ' (since ' . htmlspecialchars($ea['removed_at']) . ')' : ''; ?>.</div>
+            <div class="alert alert-secondary my-3"><?= trh('This animal is no longer followed in this experiment') ?><?= $ea['removed_at'] ? ' (' . trh('since {date}', ['date' => $ea['removed_at']]) . ')' : ''; ?>.</div>
         <?php endif; ?>
 
-        <h5>History</h5>
+        <h5><?= trh('History') ?></h5>
         <div class="table-responsive">
             <table class="table table-sm">
                 <thead>
                     <tr>
-                        <th>Date</th>
-                        <th>Weight (g)</th>
-                        <th>Loss %</th>
+                        <th><?= trh('Date') ?></th>
+                        <th><?= trh('Weight (g)') ?></th>
+                        <th><?= trh('Loss %') ?></th>
                         <?php foreach ($historyLabels as $label) : ?><th><?= htmlspecialchars($label); ?></th><?php endforeach; ?>
-                        <th>Clinical score</th>
+                        <th><?= trh('Clinical score') ?></th>
                         <?php foreach ($obsColumns as $label) : ?><th><?= htmlspecialchars($label); ?></th><?php endforeach; ?>
-                        <th>Other observations</th>
-                        <th>Observations</th>
-                        <th>Endpoint</th>
-                        <th>By</th>
+                        <th><?= trh('Other observations') ?></th>
+                        <th><?= trh('Observations') ?></th>
+                        <th><?= trh('Endpoint') ?></th>
+                        <th><?= trh('By') ?></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -554,7 +554,7 @@ require 'header.php';
                             <?php endforeach; ?>
                             <td><?= implode('<br>', array_map(fn($o) => '<em>' . htmlspecialchars($o['label']) . ':</em> ' . htmlspecialchars(observation_value($o)), $obsByFollowup[$h['id']]['free'] ?? [])); ?></td>
                             <td><?= htmlspecialchars($h['observations'] ?? ''); ?></td>
-                            <td><?= $h['endpoint_reached'] ? 'YES' : 'No'; ?></td>
+                            <td><?= $h['endpoint_reached'] ? trh('YES') : trh('No'); ?></td>
                             <td><?= htmlspecialchars($h['recorded_by_name'] ?? ''); ?></td>
                         </tr>
                     <?php endforeach; ?>
@@ -563,15 +563,15 @@ require 'header.php';
         </div>
 
         <?php if ($actions) : ?>
-            <h5>Endpoint actions</h5>
+            <h5><?= trh('Endpoint actions') ?></h5>
             <table class="table table-sm">
                 <thead>
                     <tr>
-                        <th>Raised</th>
-                        <th>Required action</th>
-                        <th>Reason</th>
-                        <th>Status</th>
-                        <th>Done</th>
+                        <th><?= trh('Raised') ?></th>
+                        <th><?= trh('Required action') ?></th>
+                        <th><?= trh('Reason') ?></th>
+                        <th><?= trh('Status') ?></th>
+                        <th><?= trh('Done') ?></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -580,7 +580,7 @@ require 'header.php';
                             <td><?= htmlspecialchars($a['created_at']); ?></td>
                             <td><?= htmlspecialchars(endpoint_required_actions()[$a['required_action']]); ?></td>
                             <td><?= htmlspecialchars($a['message'] ?? ''); ?></td>
-                            <td><span class="badge bg-<?= $a['status'] === 'pending' ? 'danger' : 'success'; ?>"><?= $a['status']; ?></span></td>
+                            <td><span class="badge bg-<?= $a['status'] === 'pending' ? 'danger' : 'success'; ?>"><?= trh($a['status']); ?></span></td>
                             <td><?= $a['done_at'] ? htmlspecialchars($a['done_at'] . ' — ' . ($a['done_by_name'] ?? '') . ': ' . ($a['done_note'] ?? '')) : ''; ?></td>
                         </tr>
                     <?php endforeach; ?>
@@ -620,7 +620,7 @@ require 'header.php';
                     const c = r.querySelector('.grid-score:checked');
                     if (c) { sum += Number(c.value); scored++; }
                 });
-                total.textContent = scored === rows.length ? sum : sum + ' (' + scored + '/' + rows.length + ' items)';
+                total.textContent = scored === rows.length ? sum : sum + ' (' + <?= trj('{scored}/{total} items') ?>.replace('{scored}', scored).replace('{total}', rows.length) + ')';
             };
             document.querySelectorAll('.grid-score').forEach(i => i.addEventListener('change', update));
             update();

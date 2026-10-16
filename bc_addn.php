@@ -71,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Validate CSRF token
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        die('CSRF token validation failed');
+        die(tr('CSRF token validation failed'));
     }
 
     // Retrieve and sanitize form data (cage_id is never submitted: it's auto-generated below)
@@ -84,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $remarks = $_POST['remarks'];
 
     if (!$maleIds || !$femaleIds) {
-        $_SESSION['message'] = "Select at least one existing male and one existing female breeder.";
+        $_SESSION['message'] = tr('Select at least one existing male and one existing female breeder.');
     } else {
         mysqli_begin_transaction($con);
 
@@ -94,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $breederIds = array_merge($maleIds, $femaleIds);
             if (count($breederIds) !== count(array_unique($breederIds))) {
-                throw new Exception('A breeder cannot be selected twice.');
+                throw new Exception(tr('A breeder cannot be selected twice.'));
             }
             $verifyBreeder = $con->prepare("SELECT m.sex FROM mice m WHERE m.id = ? AND m.status = 'active' AND NOT EXISTS (
                 SELECT 1 FROM breeding_animals ba JOIN breeding b ON b.id = ba.breeding_id JOIN cages bc ON bc.cage_id = b.cage_id
@@ -107,7 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $expectedSex = in_array($animalId, $maleIds, true) ? 'male' : 'female';
                 if (!$breeder || $breeder['sex'] !== $expectedSex) {
                     $verifyBreeder->close();
-                    throw new Exception('One selected breeder is no longer available with the expected sex. Refresh and try again.');
+                    throw new Exception(tr('One selected breeder is no longer available with the expected sex. Refresh and try again.'));
                 }
             }
             $verifyBreeder->close();
@@ -142,10 +142,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $linkBreeder->execute();
             }
             $linkBreeder->close();
-            move_animals($con, $breederIds, $cage_id, 'Assigned to new breeding cage', $_SESSION['user_id'] ?? null, $_SESSION['name'] ?? null);
+            move_animals($con, $breederIds, $cage_id, tr('Assigned to new breeding cage'), $_SESSION['user_id'] ?? null, $_SESSION['name'] ?? null);
 
             // Set a success message
-            $_SESSION['message'] = "New breeding cage $cage_id added with " . count($maleIds) . " male(s) and " . count($femaleIds) . " female(s) transferred from existing cages.";
+            $_SESSION['message'] = tr('New breeding cage {cage} added with {males} male(s) and {females} female(s) transferred from existing cages.', ['cage' => $cage_id, 'males' => count($maleIds), 'females' => count($femaleIds)]);
 
             // Insert IACUC associations
             foreach ($iacuc_ids as $iacuc_id) {
@@ -166,9 +166,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Start of the cage's life: from today it must be seen daily. Creating it
             // means its animals were just handled, so it counts as today's check.
             log_cage_lifecycle($con, $cage_id, 'created', null, $_SESSION['user_id'] ?? null, $_SESSION['name'] ?? null);
-            record_cage_check($con, $cage_id, 'creation', 'ok', 'auto', 'Cage created', null, $_SESSION['user_id'] ?? null, $_SESSION['name'] ?? null);
+            record_cage_check($con, $cage_id, 'creation', 'ok', 'auto', tr('Cage created'), null, $_SESSION['user_id'] ?? null, $_SESSION['name'] ?? null);
 
-            log_activity($con, 'create', 'cage', $cage_id, "Breeding cage created with existing breeders: " . count($maleIds) . " male(s), " . count($femaleIds) . " female(s).", $_SESSION['user_id'] ?? null);
+            log_activity($con, 'create', 'cage', $cage_id, tr('Breeding cage created with existing breeders: {males} male(s), {females} female(s).', ['males' => count($maleIds), 'females' => count($femaleIds)]), $_SESSION['user_id'] ?? null);
 
             // Process litter data insertion if provided
             if (isset($_POST['dom'])) {
@@ -197,10 +197,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Execute the statement and check if it was successful
                     if ($insert_litter_query->execute()) {
                         // Append success message for litter data
-                        $_SESSION['message'] .= " Litter data added successfully.";
+                        $_SESSION['message'] .= ' ' . tr('Litter data added successfully.');
                     } else {
                         // Append error message for litter data
-                        $_SESSION['message'] .= " Failed to add litter data: " . $insert_litter_query->error;
+                        $_SESSION['message'] .= ' ' . tr('Failed to add litter data: {error}', ['error' => $insert_litter_query->error]);
                     }
 
                     // Close the prepared statement for litter data
@@ -214,7 +214,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $insert_breeding_query->close();
         } catch (Exception $e) {
             mysqli_rollback($con);
-            $_SESSION['message'] = "Failed to add new breeding cage: " . $e->getMessage();
+            $_SESSION['message'] = tr('Failed to add new breeding cage: {error}', ['error' => $e->getMessage()]);
         }
     }
 
@@ -234,7 +234,7 @@ require 'header.php';
 <html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
-    <title>Add New Breeding Cage | <?php echo htmlspecialchars($labName); ?></title>
+    <title><?= trh('Add New Breeding Cage') ?> | <?php echo htmlspecialchars($labName); ?></title>
 
     <!-- Include Select2 CSS -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-beta.1/css/select2.min.css" rel="stylesheet" />
@@ -311,34 +311,34 @@ require 'header.php';
                 litterDiv.innerHTML = `
             <hr>
             <div class="mb-3">
-                <label for="dom[]" class="form-label">DOM <span class="required-asterisk">*</span></label>
+                <label for="dom[]" class="form-label"><?= trh('DOM') ?> <span class="required-asterisk">*</span></label>
                 <input type="date" class="form-control" name="dom[]" required min="1900-01-01">
             </div>
             <div class="mb-3">
-                <label for="litter_dob[]" class="form-label">Litter DOB <span class="required-asterisk">*</span></label>
+                <label for="litter_dob[]" class="form-label"><?= trh('Litter DOB') ?> <span class="required-asterisk">*</span></label>
                 <input type="date" class="form-control" name="litter_dob[]" required min="1900-01-01">
             </div>
             <div class="mb-3">
-                <label for="pups_alive[]" class="form-label">Pups Alive <span class="required-asterisk">*</span></label>
+                <label for="pups_alive[]" class="form-label"><?= trh('Pups Alive') ?> <span class="required-asterisk">*</span></label>
                 <input type="number" class="form-control" name="pups_alive[]" required min="0" step="1">
             </div>
             <div class="mb-3">
-                <label for="pups_dead[]" class="form-label">Pups Dead <span class="required-asterisk">*</span></label>
+                <label for="pups_dead[]" class="form-label"><?= trh('Pups Dead') ?> <span class="required-asterisk">*</span></label>
                 <input type="number" class="form-control" name="pups_dead[]" required min="0" step="1">
             </div>
             <div class="mb-3">
-                <label for="pups_male[]" class="form-label">Pups Male</label>
+                <label for="pups_male[]" class="form-label"><?= trh('Pups Male') ?></label>
                 <input type="number" class="form-control" name="pups_male[]" min="0" step="1">
             </div>
             <div class="mb-3">
-                <label for="pups_female[]" class="form-label">Pups Female</label>
+                <label for="pups_female[]" class="form-label"><?= trh('Pups Female') ?></label>
                 <input type="number" class="form-control" name="pups_female[]" min="0" step="1">
             </div>
             <div class="mb-3">
-                <label for="remarks_litter[]" class="form-label">Remarks</label>
+                <label for="remarks_litter[]" class="form-label"><?= trh('Remarks') ?></label>
                 <textarea class="form-control" name="remarks_litter[]" oninput="adjustTextareaHeight(this)"></textarea>
             </div>
-            <button type="button" class="btn btn-danger" onclick="removeLitter(this)">Remove</button>
+            <button type="button" class="btn btn-danger" onclick="removeLitter(this)"><?= trh('Remove') ?></button>
         `;
 
                 document.getElementById('litterEntries').appendChild(litterDiv);
@@ -398,7 +398,7 @@ require 'header.php';
                             const dateValue = field.value;
                             const isValidDate = validateDate(dateValue);
                             if (!isValidDate) {
-                                warningText.textContent = 'Invalid Date. Please enter a valid date.';
+                                warningText.textContent = <?= trj('Invalid Date. Please enter a valid date.') ?>;
                                 warningText.style.display = 'block';
                             } else {
                                 warningText.textContent = '';
@@ -435,7 +435,7 @@ require 'header.php';
                     const dateValue = field.value;
                     const warningText = field.nextElementSibling;
                     if (!validateDate(dateValue)) {
-                        warningText.textContent = 'Invalid Date. Please enter a valid date.';
+                        warningText.textContent = <?= trj('Invalid Date. Please enter a valid date.') ?>;
                         warningText.style.display = 'block';
                         isValid = false;
                     }
@@ -449,7 +449,7 @@ require 'header.php';
                 const femaleCount = document.getElementById('female_ids').selectedOptions.length;
                 if (maleCount === 0 || femaleCount === 0) {
                     event.preventDefault();
-                    alert('Select at least one existing male and one existing female breeder.');
+                    alert(<?= trj('Select at least one existing male and one existing female breeder.') ?>);
                 }
             });
         });
@@ -457,7 +457,7 @@ require 'header.php';
         // Initialize Select2 for the user dropdown
         $(document).ready(function() {
             $('#user').select2({
-                placeholder: "Select User(s)",
+                placeholder: <?= trj('Select User(s)') ?>,
                 allowClear: true
             });
 
@@ -468,7 +468,7 @@ require 'header.php';
             });
 
             $('#iacuc').select2({
-                placeholder: "Select IACUC",
+                placeholder: <?= trj('Select IACUC') ?>,
                 allowClear: true,
                 templateResult: function(data) {
                     if (!data.id) {
@@ -487,11 +487,11 @@ require 'header.php';
 
     <div class="container content mt-4">
 
-        <h4>Add New Breeding Cage</h4>
+        <h4><?= trh('Add New Breeding Cage') ?></h4>
 
         <?php include('message.php'); ?>
 
-        <p class="warning-text">Fields marked with <span class="required-asterisk">*</span> are required.</p>
+        <p class="warning-text"><?= tr('Fields marked with {asterisk} are required.', ['asterisk' => '<span class="required-asterisk">*</span>']) ?></p>
         <p class="text-muted">L’identifiant de cage est généré automatiquement. Les reproducteurs sont sélectionnés parmi les animaux actifs d’autres cages et transférés avec leur historique complet.</p>
 
         <form method="POST">
@@ -500,9 +500,9 @@ require 'header.php';
             <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
 
             <div class="mb-3">
-                <label for="pi_name" class="form-label">PI Name <span class="required-asterisk">*</span></label>
+                <label for="pi_name" class="form-label"><?= trh('PI Name') ?> <span class="required-asterisk">*</span></label>
                 <select class="form-control" id="pi_name" name="pi_name" required>
-                    <option value="" disabled selected>Select PI</option>
+                    <option value="" disabled selected><?= trh('Select PI') ?></option>
                     <?php
                     // Populate dropdown with options from the database
                     while ($row = $piResult->fetch_assoc()) {
@@ -516,14 +516,14 @@ require 'header.php';
             </div>
 
             <div class="mb-3">
-                <label for="cross" class="form-label">Cross <span class="required-asterisk">*</span></label>
+                <label for="cross" class="form-label"><?= trh('Cross') ?> <span class="required-asterisk">*</span></label>
                 <input type="text" class="form-control" id="cross" name="cross" required>
             </div>
 
             <div class="mb-3">
-                <label for="iacuc" class="form-label">IACUC</label>
+                <label for="iacuc" class="form-label"><?= trh('IACUC') ?></label>
                 <select class="form-control" id="iacuc" name="iacuc[]" multiple>
-                    <option value="" disabled>Select IACUC</option>
+                    <option value="" disabled><?= trh('Select IACUC') ?></option>
                     <?php
                     // Populate the dropdown with IACUC values from the database
                     while ($iacucRow = $iacucResult->fetch_assoc()) {
@@ -537,7 +537,7 @@ require 'header.php';
             </div>
 
             <div class="mb-3">
-                <label for="user" class="form-label">User <span class="required-asterisk">*</span></label>
+                <label for="user" class="form-label"><?= trh('User') ?> <span class="required-asterisk">*</span></label>
                 <select class="form-control" id="user" name="user[]" multiple required>
                     <?php
                     // Populate the dropdown with options from the database
@@ -576,11 +576,11 @@ require 'header.php';
 
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label for="room" class="form-label">Room</label>
-                    <input type="text" class="form-control" id="room" name="room" list="roomList" value="" placeholder="Used to organise the daily round">
+                    <label for="room" class="form-label"><?= trh('Room') ?></label>
+                    <input type="text" class="form-control" id="room" name="room" list="roomList" value="" placeholder="<?= trh('Used to organise the daily round') ?>">
                 </div>
                 <div class="col-md-6 mb-3">
-                    <label for="rack" class="form-label">Rack</label>
+                    <label for="rack" class="form-label"><?= trh('Rack') ?></label>
                     <input type="text" class="form-control" id="rack" name="rack" value="">
                 </div>
                 <datalist id="roomList">
@@ -591,23 +591,23 @@ require 'header.php';
             </div>
 
             <div class="mb-3">
-                <label for="remarks" class="form-label">Remarks</label>
+                <label for="remarks" class="form-label"><?= trh('Remarks') ?></label>
                 <textarea class="form-control" id="remarks" name="remarks" oninput="adjustTextareaHeight(this)"></textarea>
             </div>
 
             <!-- Litter Data Section -->
             <div class="mt-4">
-                <h5>Litter Data</h5>
+                <h5><?= trh('Litter Data') ?></h5>
                 <div id="litterEntries">
                     <!-- Litter entries will be added here dynamically -->
                 </div>
-                <button type="button" class="btn btn-success mt-3" onclick="addLitter()">Add Litter Entry</button>
+                <button type="button" class="btn btn-success mt-3" onclick="addLitter()"><?= trh('Add Litter Entry') ?></button>
             </div>
 
             <br>
 
-            <button type="submit" class="btn btn-primary">Add Cage</button>
-            <button type="button" class="btn btn-secondary" onclick="goBack()">Go Back</button>
+            <button type="submit" class="btn btn-primary"><?= trh('Add Cage') ?></button>
+            <button type="button" class="btn btn-secondary" onclick="goBack()"><?= trh('Go Back') ?></button>
 
         </form>
     </div>

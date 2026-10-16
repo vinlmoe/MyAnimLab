@@ -84,7 +84,7 @@ $users = $userResult ? array_column($userResult->fetch_all(MYSQLI_ASSOC), 'name'
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Validate CSRF token
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        die('CSRF token validation failed');
+        die(tr('CSRF token validation failed'));
     }
 
     $title = htmlspecialchars($_POST['title']);
@@ -105,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $task_id = $stmt->insert_id; // Get the last inserted task ID
             $taskAction = 'added';
         } else {
-            redirectToPage("Error: " . $stmt->error);
+            redirectToPage(tr('Error: {error}', ['error' => $stmt->error]));
         }
     } elseif (isset($_POST['edit'])) {
         $id = htmlspecialchars($_POST['id']);
@@ -115,7 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $task_id = $id; // Use the ID of the task being updated
             $taskAction = 'updated';
         } else {
-            redirectToPage("Error: " . $stmt->error);
+            redirectToPage(tr('Error: {error}', ['error' => $stmt->error]));
         }
     } elseif (isset($_POST['delete'])) {
         $id = htmlspecialchars($_POST['id']);
@@ -135,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $task_id = NULL; // Set task_id to NULL for deletion case
             $taskAction = 'deleted';
         } else {
-            redirectToPage("Error: " . $stmt->error);
+            redirectToPage(tr('Error: {error}', ['error' => $stmt->error]));
         }
     }
 
@@ -176,25 +176,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $dateTime = date('Y-m-d H:i:s');
 
     // Convert assignedBy and assignedTo IDs to names
-    $assignedByName = isset($users[$assignedBy]) ? $users[$assignedBy] : 'Unknown';
+    $assignedByName = isset($users[$assignedBy]) ? $users[$assignedBy] : tr('Unknown');
     $assignedToNames = array_map(function ($id) use ($users) {
-        return isset($users[$id]) ? $users[$id] : 'Unknown';
+        return isset($users[$id]) ? $users[$id] : tr('Unknown');
     }, explode(',', $assignedTo));
     $assignedToNamesStr = implode(', ', $assignedToNames);
 
     // Update the subject to include date and time
-    $subject = "Task $taskAction: $title on $dateTime";
+    $taskActionLabel = tr('task ' . $taskAction);
+    $subject = tr('Task {action}: {title} on {date}', ['action' => $taskActionLabel, 'title' => $title, 'date' => $dateTime]);
     // Determine the task ID to use in the email body
     $emailTaskId = is_null($task_id) ? $id : $task_id;
 
-    $body = "The task id '$emailTaskId' has been $taskAction. Here are the details:<br><br>" .
-        "<strong>Title:</strong> $title<br>" .
-        "<strong>Description/Update:</strong> $description<br>" .
-        "<strong>Status:</strong> $status<br>" .
-        "<strong>Assigned By:</strong> $assignedByName<br>" .
-        "<strong>Assigned To:</strong> $assignedToNamesStr<br>" .
-        "<strong>Completion Date:</strong> $completionDate<br>" .
-        "<strong>Cage ID:</strong> $cageId<br>";
+    $body = tr('The task id "{id}" has been {action}. Here are the details:', ['id' => $emailTaskId, 'action' => $taskActionLabel]) . "<br><br>" .
+        "<strong>" . tr('Title:') . "</strong> $title<br>" .
+        "<strong>" . tr('Description/Update:') . "</strong> $description<br>" .
+        "<strong>" . tr('Status:') . "</strong> " . tr((string) $status) . "<br>" .
+        "<strong>" . tr('Assigned By:') . "</strong> $assignedByName<br>" .
+        "<strong>" . tr('Assigned To:') . "</strong> $assignedToNamesStr<br>" .
+        "<strong>" . tr('Completion Date:') . "</strong> $completionDate<br>" .
+        "<strong>" . tr('Cage ID:') . "</strong> $cageId<br>";
 
     // Schedule the email
     $scheduledAt = date('Y-m-d H:i:s'); // You can modify this to schedule at a later time if needed
@@ -203,10 +204,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Debug output: print email result
     if ($result) {
         error_log("Email scheduled successfully.");
-        redirectToPage("Task $taskAction successfully.");
+        redirectToPage(tr('Task {action} successfully.', ['action' => $taskActionLabel]));
     } else {
         error_log("Email scheduling failed.");
-        redirectToPage("Task $taskAction, but email scheduling failed.");
+        redirectToPage(tr('Task {action}, but email scheduling failed.', ['action' => $taskActionLabel]));
     }
 
     $stmt->close();
@@ -252,7 +253,7 @@ ob_end_flush(); // Flush the output buffer
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manage Tasks</title>
+    <title><?= trh('Manage Tasks') ?></title>
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
@@ -499,7 +500,7 @@ ob_end_flush(); // Flush the output buffer
         <!-- Include message for user notifications -->
         <?php include('message.php'); ?>
 
-        <h2>Manage Tasks <?= $cageIdFilter ? 'for Cage ' . htmlspecialchars($cageIdFilter) : ''; ?></h2>
+        <h2><?= trh('Manage Tasks') ?> <?= $cageIdFilter ? trh('for Cage {cage}', ['cage' => $cageIdFilter]) : ''; ?></h2>
         <?php if (isset($_SESSION['message'])) : ?>
             <div class="alert alert-info">
                 <?= $_SESSION['message']; ?>
@@ -510,14 +511,14 @@ ob_end_flush(); // Flush the output buffer
         <!-- Buttons to add a new task and show all tasks -->
         <div class="add-button">
             <button id="addNewTaskButton" class="btn btn-primary">
-                <i class="fas fa-plus"></i> Add New Task
+                <i class="fas fa-plus"></i> <?= trh('Add New Task') ?>
             </button>
             <?php if (isset($_GET['id']) && !empty($_GET['id'])) : ?>
-                <a href="manage_tasks.php" class="btn btn-secondary ml-2">Show All Tasks</a>
+                <a href="manage_tasks.php" class="btn btn-secondary ml-2"><?= trh('Show All Tasks') ?></a>
             <?php endif; ?>
             <?php if ($isAdmin) : ?>
                 <a href="manage_reminder.php" class="btn btn-warning ml-2">
-                    <i class="fas fa-bell"></i> Add New Reminder
+                    <i class="fas fa-bell"></i> <?= trh('Add New Reminder') ?>
                 </a>
             <?php endif; ?>
         </div>
@@ -526,47 +527,47 @@ ob_end_flush(); // Flush the output buffer
         <form method="GET" class="mb-4">
             <div class="row">
                 <div class="col-10 pr-0">
-                    <input type="text" name="search" class="form-control" placeholder="Search tasks..." value="<?= htmlspecialchars($search); ?>">
+                    <input type="text" name="search" class="form-control" placeholder="<?= trh('Search tasks...') ?>" value="<?= htmlspecialchars($search); ?>">
                 </div>
                 <div class="col-2 pl-0">
-                    <button type="submit" class="btn btn-primary w-100">Search</button>
+                    <button type="submit" class="btn btn-primary w-100"><?= trh('Search') ?></button>
                 </div>
             </div>
             <div class="form-check form-check-inline mt-2">
                 <input class="form-check-input" type="radio" name="filter" id="assignedByMe" value="assigned_by_me" <?= $filter == 'assigned_by_me' ? 'checked' : ''; ?>>
-                <label class="form-check-label" for="assignedByMe">Assigned by Me</label>
+                <label class="form-check-label" for="assignedByMe"><?= trh('Assigned by Me') ?></label>
             </div>
             <div class="form-check form-check-inline">
                 <input class="form-check-input" type="radio" name="filter" id="assignedToMe" value="assigned_to_me" <?= $filter == 'assigned_to_me' ? 'checked' : ''; ?>>
-                <label class="form-check-label" for="assignedToMe">Assigned to Me</label>
+                <label class="form-check-label" for="assignedToMe"><?= trh('Assigned to Me') ?></label>
             </div>
         </form>
 
         <!-- Popup form for adding and editing tasks -->
         <div class="popup-overlay" id="popupOverlay"></div>
         <div class="popup-form" id="popupForm">
-            <h4 id="formTitle">Add New Task</h4>
+            <h4 id="formTitle"><?= trh('Add New Task') ?></h4>
             <form id="taskForm" action="manage_tasks.php" method="post">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                 <input type="hidden" name="id" id="id">
                 <div class="form-group">
-                    <label for="title">Title <span class="required-asterisk">*</span></label>
+                    <label for="title"><?= trh('Title') ?> <span class="required-asterisk">*</span></label>
                     <input type="text" name="title" id="title" class="form-control" maxlength="100" required>
-                    <small id="titleCounter" class="form-text text-muted">0/100 characters used</small>
+                    <small id="titleCounter" class="form-text text-muted"><?= trh('{n}/{max} characters used', ['n' => 0, 'max' => 100]) ?></small>
                 </div>
 
                 <div class="form-group">
-                    <label for="description">Description/Update <span class="required-asterisk">*</span></label>
+                    <label for="description"><?= trh('Description/Update') ?> <span class="required-asterisk">*</span></label>
                     <textarea name="description" id="description" class="form-control" rows="3" maxlength="500" required></textarea>
-                    <small id="descriptionCounter" class="form-text text-muted">0/500 characters used</small>
+                    <small id="descriptionCounter" class="form-text text-muted"><?= trh('{n}/{max} characters used', ['n' => 0, 'max' => 500]) ?></small>
                 </div>
                 <div class="form-group">
-                    <label for="assigned_by">Assigned By <span class="required-asterisk">*</span></label>
+                    <label for="assigned_by"><?= trh('Assigned By') ?> <span class="required-asterisk">*</span></label>
                     <input type="text" name="assigned_by" id="assigned_by" class="form-control" readonly>
                     <input type="hidden" name="assigned_by_id" id="assigned_by_id">
                 </div>
                 <div class="form-group">
-                    <label for="assigned_to">Assigned To <span class="required-asterisk">*</span></label>
+                    <label for="assigned_to"><?= trh('Assigned To') ?> <span class="required-asterisk">*</span></label>
                     <select name="assigned_to[]" id="assigned_to" class="form-control" multiple required>
                         <?php foreach ($users as $userId => $name) : ?>
                             <option value="<?= htmlspecialchars($userId); ?>"><?= htmlspecialchars($name); ?></option>
@@ -574,30 +575,30 @@ ob_end_flush(); // Flush the output buffer
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Status <span class="required-asterisk">*</span></label>
+                    <label><?= trh('Status') ?> <span class="required-asterisk">*</span></label>
                     <div class="radio-group">
-                        <label><input type="radio" name="status" value="Pending" required> Pending</label>
-                        <label><input type="radio" name="status" value="In Progress"> In Progress</label>
-                        <label><input type="radio" name="status" value="Completed"> Completed</label>
+                        <label><input type="radio" name="status" value="Pending" required> <?= trh('Pending') ?></label>
+                        <label><input type="radio" name="status" value="In Progress"> <?= trh('In Progress') ?></label>
+                        <label><input type="radio" name="status" value="Completed"> <?= trh('Completed') ?></label>
                     </div>
                 </div>
                 <div class="form-group">
-                    <label for="completion_date">Completion Date</label>
+                    <label for="completion_date"><?= trh('Completion Date') ?></label>
                     <input type="date" name="completion_date" id="completion_date" class="form-control">
                 </div>
                 <div class="form-group">
-                    <label for="cage_id">Cage ID</label>
+                    <label for="cage_id"><?= trh('Cage ID') ?></label>
                     <select name="cage_id" id="cage_id" class="form-control">
-                        <option value="">Select Cage</option>
+                        <option value=""><?= trh('Select Cage') ?></option>
                         <?php foreach ($cages as $cageId) : ?>
                             <option value="<?= htmlspecialchars($cageId); ?>"><?= htmlspecialchars($cageId); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="form-buttons">
-                    <button type="submit" name="add" id="addButton" class="btn btn-primary" onclick="disableButton(this);"><i class="fas fa-plus"></i> Add Task</button>
-                    <button type="submit" name="edit" id="editButton" class="btn btn-success" style="display: none;" onclick="disableButton(this);"><i class="fas fa-save"></i> Update Task</button>
-                    <button type="button" class="btn btn-secondary" id="cancelButton">Cancel</button>
+                    <button type="submit" name="add" id="addButton" class="btn btn-primary" onclick="disableButton(this);"><i class="fas fa-plus"></i> <?= trh('Add Task') ?></button>
+                    <button type="submit" name="edit" id="editButton" class="btn btn-success" style="display: none;" onclick="disableButton(this);"><i class="fas fa-save"></i> <?= trh('Update Task') ?></button>
+                    <button type="button" class="btn btn-secondary" id="cancelButton"><?= trh('Cancel') ?></button>
                 </div>
             </form>
         </div>
@@ -605,32 +606,32 @@ ob_end_flush(); // Flush the output buffer
         <!-- Popup form for viewing tasks -->
         <div class="popup-overlay" id="viewPopupOverlay"></div>
         <div class="view-popup-form" id="viewPopupForm">
-            <h4 id="viewFormTitle">View Task Details</h4>
+            <h4 id="viewFormTitle"><?= trh('View Task Details') ?></h4>
             <div id="viewTaskDetails"></div>
-            <button type="button" class="btn btn-secondary mt-3" id="closeViewFormButton">Close</button>
+            <button type="button" class="btn btn-secondary mt-3" id="closeViewFormButton"><?= trh('Close') ?></button>
         </div>
 
         <!-- Table for displaying tasks -->
-        <h3>Existing Tasks</h3>
+        <h3><?= trh('Existing Tasks') ?></h3>
         <div class="table-responsive">
             <table class="table">
                 <thead>
                     <tr>
-                        <th>ID</th>
-                        <th>Title</th>
-                        <th>Assigned By</th>
-                        <th>Status</th>
-                        <th>Actions</th>
+                        <th><?= trh('ID') ?></th>
+                        <th><?= trh('Title') ?></th>
+                        <th><?= trh('Assigned By') ?></th>
+                        <th><?= trh('Status') ?></th>
+                        <th><?= trh('Actions') ?></th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php while ($row = $taskResult->fetch_assoc()) : ?>
                         <tr class="status-<?= strtolower(str_replace(' ', '-', $row['status'])); ?>">
-                            <td data-label="ID"><?= htmlspecialchars($row['id']); ?></td>
-                            <td data-label="Title"><?= htmlspecialchars($row['title']); ?></td>
-                            <td data-label="Assigned By"><?= htmlspecialchars($users[$row['assigned_by']] ?? $row['assigned_by']); ?></td>
-                            <td data-label="Status"><?= htmlspecialchars($row['status']); ?></td>
-                            <td data-label="Actions" class="table-actions">
+                            <td data-label="<?= trh('ID') ?>"><?= htmlspecialchars($row['id']); ?></td>
+                            <td data-label="<?= trh('Title') ?>"><?= htmlspecialchars($row['title']); ?></td>
+                            <td data-label="<?= trh('Assigned By') ?>"><?= htmlspecialchars($users[$row['assigned_by']] ?? $row['assigned_by']); ?></td>
+                            <td data-label="<?= trh('Status') ?>"><?= trh($row['status']); ?></td>
+                            <td data-label="<?= trh('Actions') ?>" class="table-actions">
                                 <div class="action-buttons">
                                     <button class="btn btn-warning btn-sm editButton" data-id="<?= $row['id']; ?>"><i class="fas fa-edit"></i></button>
                                     <button class="btn btn-info btn-sm viewButton" data-id="<?= $row['id']; ?>"><i class="fas fa-eye"></i></button>
@@ -639,7 +640,7 @@ ob_end_flush(); // Flush the output buffer
                                         <form action="manage_tasks.php" method="post" style="display:inline-block;">
                                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                                             <input type="hidden" name="id" value="<?= $row['id']; ?>">
-                                            <button type="submit" name="delete" class="btn btn-danger btn-sm" title="Delete" onclick="return confirm('Are you sure you want to delete this task?');"><i class="fas fa-trash-alt"></i></button>
+                                            <button type="submit" name="delete" class="btn btn-danger btn-sm" title="<?= trh('Delete') ?>" onclick="return confirm(<?= htmlspecialchars(trj('Are you sure you want to delete this task?')) ?>);"><i class="fas fa-trash-alt"></i></button>
                                         </form>
                                     <?php endif; ?>
                                 </div>
@@ -655,13 +656,14 @@ ob_end_flush(); // Flush the output buffer
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script>
+        const taskStatusLabels = <?= json_encode(array_map('tr', ['Pending' => 'Pending', 'In Progress' => 'In Progress', 'Completed' => 'Completed']), JSON_HEX_TAG | JSON_UNESCAPED_UNICODE) ?>;
         // Embed the PHP-encoded JSON into a JavaScript variable
         const users = <?= json_encode($users); ?>;
         const cageIdFilter = '<?= $cageIdFilter; ?>';
 
         $(document).ready(function() {
             $('#assigned_to').select2({
-                placeholder: "Select users",
+                placeholder: <?= trj('Select users') ?>,
                 allowClear: true
             });
 
@@ -714,13 +716,13 @@ ob_end_flush(); // Flush the output buffer
             // Character counter for title
             $('#title').on('input', function() {
                 const currentLength = $(this).val().length;
-                $('#titleCounter').text(`${currentLength}/100 characters used`);
+                $('#titleCounter').text(<?= trj('{n}/{max} characters used') ?>.replace('{n}', currentLength).replace('{max}', 100));
             });
 
             // Character counter for description
             $('#description').on('input', function() {
                 const currentLength = $(this).val().length;
-                $('#descriptionCounter').text(`${currentLength}/500 characters used`);
+                $('#descriptionCounter').text(<?= trj('{n}/{max} characters used') ?>.replace('{n}', currentLength).replace('{max}', 500));
             });
         });
 
@@ -730,7 +732,7 @@ ob_end_flush(); // Flush the output buffer
         function openForm() {
             document.getElementById('popupOverlay').style.display = 'block';
             document.getElementById('popupForm').style.display = 'block';
-            document.getElementById('formTitle').innerText = 'Add New Task';
+            document.getElementById('formTitle').innerText = <?= trj('Add New Task') ?>;
             document.getElementById('addButton').style.display = 'block';
             document.getElementById('editButton').style.display = 'none';
             resetForm();
@@ -794,7 +796,7 @@ ob_end_flush(); // Flush the output buffer
                     }
                     if (action === 'edit') {
                         openForm();
-                        document.getElementById('formTitle').innerText = 'Edit Task';
+                        document.getElementById('formTitle').innerText = <?= trj('Edit Task') ?>;
                         document.getElementById('addButton').style.display = 'none';
                         document.getElementById('editButton').style.display = 'block';
                         document.getElementById('id').value = response.id;
@@ -815,15 +817,15 @@ ob_end_flush(); // Flush the output buffer
                         const assignedToUsers = response.assigned_to.split(',').map(userId => users[userId] || userId).join(', ');
 
                         const taskDetails = `
-                            <p><strong>ID:</strong> ${response.id}</p>
-                            <p><strong>Title:</strong> ${response.title}</p>
-                            <p><strong>Description/Update:</strong> ${response.description}</p>
-                            <p><strong>Assigned By:</strong> ${users[response.assigned_by] || response.assigned_by}</p>
-                            <p><strong>Assigned To:</strong> ${assignedToUsers}</p>
-                            <p><strong>Status:</strong> ${response.status}</p>
-                            <p><strong>Completion Date:</strong> ${response.completion_date}</p>
-                            <p><strong>Creation Date:</strong> ${response.creation_date}</p>
-                            <p><strong>Cage ID:</strong> ${response.cage_id}</p>
+                            <p><strong><?= trh('ID:') ?></strong> ${response.id}</p>
+                            <p><strong><?= trh('Title:') ?></strong> ${response.title}</p>
+                            <p><strong><?= trh('Description/Update:') ?></strong> ${response.description}</p>
+                            <p><strong><?= trh('Assigned By:') ?></strong> ${users[response.assigned_by] || response.assigned_by}</p>
+                            <p><strong><?= trh('Assigned To:') ?></strong> ${assignedToUsers}</p>
+                            <p><strong><?= trh('Status:') ?></strong> ${taskStatusLabels[response.status] || response.status}</p>
+                            <p><strong><?= trh('Completion Date:') ?></strong> ${response.completion_date}</p>
+                            <p><strong><?= trh('Creation Date:') ?></strong> ${response.creation_date}</p>
+                            <p><strong><?= trh('Cage ID:') ?></strong> ${response.cage_id}</p>
                         `;
                         document.getElementById('viewTaskDetails').innerHTML = taskDetails;
                         document.getElementById('viewPopupOverlay').style.display = 'block';
@@ -865,7 +867,7 @@ ob_end_flush(); // Flush the output buffer
                             const dateValue = field.value;
                             const isValidDate = validateDate(dateValue);
                             if (!isValidDate) {
-                                warningText.textContent = 'Invalid Date. Please enter a valid date.';
+                                warningText.textContent = <?= trj('Invalid Date. Please enter a valid date.') ?>;
                                 warningText.style.display = 'block';
                             } else {
                                 warningText.textContent = '';
