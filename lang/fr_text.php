@@ -275,6 +275,10 @@ return [
     'Level observed (within the item scale)' => 'Niveau observé (dans l’échelle de l’item)',
     'free' => 'libre',
     'Endpoint actions raised by this follow-up' => 'Actions de point limite déclenchées par ce suivi',
+    'Editing the follow-up of {date}, entered by {user} on {at}: its current values are loaded; saving replaces them.' => 'Modification du suivi du {date}, saisi par {user} le {at} : ses valeurs actuelles sont chargées ; l’enregistrement les remplace.',
+    'An endpoint was reached on that day.' => 'Un point limite a été atteint ce jour-là.',
+    'New follow-up for {date}.' => 'Nouveau suivi pour le {date}.',
+    'Save the changes' => 'Enregistrer les modifications',
 
     // confirm_email
     'Email successfully confirmed. You can now {link}log in{/link}.' => 'Adresse e-mail confirmée. Vous pouvez maintenant vous {link}connecter{/link}.',

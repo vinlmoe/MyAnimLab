@@ -352,6 +352,38 @@ if ($history) {
     }
 }
 
+// Entries already recorded, by date, so that choosing a date already entered
+// loads its current values into the form (re-saving replaces the day).
+$entriesByDate = [];
+$trimNumber = fn($n): string => $n === null ? '' : rtrim(rtrim(number_format((float) $n, 4, '.', ''), '0'), '.');
+foreach ($history as $h) {
+    $entriesByDate[$h['observed_at']] = [
+        'weight' => $trimNumber($h['weight_g']),
+        'clinical_score' => $h['clinical_score'] === null ? '' : (string) $h['clinical_score'],
+        'observations' => (string) ($h['observations'] ?? ''),
+        'by' => (string) ($h['recorded_by_name'] ?? ''),
+        'at' => substr((string) $h['created_at'], 0, 16),
+        'endpoint' => (bool) $h['endpoint_reached'],
+        'scores' => new stdClass(),
+        'fields' => new stdClass(),
+        'free' => [],
+    ];
+}
+if ($history) {
+    $idToDate = array_column($history, 'observed_at', 'id');
+    foreach ($con->query("SELECT followup_id, grid_item_id, score FROM experiment_followup_scores WHERE followup_id IN ($ids) AND grid_item_id IS NOT NULL") as $sc) {
+        $entriesByDate[$idToDate[$sc['followup_id']]]['scores']->{$sc['grid_item_id']} = (int) $sc['score'];
+    }
+    foreach ($con->query("SELECT * FROM experiment_followup_observations WHERE followup_id IN ($ids) ORDER BY id") as $o) {
+        $value = $o['value_type'] === 'number' ? $trimNumber($o['value_number']) : (string) $o['value_text'];
+        if ($o['field_id'] !== null) {
+            $entriesByDate[$idToDate[$o['followup_id']]]['fields']->{$o['field_id']} = $value;
+        } else {
+            $entriesByDate[$idToDate[$o['followup_id']]]['free'][] = ['label' => $o['label'], 'type' => $o['value_type'], 'value' => $value, 'unit' => (string) ($o['unit'] ?? '')];
+        }
+    }
+}
+
 $actions = $con->prepare("SELECT * FROM endpoint_actions WHERE experiment_animal_id = ? ORDER BY status = 'pending' DESC, created_at DESC");
 $actions->bind_param("i", $experimentAnimalId);
 $actions->execute();
@@ -436,6 +468,7 @@ require 'header.php';
             <div class="card my-4">
                 <div class="card-body">
                     <h5><?= trh('New / Update Entry (one per day)') ?></h5>
+                    <div class="alert py-2 d-none" id="entryMode"></div>
                     <form method="POST" id="followupForm">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                         <input type="hidden" name="experiment_animal_id" value="<?= $experimentAnimalId; ?>">
@@ -443,7 +476,7 @@ require 'header.php';
                         <div class="row">
                             <div class="col-md-4 mb-3">
                                 <label class="form-label"><?= trh('Date') ?> *</label>
-                                <input type="date" class="form-control" name="observed_at" required value="<?= htmlspecialchars(preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['date'] ?? '') && $_GET['date'] <= date('Y-m-d') ? $_GET['date'] : date('Y-m-d')); ?>" max="<?= date('Y-m-d'); ?>">
+                                <input type="date" class="form-control" name="observed_at" id="observed_at" required value="<?= htmlspecialchars(preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['date'] ?? '') && $_GET['date'] <= date('Y-m-d') ? $_GET['date'] : date('Y-m-d')); ?>" max="<?= date('Y-m-d'); ?>">
                             </div>
                             <div class="col-md-4 mb-3">
                                 <label class="form-label"><?= trh('Weight (g)') ?></label>
@@ -454,7 +487,7 @@ require 'header.php';
                                 <?php if ($hasGrid) : ?>
                                     <div class="form-control-plaintext fs-5"><strong id="gridTotal">–</strong> / <?= (int) $grid['max_total']; ?></div>
                                 <?php else : ?>
-                                    <input type="number" class="form-control" name="clinical_score">
+                                    <input type="number" class="form-control" name="clinical_score" id="clinical_score">
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -514,9 +547,9 @@ require 'header.php';
 
                         <div class="mb-3">
                             <label class="form-label"><?= trh('General observations') ?></label>
-                            <textarea class="form-control" name="observations"></textarea>
+                            <textarea class="form-control" name="observations" id="general_observations"></textarea>
                         </div>
-                        <button type="submit" class="btn btn-primary"><?= trh('Save Follow-up') ?></button>
+                        <button type="submit" class="btn btn-primary" id="followupSubmit"><?= trh('Save Follow-up') ?></button>
                     </form>
                 </div>
             </div>
@@ -539,6 +572,7 @@ require 'header.php';
                         <th><?= trh('Observations') ?></th>
                         <th><?= trh('Endpoint') ?></th>
                         <th><?= trh('By') ?></th>
+                        <?php if ($isFollowed) : ?><th></th><?php endif; ?>
                     </tr>
                 </thead>
                 <tbody>
@@ -556,6 +590,7 @@ require 'header.php';
                             <td><?= htmlspecialchars($h['observations'] ?? ''); ?></td>
                             <td><?= $h['endpoint_reached'] ? trh('YES') : trh('No'); ?></td>
                             <td><?= htmlspecialchars($h['recorded_by_name'] ?? ''); ?></td>
+                            <?php if ($isFollowed) : ?><td class="text-nowrap"><a class="btn btn-sm btn-outline-primary" href="#followupForm" data-edit-date="<?= htmlspecialchars($h['observed_at']); ?>"><i class="fas fa-pen"></i> <?= trh('Edit') ?></a></td><?php endif; ?>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
@@ -596,17 +631,24 @@ require 'header.php';
             const tpl = document.getElementById('extraObsTpl');
             const add = document.getElementById('addExtraObs');
             if (!box || !tpl || !add) return;
-            add.addEventListener('click', () => {
+            window.addExtraObsRow = (values, focus) => {
                 const row = tpl.content.firstElementChild.cloneNode(true);
                 const type = row.querySelector('.extra-type');
                 const unit = row.querySelector('.extra-unit');
+                if (values) {
+                    row.querySelector('[name="extra_label[]"]').value = values.label;
+                    type.value = values.type;
+                    row.querySelector('[name="extra_value[]"]').value = values.value;
+                    unit.value = values.unit;
+                }
                 const sync = () => unit.style.visibility = type.value === 'number' ? 'visible' : 'hidden';
                 type.addEventListener('change', sync);
                 sync();
                 row.querySelector('.remove-extra').addEventListener('click', () => row.remove());
                 box.appendChild(row);
-                row.querySelector('input').focus();
-            });
+                if (focus) row.querySelector('input').focus();
+            };
+            add.addEventListener('click', () => window.addExtraObsRow(null, true));
         })();
 
         // Live total of the grid scores.
@@ -624,6 +666,61 @@ require 'header.php';
             };
             document.querySelectorAll('.grid-score').forEach(i => i.addEventListener('change', update));
             update();
+            window.updateGridTotal = update;
+        })();
+
+        // Choosing a date already entered loads that day's current values (the
+        // form then updates it); another date starts from an empty form.
+        (function() {
+            const form = document.getElementById('followupForm');
+            if (!form) return;
+            const entries = <?= json_encode($entriesByDate, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+            const dateInput = document.getElementById('observed_at');
+            const mode = document.getElementById('entryMode');
+            const submit = document.getElementById('followupSubmit');
+            const texts = {
+                edit: <?= trj('Editing the follow-up of {date}, entered by {user} on {at}: its current values are loaded; saving replaces them.') ?>,
+                endpoint: <?= trj('An endpoint was reached on that day.') ?>,
+                create: <?= trj('New follow-up for {date}.') ?>,
+                saveEdit: <?= trj('Save the changes') ?>,
+                saveNew: <?= trj('Save Follow-up') ?>
+            };
+            const setValue = (el, value) => { if (el) el.value = value ?? ''; };
+            const load = () => {
+                const date = dateInput.value;
+                const entry = entries[date] || null;
+                setValue(document.getElementById('weight_g'), entry ? entry.weight : '');
+                setValue(document.getElementById('clinical_score'), entry ? entry.clinical_score : '');
+                setValue(document.getElementById('general_observations'), entry ? entry.observations : '');
+                form.querySelectorAll('.grid-score').forEach(r => {
+                    const item = r.closest('.grid-item').dataset.item;
+                    r.checked = !!entry && entry.scores[item] !== undefined && String(entry.scores[item]) === r.value;
+                });
+                form.querySelectorAll('[name^="obs["]').forEach(f => {
+                    const id = f.name.match(/^obs\[(\d+)\]$/)[1];
+                    f.value = entry && entry.fields[id] !== undefined ? entry.fields[id] : '';
+                });
+                document.querySelectorAll('#extraObs .extra-obs').forEach(r => r.remove());
+                if (entry && window.addExtraObsRow) entry.free.forEach(o => window.addExtraObsRow(o, false));
+                if (window.updateGridTotal) window.updateGridTotal();
+                mode.classList.remove('d-none', 'alert-info', 'alert-warning');
+                if (entry) {
+                    mode.classList.add('alert-warning');
+                    mode.textContent = texts.edit.replace('{date}', date).replace('{user}', entry.by || '—').replace('{at}', entry.at)
+                        + (entry.endpoint ? ' ' + texts.endpoint : '');
+                    submit.textContent = texts.saveEdit;
+                } else {
+                    mode.classList.add('alert-info');
+                    mode.textContent = texts.create.replace('{date}', date);
+                    submit.textContent = texts.saveNew;
+                }
+            };
+            dateInput.addEventListener('change', load);
+            document.querySelectorAll('[data-edit-date]').forEach(a => a.addEventListener('click', () => {
+                dateInput.value = a.dataset.editDate;
+                load();
+            }));
+            load();
         })();
     </script>
 
