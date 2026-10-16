@@ -204,6 +204,61 @@ foreach ($enrolledStmt->get_result()->fetch_all(MYSQLI_ASSOC) as $en) {
 }
 $enrolledStmt->close();
 
+// Daily clinical evaluations of the protocol's enrollments, for the
+// animals × days overview of each experiment.
+$followupsByEnrollment = [];
+$followupStmt = $con->prepare(
+    "SELECT f.id, f.experiment_animal_id, f.observed_at, f.weight_g, f.clinical_score, f.endpoint_reached, f.observations
+     FROM experiment_followups f JOIN experiment_animals ea ON ea.id = f.experiment_animal_id
+     JOIN experiments e ON e.id = ea.experiment_id WHERE e.protocol_id = ? ORDER BY f.observed_at"
+);
+$followupStmt->bind_param("i", $protocolId);
+$followupStmt->execute();
+foreach ($followupStmt->get_result()->fetch_all(MYSQLI_ASSOC) as $f) {
+    $followupsByEnrollment[(int) $f['experiment_animal_id']][$f['observed_at']] = $f;
+}
+$followupStmt->close();
+$followupItems = [];
+$itemStmt = $con->prepare(
+    "SELECT s.followup_id, s.item_label, s.score FROM experiment_followup_scores s JOIN experiment_followups f ON f.id = s.followup_id
+     JOIN experiment_animals ea ON ea.id = f.experiment_animal_id JOIN experiments e ON e.id = ea.experiment_id
+     WHERE e.protocol_id = ? ORDER BY s.id"
+);
+$itemStmt->bind_param("i", $protocolId);
+$itemStmt->execute();
+foreach ($itemStmt->get_result()->fetch_all(MYSQLI_ASSOC) as $s) {
+    $followupItems[(int) $s['followup_id']][] = $s['item_label'] . ' : ' . $s['score'];
+}
+$itemStmt->close();
+$protocolGrid = $protocol['clinical_grid_id'] ? load_clinical_grid($con, (int) $protocol['clinical_grid_id']) : null;
+$gridMax = (int) ($protocolGrid['max_total'] ?? 0);
+// Colour of a clinical score: relative to the grid maximum when there is one.
+$scoreClass = function (?int $score, bool $endpoint) use ($gridMax): string {
+    if ($endpoint) {
+        return 'bg-danger text-white';
+    }
+    if ($score === null) {
+        return 'bg-light';
+    }
+    $ratio = $gridMax > 0 ? $score / $gridMax : $score / 6;
+    return $score === 0 ? 'score-0' : ($ratio <= 1 / 3 ? 'score-1' : ($ratio <= 2 / 3 ? 'score-2' : 'score-3'));
+};
+// Days shown in the overview of an experiment: from the first enrollment to
+// today (or the last day of participation), the most recent days last.
+$overviewDays = function (array $enrolled): array {
+    if (!$enrolled) {
+        return [];
+    }
+    $from = min(array_map(fn($en) => substr($en['enrolled_at'], 0, 10), $enrolled));
+    $to = max(array_map(fn($en) => $en['removed_at'] ? substr($en['removed_at'], 0, 10) : date('Y-m-d'), $enrolled));
+    $from = max($from, date('Y-m-d', strtotime($to . ' -365 days')));
+    $days = [];
+    for ($d = $from; $d <= $to; $d = date('Y-m-d', strtotime($d . ' +1 day'))) {
+        $days[] = $d;
+    }
+    return $days;
+};
+
 $activeAnimals = $con->query("SELECT m.id, m.animal_uid, m.mouse_id, m.cage_id, m.sex, al.code AS line_code FROM mice m LEFT JOIN animal_lines al ON al.id = m.line_id WHERE m.status = 'active' ORDER BY m.cage_id, m.animal_uid");
 $activeAnimalsList = [];
 while ($row = $activeAnimals->fetch_assoc()) {
@@ -222,6 +277,21 @@ require 'header.php';
 <head>
     <title><?= trh('Experiments') ?> | <?php echo htmlspecialchars($labName); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+    <style>
+        .clinical-matrix { font-size: .8rem; }
+        .clinical-matrix th, .clinical-matrix td { text-align: center; white-space: nowrap; padding: .2rem .3rem; }
+        .clinical-matrix .sticky-col { position: sticky; left: 0; background: #fff; z-index: 1; text-align: left; }
+        .clinical-matrix thead .sticky-col { background: #f8f9fa; }
+        .clinical-matrix td.cell a { display: block; color: inherit; text-decoration: none; min-width: 2.2rem; }
+        .clinical-matrix td.out { background: repeating-linear-gradient(45deg, #f1f3f5, #f1f3f5 4px, #fff 4px, #fff 8px); }
+        .clinical-matrix td.missing, .clinical-legend .missing { background: #fff; color: #adb5bd; outline: 1px dashed #adb5bd; outline-offset: -3px; }
+        .clinical-matrix th.weekend { background: #eef1f4; }
+        .score-0 { background: #d1e7dd; }
+        .score-1 { background: #fff3cd; }
+        .score-2 { background: #ffd8a8; }
+        .score-3 { background: #f5c2c7; }
+        .clinical-legend span { display: inline-block; padding: 0 .4rem; border-radius: .2rem; margin-right: .25rem; }
+    </style>
 </head>
 
 <body>
@@ -296,7 +366,7 @@ require 'header.php';
                                     <div class="text-nowrap">
                                         <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars($followupLink((int) $pa['experiment_animal_id'])); ?>"><i class="fas fa-clipboard-check"></i> <?= trh('Follow-up') ?></a>
                                         <?php if ($alive) : ?>
-                                            <a class="btn btn-sm btn-danger" href="animal_exit.php?<?= htmlspecialchars(http_build_query(['id' => $pa['animal_id'], 'code' => 'point_limite'])); ?>"><i class="fas fa-sign-out-alt"></i> <?= trh('Record the euthanasia') ?></a>
+                                            <a class="btn btn-sm btn-danger" href="animal_exit.php?<?= htmlspecialchars(http_build_query(['id' => $pa['animal_id'], 'code' => 'point_limite', 'return' => 'experiment_manage.php?protocol_id=' . (int) $protocolId . '#endpointManagement'])); ?>"><i class="fas fa-sign-out-alt"></i> <?= trh('Record the euthanasia') ?></a>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -434,7 +504,16 @@ require 'header.php';
                         </div>
                     <?php endif; ?>
 
-                    <?php if ($enrolled) : ?>
+                    <?php if ($enrolled) :
+                        $days = $overviewDays($enrolled);
+                        $nEvaluations = array_sum(array_map(fn($en) => count($followupsByEnrollment[(int) $en['id']] ?? []), $enrolled));
+                        $defaultTab = $ongoing && $nEvaluations ? 'clinical' : 'animals'; ?>
+                        <ul class="nav nav-tabs mb-2" role="tablist">
+                            <li class="nav-item" role="presentation"><button class="nav-link <?= $defaultTab === 'animals' ? 'active' : ''; ?>" data-bs-toggle="tab" data-bs-target="#animals<?= $eid; ?>" type="button" role="tab"><i class="fas fa-paw"></i> <?= trh('Enrolled animals') ?> <span class="badge bg-secondary"><?= count($enrolled); ?></span></button></li>
+                            <li class="nav-item" role="presentation"><button class="nav-link <?= $defaultTab === 'clinical' ? 'active' : ''; ?>" data-bs-toggle="tab" data-bs-target="#clinical<?= $eid; ?>" type="button" role="tab"><i class="fas fa-th"></i> <?= trh('Daily clinical evaluations') ?> <span class="badge bg-secondary"><?= $nEvaluations; ?></span></button></li>
+                        </ul>
+                        <div class="tab-content">
+                        <div class="tab-pane fade <?= $defaultTab === 'animals' ? 'show active' : ''; ?>" id="animals<?= $eid; ?>" role="tabpanel">
                         <div class="table-responsive">
                             <table class="table table-sm align-middle mb-0">
                                 <thead class="table-light">
@@ -472,6 +551,78 @@ require 'header.php';
                                 </tbody>
                             </table>
                         </div>
+                        </div>
+                        <div class="tab-pane fade <?= $defaultTab === 'clinical' ? 'show active' : ''; ?>" id="clinical<?= $eid; ?>" role="tabpanel">
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                                <div class="btn-group btn-group-sm" role="group" aria-label="<?= trh('Value shown') ?>">
+                                    <button type="button" class="btn btn-outline-primary active" data-matrix-mode="score"><?= trh('Clinical score') ?></button>
+                                    <button type="button" class="btn btn-outline-primary" data-matrix-mode="weight"><?= trh('Weight (g)') ?></button>
+                                    <button type="button" class="btn btn-outline-primary" data-matrix-mode="change"><?= trh('Weight change (%)') ?></button>
+                                </div>
+                                <div class="small clinical-legend">
+                                    <span class="score-0">0</span><span class="score-1"><?= trh('low') ?></span><span class="score-2"><?= trh('medium') ?></span><span class="score-3"><?= trh('high') ?></span><span class="bg-danger text-white"><i class="fas fa-exclamation-triangle"></i> <?= trh('Endpoint') ?></span><span class="missing"><?= trh('not entered') ?></span>
+                                    <?= $gridMax ? trh('(grid out of {max})', ['max' => $gridMax]) : ''; ?>
+                                </div>
+                            </div>
+                            <div class="table-responsive clinical-scroll">
+                                <table class="table table-bordered clinical-matrix mb-1">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th class="sticky-col"><?= trh('Animal') ?></th>
+                                            <th title="<?= trh('Last score / highest score') ?>"><?= trh('Last / max') ?></th>
+                                            <?php foreach ($days as $d) : $dow = (int) date('N', strtotime($d)); ?>
+                                                <th class="<?= $dow >= 6 ? 'weekend' : ''; ?>" title="<?= htmlspecialchars($d); ?>"><?= htmlspecialchars(date('d/m', strtotime($d))); ?></th>
+                                            <?php endforeach; ?>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($enrolled as $en) :
+                                            $enId = (int) $en['id'];
+                                            $fus = $followupsByEnrollment[$enId] ?? [];
+                                            $from = substr($en['enrolled_at'], 0, 10);
+                                            $to = $en['removed_at'] ? substr($en['removed_at'], 0, 10) : date('Y-m-d');
+                                            $scored = array_filter(array_column($fus, 'clinical_score'), fn($v) => $v !== null);
+                                            $baseline = (float) ($en['baseline_weight_g'] ?? 0);
+                                            $followupUrl = 'experiment_followup.php?' . http_build_query(['experiment_animal_id' => $enId, 'return' => 'experiment_manage.php?protocol_id=' . $protocolId]); ?>
+                                            <tr class="<?= $en['removed_at'] ? 'text-muted' : ''; ?>">
+                                                <td class="sticky-col"><a href="<?= htmlspecialchars($followupUrl); ?>" class="fw-bold"><?= htmlspecialchars($en['animal_uid'] ?? ('#' . $en['animal_id'])); ?></a>
+                                                    <?= !empty($pendingByEnrollment[$enId]) ? '<i class="fas fa-exclamation-triangle text-danger" title="' . trh('Endpoint') . '"></i>' : ''; ?></td>
+                                                <td><?= $scored ? (int) end($scored) : '—'; ?> / <?= $scored ? max($scored) : '—'; ?></td>
+                                                <?php foreach ($days as $d) :
+                                                    if ($d < $from || $d > $to) : ?>
+                                                        <td class="out"></td>
+                                                    <?php elseif (!isset($fus[$d])) : ?>
+                                                        <td class="cell missing"><?php if (!$en['removed_at']) : ?><a href="<?= htmlspecialchars($followupUrl . '&date=' . $d); ?>" title="<?= trh('{date}: no evaluation — enter', ['date' => $d]); ?>">·</a><?php else : ?>·<?php endif; ?></td>
+                                                    <?php else :
+                                                        $f = $fus[$d];
+                                                        $score = $f['clinical_score'] !== null ? (int) $f['clinical_score'] : null;
+                                                        $change = ($baseline > 0 && $f['weight_g'] !== null) ? ((float) $f['weight_g'] - $baseline) * 100 / $baseline : null;
+                                                        $tip = [$d];
+                                                        $tip[] = tr('Clinical score') . ' : ' . ($score ?? '—');
+                                                        $tip[] = tr('Weight (g)') . ' : ' . ($f['weight_g'] ?? '—') . ($change !== null ? sprintf(' (%+.1f %%)', $change) : '');
+                                                        foreach ($followupItems[(int) $f['id']] ?? [] as $item) {
+                                                            $tip[] = '• ' . $item;
+                                                        }
+                                                        if ($f['observations']) {
+                                                            $tip[] = $f['observations'];
+                                                        }
+                                                        if ($f['endpoint_reached']) {
+                                                            $tip[] = tr('Endpoint reached');
+                                                        } ?>
+                                                        <td class="cell <?= $scoreClass($score, (bool) $f['endpoint_reached']); ?>"
+                                                            data-score="<?= $score ?? '—'; ?>" data-weight="<?= $f['weight_g'] !== null ? htmlspecialchars(rtrim(rtrim((string) $f['weight_g'], '0'), '.')) : '—'; ?>" data-change="<?= $change !== null ? htmlspecialchars(sprintf('%+.1f', $change)) : '—'; ?>">
+                                                            <a href="<?= htmlspecialchars($followupUrl . '&date=' . $d); ?>" title="<?= htmlspecialchars(implode("\n", $tip)); ?>"><?= $f['endpoint_reached'] ? '<i class="fas fa-exclamation-triangle"></i> ' : ''; ?><span class="v"><?= $score ?? '—'; ?></span></a>
+                                                        </td>
+                                                    <?php endif; ?>
+                                                <?php endforeach; ?>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <p class="small text-muted mb-0"><?= trh('Hover a cell for the details of the evaluation (weight, grid items, observations); click it to open the follow-up. Hatched: outside the participation.') ?></p>
+                        </div>
+                        </div>
                     <?php else : ?>
                         <p class="text-muted mb-0">Aucun animal inclus pour l’instant.</p>
                     <?php endif; ?>
@@ -493,6 +644,18 @@ require 'header.php';
                 select.trigger('change');
             }
         });
+        // Clinical overview: switch the value shown in the cells, and start
+        // scrolled on the most recent days.
+        document.querySelectorAll('[data-matrix-mode]').forEach(button => button.addEventListener('click', () => {
+            const pane = button.closest('.tab-pane');
+            pane.querySelectorAll('[data-matrix-mode]').forEach(b => b.classList.toggle('active', b === button));
+            pane.querySelectorAll('td.cell[data-score]').forEach(td => {
+                td.querySelector('.v').textContent = td.dataset[button.dataset.matrixMode];
+            });
+        }));
+        const scrollToLatest = pane => pane.querySelectorAll('.clinical-scroll').forEach(box => { box.scrollLeft = box.scrollWidth; });
+        document.querySelectorAll('[id^="clinical"]').forEach(pane => scrollToLatest(pane));
+        document.querySelectorAll('[data-bs-target^="#clinical"]').forEach(tab => tab.addEventListener('shown.bs.tab', () => scrollToLatest(document.querySelector(tab.dataset.bsTarget))));
         // select2 needs a visible width: refresh it when an enroll panel opens.
         document.querySelectorAll('[id^="enroll"]').forEach(panel => panel.addEventListener('shown.bs.collapse', () => {
             $(panel).find('.animal-multi-select').select2({ width: '100%', placeholder: 'Rechercher un animal…' });

@@ -84,6 +84,38 @@ function log_activity(mysqli $con, string $action, string $entityType, ?string $
     $stmt->close();
 }
 
+// Actual severity classes of the BEA retrospective assessment.
+const RETROSPECTIVE_SEVERITIES = [
+    'non_recovery' => 'Non-recovery',
+    'mild' => 'Mild',
+    'moderate' => 'Moderate',
+    'severe' => 'Severe',
+];
+
+// RETROSPECTIVE_SEVERITIES in the interface language.
+function retrospective_severities(): array
+{
+    return array_map('tr', RETROSPECTIVE_SEVERITIES);
+}
+
+// Whether the logged-in user may do the BEA retrospective review: an admin or
+// a user flagged as BEA responsible.
+function is_bea_user(mysqli $con): bool
+{
+    if (($_SESSION['role'] ?? '') === 'admin') {
+        return true;
+    }
+    if (empty($_SESSION['user_id'])) {
+        return false;
+    }
+    $stmt = $con->prepare('SELECT is_bea_responsible FROM users WHERE id = ?');
+    $stmt->bind_param('i', $_SESSION['user_id']);
+    $stmt->execute();
+    $isBea = !empty($stmt->get_result()->fetch_assoc()['is_bea_responsible']);
+    $stmt->close();
+    return $isBea;
+}
+
 // Create an in-app notification for a user (e.g. an endpoint/point-limite alert).
 function create_notification(mysqli $con, int $userId, string $title, ?string $message = null, ?string $link = null, string $type = 'system'): void
 {
@@ -399,6 +431,38 @@ function safe_check_return(?string $return): ?string
     // view, or the experimentation workflow, never to an external URL or an
     // arbitrary application route.
     return ($return && preg_match('/^(daily_round|cage_check|experiment_cage_followup|experiment_manage|hc_view|bc_view)\.php(\?[A-Za-z0-9_\-=&%.]*)?$/', $return)) ? $return : null;
+}
+
+// A page of the application to come back to after an action: a relative
+// "page.php?query#fragment" of an existing top-level page, or this site's
+// own URL (e.g. the referer), reduced to that form. Anything else is refused.
+function safe_local_return(?string $url, array $exclude = []): ?string
+{
+    $url = trim((string) $url);
+    if ($url === '') {
+        return null;
+    }
+    $parts = parse_url($url);
+    if ($parts === false || isset($parts['user']) || isset($parts['scheme']) !== isset($parts['host'])) {
+        return null;
+    }
+    if (isset($parts['host']) && strcasecmp($parts['host'] . (isset($parts['port']) ? ':' . $parts['port'] : ''), $_SERVER['HTTP_HOST'] ?? '') !== 0) {
+        return null;
+    }
+    $page = basename($parts['path'] ?? '');
+    if (!isset($parts['host']) && ($parts['path'] ?? '') !== $page) {
+        return null;
+    }
+    $exclude = array_merge($exclude, ['index.php', 'logout.php', 'set_locale.php']);
+    if (!preg_match('/^[A-Za-z0-9_]+\.php$/', $page) || in_array($page, $exclude, true) || !is_file(__DIR__ . '/' . $page)) {
+        return null;
+    }
+    $query = $parts['query'] ?? '';
+    $fragment = $parts['fragment'] ?? '';
+    if (!preg_match('/^[A-Za-z0-9_\-=&%.+\[\]]*$/', $query) || !preg_match('/^[A-Za-z0-9_\-]*$/', $fragment)) {
+        return null;
+    }
+    return $page . ($query !== '' ? '?' . $query : '') . ($fragment !== '' ? '#' . $fragment : '');
 }
 
 // Number of active animals currently housed in a cage.

@@ -400,7 +400,7 @@ require 'header.php';
                 <h5 class="alert-heading"><i class="fas fa-exclamation-triangle"></i> <?= trh('ACTION REQUIRED: {actions}', ['actions' => endpoint_required_actions()[$a['required_action']]]); ?></h5>
                 <p class="mb-2"><?= htmlspecialchars($a['message'] ?? ''); ?> — <?= trh('since {date}', ['date' => $a['created_at']]); ?></p>
                 <?php if ($a['required_action'] === 'euthanasia') : ?>
-                    <a href="animal_exit.php?<?= htmlspecialchars(http_build_query(['id' => $ea['animal_id'], 'code' => 'point_limite'])); ?>" class="btn btn-danger"><?= trh('Record the euthanasia (exit: endpoint reached)') ?></a>
+                    <a href="animal_exit.php?<?= htmlspecialchars(http_build_query(['id' => $ea['animal_id'], 'code' => 'point_limite', 'return' => $backUrl])); ?>" class="btn btn-danger"><?= trh('Record the euthanasia (exit: endpoint reached)') ?></a>
                 <?php else : ?>
                     <form method="POST" class="row g-2">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>">
@@ -443,7 +443,7 @@ require 'header.php';
                         <div class="row">
                             <div class="col-md-4 mb-3">
                                 <label class="form-label"><?= trh('Date') ?> *</label>
-                                <input type="date" class="form-control" name="observed_at" required value="<?= date('Y-m-d'); ?>" max="<?= date('Y-m-d'); ?>">
+                                <input type="date" class="form-control" name="observed_at" required value="<?= htmlspecialchars(preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['date'] ?? '') && $_GET['date'] <= date('Y-m-d') ? $_GET['date'] : date('Y-m-d')); ?>" max="<?= date('Y-m-d'); ?>">
                             </div>
                             <div class="col-md-4 mb-3">
                                 <label class="form-label"><?= trh('Weight (g)') ?></label>
