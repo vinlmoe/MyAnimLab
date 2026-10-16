@@ -87,7 +87,7 @@ $stmt->close();
 
 $rooms = array_column($con->query("SELECT DISTINCT room FROM cages WHERE status = 'active' AND room IS NOT NULL AND room <> '' ORDER BY room")->fetch_all(MYSQLI_ASSOC), 'room');
 $isAdmin = ($_SESSION['role'] ?? '') === 'admin';
-$currentUrl = basename($_SERVER['PHP_SELF']) . ($_SERVER['QUERY_STRING'] ? '?' . $_SERVER['QUERY_STRING'] : '');
+$currentUrl = basename($_SERVER['PHP_SELF']) . (!empty($_SERVER['QUERY_STRING']) ? '?' . $_SERVER['QUERY_STRING'] : '');
 $pageUrl = function (int $p) use ($dashPage, $search, $roomFilter): string {
     $sep = str_contains($dashPage, '?') ? '&' : '?';
     return $dashPage . $sep . http_build_query(array_filter(['search' => $search, 'room' => $roomFilter, 'page' => $p > 1 ? $p : null], fn($v) => $v !== '' && $v !== null));

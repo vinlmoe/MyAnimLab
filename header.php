@@ -269,6 +269,7 @@ if (isset($settings['r2_pres'])) {
                         echo '<li><a class="dropdown-item" href="manage_animal_lines.php">' . htmlspecialchars(t('nav.manage_lines')) . '</a></li>';
                         echo '<li><a class="dropdown-item" href="manage_lab.php">' . htmlspecialchars(t('nav.manage_lab')) . '</a></li>';
                         echo '<li><a class="dropdown-item" href="export_data.php">' . htmlspecialchars(t('nav.export_csv')) . '</a></li>';
+                        echo '<li><a class="dropdown-item" href="log_export.php"><i class="fas fa-history me-1"></i> ' . trh('Raw log export') . '</a></li>';
                         echo '<li><a class="dropdown-item" href="export_for_v2.php"><i class="fas fa-file-export me-1"></i> ' . htmlspecialchars(t('nav.export_v2')) . '</a></li>';
                         echo '<li><hr class="dropdown-divider"></li>';
                     }
