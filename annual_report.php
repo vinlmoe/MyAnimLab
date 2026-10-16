@@ -165,7 +165,7 @@ foreach ($byProject as $key => $p) {
 }
 $tables['projets'] = [
     'title' => 'Utilisation par autorisation de projet',
-    'headers' => array_merge(['Autorisation', 'Intitulé', 'Espèce', 'Animaux'], array_values($severities), ['Utilisations']),
+    'headers' => array_merge(['Numéro éthique', 'Intitulé', 'Espèce', 'Animaux'], array_values($severities), ['Utilisations']),
     'rows' => $rows,
 ];
 
@@ -210,7 +210,7 @@ $tables['non_utilises'] = [
 $tables['detail_utilisations'] = [
     'title' => 'Détail des utilisations terminées',
     'detail' => true,
-    'headers' => ['Animal', 'Espèce', 'Lignée', 'Sexe', 'Naissance', 'Génotype', 'Autorisation', 'Essai', 'Protocole', 'Expérience', 'Intitulé expérience', 'Début', 'Fin', 'Motif de fin', 'Sévérité réelle', 'Évaluée par', 'Devenir'],
+    'headers' => ['Animal', 'Espèce', 'Lignée', 'Sexe', 'Naissance', 'Génotype', 'Numéro éthique', 'Essai', 'Protocole', 'Expérience', 'Intitulé expérience', 'Début', 'Fin', 'Motif de fin', 'Sévérité réelle', 'Évaluée par', 'Devenir'],
     'rows' => array_map(fn($u) => [
         $u['animal_uid'], $species($u), $line($u), $sexLabel($u['sex']), $fmtDate($u['dob']), $u['genotype'] ?? '',
         $u['iacuc_id'] ?? '', $u['trial_number'], $u['protocol_number'], $u['experiment_number'], $u['experiment_title'],

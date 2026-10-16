@@ -31,7 +31,7 @@ return [
     'nav.tasks' => 'Tâches et rappels',
     'nav.administration' => 'Administration',
     'nav.manage_users' => 'Gérer les utilisateurs',
-    'nav.manage_iacuc' => 'Gérer les autorisations IACUC',
+    'nav.manage_iacuc' => 'Autorisations de projet (n° éthique)',
     'nav.manage_strains' => 'Gérer les souches',
     'nav.manage_lines' => 'Gérer les lignées animales',
     'nav.manage_lab' => 'Gérer le laboratoire',
