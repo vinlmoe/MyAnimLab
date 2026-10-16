@@ -219,7 +219,7 @@ require 'header.php';
                     <tbody>
                         <?php foreach ($followups as $f) : $loss = $lossPct($f['weight_g']); ?>
                             <tr class="<?= $f['endpoint_reached'] ? 'table-danger' : '' ?>">
-                                <td class="text-nowrap"><?= htmlspecialchars($f['observed_at']) ?><?php if ($f['endpoint_reached']) : ?><br><span class="badge bg-danger"><?= trh('Endpoint') ?></span><?php endif; ?></td>
+                                <td class="text-nowrap"><a href="experiment_followup_view.php?<?= htmlspecialchars(http_build_query(['id' => $f['id'], 'return' => 'animal_dossier.php?experiment_animal_id=' . $enrollmentId])) ?>" title="<?= trh('Read the full evaluation') ?>"><?= htmlspecialchars($f['observed_at']) ?></a><?php if ($f['endpoint_reached']) : ?><br><span class="badge bg-danger"><?= trh('Endpoint') ?></span><?php endif; ?></td>
                                 <td class="text-end"><?= $f['weight_g'] !== null ? htmlspecialchars($fmt((float) $f['weight_g'], 2)) : '—' ?></td>
                                 <td class="text-end"><?= $loss !== null ? htmlspecialchars(($loss > 0 ? '−' : '+') . $fmt(abs($loss))) . ' %' : '—' ?></td>
                                 <td class="text-end fw-bold"><?= $f['clinical_score'] ?? '—' ?></td>

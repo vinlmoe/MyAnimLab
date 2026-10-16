@@ -611,7 +611,7 @@ require 'header.php';
                                                         } ?>
                                                         <td class="cell <?= $scoreClass($score, (bool) $f['endpoint_reached']); ?>"
                                                             data-score="<?= $score ?? '—'; ?>" data-weight="<?= $f['weight_g'] !== null ? htmlspecialchars(rtrim(rtrim((string) $f['weight_g'], '0'), '.')) : '—'; ?>" data-change="<?= $change !== null ? htmlspecialchars(sprintf('%+.1f', $change)) : '—'; ?>">
-                                                            <a href="<?= htmlspecialchars($followupUrl . '&date=' . $d); ?>" title="<?= htmlspecialchars(implode("\n", $tip)); ?>"><?= $f['endpoint_reached'] ? '<i class="fas fa-exclamation-triangle"></i> ' : ''; ?><span class="v"><?= $score ?? '—'; ?></span></a>
+                                                            <a href="<?= htmlspecialchars('experiment_followup_view.php?' . http_build_query(['id' => $f['id'], 'return' => 'experiment_manage.php?protocol_id=' . $protocolId])); ?>" title="<?= htmlspecialchars(implode("\n", $tip)); ?>"><?= $f['endpoint_reached'] ? '<i class="fas fa-exclamation-triangle"></i> ' : ''; ?><span class="v"><?= $score ?? '—'; ?></span></a>
                                                         </td>
                                                     <?php endif; ?>
                                                 <?php endforeach; ?>
@@ -620,7 +620,7 @@ require 'header.php';
                                     </tbody>
                                 </table>
                             </div>
-                            <p class="small text-muted mb-0"><?= trh('Hover a cell for the details of the evaluation (weight, grid items, observations); click it to open the follow-up. Hatched: outside the participation.') ?></p>
+                            <p class="small text-muted mb-0"><?= trh('Hover a cell for a summary of the evaluation; click it to read the full evaluation (level chosen for each grid item, observations). Click a missing day to enter it. Hatched: outside the participation.') ?></p>
                         </div>
                         </div>
                     <?php else : ?>
