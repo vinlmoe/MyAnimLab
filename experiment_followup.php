@@ -272,14 +272,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $newActions[] = endpoint_required_actions()[$t['required_action']];
         }
 
-        // The experimental daily follow-up counts as the cage's daily check.
+        // The cage's daily check is recorded once every animal under experiment in it has today's follow-up.
         $cageStmt = $con->prepare("SELECT cage_id FROM mice WHERE id = ?");
         $cageStmt->bind_param("i", $ea['animal_id']);
         $cageStmt->execute();
         $animalCage = $cageStmt->get_result()->fetch_assoc()['cage_id'] ?? null;
         $cageStmt->close();
         if ($animalCage && $observedAt === date('Y-m-d')) {
-            record_cage_check($con, $animalCage, 'experimental', $endpointReached ? 'issue' : 'ok', 'auto', $ea['animal_uid'] . ' — ' . tr('experiment {number}', ['number' => $ea['experiment_number']]), null, $currentUserId, $currentUserName);
+            record_experimental_cage_check_if_complete($con, $animalCage, $currentUserId, $currentUserName);
         }
 
         if ($endpointReached) {

@@ -29,6 +29,16 @@ $stmt->execute();
 $cage = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
+// A cage under experiment cannot be checked "all OK": its daily check is the
+// follow-up of every animal, entered on the cage's grouped follow-up page.
+if ($cage && $cage['status'] === 'active' && cage_experimental_progress($con, $cageId)) {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $_SESSION['message'] = tr('Cage {cage} is under experiment: it is validated once every animal has its follow-up for the day.', ['cage' => $cageId]);
+    }
+    header('Location: experiment_cage_followup.php?' . http_build_query(['cage_id' => $cageId]));
+    exit;
+}
+
 if ($cage && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
         die(tr('CSRF token validation failed'));
