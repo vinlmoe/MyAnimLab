@@ -110,26 +110,26 @@ if (isset($_GET['id'])) {
             $stmt->close();
         } else {
             // Set an error message for an invalid ID and redirect to the dashboard
-            $_SESSION['message'] = "Invalid ID: $id";
+            $_SESSION['message'] = tr('Invalid ID: {id}', ['id' => $id]);
             header("Location: hc_dash.php");
             exit();
         }
     }
 } else {
     // Set an error message if the ID parameter is missing and redirect to the dashboard
-    $_SESSION['message'] = 'ID parameter is missing.';
+    $_SESSION['message'] = tr('ID parameter is missing.');
     header("Location: hc_dash.php");
     exit();
 }
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
     <!-- Required meta tags for character encoding and viewport settings -->
     <meta charset="utf-8">
-    <title>Printable 2x2 Card Table</title>
+    <title><?= trh('Printable 2x2 Card Table') ?></title>
     <style>
         /* Set up page size and margins for printing */
         @page {
@@ -205,16 +205,16 @@ if (isset($_GET['id'])) {
                         <tr>
                             <td colspan="3" style="width: 100%; text-align:center;">
                                 <span style="font-weight: bold; font-size: 10pt; text-transform: uppercase; padding:3px;">
-                                    Holding Cage - # <?= $holdingcage["cage_id"] ?> </span>
+                                    <?= trh('Holding Cage') ?> - # <?= $holdingcage["cage_id"] ?> </span>
                             </td>
                         </tr>
                         <tr>
                             <td style="width:40%;">
-                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;">PI Name:</span>
+                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;"><?= trh('PI Name:') ?></span>
                                 <span><?= htmlspecialchars($holdingcage["pi_name"]); ?></span>
                             </td>
                             <td style="width:40%;">
-                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;">Strain:</span>
+                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;"><?= trh('Strain:') ?></span>
                                 <span><?= htmlspecialchars($holdingcage["strain"]); ?></span>
                             </td>
                             <td rowspan="4" style="width:20%; text-align:center;">
@@ -223,31 +223,31 @@ if (isset($_GET['id'])) {
                         </tr>
                         <tr>
                             <td style="width:40%;">
-                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;">IACUC:</span>
+                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;"><?= trh('IACUC:') ?></span>
                                 <span><?= htmlspecialchars($holdingcage["iacuc"]); ?></span>
                             </td>
                             <td style="width:40%;">
-                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;">User:</span>
+                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;"><?= trh('User:') ?></span>
                                 <span><?= htmlspecialchars($holdingcage['user_initials']); ?></span>
                             </td>
                         </tr>
                         <tr>
                             <td style="width:40%;">
-                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;">Qty:</span>
+                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;"><?= trh('Qty:') ?></span>
                                 <span><?= htmlspecialchars($holdingcage["qty"]); ?></span>
                             </td>
                             <td style="width:40%;">
-                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;">DOB:</span>
+                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;"><?= trh('DOB:') ?></span>
                                 <span><?= htmlspecialchars($holdingcage["dob"]); ?></span>
                             </td>
                         </tr>
                         <tr style="border-bottom: none;">
                             <td style="width:40%;">
-                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;">Sex:</span>
-                                <span><?= htmlspecialchars(ucfirst($holdingcage["sex"])); ?></span>
+                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;"><?= trh('Sex:') ?></span>
+                                <span><?= htmlspecialchars(ucfirst(tr((string) $holdingcage["sex"]))); ?></span>
                             </td>
                             <td style="width:40%;">
-                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;">Parent Cage:</span>
+                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;"><?= trh('Parent Cage:') ?></span>
                                 <span><?= htmlspecialchars($holdingcage["parent_cg"] ?? ''); ?></span>
                             </td>
                         </tr>
@@ -255,10 +255,10 @@ if (isset($_GET['id'])) {
                     <table border="1" style="width: 5in; height: 1.5in; border-top: none;" id="cageB">
                         <tr>
                             <td style="width:40%;">
-                                <span style="font-weight: bold; padding:3px; text-transform: uppercase; border-top: none; text-align:center;">Mouse ID</span>
+                                <span style="font-weight: bold; padding:3px; text-transform: uppercase; border-top: none; text-align:center;"><?= trh('Mouse ID') ?></span>
                             </td>
                             <td style="width:60%;">
-                                <span style="font-weight: bold; padding:3px; text-transform: uppercase; border-top: none; text-align:center;">Genotype</span>
+                                <span style="font-weight: bold; padding:3px; text-transform: uppercase; border-top: none; text-align:center;"><?= trh('Genotype') ?></span>
                             </td>
                         </tr>
                         <?php foreach (range(1, 5) as $i) : ?>

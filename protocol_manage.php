@@ -155,7 +155,7 @@ require 'header.php';
 ?>
 
 <!doctype html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
     <title>Protocols | <?php echo htmlspecialchars($labName); ?></title>
@@ -295,7 +295,7 @@ require 'header.php';
                             <?php while ($th = $thresholds->fetch_assoc()) : ?>
                                 <tr>
                                     <td><?= htmlspecialchars(threshold_label($th, threshold_target_label($th, $grid, $allObsFields))); ?></td>
-                                    <td><?= $th['required_action'] !== 'none' ? '<span class="badge bg-danger">' . htmlspecialchars(ENDPOINT_REQUIRED_ACTIONS[$th['required_action']]) . '</span>' : 'Alert only'; ?></td>
+                                    <td><?= $th['required_action'] !== 'none' ? '<span class="badge bg-danger">' . htmlspecialchars(endpoint_required_actions()[$th['required_action']]) . '</span>' : 'Alert only'; ?></td>
                                     <td><?= htmlspecialchars($th['action_message'] ?? ''); ?></td>
                                 </tr>
                             <?php endwhile; ?>
@@ -345,7 +345,7 @@ require 'header.php';
                         </div>
                         <div class="col-auto">
                             <select class="form-select" name="required_action">
-                                <?php foreach (ENDPOINT_REQUIRED_ACTIONS as $key => $text) : ?>
+                                <?php foreach (endpoint_required_actions() as $key => $text) : ?>
                                     <option value="<?= $key; ?>"><?= htmlspecialchars($text); ?></option>
                                 <?php endforeach; ?>
                             </select>

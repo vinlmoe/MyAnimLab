@@ -108,7 +108,7 @@ $statusBadge = [
 ?>
 
 <!doctype html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
     <title>Animal <?= htmlspecialchars($animal['animal_uid'] ?? $animal['mouse_id'] ?? ('#' . $animal['id'])); ?> | <?php echo htmlspecialchars($labName); ?></title>
@@ -292,7 +292,7 @@ $statusBadge = [
                                 <tr>
                                     <td><?= (int) $hr['id']; ?></td>
                                     <td><?= htmlspecialchars($hr['observed_at']); ?></td>
-                                    <td><?= htmlspecialchars(HEALTH_CATEGORIES[$hr['category']] ?? $hr['category']); ?></td>
+                                    <td><?= htmlspecialchars(health_categories()[$hr['category']] ?? $hr['category']); ?></td>
                                     <td><?= health_badge($hr['current_severity'], HEALTH_SEVERITIES); ?></td>
                                     <td><?= health_badge($hr['current_status'], HEALTH_STATUSES); ?></td>
                                     <td><?= htmlspecialchars($hr['cage_id'] ?? '-'); ?></td>

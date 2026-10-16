@@ -20,7 +20,7 @@ if (isset($_GET['id'], $_GET['confirm']) && $_GET['confirm'] === 'true') {
     // A cage without animals is never in service (it is retired automatically),
     // so only an archived cage that still houses active animals can be restored.
     if (cage_active_animal_count($con, $id) === 0) {
-        $_SESSION['message'] = "Cage $id has no active animal: an empty cage cannot be put back in service.";
+        $_SESSION['message'] = tr('Cage {id} has no active animal: an empty cage cannot be put back in service.', ['id' => $id]);
         $stmt = null;
     } else {
         $stmt = $con->prepare("UPDATE cages SET status = 'active' WHERE cage_id = ? AND status = 'archived'");
@@ -28,14 +28,14 @@ if (isset($_GET['id'], $_GET['confirm']) && $_GET['confirm'] === 'true') {
     }
     if ($stmt && $stmt->execute() && $stmt->affected_rows === 1) {
         log_cage_lifecycle($con, $id, 'restored', null, $currentUserId, $_SESSION['name'] ?? null);
-        log_activity($con, 'restore', 'cage', $id, 'Cage restored from archive.', $currentUserId);
-        $_SESSION['message'] = "Cage $id restored successfully.";
+        log_activity($con, 'restore', 'cage', $id, tr('Cage restored from archive.'), $currentUserId);
+        $_SESSION['message'] = tr('Cage {id} restored successfully.', ['id' => $id]);
     } elseif ($stmt) {
-        $_SESSION['message'] = "Cage $id is not archived; nothing to restore.";
+        $_SESSION['message'] = tr('Cage {id} is not archived; nothing to restore.', ['id' => $id]);
     }
     $stmt?->close();
 } else {
-    $_SESSION['message'] = 'Restore was not confirmed or ID parameter is missing.';
+    $_SESSION['message'] = tr('Restore was not confirmed or ID parameter is missing.');
 }
 
 $redirectTo = $_GET['return'] ?? 'hc_dash.php';

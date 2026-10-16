@@ -26,7 +26,7 @@ $strainId = $strainName = $strainAka = $strainUrl = $strainRrid = $strainNotes =
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Validate CSRF token
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        die('CSRF token validation failed');
+        die(tr('CSRF token validation failed'));
     }
 
     if (isset($_POST['add'])) {
@@ -47,14 +47,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $checkStmt->close();
 
         if ($count > 0) {
-            $_SESSION['message'] = "Error: Strain ID already exists."; // Error message for duplicate ID
+            $_SESSION['message'] = tr('Error: Strain ID already exists.'); // Error message for duplicate ID
         } else {
             $stmt = $con->prepare("INSERT INTO strains (str_id, str_name, str_aka, str_url, str_rrid, str_notes) VALUES (?, ?, ?, ?, ?, ?)");
             $stmt->bind_param("ssssss", $strainId, $strainName, $strainAka, $strainUrl, $strainRrid, $strainNotes);
             if ($stmt->execute()) {
-                $_SESSION['message'] = "Strain added successfully."; // Success message
+                $_SESSION['message'] = tr('Strain added successfully.'); // Success message
             } else {
-                $_SESSION['message'] = "Error adding strain."; // Error message
+                $_SESSION['message'] = tr('Error adding strain.'); // Error message
             }
             $stmt->close(); // Close the statement
         }
@@ -69,9 +69,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $stmt = $con->prepare("UPDATE strains SET str_name = ?, str_aka = ?, str_url = ?, str_rrid = ?, str_notes = ? WHERE str_id = ?");
         $stmt->bind_param("ssssss", $strainName, $strainAka, $strainUrl, $strainRrid, $strainNotes, $strainId);
         if ($stmt->execute()) {
-            $_SESSION['message'] = "Strain updated successfully."; // Success message
+            $_SESSION['message'] = tr('Strain updated successfully.'); // Success message
         } else {
-            $_SESSION['message'] = "Error updating strain."; // Error message
+            $_SESSION['message'] = tr('Error updating strain.'); // Error message
         }
         $stmt->close(); // Close the statement
     } elseif (isset($_POST['delete'])) {
@@ -80,9 +80,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $stmt = $con->prepare("DELETE FROM strains WHERE str_id = ?");
         $stmt->bind_param("s", $strainId);
         if ($stmt->execute()) {
-            $_SESSION['message'] = "Strain deleted successfully."; // Success message
+            $_SESSION['message'] = tr('Strain deleted successfully.'); // Success message
         } else {
-            $_SESSION['message'] = "Error deleting strain."; // Error message
+            $_SESSION['message'] = tr('Error deleting strain.'); // Error message
         }
         $stmt->close(); // Close the statement
     }
@@ -94,12 +94,12 @@ $strainResult = $con->query($strainQuery);
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manage Strains</title>
+    <title><?= trh('Manage Strains') ?></title>
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
@@ -224,7 +224,7 @@ $strainResult = $con->query($strainQuery);
 
 <body>
     <div class="container content mt-5">
-        <h2>Manage Strains</h2>
+        <h2><?= trh('Manage Strains') ?></h2>
         <?php if (isset($_SESSION['message'])) : ?>
             <div class="alert alert-info">
                 <?= $_SESSION['message']; ?>
@@ -234,43 +234,43 @@ $strainResult = $con->query($strainQuery);
 
         <!-- Button to open the popup form -->
         <div class="add-button">
-            <button onclick="openForm()" class="btn btn-primary"><i class="fas fa-plus"></i> Add New Strain</button>
+            <button onclick="openForm()" class="btn btn-primary"><i class="fas fa-plus"></i> <?= trh('Add New Strain') ?></button>
         </div>
 
         <!-- Popup form for adding and editing strains -->
         <div class="popup-overlay" id="popupOverlay"></div>
         <div class="popup-form" id="popupForm">
-            <h4 id="formTitle">Add New Strain</h4>
+            <h4 id="formTitle"><?= trh('Add New Strain') ?></h4>
             <form action="manage_strain.php" method="post">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                 <div class="form-group">
-                    <label for="strain_id">Strain ID <span class="required-asterisk">*</span></label>
+                    <label for="strain_id"><?= trh('Strain ID') ?> <span class="required-asterisk">*</span></label>
                     <input type="text" name="strain_id" id="strain_id" class="form-control" required>
                 </div>
                 <div class="form-group">
-                    <label for="strain_name">Strain Name <span class="required-asterisk">*</span></label>
+                    <label for="strain_name"><?= trh('Strain Name') ?> <span class="required-asterisk">*</span></label>
                     <input type="text" name="strain_name" id="strain_name" class="form-control" required>
                 </div>
                 <div class="form-group">
-                    <label for="strain_aka">Common Names (comma separated)</label>
+                    <label for="strain_aka"><?= trh('Common Names (comma separated)') ?></label>
                     <input type="text" name="strain_aka" id="strain_aka" class="form-control">
                 </div>
                 <div class="form-group">
-                    <label for="strain_url">Strain URL</label>
+                    <label for="strain_url"><?= trh('Strain URL') ?></label>
                     <input type="url" name="strain_url" id="strain_url" class="form-control">
                 </div>
                 <div class="form-group">
-                    <label for="strain_rrid">Strain RRID</label>
+                    <label for="strain_rrid"><?= trh('Strain RRID') ?></label>
                     <input type="text" name="strain_rrid" id="strain_rrid" class="form-control">
                 </div>
                 <div class="form-group">
-                    <label for="strain_notes">Notes</label>
+                    <label for="strain_notes"><?= trh('Notes') ?></label>
                     <textarea name="strain_notes" id="strain_notes" class="form-control" rows="3"></textarea>
                 </div>
                 <div class="form-buttons">
-                    <button type="submit" name="add" id="addButton" class="btn btn-primary"><i class="fas fa-plus"></i> Add Strain</button>
-                    <button type="submit" name="edit" id="editButton" class="btn btn-success" style="display: none;"><i class="fas fa-save"></i> Update Strain</button>
-                    <button type="button" class="btn btn-secondary" onclick="closeForm()">Cancel</button>
+                    <button type="submit" name="add" id="addButton" class="btn btn-primary"><i class="fas fa-plus"></i> <?= trh('Add Strain') ?></button>
+                    <button type="submit" name="edit" id="editButton" class="btn btn-success" style="display: none;"><i class="fas fa-save"></i> <?= trh('Update Strain') ?></button>
+                    <button type="button" class="btn btn-secondary" onclick="closeForm()"><?= trh('Cancel') ?></button>
                 </div>
             </form>
         </div>
@@ -278,63 +278,63 @@ $strainResult = $con->query($strainQuery);
         <!-- Popup form for viewing strain details -->
         <div class="popup-overlay" id="viewPopupOverlay"></div>
         <div class="view-popup-form" id="viewPopupForm">
-            <h4 id="viewFormTitle">View Strain</h4>
+            <h4 id="viewFormTitle"><?= trh('View Strain') ?></h4>
             <div class="form-group">
-                <strong for="view_strain_id">Strain ID:</strong>
+                <strong for="view_strain_id"><?= trh('Strain ID:') ?></strong>
                 <p id="view_strain_id"></p>
             </div>
             <div class="form-group">
-                <strong for="view_strain_name">Strain Name:</strong>
+                <strong for="view_strain_name"><?= trh('Strain Name:') ?></strong>
                 <p id="view_strain_name"></p>
             </div>
             <div class="form-group">
-                <strong for="view_strain_aka">Common Names:</strong>
+                <strong for="view_strain_aka"><?= trh('Common Names:') ?></strong>
                 <p id="view_strain_aka"></p>
             </div>
             <div class="form-group">
-                <strong for="view_strain_url">Strain URL:</strong>
+                <strong for="view_strain_url"><?= trh('Strain URL:') ?></strong>
                 <p><a href="#" id="view_strain_url" target="_blank"></a></p>
             </div>
             <div class="form-group">
-                <strong for="view_strain_rrid">Strain RRID:</strong>
+                <strong for="view_strain_rrid"><?= trh('Strain RRID:') ?></strong>
                 <p id="view_strain_rrid"></p>
             </div>
             <div class="form-group">
-                <strong for="view_strain_notes">Notes:</strong>
+                <strong for="view_strain_notes"><?= trh('Notes:') ?></strong>
                 <p id="view_strain_notes"></p>
             </div>
             <div class="form-buttons">
-                <button type="button" class="btn btn-secondary" onclick="closeViewForm()">Close</button>
+                <button type="button" class="btn btn-secondary" onclick="closeViewForm()"><?= trh('Close') ?></button>
             </div>
         </div>
 
         <!-- Display existing strains -->
-        <h3>Existing Strains</h3>
+        <h3><?= trh('Existing Strains') ?></h3>
         <table class="table table-bordered">
             <thead>
                 <tr>
-                    <th>ID</th>
-                    <th>Name</th>
-                    <th>URL</th>
-                    <th>RRID</th>
-                    <th>Actions</th>
+                    <th><?= trh('ID') ?></th>
+                    <th><?= trh('Name') ?></th>
+                    <th><?= trh('URL') ?></th>
+                    <th><?= trh('RRID') ?></th>
+                    <th><?= trh('Actions') ?></th>
                 </tr>
             </thead>
             <tbody>
                 <?php while ($row = $strainResult->fetch_assoc()) : ?>
                     <tr>
-                        <td data-label="ID"><?= htmlspecialchars($row['str_id']); ?></td>
-                        <td data-label="Name"><?= htmlspecialchars($row['str_name']); ?></td>
-                        <td data-label="URL"><a href="<?= htmlspecialchars($row['str_url']); ?>" target="_blank"><?= htmlspecialchars($row['str_url']); ?></a></td>
-                        <td data-label="RRID"><?= htmlspecialchars($row['str_rrid']); ?></td>
-                        <td data-label="Actions" class="table-actions">
+                        <td data-label="<?= trh('ID') ?>"><?= htmlspecialchars($row['str_id']); ?></td>
+                        <td data-label="<?= trh('Name') ?>"><?= htmlspecialchars($row['str_name']); ?></td>
+                        <td data-label="<?= trh('URL') ?>"><a href="<?= htmlspecialchars($row['str_url']); ?>" target="_blank"><?= htmlspecialchars($row['str_url']); ?></a></td>
+                        <td data-label="<?= trh('RRID') ?>"><?= htmlspecialchars($row['str_rrid']); ?></td>
+                        <td data-label="<?= trh('Actions') ?>" class="table-actions">
                             <div class="action-buttons">
-                                <button class="btn btn-info btn-sm" title="View" onclick="viewStrain('<?= $row['str_id']; ?>', '<?= htmlspecialchars($row['str_name']); ?>', '<?= htmlspecialchars($row['str_aka']); ?>', '<?= htmlspecialchars($row['str_url']); ?>', '<?= htmlspecialchars($row['str_rrid']); ?>', `<?= htmlspecialchars($row['str_notes']); ?>`)"><i class="fas fa-eye"></i></button>
-                                <button class="btn btn-warning btn-sm" title="Edit" onclick="editStrain('<?= $row['str_id']; ?>', '<?= htmlspecialchars($row['str_name']); ?>', '<?= htmlspecialchars($row['str_aka']); ?>', '<?= htmlspecialchars($row['str_url']); ?>', '<?= htmlspecialchars($row['str_rrid']); ?>', `<?= htmlspecialchars($row['str_notes']); ?>`)"><i class="fas fa-edit"></i></button>
+                                <button class="btn btn-info btn-sm" title="<?= trh('View') ?>" onclick="viewStrain('<?= $row['str_id']; ?>', '<?= htmlspecialchars($row['str_name']); ?>', '<?= htmlspecialchars($row['str_aka']); ?>', '<?= htmlspecialchars($row['str_url']); ?>', '<?= htmlspecialchars($row['str_rrid']); ?>', `<?= htmlspecialchars($row['str_notes']); ?>`)"><i class="fas fa-eye"></i></button>
+                                <button class="btn btn-warning btn-sm" title="<?= trh('Edit') ?>" onclick="editStrain('<?= $row['str_id']; ?>', '<?= htmlspecialchars($row['str_name']); ?>', '<?= htmlspecialchars($row['str_aka']); ?>', '<?= htmlspecialchars($row['str_url']); ?>', '<?= htmlspecialchars($row['str_rrid']); ?>', `<?= htmlspecialchars($row['str_notes']); ?>`)"><i class="fas fa-edit"></i></button>
                                 <form action="manage_strain.php" method="post" style="display:inline-block;">
                                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                                     <input type="hidden" name="strain_id" value="<?= $row['str_id']; ?>">
-                                    <button type="submit" name="delete" class="btn btn-danger btn-sm" title="Delete" onclick="return confirm('Are you sure you want to delete this strain?');"><i class="fas fa-trash-alt"></i></button>
+                                    <button type="submit" name="delete" class="btn btn-danger btn-sm" title="<?= trh('Delete') ?>" onclick="return confirm(<?= htmlspecialchars(trj('Are you sure you want to delete this strain?')) ?>);"><i class="fas fa-trash-alt"></i></button>
                                 </form>
                             </div>
                         </td>
@@ -349,7 +349,7 @@ $strainResult = $con->query($strainQuery);
         function openForm() {
             document.getElementById('popupOverlay').style.display = 'block';
             document.getElementById('popupForm').style.display = 'block';
-            document.getElementById('formTitle').innerText = 'Add New Strain';
+            document.getElementById('formTitle').innerText = <?= trj('Add New Strain') ?>;
             document.getElementById('addButton').style.display = 'block';
             document.getElementById('editButton').style.display = 'none';
             document.getElementById('strain_id').readOnly = false; // Ensure field is editable when adding
@@ -370,7 +370,7 @@ $strainResult = $con->query($strainQuery);
         // Function to populate the form for editing
         function editStrain(id, name, aka, url, rrid, notes) {
             openForm();
-            document.getElementById('formTitle').innerText = 'Edit Strain';
+            document.getElementById('formTitle').innerText = <?= trj('Edit Strain') ?>;
             document.getElementById('addButton').style.display = 'none';
             document.getElementById('editButton').style.display = 'block';
             document.getElementById('strain_id').readOnly = true; // Make field read-only when editing

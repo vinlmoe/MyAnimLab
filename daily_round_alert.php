@@ -13,7 +13,7 @@
 
 if (PHP_SAPI !== 'cli') {
     http_response_code(403);
-    exit('This script must be run from the command line (cron).');
+    exit('This script must be run from the command line (cron). / Ce script doit être exécuté en ligne de commande (cron).');
 }
 
 require __DIR__ . '/dbcon.php';
@@ -58,32 +58,32 @@ $mark->execute();
 $mark->close();
 
 if ($total === 0 && $pendingActions === 0 && $overdueWeanings === 0) {
-    echo "Daily round complete for $today: no alert.\n";
+    echo tr('Daily round complete for {date}: no alert.', ['date' => $today]) . "\n";
     exit(0);
 }
 
 $lines = [];
 foreach ($unseen as $room => $cageIds) {
-    $lines[] = ($room === '' ? 'No room' : "Room $room") . ': ' . implode(', ', $cageIds);
+    $lines[] = ($room === '' ? tr('No room') : tr('Room {room}', ['room' => $room])) . ' : ' . implode(', ', $cageIds);
 }
 if ($pendingActions) {
-    $lines[] = "$pendingActions endpoint action(s) still pending (euthanasia, vet...)";
+    $lines[] = tr('{n} endpoint action(s) still pending (euthanasia, vet...)', ['n' => $pendingActions]);
 }
 if ($overdueWeanings) {
-    $lines[] = "$overdueWeanings litter(s) past their expected weaning date";
+    $lines[] = tr('{n} litter(s) past their expected weaning date', ['n' => $overdueWeanings]);
 }
-$title = $total ? "Daily round incomplete: $total cage(s) not seen today" : "End of day: " . implode(', ', array_slice($lines, 0));
+$title = $total ? tr('Daily round incomplete: {n} cage(s) not seen today', ['n' => $total]) : tr('End of day: {summary}', ['summary' => implode(', ', array_slice($lines, 0))]);
 $summary = implode(' | ', $lines);
 
 notify_admins($con, $title, $summary, 'daily_round.php?hide_seen=1', 'system');
 
 $siteUrl = setting($con, 'url');
 $link = $siteUrl !== '' ? "https://$siteUrl/daily_round.php?hide_seen=1" : 'daily_round.php?hide_seen=1';
-$body = "<p>End of day $today: <strong>$total cage(s)</strong> in service not seen, <strong>$pendingActions endpoint action(s)</strong> pending.</p><ul>";
+$body = '<p>' . tr('End of day {date}: {cages} in service not seen, {actions} pending.', ['date' => $today, 'cages' => '<strong>' . tr('{n} cage(s)', ['n' => $total]) . '</strong>', 'actions' => '<strong>' . tr('{n} endpoint action(s)', ['n' => $pendingActions]) . '</strong>']) . '</p><ul>';
 foreach ($lines as $line) {
     $body .= '<li>' . htmlspecialchars($line) . '</li>';
 }
-$body .= '</ul><p><a href="' . htmlspecialchars($link) . '">Open the cages still to check</a></p>';
+$body .= '</ul><p><a href="' . htmlspecialchars($link) . '">' . htmlspecialchars(tr('Open the cages still to check')) . '</a></p>';
 
 $admins = $con->query("SELECT username FROM users WHERE role = 'admin' AND status = 'approved'")->fetch_all(MYSQLI_ASSOC);
 $mail = $con->prepare("INSERT INTO outbox (recipient, subject, body) VALUES (?, ?, ?)");
@@ -94,4 +94,4 @@ foreach ($admins as $admin) {
 $mail->close();
 
 log_activity($con, 'round_alert', 'daily_round', $today, $summary);
-echo "$title — alerted " . count($admins) . " admin(s).\n";
+echo $title . ' — ' . tr('alerted {n} admin(s).', ['n' => count($admins)]) . "\n";

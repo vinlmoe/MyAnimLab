@@ -6,11 +6,17 @@
  * Translation files return a flat key/value array.  French is deliberately
  * the default language for a new installation; a signed-in user's choice is
  * kept in both the session and their profile.
+ *
+ * Two lookups are available:
+ *  - t('nav.home')            keyed messages from lang/<locale>.php;
+ *  - tr('Animal not found.')  the English source text is the key, and
+ *    lang/<locale>_text.php maps it to the translation (English needs no
+ *    catalogue: an untranslated text is shown as written).
+ *
+ * This file does not start the session itself: pages start it (through
+ * session_config.php) before it is loaded by dbcon.php, and CLI scripts
+ * (reminders, alerts) simply use the default locale.
  */
-
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
 
 const APP_DEFAULT_LOCALE = 'fr';
 const APP_SUPPORTED_LOCALES = ['fr', 'en'];
@@ -18,6 +24,9 @@ const APP_SUPPORTED_LOCALES = ['fr', 'en'];
 function current_locale(): string
 {
     $locale = $_SESSION['locale'] ?? $_COOKIE['myvivarium_locale'] ?? APP_DEFAULT_LOCALE;
+    if (PHP_SAPI === 'cli') {
+        $locale = APP_DEFAULT_LOCALE;
+    }
     return in_array($locale, APP_SUPPORTED_LOCALES, true) ? $locale : APP_DEFAULT_LOCALE;
 }
 
@@ -67,4 +76,38 @@ function locale_csrf_token(): string
         $_SESSION['locale_csrf_token'] = bin2hex(random_bytes(32));
     }
     return $_SESSION['locale_csrf_token'];
+}
+
+/**
+ * Translate an English source text into the current locale.
+ *
+ * {name} placeholders are replaced after translation, so the same catalogue
+ * entry serves every value.
+ */
+function tr(string $text, array $replace = []): string
+{
+    $locale = current_locale();
+    if ($locale !== 'en') {
+        $catalogue = translation_catalogue($locale . '_text');
+        if (isset($catalogue[$text]) && $catalogue[$text] !== '') {
+            $text = $catalogue[$text];
+        }
+    }
+
+    foreach ($replace as $name => $value) {
+        $text = str_replace('{' . $name . '}', (string) $value, $text);
+    }
+    return $text;
+}
+
+/** tr() escaped for HTML text and attribute values. */
+function trh(string $text, array $replace = []): string
+{
+    return htmlspecialchars(tr($text, $replace), ENT_QUOTES, 'UTF-8');
+}
+
+/** tr() as a JavaScript string literal (quotes included). */
+function trj(string $text, array $replace = []): string
+{
+    return json_encode(tr($text, $replace), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE);
 }

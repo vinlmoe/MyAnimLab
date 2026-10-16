@@ -15,7 +15,7 @@ if (empty($_SESSION['csrf_token'])) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'] ?? '')) {
-        die('CSRF token validation failed');
+        die(tr('CSRF token validation failed'));
     }
 
     $animalCount = (int) ($_POST['animal_count'] ?? 0);
@@ -31,17 +31,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $userIds = array_values(array_unique(array_filter(array_map('intval', $_POST['user_ids'] ?? []))));
 
     if ($animalCount < 1 || $animalCount > 1000) {
-        $_SESSION['message'] = 'Choose between 1 and 1,000 animals.';
+        $_SESSION['message'] = tr('Choose between 1 and 1,000 animals.');
     } elseif ($animalsPerCage < 1 || $animalsPerCage > 50) {
-        $_SESSION['message'] = 'Choose a capacity between 1 and 50 animals per cage.';
+        $_SESSION['message'] = tr('Choose a capacity between 1 and 50 animals per cage.');
     } elseif ($minimumPerCage < 1 || $minimumPerCage > $animalsPerCage) {
-        $_SESSION['message'] = 'The minimum per cage must be between 1 and the maximum capacity.';
+        $_SESSION['message'] = tr('The minimum per cage must be between 1 and the maximum capacity.');
     } elseif ((int) ceil($animalCount / $animalsPerCage) * $minimumPerCage > $animalCount) {
-        $_SESSION['message'] = "This distribution is not possible: $animalCount animals cannot fill cages with at least $minimumPerCage and at most $animalsPerCage animals each.";
+        $_SESSION['message'] = tr('This distribution is not possible: {count} animals cannot fill cages with at least {min} and at most {max} animals each.', ['count' => $animalCount, 'min' => $minimumPerCage, 'max' => $animalsPerCage]);
     } elseif (!$piId) {
-        $_SESSION['message'] = 'Select a PI.';
+        $_SESSION['message'] = tr('Select a PI.');
     } elseif (!$lineId || !in_array($sex, ['male', 'female'], true) || !$dob) {
-        $_SESSION['message'] = 'Select an animal line, sex and date of birth.';
+        $_SESSION['message'] = tr('Select an animal line, sex and date of birth.');
     } else {
         mysqli_begin_transaction($con);
         try {
@@ -51,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $cagesWithOneExtra = $animalCount % $cageCount;
             for ($i = 0; $i < $cageCount; $i++) {
                 $forThisCage = $basePerCage + ($i < $cagesWithOneExtra ? 1 : 0);
-                $why = "Bulk creation: $forThisCage $sex animal(s)";
+                $why = tr('Bulk creation: {n} {sex} animal(s)', ['n' => $forThisCage, 'sex' => tr($sex)]);
                 $cageId = create_holding_cage($con, $piId, $room, $rack, $dob, $userIds, $why, $_SESSION['user_id'] ?? null, $_SESSION['name'] ?? null);
                 if ($remarks !== '') {
                     $update = $con->prepare('UPDATE cages SET remarks = ? WHERE cage_id = ?');
@@ -60,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $update->close();
                 }
                 for ($animal = 0; $animal < $forThisCage; $animal++) {
-                    create_animal($con, $cageId, $lineId, $sex, $dob, null, 'Bulk creation', $_SESSION['user_id'] ?? null);
+                    create_animal($con, $cageId, $lineId, $sex, $dob, null, tr('Bulk creation'), $_SESSION['user_id'] ?? null);
                 }
                 if (!empty($_POST['is_experimental'])) {
                     set_cages_experimental($con, [$cageId], true, $_SESSION['user_id'] ?? null);
@@ -68,12 +68,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $created[] = $cageId;
             }
             mysqli_commit($con);
-            $_SESSION['message'] = "$animalCount $sex animal(s) created and distributed across " . count($created) . ' cage(s): ' . implode(', ', $created) . '.';
+            $_SESSION['message'] = tr('{n} {sex} animal(s) created and distributed across {cages} cage(s): {list}.', ['n' => $animalCount, 'sex' => tr($sex), 'cages' => count($created), 'list' => implode(', ', $created)]);
             header('Location: ' . (!empty($_POST['is_experimental']) ? 'ec_dash.php' : 'hc_dash.php'));
             exit;
         } catch (Exception $e) {
             mysqli_rollback($con);
-            $_SESSION['message'] = 'Bulk cage creation failed: ' . $e->getMessage();
+            $_SESSION['message'] = tr('Bulk cage creation failed: {error}', ['error' => $e->getMessage()]);
         }
     }
 }
@@ -84,7 +84,7 @@ $lines = $con->query("SELECT id, code, species, name FROM animal_lines ORDER BY 
 require 'header.php';
 ?>
 <!doctype html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 <head>
     <title>Création groupée d’animaux et cages | <?= htmlspecialchars($labName); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">

@@ -107,10 +107,10 @@ require 'header.php';
 ?>
 
 <!doctype html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
-    <title>Find Animal | <?php echo htmlspecialchars($labName); ?></title>
+    <title><?= trh('Find Animal') ?> | <?php echo htmlspecialchars($labName); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         .container {
@@ -125,8 +125,8 @@ require 'header.php';
 
 <body>
     <div class="container mt-4 content">
-        <h4><i class="fas fa-search"></i> Find an Animal</h4>
-        <p class="text-muted">Search by animal number, tag, cage, line or genotype. Typing an exact animal number (e.g. RSD-0002) opens its record directly.</p>
+        <h4><i class="fas fa-search"></i> <?= trh('Find an Animal') ?></h4>
+        <p class="text-muted"><?= trh('Search by animal number, tag, cage, line or genotype. Typing an exact animal number (e.g. RSD-0002) opens its record directly.') ?></p>
 
         <?php include('message.php'); ?>
 
@@ -134,82 +134,82 @@ require 'header.php';
             <input type="hidden" name="list" value="1">
             <div class="row g-2 align-items-end">
                 <div class="col-md-4">
-                    <label class="form-label" for="q">Number / tag / cage / genotype / mark</label>
-                    <input type="text" class="form-control" id="q" name="q" value="<?= htmlspecialchars($q); ?>" placeholder="e.g. RSD-0002, P-00012, WT, ear punch" autofocus>
+                    <label class="form-label" for="q"><?= trh('Number / tag / cage / genotype / mark') ?></label>
+                    <input type="text" class="form-control" id="q" name="q" value="<?= htmlspecialchars($q); ?>" placeholder="<?= trh('e.g. RSD-0002, P-00012, WT, ear punch') ?>" autofocus>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label" for="line_id">Line</label>
+                    <label class="form-label" for="line_id"><?= trh('Line') ?></label>
                     <select class="form-select" id="line_id" name="line_id">
-                        <option value="">All lines</option>
+                        <option value=""><?= trh('All lines') ?></option>
                         <?php foreach ($lines as $l) : ?>
                             <option value="<?= (int) $l['id']; ?>" <?= $lineId === (int) $l['id'] ? 'selected' : ''; ?>><?= htmlspecialchars($l['code'] . ' - ' . $l['name']); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label" for="cage_id">Cage</label>
+                    <label class="form-label" for="cage_id"><?= trh('Cage') ?></label>
                     <select class="form-select" id="cage_id" name="cage_id">
-                        <option value="">All cages</option>
+                        <option value=""><?= trh('All cages') ?></option>
                         <?php foreach ($cages as $c) : ?>
                             <option value="<?= htmlspecialchars($c['cage_id']); ?>" <?= $cageId === $c['cage_id'] ? 'selected' : ''; ?>><?= htmlspecialchars($c['cage_id']); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="col-md-1">
-                    <label class="form-label" for="sex">Sex</label>
+                    <label class="form-label" for="sex"><?= trh('Sex') ?></label>
                     <select class="form-select" id="sex" name="sex">
-                        <option value="">All</option>
-                        <option value="male" <?= $sex === 'male' ? 'selected' : ''; ?>>Male</option>
-                        <option value="female" <?= $sex === 'female' ? 'selected' : ''; ?>>Female</option>
+                        <option value=""><?= trh('All') ?></option>
+                        <option value="male" <?= $sex === 'male' ? 'selected' : ''; ?>><?= trh('Male') ?></option>
+                        <option value="female" <?= $sex === 'female' ? 'selected' : ''; ?>><?= trh('Female') ?></option>
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label" for="status">Status</label>
+                    <label class="form-label" for="status"><?= trh('Status') ?></label>
                     <select class="form-select" id="status" name="status">
-                        <option value="all" <?= $status === 'all' ? 'selected' : ''; ?>>All</option>
+                        <option value="all" <?= $status === 'all' ? 'selected' : ''; ?>><?= trh('All') ?></option>
                         <?php foreach (['active', 'sacrificed', 'dead', 'transferred_out', 'archived'] as $s) : ?>
-                            <option value="<?= $s; ?>" <?= $status === $s ? 'selected' : ''; ?>><?= ucfirst(str_replace('_', ' ', $s)); ?></option>
+                            <option value="<?= $s; ?>" <?= $status === $s ? 'selected' : ''; ?>><?= htmlspecialchars(ucfirst(tr(str_replace('_', ' ', $s)))); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="col-md-1">
-                    <button type="submit" class="btn btn-primary w-100"><i class="fas fa-search"></i> Search</button>
+                    <button type="submit" class="btn btn-primary w-100"><i class="fas fa-search"></i> <?= trh('Search') ?></button>
                 </div>
             </div>
             <div class="form-check mt-2">
                 <input class="form-check-input" type="checkbox" id="health_open" name="health_open" value="1" <?= $healthOnly ? 'checked' : ''; ?>>
-                <label class="form-check-label" for="health_open">Only animals with an unresolved health issue</label>
+                <label class="form-check-label" for="health_open"><?= trh('Only animals with an unresolved health issue') ?></label>
             </div>
             <div class="form-check">
                 <input class="form-check-input" type="checkbox" id="housing_anomaly" name="housing_anomaly" value="1" <?= $housingAnomaly ? 'checked' : ''; ?>>
-                <label class="form-check-label" for="housing_anomaly">Housing anomalies: living animals without an active cage</label>
+                <label class="form-check-label" for="housing_anomaly"><?= trh('Housing anomalies: living animals without an active cage') ?></label>
             </div>
         </form>
 
         <p class="text-muted mb-2">
-            <?= count($animals); ?> animal(s)<?= count($animals) >= $limit ? " — showing the first $limit, refine your search" : ''; ?>
-            · <a href="animal_search.php?list=1">Reset filters</a>
+            <?= trh('{n} animal(s)', ['n' => count($animals)]); ?><?= count($animals) >= $limit ? ' — ' . trh('showing the first {limit}, refine your search', ['limit' => $limit]) : ''; ?>
+            · <a href="animal_search.php?list=1"><?= trh('Reset filters') ?></a>
         </p>
 
         <div class="table-responsive">
             <table class="table table-sm table-hover align-middle">
                 <thead class="table-light">
                     <tr>
-                        <th>Animal</th>
-                        <th>Line</th>
-                        <th>Sex</th>
-                        <th>Cage</th>
-                        <th>Location</th>
-                        <th>Genotype</th>
-                        <th>Status</th>
-                        <th>Health</th>
-                        <th class="text-end">Actions</th>
+                        <th><?= trh('Animal') ?></th>
+                        <th><?= trh('Line') ?></th>
+                        <th><?= trh('Sex') ?></th>
+                        <th><?= trh('Cage') ?></th>
+                        <th><?= trh('Location') ?></th>
+                        <th><?= trh('Genotype') ?></th>
+                        <th><?= trh('Status') ?></th>
+                        <th><?= trh('Health') ?></th>
+                        <th class="text-end"><?= trh('Actions') ?></th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($animals)) : ?>
                         <tr>
-                            <td colspan="9" class="text-center text-muted">No animal matches these criteria.</td>
+                            <td colspan="9" class="text-center text-muted"><?= trh('No animal matches these criteria.') ?></td>
                         </tr>
                     <?php endif; ?>
                     <?php foreach ($animals as $a) :
@@ -222,10 +222,10 @@ require 'header.php';
                             <td>
                                 <a href="animal_view.php?id=<?= $aid; ?>" class="fw-bold"><?= htmlspecialchars($label); ?></a>
                                 <?php if ($a['mouse_id'] && $a['animal_uid']) : ?>
-                                    <br><small class="text-muted">tag <?= htmlspecialchars($a['mouse_id']); ?></small>
+                                    <br><small class="text-muted"><?= trh('tag {tag}', ['tag' => $a['mouse_id']]); ?></small>
                                 <?php endif; ?>
                                 <?php if (!empty($a['distinctive_mark'])) : ?>
-                                    <br><small class="text-muted mark">mark: <?= htmlspecialchars($a['distinctive_mark']); ?></small>
+                                    <br><small class="text-muted mark"><?= trh('mark: {mark}', ['mark' => $a['distinctive_mark']]); ?></small>
                                 <?php endif; ?>
                             </td>
                             <td title="<?= htmlspecialchars($a['line_name'] ?? ''); ?>"><?= htmlspecialchars($a['line_code'] ?? '-'); ?></td>
@@ -237,20 +237,20 @@ require 'header.php';
                             </td>
                             <td><small><?= htmlspecialchars(trim(($a['room'] ?? '') . ' ' . ($a['rack'] ?? '')) ?: '-'); ?></small></td>
                             <td><?= htmlspecialchars($a['genotype'] ?? ''); ?></td>
-                            <td><?= htmlspecialchars($a['status']); ?></td>
+                            <td><?= trh(str_replace('_', ' ', $a['status'])); ?></td>
                             <td>
                                 <?php if ($openIssues) : ?>
-                                    <a href="health_registry.php?animal=<?= rawurlencode($label); ?>" class="badge bg-danger text-decoration-none"><?= $openIssues; ?> open</a>
+                                    <a href="health_registry.php?animal=<?= rawurlencode($label); ?>" class="badge bg-danger text-decoration-none"><?= trh('{n} open', ['n' => $openIssues]); ?></a>
                                 <?php else : ?>
                                     <span class="text-muted">-</span>
                                 <?php endif; ?>
                             </td>
                             <td class="text-end actions">
-                                <a href="animal_view.php?id=<?= $aid; ?>" class="btn btn-sm btn-outline-secondary" title="Open record"><i class="fas fa-eye"></i> Record</a>
+                                <a href="animal_view.php?id=<?= $aid; ?>" class="btn btn-sm btn-outline-secondary" title="<?= trh('Open record') ?>"><i class="fas fa-eye"></i> <?= trh('Record') ?></a>
                                 <?php if ($a['status'] === 'active') : ?>
-                                    <a href="animal_transfer.php?animal_id=<?= $aid; ?>" class="btn btn-sm btn-outline-primary" title="Transfer to another cage"><i class="fas fa-exchange-alt"></i> Transfer</a>
-                                    <a href="health_report.php?animal_id=<?= $aid; ?>" class="btn btn-sm btn-outline-warning" title="Report a health issue"><i class="fas fa-notes-medical"></i> Health</a>
-                                    <a href="animal_exit.php?id=<?= $aid; ?>" class="btn btn-sm btn-outline-danger" title="Exit: sacrifice, death or export"><i class="fas fa-sign-out-alt"></i> Exit</a>
+                                    <a href="animal_transfer.php?animal_id=<?= $aid; ?>" class="btn btn-sm btn-outline-primary" title="<?= trh('Transfer to another cage') ?>"><i class="fas fa-exchange-alt"></i> <?= trh('Transfer') ?></a>
+                                    <a href="health_report.php?animal_id=<?= $aid; ?>" class="btn btn-sm btn-outline-warning" title="<?= trh('Report a health issue') ?>"><i class="fas fa-notes-medical"></i> <?= trh('Health') ?></a>
+                                    <a href="animal_exit.php?id=<?= $aid; ?>" class="btn btn-sm btn-outline-danger" title="<?= trh('Exit: sacrifice, death or export') ?>"><i class="fas fa-sign-out-alt"></i> <?= trh('Exit') ?></a>
                                 <?php endif; ?>
                             </td>
                         </tr>

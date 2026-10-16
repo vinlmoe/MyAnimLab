@@ -26,7 +26,7 @@ $currentUserId = $_SESSION['user_id'] ?? null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        die('CSRF token validation failed');
+        die(tr('CSRF token validation failed'));
     }
 
     $animalIds = $_POST['animal_ids'] ?? [];
@@ -41,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['message'] = "{$result['count']} animal(s) transferred to $toCageId. Empty source cages were retired automatically.";
     } catch (Exception $e) {
         mysqli_rollback($con);
-        $_SESSION['message'] = "Transfer failed: " . $e->getMessage();
+        $_SESSION['message'] = tr('Transfer failed: {error}', ['error' => $e->getMessage()]);
     }
 
     header("Location: animal_transfer.php");
@@ -56,7 +56,7 @@ $cages = $con->query("SELECT cage_id FROM cages WHERE status = 'active' ORDER BY
 ?>
 
 <!doctype html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
     <title>Transférer des animaux | <?php echo htmlspecialchars($labName); ?></title>

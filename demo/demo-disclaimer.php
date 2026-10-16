@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
     <!--
@@ -34,7 +34,7 @@
 <body>
     <!-- Demo disclaimer display box -->
     <div class="demo-disclaimer">
-        <p><strong>Disclaimer:</strong> This is a demo site for exploring features. All data will be cleared periodically. Do not enter any sensitive or critical information.</p>
+        <p><strong><?= trh('Disclaimer:') ?></strong> <?= trh('This is a demo site for exploring features. All data will be cleared periodically. Do not enter any sensitive or critical information.') ?></p>
     </div>
 </body>
 

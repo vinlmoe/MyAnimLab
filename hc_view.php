@@ -57,7 +57,7 @@ if (isset($_GET['id'])) {
 
         if (is_null($holdingcage['str_name']) || empty($holdingcage['str_name'])) {
             $holdingcage['str_id'] = 'NA';
-            $holdingcage['str_name'] = 'Unknown Strain';
+            $holdingcage['str_name'] = tr('Unknown Strain');
             $holdingcage['str_url'] = '#';
         }
 
@@ -72,7 +72,7 @@ if (isset($_GET['id'])) {
                 $holdingcage['pi_initials'] = 'NA';
                 $holdingcage['pi_name'] = 'NA';
             } else {
-                $_SESSION['message'] = 'Error fetching the cage details.';
+                $_SESSION['message'] = tr('Error fetching the cage details.');
                 header("Location: hc_dash.php");
                 exit();
             }
@@ -145,35 +145,35 @@ if (isset($_GET['id'])) {
             $ageComponents = [];
             if ($ageInterval->y > 0) {
                 $years = $ageInterval->y;
-                $unit = ($years == 1) ? 'Year' : 'Years';
+                $unit = ($years == 1) ? tr('Year') : tr('Years');
                 $ageComponents[] = $years . ' ' . $unit;
             }
             if ($ageInterval->m > 0) {
                 $months = $ageInterval->m;
-                $unit = ($months == 1) ? 'Month' : 'Months';
+                $unit = ($months == 1) ? tr('Month') : tr('Months');
                 $ageComponents[] = $months . ' ' . $unit;
             }
             if ($ageInterval->d > 0) {
                 $days = $ageInterval->d;
-                $unit = ($days == 1) ? 'Day' : 'Days';
+                $unit = ($days == 1) ? tr('Day') : tr('Days');
                 $ageComponents[] = $days . ' ' . $unit;
             }
             if (empty($ageComponents)) {
                 // If the age is less than a day
-                $ageComponents[] = '0 Days';
+                $ageComponents[] = '0 ' . tr('Days');
             }
             $ageString = implode(' ', $ageComponents);
         } else {
-            $ageString = 'Unknown';
+            $ageString = tr('Unknown');
         }
 
     } else {
-        $_SESSION['message'] = 'Invalid ID.';
+        $_SESSION['message'] = tr('Invalid ID.');
         header("Location: hc_dash.php");
         exit();
     }
 } else {
-    $_SESSION['message'] = 'ID parameter is missing.';
+    $_SESSION['message'] = tr('ID parameter is missing.');
     header("Location: hc_dash.php");
     exit();
 }
@@ -219,7 +219,7 @@ require 'header.php';
 ?>
 
 <!doctype html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
     <meta charset="UTF-8">
@@ -375,28 +375,28 @@ require 'header.php';
         <?php if (($cageLife['status'] ?? 'active') === 'archived') : ?>
             <div class="alert alert-secondary d-flex justify-content-between align-items-center flex-wrap mb-3" id="dailyCheckBanner">
                 <span>
-                    <strong>Retired cage</strong>
-                    <?= $cageLife['retired_at'] ? 'since ' . htmlspecialchars(substr($cageLife['retired_at'], 0, 10)) : ''; ?>
-                    — no daily check expected.
+                    <strong><?= trh('Retired cage') ?></strong>
+                    <?= $cageLife['retired_at'] ? trh('since {date}', ['date' => substr($cageLife['retired_at'], 0, 10)]) : ''; ?>
+                    — <?= trh('no daily check expected.') ?>
                 </span>
-                <span class="text-muted small">A retired cage is not put back in service; its animals were moved or left the facility.</span>
+                <span class="text-muted small"><?= trh('A retired cage is not put back in service; its animals were moved or left the facility.') ?></span>
             </div>
         <?php else : ?>
             <div class="alert <?= $cageTodayChecks ? 'alert-success' : 'alert-warning'; ?> d-flex justify-content-between align-items-center flex-wrap mb-3" id="dailyCheckBanner">
                 <span>
-                    <strong>Daily check:</strong>
+                    <strong><?= trh('Daily check:') ?></strong>
                     <?php if ($cageTodayChecks) : ?>
-                        seen today <?php foreach ($cageTodayChecks as $chk) echo cage_check_badge($chk); ?>
+                        <?= trh('seen today') ?> <?php foreach ($cageTodayChecks as $chk) echo cage_check_badge($chk); ?>
                     <?php else : ?>
-                        this cage has not been seen yet today.
+                        <?= trh('this cage has not been seen yet today.') ?>
                     <?php endif; ?>
                     <?php if (!empty($cageLife['created_at'])) : ?>
-                        <small class="text-muted">· in service since <?= htmlspecialchars(substr($cageLife['created_at'], 0, 10)); ?></small>
+                        <small class="text-muted">· <?= trh('in service since {date}', ['date' => substr($cageLife['created_at'], 0, 10)]); ?></small>
                     <?php endif; ?>
                 </span>
                 <span>
-                    <a href="cage_check.php?<?= htmlspecialchars(http_build_query(['id' => $holdingcage['cage_id'], 'via' => 'cage_page'])); ?>" class="btn btn-success btn-sm"><i class="fas fa-clipboard-check"></i> Validate daily check</a>
-                    <a href="cage_retire.php?id=<?= rawurlencode($holdingcage['cage_id']); ?>" class="btn btn-outline-danger btn-sm">Retire cage</a>
+                    <a href="cage_check.php?<?= htmlspecialchars(http_build_query(['id' => $holdingcage['cage_id'], 'via' => 'cage_page'])); ?>" class="btn btn-success btn-sm"><i class="fas fa-clipboard-check"></i> <?= trh('Validate daily check') ?></a>
+                    <a href="cage_retire.php?id=<?= rawurlencode($holdingcage['cage_id']); ?>" class="btn btn-outline-danger btn-sm"><?= trh('Retire cage') ?></a>
                 </span>
             </div>
         <?php endif; ?>
@@ -405,13 +405,13 @@ require 'header.php';
             <div class="card-header">
                 <h4><?= $cageKind === 'experimental' ? 'Cage d’expérimentation' : 'View Holding Cage'; ?> <?= htmlspecialchars($holdingcage['cage_id']); ?></h4>
                 <div class="action-buttons">
-                    <a href="javascript:void(0);" onclick="goBack()" class="btn btn-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Go Back">
+                    <a href="javascript:void(0);" onclick="goBack()" class="btn btn-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="<?= trh('Go Back') ?>">
                         <i class="fas fa-arrow-circle-left"></i>
                     </a>
-                    <a href="manage_tasks.php?id=<?= rawurlencode($holdingcage['cage_id']); ?>" class="btn btn-secondary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Manage Tasks">
+                    <a href="manage_tasks.php?id=<?= rawurlencode($holdingcage['cage_id']); ?>" class="btn btn-secondary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="<?= trh('Manage Tasks') ?>">
                         <i class="fas fa-tasks"></i>
                     </a>
-                    <a href="javascript:void(0);" onclick="showQrCodePopup('<?= rawurlencode($holdingcage['cage_id']); ?>')" class="btn btn-success btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="QR Code">
+                    <a href="javascript:void(0);" onclick="showQrCodePopup('<?= rawurlencode($holdingcage['cage_id']); ?>')" class="btn btn-success btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="<?= trh('QR Code') ?>">
                         <i class="fas fa-qrcode"></i>
                     </a>
                     <a href="cage_labels.php?id=<?= rawurlencode($holdingcage['cage_id']); ?>" target="_blank" class="btn btn-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Imprimer l’étiquette de cage">
@@ -426,53 +426,53 @@ require 'header.php';
             <div class="table-wrapper">
                 <table class="table table-bordered">
                     <tr>
-                        <th>Cage #:</th>
+                        <th><?= trh('Cage #:') ?></th>
                         <td><?= htmlspecialchars($holdingcage['cage_id']); ?></td>
                     </tr>
                     <tr>
-                        <th>PI Name</th>
+                        <th><?= trh('PI Name') ?></th>
                         <td><?= htmlspecialchars($holdingcage['pi_initials'] . ' [' . $holdingcage['pi_name'] . ']'); ?></td>
                     </tr>
                     <tr>
-                        <th>Strain</th>
+                        <th><?= trh('Strain') ?></th>
                         <td>
                             <a href="javascript:void(0);" onclick="viewStrainDetails(
                                 '<?= htmlspecialchars($holdingcage['str_id'] ?? 'NA'); ?>', 
-                                '<?= htmlspecialchars($holdingcage['str_name'] ?? 'Unknown Name'); ?>', 
+                                '<?= htmlspecialchars($holdingcage['str_name'] ?? tr('Unknown Name')); ?>', 
                                 '<?= htmlspecialchars($holdingcage['str_aka'] ?? ''); ?>', 
                                 '<?= htmlspecialchars($holdingcage['str_url'] ?? '#'); ?>', 
                                 '<?= htmlspecialchars($holdingcage['str_rrid'] ?? ''); ?>', 
                                 `<?= htmlspecialchars($holdingcage['str_notes'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE) ?>`)">
-                                <?= htmlspecialchars($holdingcage['str_id'] ?? 'NA'); ?> | <?= htmlspecialchars($holdingcage['str_name'] ?? 'Unknown Name'); ?>
+                                <?= htmlspecialchars($holdingcage['str_id'] ?? 'NA'); ?> | <?= htmlspecialchars($holdingcage['str_name'] ?? tr('Unknown Name')); ?>
                             </a>
                         </td>
                     </tr>
                     <tr>
-                        <th>IACUC</th>
+                        <th><?= trh('IACUC') ?></th>
                         <td><?= $iacucDisplayString; ?></td>
                     </tr>
                     <tr>
-                        <th>User</th>
+                        <th><?= trh('User') ?></th>
                         <td><?= $userDisplayString; ?></td>
                     </tr>
                     <tr>
-                        <th>Qty</th>
+                        <th><?= trh('Qty') ?></th>
                         <td><?= htmlspecialchars($holdingcage['quantity'] ?? ''); ?></td>
                     </tr>
                     <tr>
-                        <th>DOB</th>
+                        <th><?= trh('DOB') ?></th>
                         <td><?= htmlspecialchars($holdingcage['dob']); ?></td>
                     </tr>
                     <tr>
-                        <th>Age</th>
+                        <th><?= trh('Age') ?></th>
                         <td><?= htmlspecialchars($ageString); ?></td>
                     </tr>
                     <tr>
-                        <th>Parent Cage</th>
+                        <th><?= trh('Parent Cage') ?></th>
                         <td><?= htmlspecialchars($holdingcage['parent_cg'] ?? ''); ?></td>
                     </tr>
                     <tr>
-                        <th>Remarks</th>
+                        <th><?= trh('Remarks') ?></th>
                         <td><?= htmlspecialchars($holdingcage['remarks'] ?? ''); ?></td>
                     </tr>
                 </table>
@@ -484,15 +484,15 @@ require 'header.php';
 
             <div class="card mt-4">
                 <div class="card-header">
-                    <h4>Manage Files</h4>
+                    <h4><?= trh('Manage Files') ?></h4>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-hover">
                             <thead>
                                 <tr>
-                                    <th>File Name</th>
-                                    <th>Actions</th>
+                                    <th><?= trh('File Name') ?></th>
+                                    <th><?= trh('Actions') ?></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -518,10 +518,10 @@ require 'header.php';
 
             <div class="card mt-4">
                 <div class="card-header d-flex flex-column flex-md-row justify-content-between">
-                    <h4>Maintenance Log for Cage ID: <?= htmlspecialchars($id ?? 'Unknown'); ?></h4>
+                    <h4><?= trh('Maintenance Log for Cage ID: {cage}', ['cage' => $id ?? tr('Unknown')]); ?></h4>
                     <div class="action-icons mt-3 mt-md-0">
                         <!-- Maintenance button with tooltip -->
-                        <a href="maintenance.php?from=hc_dash" class="btn btn-warning btn-icon" data-toggle="tooltip" data-placement="top" title="Add Maintenance Record">
+                        <a href="maintenance.php?from=hc_dash" class="btn btn-warning btn-icon" data-toggle="tooltip" data-placement="top" title="<?= trh('Add Maintenance Record') ?>">
                             <i class="fas fa-wrench"></i>
                         </a>
                     </div>
@@ -532,24 +532,24 @@ require 'header.php';
                             <table class="table table-hover">
                                 <thead>
                                     <tr>
-                                        <th style="width: 25%;">Date</th>
-                                        <th style="width: 25%;">User</th>
-                                        <th style="width: 50%;">Comment</th>
+                                        <th style="width: 25%;"><?= trh('Date') ?></th>
+                                        <th style="width: 25%;"><?= trh('User') ?></th>
+                                        <th style="width: 50%;"><?= trh('Comment') ?></th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php while ($log = $maintenanceLogs->fetch_assoc()) : ?>
                                         <tr>
                                             <td style="width: 25%;"><?= htmlspecialchars($log['timestamp'] ?? ''); ?></td>
-                                            <td style="width: 25%;"><?= htmlspecialchars($log['user_name'] ?? 'Unknown'); ?></td>
-                                            <td style="width: 50%;"><?= htmlspecialchars($log['comments'] ?? 'No comment'); ?></td>
+                                            <td style="width: 25%;"><?= htmlspecialchars($log['user_name'] ?? tr('Unknown')); ?></td>
+                                            <td style="width: 50%;"><?= htmlspecialchars($log['comments'] ?? tr('No comment')); ?></td>
                                         </tr>
                                     <?php endwhile; ?>
                                 </tbody>
                             </table>
                         </div>
                     <?php else : ?>
-                        <p>No maintenance records found for this cage.</p>
+                        <p><?= trh('No maintenance records found for this cage.') ?></p>
                     <?php endif; ?>
                 </div>
             </div>
@@ -568,45 +568,46 @@ require 'header.php';
     <!-- Popup form for viewing strain details -->
     <div class="popup-overlay" id="viewPopupOverlay"></div>
     <div class="popup-form" id="viewPopupForm">
-        <h4 id="viewFormTitle">Strain Details</h4>
+        <h4 id="viewFormTitle"><?= trh('Strain Details') ?></h4>
         <div class="form-group">
-            <strong for="view_strain_id">Strain ID:</strong>
+            <strong for="view_strain_id"><?= trh('Strain ID:') ?></strong>
             <p id="view_strain_id"></p>
         </div>
         <div class="form-group">
-            <strong for="view_strain_name">Strain Name:</strong>
+            <strong for="view_strain_name"><?= trh('Strain Name:') ?></strong>
             <p id="view_strain_name"></p>
         </div>
         <div class="form-group">
-            <strong for="view_strain_aka">Common Names:</strong>
+            <strong for="view_strain_aka"><?= trh('Common Names:') ?></strong>
             <p id="view_strain_aka"></p>
         </div>
         <div class="form-group">
-            <strong for="view_strain_url">Strain URL:</strong>
+            <strong for="view_strain_url"><?= trh('Strain URL:') ?></strong>
             <p><a href="#" id="view_strain_url" target="_blank"></a></p>
         </div>
         <div class="form-group">
-            <strong for="view_strain_rrid">Strain RRID:</strong>
+            <strong for="view_strain_rrid"><?= trh('Strain RRID:') ?></strong>
             <p id="view_strain_rrid"></p>
         </div>
         <div class="form-group">
-            <strong for="view_strain_notes">Notes:</strong>
+            <strong for="view_strain_notes"><?= trh('Notes:') ?></strong>
             <p id="view_strain_notes"></p>
         </div>
         <div class="form-buttons">
-            <button type="button" class="btn btn-secondary" onclick="closeViewForm()">Close</button>
+            <button type="button" class="btn btn-secondary" onclick="closeViewForm()"><?= trh('Close') ?></button>
         </div>
     </div>
 
     <script>
         function showQrCodePopup(cageId) {
-            var popup = window.open("", "QR Code for Cage " + cageId, "width=400,height=400");
+            var qrTitle = <?= trj('QR Code for Cage {cage}') ?>.replace('{cage}', decodeURIComponent(cageId));
+            var popup = window.open("", "qr_" + cageId, "width=400,height=400");
             var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://' + <?php echo json_encode($url); ?> + '/cage_scan_route.php?id=' + encodeURIComponent(cageId);
 
             var htmlContent = `
                 <html>
                 <head>
-                    <title>QR Code for Cage ${cageId}</title>
+                    <title>${qrTitle}</title>
                     <style>
                         body { font-family: Arial, sans-serif; text-align: center; padding-top: 40px; }
                         h1 { color: #333; }
@@ -614,8 +615,8 @@ require 'header.php';
                     </style>
                 </head>
                 <body>
-                    <h1>QR Code for Cage ${cageId}</h1>
-                    <img src="${qrUrl}" alt="QR Code for Cage ${cageId}" />
+                    <h1>${qrTitle}</h1>
+                    <img src="${qrUrl}" alt="${qrTitle}" />
                 </body>
                 </html>
             `;

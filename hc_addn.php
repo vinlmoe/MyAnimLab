@@ -205,7 +205,7 @@ require 'header.php';
 ?>
 
 <!doctype html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
     <title>Add New Holding Cage | <?php echo htmlspecialchars($labName); ?></title>

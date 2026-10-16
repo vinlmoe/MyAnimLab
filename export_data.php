@@ -25,7 +25,7 @@ if (!isset($_SESSION['username'])) {
 // Check if the user has admin privileges
 if ($_SESSION['role'] != 'admin') {
     // Set an error message and redirect to the index page if not an admin
-    $_SESSION['message'] = "Access Denied. Contact Admin";
+    $_SESSION['message'] = tr('Access Denied. Contact Admin');
     header("Location: index.php");
     exit();
 }
@@ -45,7 +45,7 @@ function exportTableToCSV($con, $tableName)
 
     // Check if the query execution was successful
     if (!$result) {
-        echo "Failed to retrieve data from $tableName: " . $con->error;
+        echo htmlspecialchars(tr('Failed to retrieve data from {table}: {error}', ['table' => $tableName, 'error' => $con->error]));
         return '';
     }
 
@@ -82,7 +82,7 @@ $tableResult = $con->query($tableQuery);
 
 // Check if the table names retrieval was successful
 if (!$tableResult) {
-    die("Error retrieving tables: " . $con->error);
+    die(htmlspecialchars(tr('Error retrieving tables: {error}', ['error' => $con->error])));
 }
 
 // Set headers to prompt the browser to download the ZIP file
@@ -111,7 +111,7 @@ readfile($zipFilename);
 unlink($zipFilename);
 
 // Set a session message for successful export confirmation
-$_SESSION['message'] = "Data exported successfully!";
+$_SESSION['message'] = tr('Data exported successfully!');
 
 // Close the database connection
 $con->close();

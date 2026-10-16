@@ -56,7 +56,7 @@ if (isset($_GET['id'])) {
 
         // Check if user is authorized (admin or assigned to cage)
         if ($userRole !== 'admin' && !in_array($currentUserId, $cageUsers)) {
-            $_SESSION['message'] = 'Access denied. Only assigned users or admins can delete files.';
+            $_SESSION['message'] = tr('Access denied. Only assigned users or admins can delete files.');
             header("Location: index.php");
             exit();
         }
@@ -91,9 +91,9 @@ if (isset($_GET['id'])) {
         exit();
     } else {
         // Handle the case where the file record was not found
-        echo "File record not found.";
+        echo trh('File record not found.');
     }
 } else {
     // Handle the case where the 'id' parameter is not set in the GET request
-    echo "File ID not specified.";
+    echo trh('File ID not specified.');
 }

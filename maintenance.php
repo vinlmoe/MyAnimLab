@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Validate CSRF token
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        die('CSRF token validation failed');
+        die(tr('CSRF token validation failed'));
     }
 
     // Retrieve and sanitize form data
@@ -64,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Set success message and redirect based on the originating page
-    $_SESSION['message'] = 'Maintenance records added successfully.';
+    $_SESSION['message'] = tr('Maintenance records added successfully.');
     $redirectUrl = $redirectFrom === 'bc_dash' ? 'bc_dash.php' : 'hc_dash.php';
     header("Location: $redirectUrl");
     exit();
@@ -75,12 +75,12 @@ require 'header.php';
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cage Maintenance</title>
+    <title><?= trh('Cage Maintenance') ?></title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
@@ -136,14 +136,14 @@ require 'header.php';
             <div class="col-md-12">
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <h4>Add Cage Maintenance Record</h4>
+                        <h4><?= trh('Add Cage Maintenance Record') ?></h4>
                         <div class="action-buttons">
                             <!-- Button to go back to the previous page -->
-                            <a href="javascript:void(0);" onclick="goBack()" class="btn btn-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Go Back">
+                            <a href="javascript:void(0);" onclick="goBack()" class="btn btn-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="<?= trh('Go Back') ?>">
                                 <i class="fas fa-arrow-circle-left"></i>
                             </a>
                             <!-- Button to save the form -->
-                            <a href="javascript:void(0);" onclick="document.getElementById('editForm').submit();" class="btn btn-success btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Save">
+                            <a href="javascript:void(0);" onclick="document.getElementById('editForm').submit();" class="btn btn-success btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="<?= trh('Save') ?>">
                                 <i class="fas fa-save"></i>
                             </a>
                         </div>
@@ -153,7 +153,7 @@ require 'header.php';
                         <form method="post">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                             <div class="mb-3">
-                                <label for="cage_id" class="form-label">Select Cages (multi select)</label>
+                                <label for="cage_id" class="form-label"><?= trh('Select Cages (multi select)') ?></label>
                                 <select id="cage_id" name="cage_id[]" multiple="multiple" style="width: 100%;" required>
                                     <?php foreach ($cageOptions as $cage_id) : ?>
                                         <option value="<?php echo $cage_id; ?>"><?php echo $cage_id; ?></option>
@@ -161,7 +161,7 @@ require 'header.php';
                                 </select>
                             </div>
                             <div id="comments-section"></div>
-                            <button type="submit" class="btn btn-primary">Submit</button>
+                            <button type="submit" class="btn btn-primary"><?= trh('Submit') ?></button>
                         </form>
                     </div>
                 </div>
@@ -186,8 +186,8 @@ require 'header.php';
                     selectedCages.forEach(function(cage_id, index) {
                         commentsSection.append(`
                             <div class="mb-3">
-                                <label for="comments[${index}]" class="form-label">Comment for ${cage_id}:</label>
-                                <textarea name="comments[]" class="form-control" placeholder="Optional comment"></textarea>
+                                <label for="comments[${index}]" class="form-label"><?= trh('Comment for {cage}:', ['cage' => '${cage_id}']) ?></label>
+                                <textarea name="comments[]" class="form-control" placeholder="<?= trh('Optional comment') ?>"></textarea>
                                 <input type="hidden" name="cage_id_hidden[]" value="${cage_id}">
                             </div>
                         `);

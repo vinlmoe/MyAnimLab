@@ -29,7 +29,7 @@ if (empty($_SESSION['csrf_token'])) {
 // Handle POST requests for user status and role updates
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        die('CSRF token validation failed');
+        die(tr('CSRF token validation failed'));
     }
 
     $username = filter_input(INPUT_POST, 'username', FILTER_SANITIZE_STRING);
@@ -46,9 +46,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $newBea = ($newRole === 'admin' || !empty($_POST['new_bea'])) ? 1 : 0;
 
         if ($newName === '' || $newPosition === '' || !filter_var($newEmail, FILTER_VALIDATE_EMAIL)) {
-            $_SESSION['userMessage'] = ['danger', 'Name, position and a valid email are required.'];
+            $_SESSION['userMessage'] = ['danger', tr('Name, position and a valid email are required.')];
         } elseif (strlen($newPassword) < 8) {
-            $_SESSION['userMessage'] = ['danger', 'The password must contain at least 8 characters.'];
+            $_SESSION['userMessage'] = ['danger', tr('The password must contain at least 8 characters.')];
         } else {
             $checkStmt = mysqli_prepare($con, "SELECT id FROM users WHERE username = ?");
             mysqli_stmt_bind_param($checkStmt, "s", $newEmail);
@@ -58,17 +58,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             mysqli_stmt_close($checkStmt);
 
             if ($exists) {
-                $_SESSION['userMessage'] = ['danger', 'A user with this email already exists.'];
+                $_SESSION['userMessage'] = ['danger', tr('A user with this email already exists.')];
             } else {
                 // Accounts created by an admin are approved and verified immediately
                 $hashedPassword = password_hash($newPassword, PASSWORD_BCRYPT);
                 $insertStmt = mysqli_prepare($con, "INSERT INTO users (name, username, position, role, password, status, email_verified, is_bea_responsible) VALUES (?, ?, ?, ?, ?, 'approved', 1, ?)");
                 mysqli_stmt_bind_param($insertStmt, "sssssi", $newName, $newEmail, $newPosition, $newRole, $hashedPassword, $newBea);
                 if (mysqli_stmt_execute($insertStmt)) {
-                    $_SESSION['userMessage'] = ['success', 'User ' . $newEmail . ' created.'];
+                    $_SESSION['userMessage'] = ['success', tr('User {email} created.', ['email' => $newEmail])];
                 } else {
                     error_log("Database error: " . mysqli_error($con));
-                    $_SESSION['userMessage'] = ['danger', 'User creation failed.'];
+                    $_SESSION['userMessage'] = ['danger', tr('User creation failed.')];
                 }
                 mysqli_stmt_close($insertStmt);
             }
@@ -106,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $query = "UPDATE users SET is_bea_responsible=0 WHERE username=?";
             break;
         default:
-            die('Invalid action');
+            die(tr('Invalid action'));
     }
 
     // Execute the prepared statement if a valid action is set
@@ -119,7 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             // Log error and handle it gracefully
             error_log("Database error: " . mysqli_error($con));
-            die('Database error');
+            die(tr('Database error'));
         }
     }
 }
@@ -144,13 +144,13 @@ mysqli_close($con);
 ?>
 
 <!doctype html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
     <!-- Required meta tags -->
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>User Management | <?php echo htmlspecialchars($labName); ?></title>
+    <title><?= trh('User Management') ?> | <?php echo htmlspecialchars($labName); ?></title>
 
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous">
@@ -208,7 +208,7 @@ mysqli_close($con);
 
         function confirmAdminAction(username) {
             if (username === currentAdminUsername) {
-                return confirm("Are you sure you want to change settings for your own account?");
+                return confirm(<?= trj('Are you sure you want to change settings for your own account?') ?>);
             }
             return true;
         }
@@ -228,54 +228,54 @@ mysqli_close($con);
 <body>
     <div class="container mt-4 content">
         <div class="main-content">
-            <h1 class="text-center">User Management</h1>
+            <h1 class="text-center"><?= trh('User Management') ?></h1>
 
             <?php if ($userMessage) { ?>
                 <div class="alert alert-<?php echo htmlspecialchars($userMessage[0]); ?>"><?php echo htmlspecialchars($userMessage[1]); ?></div>
             <?php } ?>
 
             <div class="card mb-4">
-                <div class="card-header"><i class="fas fa-user-plus"></i> Create a user</div>
+                <div class="card-header"><i class="fas fa-user-plus"></i> <?= trh('Create a user') ?></div>
                 <div class="card-body">
                     <form action="manage_users.php" method="post" class="row g-2" autocomplete="off">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                         <input type="hidden" name="action" value="create">
                         <div class="col-md-4">
-                            <label for="new_name" class="form-label">Full name</label>
+                            <label for="new_name" class="form-label"><?= trh('Full name') ?></label>
                             <input type="text" class="form-control" id="new_name" name="new_name" required>
                         </div>
                         <div class="col-md-4">
-                            <label for="new_email" class="form-label">Email (login)</label>
+                            <label for="new_email" class="form-label"><?= trh('Email (login)') ?></label>
                             <input type="email" class="form-control" id="new_email" name="new_email" required>
                         </div>
                         <div class="col-md-4">
-                            <label for="new_position" class="form-label">Position</label>
+                            <label for="new_position" class="form-label"><?= trh('Position') ?></label>
                             <select class="form-select" id="new_position" name="new_position" required>
-                                <option value="" disabled selected>Select Position</option>
+                                <option value="" disabled selected><?= trh('Select Position') ?></option>
                                 <?php foreach ($positions as $position) { ?>
-                                    <option value="<?php echo htmlspecialchars($position); ?>"><?php echo htmlspecialchars($position); ?></option>
+                                    <option value="<?php echo htmlspecialchars($position); ?>"><?php echo trh($position); ?></option>
                                 <?php } ?>
                             </select>
                         </div>
                         <div class="col-md-4">
-                            <label for="new_password" class="form-label">Initial password</label>
+                            <label for="new_password" class="form-label"><?= trh('Initial password') ?></label>
                             <input type="password" class="form-control" id="new_password" name="new_password" minlength="8" required autocomplete="new-password">
                         </div>
                         <div class="col-md-3">
-                            <label for="new_role" class="form-label">Role</label>
+                            <label for="new_role" class="form-label"><?= trh('Role') ?></label>
                             <select class="form-select" id="new_role" name="new_role" onchange="syncBeaWithRole()">
-                                <option value="user" selected>User</option>
-                                <option value="admin">Admin</option>
+                                <option value="user" selected><?= trh('User') ?></option>
+                                <option value="admin"><?= trh('Admin') ?></option>
                             </select>
                         </div>
                         <div class="col-md-3 d-flex align-items-end">
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="new_bea" name="new_bea" value="1">
-                                <label class="form-check-label" for="new_bea">Responsable BEA</label>
+                                <label class="form-check-label" for="new_bea"><?= trh('BEA officer') ?></label>
                             </div>
                         </div>
                         <div class="col-md-2 d-flex align-items-end">
-                            <button type="submit" class="btn btn-primary w-100">Create</button>
+                            <button type="submit" class="btn btn-primary w-100"><?= trh('Create') ?></button>
                         </div>
                     </form>
                 </div>
@@ -284,40 +284,40 @@ mysqli_close($con);
                 <table class="table table-striped">
                     <thead>
                         <tr>
-                            <th>Name</th>
-                            <th>Username</th>
-                            <th>Status</th>
-                            <th>Role</th>
-                            <th>Actions</th>
+                            <th><?= trh('Name') ?></th>
+                            <th><?= trh('Username') ?></th>
+                            <th><?= trh('Status') ?></th>
+                            <th><?= trh('Role') ?></th>
+                            <th><?= trh('Actions') ?></th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php while ($row = mysqli_fetch_assoc($userresult)) { ?>
                             <tr>
-                                <td data-label="Name"><?php echo htmlspecialchars($row['name']); ?></td>
-                                <td data-label="Username"><?php echo htmlspecialchars($row['username']); ?></td>
-                                <td data-label="Status"><?php echo htmlspecialchars($row['status']); ?></td>
-                                <td data-label="Role"><?php echo htmlspecialchars($row['role']); ?></td>
-                                <td data-label="Actions">
+                                <td data-label="<?= trh('Name') ?>"><?php echo htmlspecialchars($row['name']); ?></td>
+                                <td data-label="<?= trh('Username') ?>"><?php echo htmlspecialchars($row['username']); ?></td>
+                                <td data-label="<?= trh('Status') ?>"><?php echo trh($row['status']); ?></td>
+                                <td data-label="<?= trh('Role') ?>"><?php echo trh($row['role']); ?></td>
+                                <td data-label="<?= trh('Actions') ?>">
                                     <form action="manage_users.php" method="post" class="action-buttons" onsubmit="return confirmAdminAction('<?php echo htmlspecialchars($row['username']); ?>')">
                                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                                         <input type="hidden" name="name" value="<?php echo htmlspecialchars($row['name']); ?>">
                                         <input type="hidden" name="username" value="<?php echo htmlspecialchars($row['username']); ?>">
 
                                         <?php if ($row['status'] === 'pending') { ?>
-                                            <button type="submit" class="btn btn-success btn-sm" name="action" value="approve" title="Approve User"><i class="fas fa-check"></i></button>
+                                            <button type="submit" class="btn btn-success btn-sm" name="action" value="approve" title="<?= trh('Approve User') ?>"><i class="fas fa-check"></i></button>
                                         <?php } elseif ($row['status'] === 'approved') { ?>
-                                            <button type="submit" class="btn btn-secondary btn-sm" name="action" value="pending" title="Deactivate User"><i class="fas fa-ban"></i></button>
+                                            <button type="submit" class="btn btn-secondary btn-sm" name="action" value="pending" title="<?= trh('Deactivate User') ?>"><i class="fas fa-ban"></i></button>
                                         <?php } ?>
 
                                         <?php if ($row['role'] === 'user') { ?>
-                                            <button type="submit" class="btn btn-warning btn-sm" name="action" value="admin" title="Make Admin"><i class="fas fa-user-shield"></i></button>
+                                            <button type="submit" class="btn btn-warning btn-sm" name="action" value="admin" title="<?= trh('Make Admin') ?>"><i class="fas fa-user-shield"></i></button>
                                         <?php } elseif ($row['role'] == 'admin') { ?>
-                                            <button type="submit" class="btn btn-info btn-sm" name="action" value="user" title="Make User"><i class="fas fa-user"></i></button>
+                                            <button type="submit" class="btn btn-info btn-sm" name="action" value="user" title="<?= trh('Make User') ?>"><i class="fas fa-user"></i></button>
                                         <?php } ?>
-                                        <button type="submit" class="btn btn-<?= !empty($row['is_bea_responsible']) ? 'outline-info' : 'info'; ?> btn-sm" name="action" value="<?= !empty($row['is_bea_responsible']) ? 'bea_off' : 'bea_on'; ?>" title="<?= !empty($row['is_bea_responsible']) ? 'Retirer le rôle responsable BEA' : 'Désigner responsable BEA'; ?>"><i class="fas fa-<?= !empty($row['is_bea_responsible']) ? 'user-times' : 'user-check'; ?>"></i> BEA</button>
+                                        <button type="submit" class="btn btn-<?= !empty($row['is_bea_responsible']) ? 'outline-info' : 'info'; ?> btn-sm" name="action" value="<?= !empty($row['is_bea_responsible']) ? 'bea_off' : 'bea_on'; ?>" title="<?= !empty($row['is_bea_responsible']) ? trh('Remove the BEA officer role') : trh('Appoint as BEA officer'); ?>"><i class="fas fa-<?= !empty($row['is_bea_responsible']) ? 'user-times' : 'user-check'; ?>"></i> BEA</button>
 
-                                        <button type="submit" class="btn btn-danger btn-sm" name="action" value="delete" title="Delete User"><i class="fas fa-trash"></i></button>
+                                        <button type="submit" class="btn btn-danger btn-sm" name="action" value="delete" title="<?= trh('Delete User') ?>"><i class="fas fa-trash"></i></button>
                                     </form>
                                 </td>
                             </tr>

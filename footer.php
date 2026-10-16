@@ -45,5 +45,5 @@
         } else {
             echo "My Vivarium";
         }
-        ?>. All rights reserved.</p>
+        ?>. <?= trh('All rights reserved.') ?></p>
 </footer>

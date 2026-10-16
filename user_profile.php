@@ -102,7 +102,7 @@ function ensureUniqueInitials($con, $initials, $currentUsername)
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_profile'])) {
     // Validate CSRF token
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        die('CSRF token validation failed');
+        die(tr('CSRF token validation failed'));
     }
 
     $newUsername = filter_input(INPUT_POST, 'username', FILTER_SANITIZE_EMAIL);
@@ -120,7 +120,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_profile'])) {
     $uniqueInitials = ensureUniqueInitials($con, $initials, $username);
 
     if ($uniqueInitials !== $initials) {
-        $updateMessage = "The initials '$initials' are already in use by another user. Please choose different initials.";
+        $updateMessage = trh('The initials "{initials}" are already in use by another user. Please choose different initials.', ['initials' => $initials]);
     } else {
         // Update user details in the database
         $updateQuery = "UPDATE users SET username = ?, name = ?, position = ?, initials = ?, preferred_locale = ?";
@@ -141,7 +141,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_profile'])) {
             if ($emailChanged) {
                 $_SESSION['username'] = $newUsername;
                 $username = $newUsername;
-                $updateMessage = "Profile information updated successfully. Please log out and log back in to reflect the changes everywhere.";
+                $updateMessage = trh('Profile information updated successfully. Please log out and log back in to reflect the changes everywhere.');
             } else {
                 $updateMessage = t('profile.updated');
             }
@@ -167,7 +167,7 @@ $resultMessage = ''; // Initialize message for password reset
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
     // Validate CSRF token
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        die('CSRF token validation failed');
+        die(tr('CSRF token validation failed'));
     }
 
     $email = $username;
@@ -193,8 +193,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
         // Send the password reset email
         $resetLink = "https://" . $url . "/reset_password.php?token=$resetToken";
         $to = $email;
-        $subject = 'Password Reset';
-        $message = "To reset your password, click the following link:\n$resetLink";
+        $subject = tr('Password Reset');
+        $message = tr('To reset your password, click the following link:') . "\n$resetLink";
 
         $mail = new PHPMailer(true);
         try {
@@ -213,12 +213,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
             $mail->Body = $message;
 
             $mail->send();
-            $resultMessage = "Password reset instructions have been sent to your email address.";
+            $resultMessage = trh('Password reset instructions have been sent to your email address.');
         } catch (Exception $e) {
-            $resultMessage = "Email could not be sent. Error: " . $mail->ErrorInfo;
+            $resultMessage = trh('Email could not be sent. Error: {error}', ['error' => $mail->ErrorInfo]);
         }
     } else {
-        $resultMessage = "Email address not found in our records. Please try again.";
+        $resultMessage = trh('Email address not found in our records. Please try again.');
     }
 
     $stmt->close();
@@ -320,17 +320,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
                 <label for="position"><?= htmlspecialchars(t('profile.position')) ?></label>
                 <select class="form-control" id="position" name="position">
                     <option value="" disabled><?= htmlspecialchars(t('profile.select_position')) ?></option>
-                    <option value="Principal Investigator" <?php echo ($user['position'] == 'Principal Investigator') ? 'selected' : ''; ?>>Principal Investigator</option>
-                    <option value="Research Scientist" <?php echo ($user['position'] == 'Research Scientist') ? 'selected' : ''; ?>>Research Scientist</option>
-                    <option value="Postdoctoral Researcher" <?php echo ($user['position'] == 'Postdoctoral Researcher') ? 'selected' : ''; ?>>Postdoctoral Researcher</option>
-                    <option value="PhD Student" <?php echo ($user['position'] == 'PhD Student') ? 'selected' : ''; ?>>PhD Student</option>
-                    <option value="Masters Student" <?php echo ($user['position'] == 'Masters Student') ? 'selected' : ''; ?>>Masters Student</option>
-                    <option value="Undergraduate" <?php echo ($user['position'] == 'Undergraduate') ? 'selected' : ''; ?>>Undergraduate</option>
-                    <option value="Laboratory Technician" <?php echo ($user['position'] == 'Laboratory Technician') ? 'selected' : ''; ?>>Laboratory Technician</option>
-                    <option value="Research Associate" <?php echo ($user['position'] == 'Research Associate') ? 'selected' : ''; ?>>Research Associate</option>
-                    <option value="Lab Manager" <?php echo ($user['position'] == 'Lab Manager') ? 'selected' : ''; ?>>Lab Manager</option>
-                    <option value="Animal Care Technician" <?php echo ($user['position'] == 'Animal Care Technician') ? 'selected' : ''; ?>>Animal Care Technician</option>
-                    <option value="Interns and Volunteers" <?php echo ($user['position'] == 'Interns and Volunteers') ? 'selected' : ''; ?>>Interns and Volunteers</option>
+                    <option value="Principal Investigator" <?php echo ($user['position'] == 'Principal Investigator') ? 'selected' : ''; ?>><?= trh('Principal Investigator') ?></option>
+                    <option value="Research Scientist" <?php echo ($user['position'] == 'Research Scientist') ? 'selected' : ''; ?>><?= trh('Research Scientist') ?></option>
+                    <option value="Postdoctoral Researcher" <?php echo ($user['position'] == 'Postdoctoral Researcher') ? 'selected' : ''; ?>><?= trh('Postdoctoral Researcher') ?></option>
+                    <option value="PhD Student" <?php echo ($user['position'] == 'PhD Student') ? 'selected' : ''; ?>><?= trh('PhD Student') ?></option>
+                    <option value="Masters Student" <?php echo ($user['position'] == 'Masters Student') ? 'selected' : ''; ?>><?= trh('Masters Student') ?></option>
+                    <option value="Undergraduate" <?php echo ($user['position'] == 'Undergraduate') ? 'selected' : ''; ?>><?= trh('Undergraduate') ?></option>
+                    <option value="Laboratory Technician" <?php echo ($user['position'] == 'Laboratory Technician') ? 'selected' : ''; ?>><?= trh('Laboratory Technician') ?></option>
+                    <option value="Research Associate" <?php echo ($user['position'] == 'Research Associate') ? 'selected' : ''; ?>><?= trh('Research Associate') ?></option>
+                    <option value="Lab Manager" <?php echo ($user['position'] == 'Lab Manager') ? 'selected' : ''; ?>><?= trh('Lab Manager') ?></option>
+                    <option value="Animal Care Technician" <?php echo ($user['position'] == 'Animal Care Technician') ? 'selected' : ''; ?>><?= trh('Animal Care Technician') ?></option>
+                    <option value="Interns and Volunteers" <?php echo ($user['position'] == 'Interns and Volunteers') ? 'selected' : ''; ?>><?= trh('Interns and Volunteers') ?></option>
                 </select>
             </div>
             <br>
@@ -370,7 +370,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
             echo "<p class='result-message'>$resultMessage</p>";
         } ?>
         <br>
-        <p class="note">In order to reflect the changes everywhere, please log out and log back in.</p>
+        <p class="note"><?= trh('In order to reflect the changes everywhere, please log out and log back in.') ?></p>
     </div>
     <?php include 'footer.php'; ?>
 </body>

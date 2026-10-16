@@ -36,7 +36,7 @@ $stmt->close();
 
 if (!$exp) {
     require 'header.php';
-    echo "<div class='container mt-4'><div class='alert alert-danger'>Experiment not found.</div></div>";
+    echo "<div class='container mt-4'><div class='alert alert-danger'>" . trh('Experiment not found.') . "</div></div>";
     require 'footer.php';
     exit;
 }
@@ -103,7 +103,7 @@ $obsCell = function ($fid, $col) use ($obsByFollowup) {
 $lossPct = fn($ea, $f) => ($f['weight_g'] !== null && !empty($ea['baseline_weight_g']))
     ? round(($ea['baseline_weight_g'] - $f['weight_g']) / $ea['baseline_weight_g'] * 100, 1) : null;
 
-log_activity($con, 'export', 'experiment', (string) $experimentId, ($_GET['format'] ?? 'html') . ' report', $_SESSION['user_id'] ?? null);
+log_activity($con, 'export', 'experiment', (string) $experimentId, tr('{format} report', ['format' => $_GET['format'] ?? 'html']), $_SESSION['user_id'] ?? null);
 
 if (($_GET['format'] ?? '') === 'csv') {
     header('Content-Type: text/csv; charset=utf-8');
@@ -134,10 +134,10 @@ require 'header.php';
 ?>
 
 <!doctype html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
-    <title>Report <?= htmlspecialchars($exp['experiment_number']); ?> | <?php echo htmlspecialchars($labName); ?></title>
+    <title><?= trh('Report {number}', ['number' => $exp['experiment_number']]); ?> | <?php echo htmlspecialchars($labName); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         .container {
@@ -177,29 +177,29 @@ require 'header.php';
             <a href="trial_report.php?trial_id=<?= (int) $exp['trial_id']; ?>">Rapport de l’essai</a> <span class="text-muted">/</span>
             <a href="protocol_report.php?protocol_id=<?= (int) $exp['protocol_id']; ?>">Rapport du plan</a> <span class="text-muted">/</span>
             <a href="experiment_manage.php?protocol_id=<?= (int) $exp['protocol_id']; ?>">Expérimentations</a>
-            <button type="button" class="btn btn-primary btn-sm ms-3" onclick="window.print()"><i class="fas fa-print"></i> Print / Save as PDF</button>
-            <a href="experiment_report.php?experiment_id=<?= $experimentId; ?>&amp;format=csv" class="btn btn-outline-secondary btn-sm"><i class="fas fa-file-csv"></i> Download data (CSV)</a>
+            <button type="button" class="btn btn-primary btn-sm ms-3" onclick="window.print()"><i class="fas fa-print"></i> <?= trh('Print / Save as PDF') ?></button>
+            <a href="experiment_report.php?experiment_id=<?= $experimentId; ?>&amp;format=csv" class="btn btn-outline-secondary btn-sm"><i class="fas fa-file-csv"></i> <?= trh('Download data (CSV)') ?></a>
         </div>
 
         <div class="report">
-            <h4>Experiment report — <?= htmlspecialchars($exp['experiment_number']); ?>: <?= htmlspecialchars($exp['title']); ?></h4>
-            <p class="text-muted mb-1">Generated on <?= date('Y-m-d H:i'); ?> by <?= htmlspecialchars($_SESSION['name'] ?? ''); ?> · <?= htmlspecialchars($labName); ?></p>
+            <h4><?= trh('Experiment report — {number}: {title}', ['number' => $exp['experiment_number'], 'title' => $exp['title']]); ?></h4>
+            <p class="text-muted mb-1"><?= trh('Generated on {date} by {name}', ['date' => date('Y-m-d H:i'), 'name' => $_SESSION['name'] ?? '']); ?> · <?= htmlspecialchars($labName); ?></p>
 
-            <h5>Context</h5>
+            <h5><?= trh('Context') ?></h5>
             <table class="table table-sm table-bordered">
-                <tr><th style="width: 25%;">Trial</th><td><?= htmlspecialchars($exp['trial_number'] . ' — ' . $exp['trial_title']); ?><?= $exp['iacuc_id'] ? ' (authorisation ' . htmlspecialchars($exp['iacuc_id']) . ')' : ''; ?></td></tr>
-                <tr><th>Protocol</th><td><?= htmlspecialchars($exp['protocol_number'] . ' — ' . $exp['protocol_title']); ?></td></tr>
-                <tr><th>Experiment period</th><td><?= htmlspecialchars(($exp['start_date'] ?? '?') . ' → ' . ($exp['end_date'] ?? '…')); ?></td></tr>
-                <tr><th>Methodology</th><td><?= nl2br(htmlspecialchars($exp['methodology'] ?? '')); ?></td></tr>
-                <tr><th>Animals enrolled</th><td><?= count($animals); ?></td></tr>
+                <tr><th style="width: 25%;"><?= trh('Trial') ?></th><td><?= htmlspecialchars($exp['trial_number'] . ' — ' . $exp['trial_title']); ?><?= $exp['iacuc_id'] ? ' (' . trh('authorisation {id}', ['id' => $exp['iacuc_id']]) . ')' : ''; ?></td></tr>
+                <tr><th><?= trh('Protocol') ?></th><td><?= htmlspecialchars($exp['protocol_number'] . ' — ' . $exp['protocol_title']); ?></td></tr>
+                <tr><th><?= trh('Experiment period') ?></th><td><?= htmlspecialchars(($exp['start_date'] ?? '?') . ' → ' . ($exp['end_date'] ?? '…')); ?></td></tr>
+                <tr><th><?= trh('Methodology') ?></th><td><?= nl2br(htmlspecialchars($exp['methodology'] ?? '')); ?></td></tr>
+                <tr><th><?= trh('Animals enrolled') ?></th><td><?= count($animals); ?></td></tr>
             </table>
 
-            <h5>Clinical scoring grid</h5>
+            <h5><?= trh('Clinical scoring grid') ?></h5>
             <?php if ($grid) : ?>
-                <p class="mb-1"><strong><?= htmlspecialchars($grid['name']); ?></strong> — <?= htmlspecialchars($grid['description'] ?? ''); ?> (max total <?= (int) $grid['max_total']; ?>)</p>
+                <p class="mb-1"><strong><?= htmlspecialchars($grid['name']); ?></strong> — <?= htmlspecialchars($grid['description'] ?? ''); ?> (<?= trh('max total {n}', ['n' => (int) $grid['max_total']]); ?>)</p>
                 <table class="table table-sm table-bordered" id="gridDefinition">
                     <thead class="table-light">
-                        <tr><th>Item</th><th>Levels</th></tr>
+                        <tr><th><?= trh('Item') ?></th><th><?= trh('Levels') ?></th></tr>
                     </thead>
                     <?php foreach ($grid['items'] as $item) : ?>
                         <tr>
@@ -209,41 +209,41 @@ require 'header.php';
                     <?php endforeach; ?>
                 </table>
             <?php else : ?>
-                <p class="text-muted">No grid: free clinical score.</p>
+                <p class="text-muted"><?= trh('No grid: free clinical score.') ?></p>
             <?php endif; ?>
 
-            <h5>Additional observations</h5>
+            <h5><?= trh('Additional observations') ?></h5>
             <?php if ($obsFields) : ?>
                 <table class="table table-sm table-bordered" id="obsDefinition">
-                    <thead class="table-light"><tr><th>Observation</th><th>Type</th><th>Required</th></tr></thead>
+                    <thead class="table-light"><tr><th><?= trh('Observation') ?></th><th><?= trh('Type') ?></th><th><?= trh('Required') ?></th></tr></thead>
                     <?php foreach ($obsFields as $of) : ?>
-                        <tr><td><?= htmlspecialchars($of['label']); ?><?= $of['active'] ? '' : ' <em>(no longer asked)</em>'; ?></td><td><?= $of['value_type'] === 'number' ? 'Number' . ($of['unit'] ? ' (' . htmlspecialchars($of['unit']) . ')' : '') : 'Text'; ?></td><td><?= $of['required'] ? 'Yes' : 'No'; ?></td></tr>
+                        <tr><td><?= htmlspecialchars($of['label']); ?><?= $of['active'] ? '' : ' <em>(' . trh('no longer asked') . ')</em>'; ?></td><td><?= $of['value_type'] === 'number' ? trh('Number value') . ($of['unit'] ? ' (' . htmlspecialchars($of['unit']) . ')' : '') : trh('Text'); ?></td><td><?= $of['required'] ? trh('Yes') : trh('No'); ?></td></tr>
                     <?php endforeach; ?>
                 </table>
             <?php else : ?>
-                <p class="text-muted">No protocol-defined observation (free observations are listed per entry).</p>
+                <p class="text-muted"><?= trh('No protocol-defined observation (free observations are listed per entry).') ?></p>
             <?php endif; ?>
 
-            <h5>Endpoints (points limites)</h5>
+            <h5><?= trh('Endpoints') ?></h5>
             <?php if ($exp['endpoint_criteria']) : ?><p><?= nl2br(htmlspecialchars($exp['endpoint_criteria'])); ?></p><?php endif; ?>
             <table class="table table-sm table-bordered" id="endpointDefinition">
                 <thead class="table-light">
-                    <tr><th>Condition</th><th>Required action</th><th>Message</th></tr>
+                    <tr><th><?= trh('Condition') ?></th><th><?= trh('Required action') ?></th><th><?= trh('Message') ?></th></tr>
                 </thead>
                 <?php foreach ($thresholds as $t) : ?>
                     <tr>
                         <td><?= htmlspecialchars(threshold_label($t, threshold_target_label($t, $grid, $obsFields))); ?></td>
-                        <td><?= htmlspecialchars(ENDPOINT_REQUIRED_ACTIONS[$t['required_action']] ?? $t['required_action']); ?></td>
+                        <td><?= htmlspecialchars(endpoint_required_actions()[$t['required_action']] ?? $t['required_action']); ?></td>
                         <td><?= htmlspecialchars($t['action_message'] ?? ''); ?></td>
                     </tr>
                 <?php endforeach; ?>
-                <?php if (!$thresholds) : ?><tr><td colspan="3" class="text-muted">No quantified endpoint.</td></tr><?php endif; ?>
+                <?php if (!$thresholds) : ?><tr><td colspan="3" class="text-muted"><?= trh('No quantified endpoint.') ?></td></tr><?php endif; ?>
             </table>
 
-            <h5>Summary</h5>
+            <h5><?= trh('Summary') ?></h5>
             <table class="table table-sm table-bordered" id="animalSummary">
                 <thead class="table-light">
-                    <tr><th>Animal</th><th>Line</th><th>Sex</th><th>Enrolled</th><th>Follow-ups</th><th>Max score</th><th>Max loss %</th><th>Endpoint actions</th><th>Outcome</th></tr>
+                    <tr><th><?= trh('Animal') ?></th><th><?= trh('Line') ?></th><th><?= trh('Sex') ?></th><th><?= trh('Enrolled') ?></th><th><?= trh('Follow-ups') ?></th><th><?= trh('Max score') ?></th><th><?= trh('Max loss %') ?></th><th><?= trh('Endpoint actions') ?></th><th><?= trh('Outcome') ?></th></tr>
                 </thead>
                 <?php foreach ($animals as $ea) :
                     $fs = $followups[$ea['id']] ?? [];
@@ -253,13 +253,13 @@ require 'header.php';
                     <tr>
                         <td><?= htmlspecialchars($ea['animal_uid']); ?></td>
                         <td><?= htmlspecialchars($ea['line_code'] ?? ''); ?></td>
-                        <td><?= htmlspecialchars($ea['sex'] ?? ''); ?></td>
+                        <td><?= trh((string) ($ea['sex'] ?? '')); ?></td>
                         <td><?= htmlspecialchars(substr($ea['enrolled_at'], 0, 10)); ?></td>
                         <td><?= count($fs); ?></td>
                         <td><?= $maxScore ?? '-'; ?></td>
                         <td><?= $losses ? max($losses) : '-'; ?></td>
                         <td><?= count($actions[$ea['id']] ?? []); ?></td>
-                        <td><?= $ea['status'] === 'active' ? 'Alive (cage ' . htmlspecialchars($ea['cage_id']) . ')' : htmlspecialchars(exit_label($ea['exit_code'], $ea['status']) . ' — ' . $ea['exit_date']); ?></td>
+                        <td><?= $ea['status'] === 'active' ? trh('Alive (cage {cage})', ['cage' => $ea['cage_id']]) : htmlspecialchars(exit_label($ea['exit_code'], $ea['status']) . ' — ' . $ea['exit_date']); ?></td>
                     </tr>
                 <?php endforeach; ?>
             </table>
@@ -267,20 +267,20 @@ require 'header.php';
             <?php foreach ($animals as $ea) :
                 $fs = $followups[$ea['id']] ?? []; ?>
                 <div class="animal-section" data-animal="<?= htmlspecialchars($ea['animal_uid']); ?>">
-                    <h5><?= htmlspecialchars($ea['animal_uid']); ?> <small class="text-muted">— <?= htmlspecialchars(trim(($ea['line_code'] ?? '') . ' ' . ($ea['sex'] ?? ''))); ?>, baseline <?= htmlspecialchars($ea['baseline_weight_g'] ?? 'N/A'); ?> g</small></h5>
+                    <h5><?= htmlspecialchars($ea['animal_uid']); ?> <small class="text-muted">— <?= htmlspecialchars(trim(($ea['line_code'] ?? '') . ' ' . tr((string) ($ea['sex'] ?? '')))); ?>, <?= trh('baseline {weight} g', ['weight' => $ea['baseline_weight_g'] ?? tr('N/A')]); ?></small></h5>
                     <table class="table table-sm table-bordered followup-table">
                         <thead class="table-light">
                             <tr>
-                                <th>Date</th>
-                                <th>Weight (g)</th>
-                                <th>Loss %</th>
+                                <th><?= trh('Date') ?></th>
+                                <th><?= trh('Weight (g)') ?></th>
+                                <th><?= trh('Loss %') ?></th>
                                 <?php foreach ($itemLabels as $label) : ?><th><?= htmlspecialchars($label); ?></th><?php endforeach; ?>
-                                <th>Total</th>
+                                <th><?= trh('Total') ?></th>
                                 <?php foreach ($obsColumns as $col) : ?><th><?= htmlspecialchars($col); ?></th><?php endforeach; ?>
-                                <th>Other observations</th>
-                                <th>Observations</th>
-                                <th>Endpoint</th>
-                                <th>By</th>
+                                <th><?= trh('Other observations') ?></th>
+                                <th><?= trh('Observations') ?></th>
+                                <th><?= trh('Endpoint') ?></th>
+                                <th><?= trh('By') ?></th>
                             </tr>
                         </thead>
                         <?php foreach ($fs as $f) : ?>
@@ -295,31 +295,31 @@ require 'header.php';
                                 <?php foreach ($obsColumns as $col) : $v = $obsCell($f['id'], $col); ?><td><?= $v === '' ? '-' : htmlspecialchars($v); ?></td><?php endforeach; ?>
                                 <td><?= htmlspecialchars($freeObsText($f['id'])); ?></td>
                                 <td><?= htmlspecialchars($f['observations'] ?? ''); ?></td>
-                                <td><?= $f['endpoint_reached'] ? 'YES' : ''; ?></td>
+                                <td><?= $f['endpoint_reached'] ? trh('YES') : ''; ?></td>
                                 <td><?= htmlspecialchars($f['recorded_by_name'] ?? ''); ?></td>
                             </tr>
                         <?php endforeach; ?>
-                        <?php if (!$fs) : ?><tr><td colspan="<?= 8 + count($itemLabels) + count($obsColumns); ?>" class="text-muted">No follow-up recorded.</td></tr><?php endif; ?>
+                        <?php if (!$fs) : ?><tr><td colspan="<?= 8 + count($itemLabels) + count($obsColumns); ?>" class="text-muted"><?= trh('No follow-up recorded.') ?></td></tr><?php endif; ?>
                     </table>
 
                     <?php if (!empty($actions[$ea['id']])) : ?>
                         <table class="table table-sm table-bordered actions-table">
                             <thead class="table-light">
-                                <tr><th>Endpoint raised</th><th>Required action</th><th>Reason</th><th>Resolution</th></tr>
+                                <tr><th><?= trh('Endpoint raised') ?></th><th><?= trh('Required action') ?></th><th><?= trh('Reason') ?></th><th><?= trh('Resolution') ?></th></tr>
                             </thead>
                             <?php foreach ($actions[$ea['id']] as $a) : ?>
                                 <tr>
                                     <td><?= htmlspecialchars($a['created_at']); ?></td>
-                                    <td><?= htmlspecialchars(ENDPOINT_REQUIRED_ACTIONS[$a['required_action']]); ?></td>
+                                    <td><?= htmlspecialchars(endpoint_required_actions()[$a['required_action']]); ?></td>
                                     <td><?= htmlspecialchars($a['message'] ?? ''); ?></td>
-                                    <td><?= $a['status'] === 'done' ? htmlspecialchars($a['done_at'] . ' — ' . ($a['done_by_name'] ?? '') . ': ' . ($a['done_note'] ?? '')) : '<strong class="text-danger">PENDING</strong>'; ?></td>
+                                    <td><?= $a['status'] === 'done' ? htmlspecialchars($a['done_at'] . ' — ' . ($a['done_by_name'] ?? '') . ': ' . ($a['done_note'] ?? '')) : '<strong class="text-danger">' . trh('PENDING') . '</strong>'; ?></td>
                                 </tr>
                             <?php endforeach; ?>
                         </table>
                     <?php endif; ?>
 
                     <?php if ($ea['status'] !== 'active') : ?>
-                        <p><strong>Exit:</strong> <?= htmlspecialchars(exit_label($ea['exit_code'], $ea['status'])); ?> on <?= htmlspecialchars($ea['exit_date'] ?? ''); ?><?= $ea['exit_reason'] ? ' — ' . htmlspecialchars($ea['exit_reason']) : ''; ?><?= $ea['exit_destination'] ? ' → ' . htmlspecialchars($ea['exit_destination']) : ''; ?></p>
+                        <p><strong><?= trh('Exit:') ?></strong> <?= trh('{label} on {date}', ['label' => exit_label($ea['exit_code'], $ea['status']), 'date' => $ea['exit_date'] ?? '']); ?><?= $ea['exit_reason'] ? ' — ' . htmlspecialchars($ea['exit_reason']) : ''; ?><?= $ea['exit_destination'] ? ' → ' . htmlspecialchars($ea['exit_destination']) : ''; ?></p>
                     <?php endif; ?>
                 </div>
             <?php endforeach; ?>

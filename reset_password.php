@@ -55,12 +55,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
 
             // Execute the update and set a success or failure message
             if ($updateStmt->execute()) {
-                $resultMessage = "Password reset successfully. You can now <a href='index.php'>login</a> with your new password.";
+                $resultMessage = tr('Password reset successfully. You can now {link}log in{/link} with your new password.', ['link' => "<a href='index.php'>", '/link' => '</a>']);
             } else {
-                $resultMessage = "Password reset failed. Please try again.";
+                $resultMessage = trh('Password reset failed. Please try again.');
             }
         } else {
-            $resultMessage = "Invalid or expired token. Please request a new password reset.";
+            $resultMessage = trh('Invalid or expired token. Please request a new password reset.');
         }
 
         // Close the statement
@@ -69,7 +69,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
             $updateStmt->close();
         }
     } else {
-        $resultMessage = "New Password and Confirm Password do not match.";
+        $resultMessage = trh('New Password and Confirm Password do not match.');
     }
 
     // Close the database connection
@@ -84,7 +84,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
     <!-- Page Metadata -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reset Password | <?php echo htmlspecialchars($labName); ?></title>
+    <title><?= trh('Reset Password') ?> | <?php echo htmlspecialchars($labName); ?></title>
 
     <!-- Favicon and icons for different devices -->
     <link rel="icon" href="/icons/favicon.ico" type="image/x-icon">
@@ -199,7 +199,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
     <br>
     <br>
     <div class="container content">
-        <h2>Reset Password</h2>
+        <h2><?= trh('Reset Password') ?></h2>
         <br>
         <form method="POST" action="">
             <!-- Hidden field for the token -->
@@ -207,18 +207,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
 
             <!-- New Password Field -->
             <div class="form-group">
-                <label for="new_password">New Password</label>
+                <label for="new_password"><?= trh('New Password') ?></label>
                 <input type="password" class="form-control" id="new_password" name="new_password" required>
             </div>
 
             <!-- Confirm Password Field -->
             <div class="form-group">
-                <label for="confirm_password">Confirm Password</label>
+                <label for="confirm_password"><?= trh('Confirm Password') ?></label>
                 <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
             </div>
 
             <!-- Submit Button -->
-            <button type="submit" class="btn btn-primary" name="reset">Reset Password</button>
+            <button type="submit" class="btn btn-primary" name="reset"><?= trh('Reset Password') ?></button>
         </form>
 
         <!-- Display Result Message -->
@@ -227,7 +227,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
         } ?>
         <br>
 
-        <a href="index.php" class="btn btn-secondary">Go Back</a>
+        <a href="index.php" class="btn btn-secondary"><?= trh('Go Back') ?></a>
     </div>
 
     <!-- Footer Section -->

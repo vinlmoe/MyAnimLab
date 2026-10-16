@@ -51,8 +51,8 @@ function sendConfirmationEmail($to, $token)
 {
     global $url;
     $confirmLink = "https://" . $url . "/confirm_email.php?token=$token";
-    $subject = 'Email Confirmation';
-    $message = "Please click the link below to confirm your email address:\n$confirmLink";
+    $subject = tr('Email Confirmation');
+    $message = tr('Please click the link below to confirm your email address:') . "\n$confirmLink";
 
     $mail = new PHPMailer(true);
     try {
@@ -127,7 +127,7 @@ if (isset($_POST['login'])) {
         // Check Turnstile response success
         if (!$result['success']) {
             // Store error message in the session to display to the user
-            $_SESSION['error_message'] = "Cloudflare Turnstile verification failed. Please try again.";
+            $_SESSION['error_message'] = trh('Cloudflare Turnstile verification failed. Please try again.');
             header("Location: " . htmlspecialchars($_SERVER["PHP_SELF"]));
             exit;
         }
@@ -166,15 +166,15 @@ if (isset($_POST['login'])) {
             sendConfirmationEmail($username, $token);
 
             // Set error message for the user
-            $error_message = "Your email is not verified. A new verification email has been sent. Please check your email to verify your account.";
+            $error_message = tr('Your email is not verified. A new verification email has been sent. Please check your email to verify your account.');
         } else {
             // Check if the account status is approved
             if ($row['status'] != 'approved') {
-                $error_message = "Your account is pending admin approval.";
+                $error_message = tr('Your account is pending admin approval.');
             } else {
                 // Check if the account is locked
                 if (!is_null($row['account_locked']) && new DateTime() < new DateTime($row['account_locked'])) {
-                    $error_message = "Account is temporarily locked. Please try again later.";
+                    $error_message = tr('Account is temporarily locked. Please try again later.');
                 } else {
                     // Verify password
                     if (password_verify($password, $row['password'])) {
@@ -221,20 +221,20 @@ if (isset($_POST['login'])) {
                             $lock_stmt = mysqli_prepare($con, $lock_time);
                             mysqli_stmt_bind_param($lock_stmt, "s", $username);
                             mysqli_stmt_execute($lock_stmt);
-                            $error_message = "Account is temporarily locked for 10 mins due to too many failed login attempts.";
+                            $error_message = tr('Account is temporarily locked for 15 minutes due to too many failed login attempts.');
                         } else {
                             $update_attempts = "UPDATE users SET login_attempts = ? WHERE username=?";
                             $update_stmt = mysqli_prepare($con, $update_attempts);
                             mysqli_stmt_bind_param($update_stmt, "is", $new_attempts, $username);
                             mysqli_stmt_execute($update_stmt);
-                            $error_message = "Invalid password. Please try again.";
+                            $error_message = tr('Invalid password. Please try again.');
                         }
                     }
                 }
             }
         }
     } else {
-        $error_message = "No user found with that username.";
+        $error_message = tr('No user found with that username.');
     }
     mysqli_stmt_close($statement);
 }
@@ -242,7 +242,7 @@ mysqli_close($con);
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
     <meta charset="UTF-8">
@@ -405,7 +405,7 @@ mysqli_close($con);
                 <!-- Login Form Column -->
                 <div class="col-md-6">
                     <div class="login-form">
-                        <h3>Login</h3>
+                        <h3><?= trh('Login') ?></h3>
                         <?php if (isset($_SESSION['error_message'])) { ?>
                             <div class="alert alert-danger">
                                 <?php 
@@ -416,11 +416,11 @@ mysqli_close($con);
                         <?php } ?>
                         <form method="POST" action="">
                             <div class="form-group">
-                                <label for="username">Email Address</label>
+                                <label for="username"><?= trh('Email Address') ?></label>
                                 <input type="text" class="form-control" id="username" name="username" required>
                             </div>
                             <div class="form-group">
-                                <label for="password">Password</label>
+                                <label for="password"><?= trh('Password') ?></label>
                                 <input type="password" class="form-control" id="password" name="password" required>
                             </div>
 
@@ -430,9 +430,9 @@ mysqli_close($con);
                                 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
                             <?php } ?>
 
-                            <button type="submit" class="btn btn-primary" name="login">Login</button>
+                            <button type="submit" class="btn btn-primary" name="login"><?= trh('Login') ?></button>
                             <br><br>
-                            <a href="forgot_password.php" class="forgot-password-link">Forgot Password?</a>
+                            <a href="forgot_password.php" class="forgot-password-link"><?= trh('Forgot Password?') ?></a>
                         </form>
                     </div>
                     <?php if ($demo === "yes") include('demo/demo-credentials.php'); ?>
@@ -442,25 +442,25 @@ mysqli_close($con);
             <!-- New Row for Unique Features -->
             <div class="row mt-4">
                 <div class="col-md-12">
-                    <h2 class="text-center">Welcome to the <?php echo htmlspecialchars($labName); ?></h2>
-                    <p class="text-center italic">Elevate Your Research with IoT-Enhanced Colony Management</p>
+                    <h2 class="text-center"><?= trh('Welcome to the {lab}', ['lab' => $labName]); ?></h2>
+                    <p class="text-center italic"><?= trh('Elevate Your Research with IoT-Enhanced Colony Management') ?></p>
 
                     <!-- Feature Box 1 -->
                     <div class="col-md-6 mb-6 mx-auto feature-box text-center">
-                        <h3>Real-Time Environmental Monitoring</h3>
-                        <p>Gain unparalleled insights into the conditions of your vivarium. Our IoT sensors continuously track temperature and humidity levels, ensuring a stable and controlled environment for your research animals.</p>
+                        <h3><?= trh('Real-Time Environmental Monitoring') ?></h3>
+                        <p><?= trh('Gain unparalleled insights into the conditions of your vivarium. Our IoT sensors continuously track temperature and humidity levels, ensuring a stable and controlled environment for your research animals.') ?></p>
                     </div>
 
                     <!-- Feature Box 2 -->
                     <div class="col-md-6 mb-6 mx-auto feature-box text-center">
-                        <h3>Effortless Cage and Mouse Tracking</h3>
-                        <p>Seamlessly monitor every cage and mouse in your facility. No more manual record-keeping or confusion.</p>
+                        <h3><?= trh('Effortless Cage and Mouse Tracking') ?></h3>
+                        <p><?= trh('Seamlessly monitor every cage and mouse in your facility. No more manual record-keeping or confusion.') ?></p>
                     </div>
 
                     <!-- Feature Box 3 -->
                     <div class="col-md-6 mb-6 mx-auto feature-box text-center">
-                        <h3>Security and Compliance</h3>
-                        <p>Rest easy knowing your data is secure and compliant with industry regulations. We prioritize data integrity and confidentiality.</p>
+                        <h3><?= trh('Security and Compliance') ?></h3>
+                        <p><?= trh('Rest easy knowing your data is secure and compliant with industry regulations. We prioritize data integrity and confidentiality.') ?></p>
                     </div>
                 </div>
             </div>

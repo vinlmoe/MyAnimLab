@@ -14,6 +14,9 @@ require __DIR__ . '/vendor/autoload.php';
 
 use Dotenv\Dotenv;
 
+// Interface translations (t(), tr()) are available to every page.
+require_once __DIR__ . '/i18n.php';
+
 // Check if the .env file exists in the current directory
 if (file_exists(__DIR__ . '/.env')) {
     // Create an instance of Dotenv and load the .env file

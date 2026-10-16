@@ -18,12 +18,12 @@ if (session_status() === PHP_SESSION_NONE) {
 
 // Check if the user is logged in
 if (!isset($_SESSION['username'])) {
-    echo json_encode(['success' => false, 'message' => 'You must be logged in to add a note.']);
+    echo json_encode(['success' => false, 'message' => tr('You must be logged in to add a note.')]);
     exit;
 }
 
 // Handle form submission
-$response = ['success' => false, 'message' => 'Invalid request.'];
+$response = ['success' => false, 'message' => tr('Invalid request.')];
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['note_text'])) {
     $note_text = $_POST['note_text'];
     $user_id = $_SESSION['user_id']; // Assuming 'username' is the user's identifier
@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['note_text'])) {
     $sql = "INSERT INTO notes (user_id, note_text, cage_id) VALUES (?, ?, ?)";
     $stmt = $con->prepare($sql);
     if ($stmt === false) {
-        $response['message'] = 'Prepare failed: ' . htmlspecialchars($con->error);
+        $response['message'] = tr('Prepare failed: {error}', ['error' => htmlspecialchars($con->error)]);
         echo json_encode($response);
         exit;
     }
@@ -44,9 +44,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['note_text'])) {
     // Execute the statement
     if ($stmt->execute()) {
         $response['success'] = true;
-        $response['message'] = 'Note added successfully.';
+        $response['message'] = tr('Note added successfully.');
     } else {
-        $response['message'] = 'Execute failed: ' . htmlspecialchars($stmt->error);
+        $response['message'] = tr('Execute failed: {error}', ['error' => htmlspecialchars($stmt->error)]);
     }
 
     // Close the statement

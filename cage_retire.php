@@ -39,7 +39,7 @@ $stmt->close();
 $dashboard = ($cage['kind'] ?? 'holding') === 'breeding' ? 'bc_dash.php' : 'hc_dash.php';
 
 if (!$cage) {
-    $_SESSION['message'] = "Cage not found.";
+    $_SESSION['message'] = tr('Cage not found.');
     header("Location: $dashboard");
     exit;
 }
@@ -51,20 +51,20 @@ $assigned->execute();
 $isAssigned = $assigned->get_result()->num_rows > 0;
 $assigned->close();
 if (($_SESSION['role'] ?? '') !== 'admin' && !$isAssigned) {
-    $_SESSION['message'] = 'Access denied. Only the assigned user or an admin can retire this cage.';
+    $_SESSION['message'] = tr('Access denied. Only the assigned user or an admin can retire this cage.');
     header("Location: $dashboard");
     exit;
 }
 
 if ($cage['status'] !== 'active') {
-    $_SESSION['message'] = "Cage $cageId is already retired.";
+    $_SESSION['message'] = tr('Cage {cage} is already retired.', ['cage' => $cageId]);
     header("Location: $dashboard");
     exit;
 }
 
 // Unweaned pups are not individual animals yet: wean or close their litter first.
 if (cage_nursing_litters($con, $cageId) > 0) {
-    $_SESSION['message'] = "Cage $cageId has a litter still nursing: wean it or close it before retiring the cage.";
+    $_SESSION['message'] = tr('Cage {cage} has a litter still nursing: wean it or close it before retiring the cage.', ['cage' => $cageId]);
     header("Location: litter_manage.php?cage_id=" . rawurlencode($cageId));
     exit;
 }
@@ -77,7 +77,7 @@ $animalsStmt->close();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        die('CSRF token validation failed');
+        die(tr('CSRF token validation failed'));
     }
 
     $reason = trim($_POST['reason'] ?? '');
@@ -89,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     mysqli_begin_transaction($con);
     try {
         if ($reason === '') {
-            throw new Exception("Please give the reason for retiring the cage.");
+            throw new Exception(tr('Please give the reason for retiring the cage.'));
         }
         $moved = $exited = 0;
         foreach ($animals as $a) {
@@ -99,15 +99,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($fate === 'move') {
                 $to = trim($targets[$aid] ?? '');
                 if ($to === '') {
-                    throw new Exception("Choose the destination cage for $label.");
+                    throw new Exception(tr('Choose the destination cage for {animal}.', ['animal' => $label]));
                 }
-                move_animal($con, $aid, $to, "Cage $cageId retired: $reason", $currentUserId, $currentUserName, false);
+                move_animal($con, $aid, $to, tr('Cage {cage} retired: {reason}', ['cage' => $cageId, 'reason' => $reason]), $currentUserId, $currentUserName, false);
                 $moved++;
             } elseif (isset(ANIMAL_EXIT_CODES[$fate])) {
-                exit_animal($con, $aid, $fate, $date, "Cage $cageId retired: $reason", $destinations[$aid] ?? null, $currentUserId, $currentUserName, false);
+                exit_animal($con, $aid, $fate, $date, tr('Cage {cage} retired: {reason}', ['cage' => $cageId, 'reason' => $reason]), $destinations[$aid] ?? null, $currentUserId, $currentUserName, false);
                 $exited++;
             } else {
-                throw new Exception("Give a fate to $label (move to another cage or an exit code).");
+                throw new Exception(tr('Give a fate to {animal} (move to another cage or an exit code).', ['animal' => $label]));
             }
         }
 
@@ -115,12 +115,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         retire_cage($con, $cageId, $reason, $currentUserId, $currentUserName);
 
         mysqli_commit($con);
-        $_SESSION['message'] = "Cage $cageId retired." . ($animals ? " $moved animal(s) moved, $exited exit(s) recorded." : '');
+        $_SESSION['message'] = tr('Cage {cage} retired.', ['cage' => $cageId]) . ($animals ? ' ' . tr('{moved} animal(s) moved, {exited} exit(s) recorded.', ['moved' => $moved, 'exited' => $exited]) : '');
         header("Location: $dashboard");
         exit;
     } catch (Exception $e) {
         mysqli_rollback($con);
-        $_SESSION['message'] = "Cage not retired: " . $e->getMessage();
+        $_SESSION['message'] = tr('Cage not retired: {error}', ['error' => $e->getMessage()]);
         header("Location: cage_retire.php?id=" . rawurlencode($cageId));
         exit;
     }
@@ -135,10 +135,10 @@ require 'header.php';
 ?>
 
 <!doctype html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
-    <title>Retire Cage <?= htmlspecialchars($cageId); ?> | <?php echo htmlspecialchars($labName); ?></title>
+    <title><?= trh('Retire cage {cage}', ['cage' => $cageId]); ?> | <?php echo htmlspecialchars($labName); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         .container {
@@ -149,10 +149,10 @@ require 'header.php';
 
 <body>
     <div class="container mt-4 content">
-        <h4>Retire cage <?= htmlspecialchars($cageId); ?></h4>
+        <h4><?= trh('Retire cage {cage}', ['cage' => $cageId]); ?></h4>
         <p class="text-muted">
             <?= htmlspecialchars($cage['kind']); ?> cage<?= $cage['room'] ? ' · Room ' . htmlspecialchars($cage['room']) : ''; ?>.
-            Every living animal must stay in an active cage: give each animal of this cage a fate — move it to another cage, or record its exit with an exit code. The cage is retired only when all animals are handled.
+            <?= trh('Every living animal must stay in an active cage: give each animal of this cage a fate — move it to another cage, or record its exit with an exit code. The cage is retired only when all animals are handled.') ?>
         </p>
 
         <?php include('message.php'); ?>
@@ -165,11 +165,11 @@ require 'header.php';
                 <div class="card card-body bg-light mb-3">
                     <div class="row g-2 align-items-end">
                         <div class="col-md-4">
-                            <label class="form-label" for="allFate">Same fate for all animals</label>
+                            <label class="form-label" for="allFate"><?= trh('Same fate for all animals') ?></label>
                             <select class="form-select" id="allFate">
                                 <option value="">—</option>
-                                <option value="move">Move to another cage</option>
-                                <optgroup label="Exit (motif de sortie)">
+                                <option value="move"><?= trh('Move to another cage') ?></option>
+                                <optgroup label="<?= trh('Exit (exit code)') ?>">
                                     <?php foreach (ANIMAL_EXIT_CODES as $key => [$text]) : ?>
                                         <option value="<?= $key; ?>"><?= htmlspecialchars($text); ?></option>
                                     <?php endforeach; ?>
@@ -177,7 +177,7 @@ require 'header.php';
                             </select>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label" for="allCage">Destination cage (move)</label>
+                            <label class="form-label" for="allCage"><?= trh('Destination cage (move)') ?></label>
                             <select class="form-select" id="allCage">
                                 <option value="">—</option>
                                 <?php foreach ($otherCages as $oc) : ?>
@@ -186,20 +186,20 @@ require 'header.php';
                             </select>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label" for="allDest">Destination facility (export)</label>
+                            <label class="form-label" for="allDest"><?= trh('Destination facility (export)') ?></label>
                             <input type="text" class="form-control" id="allDest">
                         </div>
                     </div>
-                    <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="applyAll">Apply to all animals</button>
+                    <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="applyAll"><?= trh('Apply to all animals') ?></button>
                 </div>
 
                 <div class="table-responsive">
                     <table class="table table-sm align-middle">
                         <thead class="table-light">
                             <tr>
-                                <th>Animal</th>
-                                <th>Fate *</th>
-                                <th>Destination cage / facility</th>
+                                <th><?= trh('Animal') ?></th>
+                                <th><?= trh('Fate') ?> *</th>
+                                <th><?= trh('Destination cage / facility') ?></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -207,12 +207,12 @@ require 'header.php';
                                 $aid = (int) $a['id'];
                                 $label = $a['animal_uid'] ?? $a['mouse_id'] ?? "#$aid"; ?>
                                 <tr class="animal-row" data-animal="<?= $aid; ?>">
-                                    <td><a href="animal_view.php?id=<?= $aid; ?>"><?= htmlspecialchars($label); ?></a> <?= $a['sex'] === 'male' ? '♂' : ($a['sex'] === 'female' ? '♀' : ''); ?><?php if (!empty($a['distinctive_mark'])) : ?><small class="text-muted mark" title="Distinctive mark"> [<?= htmlspecialchars($a['distinctive_mark']); ?>]</small><?php endif; ?></td>
+                                    <td><a href="animal_view.php?id=<?= $aid; ?>"><?= htmlspecialchars($label); ?></a> <?= $a['sex'] === 'male' ? '♂' : ($a['sex'] === 'female' ? '♀' : ''); ?><?php if (!empty($a['distinctive_mark'])) : ?><small class="text-muted mark" title="<?= trh('Distinctive mark') ?>"> [<?= htmlspecialchars($a['distinctive_mark']); ?>]</small><?php endif; ?></td>
                                     <td>
                                         <select class="form-select form-select-sm fate" name="fate[<?= $aid; ?>]" required>
-                                            <option value="" selected disabled>Choose…</option>
-                                            <option value="move">Move to another cage</option>
-                                            <optgroup label="Exit (motif de sortie)">
+                                            <option value="" selected disabled><?= trh('Choose…') ?></option>
+                                            <option value="move"><?= trh('Move to another cage') ?></option>
+                                            <optgroup label="<?= trh('Exit (exit code)') ?>">
                                                 <?php foreach (ANIMAL_EXIT_CODES as $key => [$text]) : ?>
                                                     <option value="<?= $key; ?>"><?= htmlspecialchars($text); ?></option>
                                                 <?php endforeach; ?>
@@ -221,12 +221,12 @@ require 'header.php';
                                     </td>
                                     <td>
                                         <select class="form-select form-select-sm to-cage" name="to_cage[<?= $aid; ?>]">
-                                            <option value="">Destination cage…</option>
+                                            <option value=""><?= trh('Destination cage…') ?></option>
                                             <?php foreach ($otherCages as $oc) : ?>
                                                 <option value="<?= htmlspecialchars($oc['cage_id']); ?>"><?= htmlspecialchars($oc['cage_id'] . ($oc['room'] ? " (room {$oc['room']})" : '')); ?></option>
                                             <?php endforeach; ?>
                                         </select>
-                                        <input type="text" class="form-control form-control-sm destination" name="destination[<?= $aid; ?>]" placeholder="Destination facility">
+                                        <input type="text" class="form-control form-control-sm destination" name="destination[<?= $aid; ?>]" placeholder="<?= trh('Destination facility') ?>">
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -234,25 +234,25 @@ require 'header.php';
                     </table>
                 </div>
                 <?php if (!$otherCages) : ?>
-                    <div class="alert alert-info">No other active cage: animals can only exit, or <a href="hc_addn.php">create a new cage</a> first.</div>
+                    <div class="alert alert-info"><?= tr('No other active cage: animals can only exit, or {link}create a new cage{/link} first.', ['link' => '<a href="hc_addn.php">', '/link' => '</a>']) ?></div>
                 <?php endif; ?>
             <?php else : ?>
-                <div class="alert alert-info">This cage has no living animal.</div>
+                <div class="alert alert-info"><?= trh('This cage has no living animal.') ?></div>
             <?php endif; ?>
 
             <div class="row g-2">
                 <div class="col-md-8 mb-3">
-                    <label class="form-label" for="reason">Reason for retiring the cage *</label>
-                    <input type="text" class="form-control" id="reason" name="reason" required placeholder="e.g. end of study, cage regrouping">
+                    <label class="form-label" for="reason"><?= trh('Reason for retiring the cage') ?> *</label>
+                    <input type="text" class="form-control" id="reason" name="reason" required placeholder="<?= trh('e.g. end of study, cage regrouping') ?>">
                 </div>
                 <div class="col-md-4 mb-3">
-                    <label class="form-label" for="exit_date">Date of exits</label>
+                    <label class="form-label" for="exit_date"><?= trh('Date of exits') ?></label>
                     <input type="date" class="form-control" id="exit_date" name="exit_date" value="<?= date('Y-m-d'); ?>" max="<?= date('Y-m-d'); ?>">
                 </div>
             </div>
 
-            <button type="submit" class="btn btn-danger" onclick="return confirm('Retire this cage and apply the chosen fates?');">Retire cage</button>
-            <a href="<?= $cage['kind'] === 'breeding' ? 'bc_view.php' : 'hc_view.php'; ?>?id=<?= rawurlencode($cageId); ?>" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-danger" onclick="return confirm(<?= htmlspecialchars(trj('Retire this cage and apply the chosen fates?')) ?>);"><?= trh('Retire cage') ?></button>
+            <a href="<?= $cage['kind'] === 'breeding' ? 'bc_view.php' : 'hc_view.php'; ?>?id=<?= rawurlencode($cageId); ?>" class="btn btn-secondary"><?= trh('Cancel') ?></a>
         </form>
     </div>
 

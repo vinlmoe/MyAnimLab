@@ -124,7 +124,7 @@ function render_cage_animals(mysqli $con, string $cageId, string $viewPage): voi
                             <td class="small">
                                 <?php foreach ($healthNotes[(int) $m['id']] ?? [] as $note) : ?>
                                     <div class="mb-1">
-                                        <a href="health_report_view.php?id=<?= (int) $note['id']; ?>" class="fw-bold text-decoration-none"><?= htmlspecialchars(HEALTH_CATEGORIES[$note['category']] ?? $note['category']); ?></a>
+                                        <a href="health_report_view.php?id=<?= (int) $note['id']; ?>" class="fw-bold text-decoration-none"><?= htmlspecialchars(health_categories()[$note['category']] ?? $note['category']); ?></a>
                                         <?= health_badge($note['current_status'], HEALTH_STATUSES); ?>
                                         <?= health_badge($note['current_severity'], HEALTH_SEVERITIES); ?>
                                         <div><?= nl2br(htmlspecialchars($note['latest_note'] ?: $note['description'])); ?></div>

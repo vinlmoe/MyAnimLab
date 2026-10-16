@@ -35,7 +35,7 @@ $hideSeen = !empty($_GET['hide_seen']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        die('CSRF token validation failed');
+        die(tr('CSRF token validation failed'));
     }
 
     // Checks can only be recorded for today: the log is a real-time record.
@@ -48,9 +48,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         record_cage_check($con, $cid, 'routine', 'ok', 'round', $note, null, $_SESSION['user_id'] ?? null, $_SESSION['name'] ?? null);
     }
     if ($cageIds) {
-        log_activity($con, 'daily_check', 'cage', implode(',', $cageIds), count($cageIds) . " cage(s) checked OK on the round", $_SESSION['user_id'] ?? null);
+        log_activity($con, 'daily_check', 'cage', implode(',', $cageIds), tr('{n} cage(s) checked OK on the round', ['n' => count($cageIds)]), $_SESSION['user_id'] ?? null);
     }
-    $_SESSION['message'] = $cageIds ? count($cageIds) . " cage(s) marked as checked OK." : "No cage selected.";
+    $_SESSION['message'] = $cageIds ? tr('{n} cage(s) marked as checked OK.', ['n' => count($cageIds)]) : tr('No cage selected.');
 
     header("Location: daily_round.php?" . http_build_query(['room' => $room, 'hide_seen' => $_POST['hide_seen'] ?? null]));
     exit;
@@ -97,7 +97,7 @@ foreach ($cages as $c) {
 }
 $totalCages = count($cages);
 $totalSeen = array_sum(array_column($rooms, 'seen'));
-$roomLabel = fn($r) => $r === '' ? 'No room assigned' : "Room $r";
+$roomLabel = fn($r) => $r === '' ? tr('No room assigned') : tr('Room {room}', ['room' => $r]);
 
 $shownCages = array_filter($cages, fn($c) => ($room === '' || ($c['room'] ?? '') === ($room === '__none' ? '' : $room))
     && !($hideSeen && !empty($checks[$c['cage_id']])));
@@ -107,10 +107,10 @@ require 'header.php';
 ?>
 
 <!doctype html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
-    <title>Daily Round | <?php echo htmlspecialchars($labName); ?></title>
+    <title><?= trh('Daily Round') ?> | <?php echo htmlspecialchars($labName); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         .container {
@@ -134,26 +134,26 @@ require 'header.php';
 <body>
     <div class="container mt-4 content">
         <div class="d-flex justify-content-between align-items-center flex-wrap">
-            <h4><i class="fas fa-clipboard-check"></i> Daily Round — <?= htmlspecialchars($date); ?><?= $isToday ? ' (today)' : ''; ?></h4>
+            <h4><i class="fas fa-clipboard-check"></i> <?= trh('Daily Round') ?> — <?= htmlspecialchars($date); ?><?= $isToday ? ' (' . trh('today') . ')' : ''; ?></h4>
             <div>
-                <a href="qr_scan.php" class="btn btn-success btn-sm"><i class="fas fa-qrcode"></i> Check by scanning cage QR</a>
+                <a href="qr_scan.php" class="btn btn-success btn-sm"><i class="fas fa-qrcode"></i> <?= trh('Check by scanning cage QR') ?></a>
                 <form method="GET" class="d-inline-flex align-items-center ms-2">
                     <input type="date" name="date" class="form-control form-control-sm" value="<?= htmlspecialchars($date); ?>" max="<?= $today; ?>">
-                    <button class="btn btn-outline-secondary btn-sm ms-1" type="submit">View day</button>
+                    <button class="btn btn-outline-secondary btn-sm ms-1" type="submit"><?= trh('View day') ?></button>
                 </form>
             </div>
         </div>
-        <p class="text-muted">Every active cage must be seen at least once a day. A cage counts as seen when it is ticked on this round, validated from its QR code, has an experimental daily follow-up entry, or a health report on one of its animals.</p>
+        <p class="text-muted"><?= trh('Every active cage must be seen at least once a day. A cage counts as seen when it is ticked on this round, validated from its QR code, has an experimental daily follow-up entry, or a health report on one of its animals.') ?></p>
 
         <?php include('message.php'); ?>
 
         <div class="alert <?= $totalSeen === $totalCages ? 'alert-success' : ($isToday ? 'alert-warning' : 'alert-danger'); ?>">
-            <strong><?= $totalSeen; ?> / <?= $totalCages; ?></strong> cage(s) seen<?= $isToday ? ' so far today' : " on $date"; ?>.
+            <?= tr($isToday ? '{count} cage(s) seen so far today.' : '{count} cage(s) seen on {date}.', ['count' => '<strong>' . $totalSeen . ' / ' . $totalCages . '</strong>', 'date' => htmlspecialchars($date)]); ?>
             <?php if ($totalSeen < $totalCages) : ?>
-                <?= $totalCages - $totalSeen; ?> <?= $isToday ? 'still to check' : 'missed'; ?>.
+                <?= trh($isToday ? '{n} still to check.' : '{n} missed.', ['n' => $totalCages - $totalSeen]); ?>
             <?php endif; ?>
             <?php if (!$isToday) : ?>
-                <br><small>Past days are read-only. Only cages in service that day are expected (created on or before it, not yet retired).</small>
+                <br><small><?= trh('Past days are read-only. Only cages in service that day are expected (created on or before it, not yet retired).') ?></small>
             <?php endif; ?>
         </div>
 
@@ -161,7 +161,7 @@ require 'header.php';
             <div class="col-6 col-md-3">
                 <a href="daily_round.php?date=<?= $date; ?>" class="text-decoration-none">
                     <div class="card room-card text-center <?= $room === '' ? 'active-room' : ''; ?>">
-                        <div class="card-body p-2"><strong>All rooms</strong><br><?= $totalSeen; ?> / <?= $totalCages; ?></div>
+                        <div class="card-body p-2"><strong><?= trh('All rooms') ?></strong><br><?= $totalSeen; ?> / <?= $totalCages; ?></div>
                     </div>
                 </a>
             </div>
@@ -174,8 +174,8 @@ require 'header.php';
                         <div class="card room-card text-center border-<?= $done ? 'success' : 'warning'; ?> <?= $room === $key ? 'active-room' : ''; ?>">
                             <div class="card-body p-2">
                                 <strong><?= htmlspecialchars($roomLabel($r)); ?></strong><br>
-                                <span class="badge bg-<?= $done ? 'success' : 'warning text-dark'; ?>"><?= $st['seen']; ?> / <?= $st['total']; ?> seen</span>
-                                <?php if ($st['issues']) : ?><span class="badge bg-danger"><?= $st['issues']; ?> issue(s)</span><?php endif; ?>
+                                <span class="badge bg-<?= $done ? 'success' : 'warning text-dark'; ?>"><?= trh('{seen} / {total} seen', ['seen' => $st['seen'], 'total' => $st['total']]); ?></span>
+                                <?php if ($st['issues']) : ?><span class="badge bg-danger"><?= trh('{n} issue(s)', ['n' => $st['issues']]); ?></span><?php endif; ?>
                             </div>
                         </div>
                     </a>
@@ -186,9 +186,9 @@ require 'header.php';
         <?php if ($isToday) : ?>
             <div class="mb-2">
                 <?php if ($hideSeen) : ?>
-                    <a href="<?= htmlspecialchars('daily_round.php?' . http_build_query(['room' => $room])); ?>" class="btn btn-sm btn-outline-secondary">Show all cages</a>
+                    <a href="<?= htmlspecialchars('daily_round.php?' . http_build_query(['room' => $room])); ?>" class="btn btn-sm btn-outline-secondary"><?= trh('Show all cages') ?></a>
                 <?php else : ?>
-                    <a href="<?= htmlspecialchars('daily_round.php?' . http_build_query(['room' => $room, 'hide_seen' => 1])); ?>" class="btn btn-sm btn-outline-secondary">Show only cages still to check</a>
+                    <a href="<?= htmlspecialchars('daily_round.php?' . http_build_query(['room' => $room, 'hide_seen' => 1])); ?>" class="btn btn-sm btn-outline-secondary"><?= trh('Show only cages still to check') ?></a>
                 <?php endif; ?>
             </div>
         <?php endif; ?>
@@ -211,12 +211,12 @@ require 'header.php';
                         <table class="table table-sm align-middle">
                             <thead class="table-light">
                                 <tr>
-                                    <?php if ($isToday) : ?><th style="width: 30px;"><input type="checkbox" class="form-check-input select-room" title="Select all cages of this room"></th><?php endif; ?>
-                                    <th>Cage</th>
-                                    <th>Rack</th>
-                                    <th><?= $isToday ? 'Animals' : 'Lifecycle'; ?></th>
-                                    <th>Seen<?= $isToday ? ' today' : ''; ?></th>
-                                    <?php if ($isToday) : ?><th class="text-end">Actions</th><?php endif; ?>
+                                    <?php if ($isToday) : ?><th style="width: 30px;"><input type="checkbox" class="form-check-input select-room" title="<?= trh('Select all cages of this room') ?>"></th><?php endif; ?>
+                                    <th><?= trh('Cage') ?></th>
+                                    <th><?= trh('Rack') ?></th>
+                                    <th><?= trh($isToday ? 'Animals' : 'Lifecycle'); ?></th>
+                                    <th><?= trh($isToday ? 'Seen today' : 'Seen'); ?></th>
+                                    <?php if ($isToday) : ?><th class="text-end"><?= trh('Actions') ?></th><?php endif; ?>
                                 </tr>
                             </thead>
                             <tbody>
@@ -227,57 +227,57 @@ require 'header.php';
                             ?>
                             <tr class="<?= $cageChecks ? 'seen' : ($isToday ? '' : 'missed'); ?>" data-cage="<?= htmlspecialchars($cid); ?>">
                                 <?php if ($isToday) : ?>
-                                    <td><input type="checkbox" class="form-check-input cage-box" name="cage_ids[]" value="<?= htmlspecialchars($cid); ?>" aria-label="Select cage <?= htmlspecialchars($cid); ?>"></td>
+                                    <td><input type="checkbox" class="form-check-input cage-box" name="cage_ids[]" value="<?= htmlspecialchars($cid); ?>" aria-label="<?= trh('Select cage {cage}', ['cage' => $cid]); ?>"></td>
                                 <?php endif; ?>
-                                <td><a href="<?= $view; ?>?id=<?= rawurlencode($cid); ?>" class="fw-bold"><?= htmlspecialchars($cid); ?></a><br><small class="text-muted"><?= $c['kind']; ?></small></td>
+                                <td><a href="<?= $view; ?>?id=<?= rawurlencode($cid); ?>" class="fw-bold"><?= htmlspecialchars($cid); ?></a><br><small class="text-muted"><?= trh($c['kind']); ?></small></td>
                                 <td><?= htmlspecialchars($c['rack'] ?? '-'); ?></td>
                                 <td>
                                     <?php if (!$isToday) : ?>
                                         <small class="text-muted">
-                                            <?= $c['created_at'] ? 'in service since ' . htmlspecialchars(substr($c['created_at'], 0, 10)) : 'legacy cage'; ?>
-                                            <?= $c['retired_at'] ? '· retired ' . htmlspecialchars(substr($c['retired_at'], 0, 10)) : ''; ?>
+                                            <?= $c['created_at'] ? trh('in service since {date}', ['date' => substr($c['created_at'], 0, 10)]) : trh('legacy cage'); ?>
+                                            <?= $c['retired_at'] ? '· ' . trh('retired {date}', ['date' => substr($c['retired_at'], 0, 10)]) : ''; ?>
                                         </small>
                                     <?php endif; ?>
                                     <?php foreach ($isToday ? ($animalsByCage[$cid] ?? []) : [] as $a) :
                                         $label = $a['animal_uid'] ?? $a['mouse_id'] ?? '#' . $a['id']; ?>
                                         <span class="text-nowrap me-2">
-                                            <a href="animal_view.php?id=<?= (int) $a['id']; ?>"><?= htmlspecialchars($label); ?></a><?= $a['sex'] === 'male' ? '♂' : ($a['sex'] === 'female' ? '♀' : ''); ?><?php if (!empty($a['distinctive_mark'])) : ?><small class="text-muted mark" title="Distinctive mark"> [<?= htmlspecialchars($a['distinctive_mark']); ?>]</small><?php endif; ?>
-                                            <?php if (!empty($openIssues[$a['id']])) : ?><span class="badge bg-danger" title="Open health issue">!</span><?php endif; ?>
+                                            <a href="animal_view.php?id=<?= (int) $a['id']; ?>"><?= htmlspecialchars($label); ?></a><?= $a['sex'] === 'male' ? '♂' : ($a['sex'] === 'female' ? '♀' : ''); ?><?php if (!empty($a['distinctive_mark'])) : ?><small class="text-muted mark" title="<?= trh('Distinctive mark') ?>"> [<?= htmlspecialchars($a['distinctive_mark']); ?>]</small><?php endif; ?>
+                                            <?php if (!empty($openIssues[$a['id']])) : ?><span class="badge bg-danger" title="<?= trh('Open health issue') ?>">!</span><?php endif; ?>
                                             <?php if ($isToday) : ?>
-                                                <a href="health_report.php?<?= htmlspecialchars(http_build_query(['animal_id' => $a['id'], 'via' => 'round', 'return' => $returnUrl])); ?>" class="btn btn-outline-warning btn-sm py-0 px-1" title="Report a health issue for <?= htmlspecialchars($label); ?>">Report</a>
+                                                <a href="health_report.php?<?= htmlspecialchars(http_build_query(['animal_id' => $a['id'], 'via' => 'round', 'return' => $returnUrl])); ?>" class="btn btn-outline-warning btn-sm py-0 px-1" title="<?= trh('Report a health issue for {animal}', ['animal' => $label]); ?>"><?= trh('Report') ?></a>
                                             <?php endif; ?>
                                         </span>
                                     <?php endforeach; ?>
-                                    <?php if ($isToday && empty($animalsByCage[$cid])) : ?><span class="text-muted">No active animal</span><?php endif; ?>
+                                    <?php if ($isToday && empty($animalsByCage[$cid])) : ?><span class="text-muted"><?= trh('No active animal') ?></span><?php endif; ?>
                                 </td>
                                 <td>
                                     <?php foreach ($cageChecks as $chk) echo cage_check_badge($chk); ?>
-                                    <?php if (!$cageChecks) : ?><span class="badge bg-<?= $isToday ? 'secondary' : 'danger'; ?>"><?= $isToday ? 'not yet' : 'MISSED'; ?></span><?php endif; ?>
+                                    <?php if (!$cageChecks) : ?><span class="badge bg-<?= $isToday ? 'secondary' : 'danger'; ?>"><?= trh($isToday ? 'not yet' : 'MISSED'); ?></span><?php endif; ?>
                                 </td>
                                 <?php if ($isToday) : ?>
                                     <td class="text-end">
                                         <?php if (!empty($treatmentsByCage[$cid])) : ?>
                                             <a href="medication_administration.php?cage_id=<?= rawurlencode($cid); ?>" class="btn btn-outline-primary btn-sm" title="Administrations actives"><i class="fas fa-syringe"></i> <?= $treatmentsByCage[$cid]; ?></a>
                                         <?php endif; ?>
-                                        <button type="submit" name="cage_ids[]" value="<?= htmlspecialchars($cid); ?>" formnovalidate class="btn btn-success btn-sm single-ok">All OK</button>
+                                        <button type="submit" name="cage_ids[]" value="<?= htmlspecialchars($cid); ?>" formnovalidate class="btn btn-success btn-sm single-ok"><?= trh('All OK') ?></button>
                                     </td>
                                 <?php endif; ?>
                             </tr>
                         <?php endforeach; ?>
                         <?php if ($currentRoom !== null) echo '</tbody></table></div>'; ?>
                         <?php if (!$shownCages) : ?>
-                            <p class="text-muted mt-3"><?= $totalCages ? 'Every cage in this view has been seen.' : 'No active cage.'; ?></p>
+                            <p class="text-muted mt-3"><?= trh($totalCages ? 'Every cage in this view has been seen.' : 'No active cage.'); ?></p>
                         <?php endif; ?>
 
                         <?php if ($isToday && $shownCages) : ?>
                             <div class="card card-body mt-3 sticky-bottom bg-light">
                                 <div class="row g-2 align-items-end">
                                     <div class="col-md-8">
-                                        <label class="form-label" for="note">Note for the selected cages (optional)</label>
-                                        <input type="text" class="form-control" id="note" name="note" placeholder="e.g. water and food checked">
+                                        <label class="form-label" for="note"><?= trh('Note for the selected cages (optional)') ?></label>
+                                        <input type="text" class="form-control" id="note" name="note" placeholder="<?= trh('e.g. water and food checked') ?>">
                                     </div>
                                     <div class="col-md-4">
-                                        <button type="submit" id="bulkOk" class="btn btn-success w-100"><i class="fas fa-check-double"></i> Mark selected cages OK</button>
+                                        <button type="submit" id="bulkOk" class="btn btn-success w-100"><i class="fas fa-check-double"></i> <?= trh('Mark selected cages OK') ?></button>
                                     </div>
                                 </div>
                             </div>
