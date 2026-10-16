@@ -247,7 +247,7 @@ ob_end_flush(); // Flush the output buffer
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
     <meta charset="UTF-8">

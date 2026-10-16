@@ -91,13 +91,13 @@ if (isset($_GET['id'])) {
         $iacucDisplayString = implode(', ', $iacucLinks);
     } else {
         // If the record does not exist, set an error message and redirect to the dashboard
-        $_SESSION['message'] = 'Invalid ID.';
+        $_SESSION['message'] = tr('Invalid ID.');
         header("Location: bc_dash.php");
         exit();
     }
 } else {
     // If the ID parameter is missing, set an error message and redirect to the dashboard
-    $_SESSION['message'] = 'ID parameter is missing.';
+    $_SESSION['message'] = tr('ID parameter is missing.');
     header("Location: bc_dash.php");
     exit();
 }
@@ -179,7 +179,7 @@ require 'header.php';
 ?>
 
 <!doctype html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
     <title>Cage d’accouplement | <?php echo htmlspecialchars($labName); ?></title>
@@ -187,12 +187,13 @@ require 'header.php';
     <script>
         // Function to display a QR code popup for the cage
         function showQrCodePopup(cageId) {
-            var popup = window.open("", "QR Code for Cage " + cageId, "width=400,height=400");
+            var qrTitle = <?= trj('QR Code for Cage {cage}') ?>.replace('{cage}', decodeURIComponent(cageId));
+            var popup = window.open("", "qr_" + cageId, "width=400,height=400");
             var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://' + $url + '/cage_scan_route.php?id=' + cageId;
             var htmlContent = `
             <html>
             <head>
-                <title>QR Code for Cage ${cageId}</title>
+                <title>${qrTitle}</title>
                 <style>
                     body { font-family: Arial, sans-serif; text-align: center; padding-top: 40px; }
                     h1 { color: #333; }
@@ -200,8 +201,8 @@ require 'header.php';
                 </style>
             </head>
             <body>
-                <h1>QR Code for Cage ${cageId}</h1>
-                <img src="${qrUrl}" alt="QR Code for Cage ${cageId}" />
+                <h1>${qrTitle}</h1>
+                <img src="${qrUrl}" alt="${qrTitle}" />
             </body>
             </html>
         `;
@@ -337,28 +338,28 @@ require 'header.php';
         <?php if (($cageLife['status'] ?? 'active') === 'archived') : ?>
             <div class="alert alert-secondary d-flex justify-content-between align-items-center flex-wrap mb-3" id="dailyCheckBanner">
                 <span>
-                    <strong>Retired cage</strong>
-                    <?= $cageLife['retired_at'] ? 'since ' . htmlspecialchars(substr($cageLife['retired_at'], 0, 10)) : ''; ?>
-                    — no daily check expected.
+                    <strong><?= trh('Retired cage') ?></strong>
+                    <?= $cageLife['retired_at'] ? trh('since {date}', ['date' => substr($cageLife['retired_at'], 0, 10)]) : ''; ?>
+                    — <?= trh('no daily check expected.') ?>
                 </span>
-                <span class="text-muted small">A retired cage is not put back in service; its animals were moved or left the facility.</span>
+                <span class="text-muted small"><?= trh('A retired cage is not put back in service; its animals were moved or left the facility.') ?></span>
             </div>
         <?php else : ?>
             <div class="alert <?= $cageTodayChecks ? 'alert-success' : 'alert-warning'; ?> d-flex justify-content-between align-items-center flex-wrap mb-3" id="dailyCheckBanner">
                 <span>
-                    <strong>Daily check:</strong>
+                    <strong><?= trh('Daily check:') ?></strong>
                     <?php if ($cageTodayChecks) : ?>
-                        seen today <?php foreach ($cageTodayChecks as $chk) echo cage_check_badge($chk); ?>
+                        <?= trh('seen today') ?> <?php foreach ($cageTodayChecks as $chk) echo cage_check_badge($chk); ?>
                     <?php else : ?>
-                        this cage has not been seen yet today.
+                        <?= trh('this cage has not been seen yet today.') ?>
                     <?php endif; ?>
                     <?php if (!empty($cageLife['created_at'])) : ?>
-                        <small class="text-muted">· in service since <?= htmlspecialchars(substr($cageLife['created_at'], 0, 10)); ?></small>
+                        <small class="text-muted">· <?= trh('in service since {date}', ['date' => substr($cageLife['created_at'], 0, 10)]); ?></small>
                     <?php endif; ?>
                 </span>
                 <span>
-                    <a href="cage_check.php?<?= htmlspecialchars(http_build_query(['id' => $breedingcage['cage_id'], 'via' => 'cage_page'])); ?>" class="btn btn-success btn-sm"><i class="fas fa-clipboard-check"></i> Validate daily check</a>
-                    <a href="cage_retire.php?id=<?= rawurlencode($breedingcage['cage_id']); ?>" class="btn btn-outline-danger btn-sm">Retire cage</a>
+                    <a href="cage_check.php?<?= htmlspecialchars(http_build_query(['id' => $breedingcage['cage_id'], 'via' => 'cage_page'])); ?>" class="btn btn-success btn-sm"><i class="fas fa-clipboard-check"></i> <?= trh('Validate daily check') ?></a>
+                    <a href="cage_retire.php?id=<?= rawurlencode($breedingcage['cage_id']); ?>" class="btn btn-outline-danger btn-sm"><?= trh('Retire cage') ?></a>
                 </span>
             </div>
         <?php endif; ?>
@@ -367,14 +368,14 @@ require 'header.php';
             <div class="card-header">
                 <h4>Cage d’accouplement <?= htmlspecialchars($breedingcage['cage_id']); ?></h4>
                 <div class="action-buttons">
-                    <a href="javascript:void(0);" onclick="goBack()" class="btn btn-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Go Back">
+                    <a href="javascript:void(0);" onclick="goBack()" class="btn btn-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="<?= trh('Go Back') ?>">
                         <i class="fas fa-arrow-circle-left"></i>
                     </a>
                     <!-- Button to mange tasks for the cage -->
-                    <a href="manage_tasks.php?id=<?= rawurlencode($breedingcage['cage_id']); ?>" class="btn btn-secondary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Manage Tasks">
+                    <a href="manage_tasks.php?id=<?= rawurlencode($breedingcage['cage_id']); ?>" class="btn btn-secondary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="<?= trh('Manage Tasks') ?>">
                         <i class="fas fa-tasks"></i>
                     </a>
-                    <a href="javascript:void(0);" onclick="showQrCodePopup('<?= rawurlencode($breedingcage['cage_id']); ?>')" class="btn btn-success btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="QR Code">
+                    <a href="javascript:void(0);" onclick="showQrCodePopup('<?= rawurlencode($breedingcage['cage_id']); ?>')" class="btn btn-success btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="<?= trh('QR Code') ?>">
                         <i class="fas fa-qrcode"></i>
                     </a>
                     <a href="cage_labels.php?id=<?= rawurlencode($breedingcage['cage_id']); ?>" target="_blank" class="btn btn-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="Imprimer l’étiquette de cage">
@@ -389,23 +390,23 @@ require 'header.php';
             <div class="table-wrapper">
                 <table class="table table-bordered" id="mouseTable">
                     <tr>
-                        <th>Cage #:</th>
+                        <th><?= trh('Cage #:') ?></th>
                         <td><?= htmlspecialchars($breedingcage['cage_id']); ?></td>
                     </tr>
                     <tr>
-                        <th>PI Name</th>
+                        <th><?= trh('PI Name') ?></th>
                         <td><?= htmlspecialchars($breedingcage['pi_initials'] . ' [' . $breedingcage['pi_name'] . ']'); ?></td>
                     </tr>
                     <tr>
-                        <th>Cross</th>
+                        <th><?= trh('Cross') ?></th>
                         <td><?= htmlspecialchars($breedingcage['cross']); ?></td>
                     </tr>
                     <tr>
-                        <th>IACUC</th>
+                        <th><?= trh('IACUC') ?></th>
                         <td><?= $iacucDisplayString; ?></td>
                     </tr>
                     <tr>
-                        <th>User</th>
+                        <th><?= trh('User') ?></th>
                         <td><?= $userDisplayString; ?></td>
                     </tr>
                     <tr>
@@ -427,7 +428,7 @@ require 'header.php';
                         </td>
                     </tr>
                     <tr>
-                        <th>Remarks</th>
+                        <th><?= trh('Remarks') ?></th>
                         <td class="remarks-column"><?= htmlspecialchars($breedingcage['remarks'] ?? ''); ?></td>
                     </tr>
                 </table>
@@ -440,15 +441,15 @@ require 'header.php';
                 <div class="card mt-4">
 
                     <div class="card-header">
-                        <h4>Manage Files</h4>
+                        <h4><?= trh('Manage Files') ?></h4>
                     </div>
 
                     <div class="table-responsive">
                         <table class="table table-hover">
                             <thead>
                                 <tr>
-                                    <th>File Name</th>
-                                    <th>Actions</th>
+                                    <th><?= trh('File Name') ?></th>
+                                    <th><?= trh('Actions') ?></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -469,9 +470,9 @@ require 'header.php';
                 <div class="card mt-4">
 
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <h4 class="mb-0">Litter Details - <?= htmlspecialchars($id) ?>
+                        <h4 class="mb-0"><?= trh('Litter Details') ?> - <?= htmlspecialchars($id) ?>
                         </h4>
-                        <a href="litter_manage.php?cage_id=<?= rawurlencode($id); ?>" class="btn btn-success btn-sm" id="manageLitters"><i class="fas fa-baby"></i> Litters: birth → weaning</a>
+                        <a href="litter_manage.php?cage_id=<?= rawurlencode($id); ?>" class="btn btn-success btn-sm" id="manageLitters"><i class="fas fa-baby"></i> <?= trh('Litters: birth → weaning') ?></a>
                     </div>
 
                     <?php while ($litter = mysqli_fetch_assoc($litters)) : ?>
@@ -479,32 +480,32 @@ require 'header.php';
                             <table class="table table-bordered">
                                 <tbody>
                                     <tr>
-                                        <th>DOM</th>
+                                        <th><?= trh('DOM') ?></th>
                                         <td><?= htmlspecialchars($litter['dom'] ?? ''); ?></td>
                                     </tr>
                                     <tr>
-                                        <th>Litter DOB</th>
+                                        <th><?= trh('Litter DOB') ?></th>
                                         <td><?= htmlspecialchars($litter['litter_dob'] ?? ''); ?>
-                                            <a href="litter_manage.php?litter_id=<?= (int) $litter['id']; ?>" class="ms-2 small"><?= htmlspecialchars($litter['status'] ?? ''); ?><?= ($litter['status'] ?? '') === 'nursing' ? ' — weaning expected ' . htmlspecialchars($litter['expected_weaning_date'] ?? '?') : ''; ?></a></td>
+                                            <a href="litter_manage.php?litter_id=<?= (int) $litter['id']; ?>" class="ms-2 small"><?= trh((string) ($litter['status'] ?? '')); ?><?= ($litter['status'] ?? '') === 'nursing' ? ' — ' . trh('weaning expected {date}', ['date' => $litter['expected_weaning_date'] ?? '?']) : ''; ?></a></td>
                                     </tr>
                                     <tr>
-                                        <th>Pups Alive</th>
+                                        <th><?= trh('Pups Alive') ?></th>
                                         <td><?= htmlspecialchars($litter['pups_alive'] ?? ''); ?></td>
                                     </tr>
                                     <tr>
-                                        <th>Pups Dead</th>
+                                        <th><?= trh('Pups Dead') ?></th>
                                         <td><?= htmlspecialchars($litter['pups_dead'] ?? ''); ?></td>
                                     </tr>
                                     <tr>
-                                        <th>Pups Male</th>
+                                        <th><?= trh('Pups Male') ?></th>
                                         <td><?= htmlspecialchars($litter['pups_male'] ?? ''); ?></td>
                                     </tr>
                                     <tr>
-                                        <th>Pups Female</th>
+                                        <th><?= trh('Pups Female') ?></th>
                                         <td><?= htmlspecialchars($litter['pups_female'] ?? ''); ?></td>
                                     </tr>
                                     <tr>
-                                        <th>Remarks</th>
+                                        <th><?= trh('Remarks') ?></th>
                                         <td class="remarks-column"><?= htmlspecialchars($litter['remarks'] ?? ''); ?></td>
                                     </tr>
                                 </tbody>
@@ -517,10 +518,10 @@ require 'header.php';
 
                 <div class="card mt-4">
                     <div class="card-header d-flex flex-column flex-md-row justify-content-between">
-                        <h4>Maintenance Log for Cage ID: <?= htmlspecialchars($id ?? 'Unknown'); ?></h4>
+                        <h4><?= trh('Maintenance Log for Cage ID: {cage}', ['cage' => $id ?? tr('Unknown')]); ?></h4>
                         <div class="action-icons mt-3 mt-md-0">
                             <!-- Maintenance button with tooltip -->
-                            <a href="maintenance.php?from=bc_dash" class="btn btn-warning btn-icon" data-toggle="tooltip" data-placement="top" title="Add Maintenance Record">
+                            <a href="maintenance.php?from=bc_dash" class="btn btn-warning btn-icon" data-toggle="tooltip" data-placement="top" title="<?= trh('Add Maintenance Record') ?>">
                                 <i class="fas fa-wrench"></i>
                             </a>
                         </div>
@@ -531,24 +532,24 @@ require 'header.php';
                                 <table class="table table-hover">
                                     <thead>
                                         <tr>
-                                            <th style="width: 25%;">Date</th>
-                                            <th style="width: 25%;">User</th>
-                                            <th style="width: 50%;">Comment</th>
+                                            <th style="width: 25%;"><?= trh('Date') ?></th>
+                                            <th style="width: 25%;"><?= trh('User') ?></th>
+                                            <th style="width: 50%;"><?= trh('Comment') ?></th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <?php while ($log = $maintenanceLogs->fetch_assoc()) : ?>
                                             <tr>
                                                 <td style="width: 25%;"><?= htmlspecialchars($log['timestamp'] ?? ''); ?></td>
-                                                <td style="width: 25%;"><?= htmlspecialchars($log['user_name'] ?? 'Unknown'); ?></td>
-                                                <td style="width: 50%;"><?= htmlspecialchars($log['comments'] ?? 'No comment'); ?></td>
+                                                <td style="width: 25%;"><?= htmlspecialchars($log['user_name'] ?? tr('Unknown')); ?></td>
+                                                <td style="width: 50%;"><?= htmlspecialchars($log['comments'] ?? tr('No comment')); ?></td>
                                             </tr>
                                         <?php endwhile; ?>
                                     </tbody>
                                 </table>
                             </div>
                         <?php else : ?>
-                            <p>No maintenance records found for this cage.</p>
+                            <p><?= trh('No maintenance records found for this cage.') ?></p>
                         <?php endif; ?>
                     </div>
                 </div>

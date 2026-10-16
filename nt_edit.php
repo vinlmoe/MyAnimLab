@@ -23,9 +23,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Execute the statement and return the response as JSON
     if ($stmt->execute()) {
-        echo json_encode(['success' => true, 'message' => 'Note updated successfully.']);
+        echo json_encode(['success' => true, 'message' => tr('Note updated successfully.')]);
     } else {
-        echo json_encode(['success' => false, 'message' => 'Failed to update note.']);
+        echo json_encode(['success' => false, 'message' => tr('Failed to update note.')]);
     }
 
     // Close the statement and database connection

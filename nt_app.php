@@ -49,12 +49,12 @@ $result = $stmt->get_result();
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sticky Notes</title>
+    <title><?= trh('Sticky Notes') ?></title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -230,20 +230,20 @@ $result = $stmt->get_result();
 <body>
     <div class="nt-container" style="margin: 50px 0px;">
         <div id="message"></div> <!-- Added this div for displaying messages -->
-        <button class="add-note-btn" onclick="togglePopup('addNotePopup')">Add Sticky Note</button>
+        <button class="add-note-btn" onclick="togglePopup('addNotePopup')"><?= trh('Add Sticky Note') ?></button>
         <br>
         <div class="popup" id="addNotePopup">
             <span class="close-btn" onclick="togglePopup('addNotePopup')">X</span>
             <form id="addNoteForm" method="post">
                 <?php if (isset($_GET['id'])) : ?>
-                    <label for="cage_id">For Cage ID:
+                    <label for="cage_id"><?= trh('For Cage ID:') ?>
                         <?= htmlspecialchars($_GET['id']); ?>
                     </label>
                     <input type="hidden" id="cage_id" name="cage_id" value="<?= htmlspecialchars($_GET['id']); ?>">
                 <?php endif; ?>
-                <textarea id="note_text" name="note_text" placeholder="Type your sticky note here..." maxlength="250" required></textarea>
-                <div class="char-count" id="charCount">250 characters remaining</div>
-                <button type="submit" name="add_note">Add Note</button>
+                <textarea id="note_text" name="note_text" placeholder="<?= trh('Type your sticky note here...') ?>" maxlength="250" required></textarea>
+                <div class="char-count" id="charCount"><?= trh('{n} characters remaining', ['n' => 250]) ?></div>
+                <button type="submit" name="add_note"><?= trh('Add Note') ?></button>
             </form>
         </div>
 
@@ -251,9 +251,9 @@ $result = $stmt->get_result();
             <span class="close-btn" onclick="togglePopup('editNotePopup')">X</span>
             <form id="editNoteForm" method="post">
                 <input type="hidden" id="edit_note_id" name="note_id">
-                <textarea id="edit_note_text" name="note_text" placeholder="Edit your sticky note here..." maxlength="250" required></textarea>
-                <div class="char-count" id="editCharCount">250 characters remaining</div>
-                <button type="submit" name="edit_note">Edit Note</button>
+                <textarea id="edit_note_text" name="note_text" placeholder="<?= trh('Edit your sticky note here...') ?>" maxlength="250" required></textarea>
+                <div class="char-count" id="editCharCount"><?= trh('{n} characters remaining', ['n' => 250]) ?></div>
+                <button type="submit" name="edit_note"><?= trh('Edit Note') ?></button>
             </form>
         </div>
 
@@ -388,7 +388,7 @@ $result = $stmt->get_result();
         function editNote(noteId, noteText) {
             $('#edit_note_id').val(noteId);
             $('#edit_note_text').val(noteText);
-            $('#editCharCount').text(250 - noteText.length + ' characters remaining');
+            $('#editCharCount').text(<?= trj('{n} characters remaining') ?>.replace('{n}', 250 - noteText.length));
             togglePopup('editNotePopup');
         }
 
@@ -397,14 +397,14 @@ $result = $stmt->get_result();
             var maxLength = 250;
             var currentLength = $(this).val().length;
             var remaining = maxLength - currentLength;
-            $('#charCount').text(remaining + ' characters remaining');
+            $('#charCount').text(<?= trj('{n} characters remaining') ?>.replace('{n}', remaining));
         });
 
         $('#edit_note_text').on('input', function() {
             var maxLength = 250;
             var currentLength = $(this).val().length;
             var remaining = maxLength - currentLength;
-            $('#editCharCount').text(remaining + ' characters remaining');
+            $('#editCharCount').text(<?= trj('{n} characters remaining') ?>.replace('{n}', remaining));
         });
     </script>
 </body>

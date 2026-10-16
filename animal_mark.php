@@ -18,7 +18,7 @@ if (!isset($_SESSION['username'])) {
 $animalId = (int) ($_POST['animal_id'] ?? 0);
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['csrf_token']) || $_POST['csrf_token'] !== ($_SESSION['csrf_token'] ?? null)) {
-    die('CSRF token validation failed');
+    die(tr('CSRF token validation failed'));
 }
 
 $mark = trim($_POST['distinctive_mark'] ?? '');
@@ -31,7 +31,7 @@ $animal = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
 if (!$animal) {
-    $_SESSION['message'] = "Animal not found.";
+    $_SESSION['message'] = tr('Animal not found.');
     header("Location: animal_search.php?list=1");
     exit;
 }
@@ -43,7 +43,7 @@ if ($mark !== $animal['distinctive_mark']) {
     $upd->close();
     log_animal_event($con, $animalId, 'note', ['distinctive_mark' => $mark, 'previous' => $animal['distinctive_mark']], $_SESSION['user_id'] ?? null);
     log_activity($con, 'distinctive_mark', 'animal', (string) $animalId, "{$animal['animal_uid']}: " . ($animal['distinctive_mark'] ?? '(none)') . " → " . ($mark ?? '(none)'), $_SESSION['user_id'] ?? null);
-    $_SESSION['message'] = $mark ? "Distinctive mark saved." : "Distinctive mark removed.";
+    $_SESSION['message'] = $mark ? tr('Distinctive mark saved.') : tr('Distinctive mark removed.');
 }
 
 header("Location: animal_view.php?id=$animalId");

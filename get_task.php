@@ -49,18 +49,18 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
             ];
         } else {
             // Set error response if no matching task is found
-            $response = ['error' => 'Task not found.'];
+            $response = ['error' => tr('Task not found.')];
         }
 
         // Close the statement
         $stmt->close();
     } else {
         // Set error response if the query execution fails
-        $response = ['error' => 'Error executing query: ' . $stmt->error];
+        $response = ['error' => tr('Error executing query: {error}', ['error' => $stmt->error])];
     }
 } else {
     // Set error response if the task ID is invalid
-    $response = ['error' => 'Invalid task ID.'];
+    $response = ['error' => tr('Invalid task ID.')];
 }
 
 // Output the response as JSON

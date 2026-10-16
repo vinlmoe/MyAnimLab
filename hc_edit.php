@@ -439,7 +439,7 @@ require 'header.php';
 ?>
 
 <!doctype html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
     <title>Edit Holding Cage | <?php echo htmlspecialchars($labName); ?></title>

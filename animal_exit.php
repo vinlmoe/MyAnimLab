@@ -29,7 +29,7 @@ $code = $_SERVER['REQUEST_METHOD'] === 'POST' ? ($_POST['exit_code'] ?? '') : ($
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        die('CSRF token validation failed');
+        die(tr('CSRF token validation failed'));
     }
 
     $date = $_POST['exit_date'] ?: date('Y-m-d');
@@ -40,11 +40,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $retiredCage = exit_animal($con, $animalId, $code, $date, $reason, $destination, $currentUserId, $_SESSION['name'] ?? null);
         mysqli_commit($con);
-        $_SESSION['message'] = "Exit recorded: " . ANIMAL_EXIT_CODES[$code][0] . "."
-            . ($retiredCage ? " Cage $retiredCage is now empty and was retired automatically." : '');
+        $_SESSION['message'] = tr('Exit recorded: {label}.', ['label' => ANIMAL_EXIT_CODES[$code][0]])
+            . ($retiredCage ? ' ' . tr('Cage {cage} is now empty and was retired automatically.', ['cage' => $retiredCage]) : '');
     } catch (Exception $e) {
         mysqli_rollback($con);
-        $_SESSION['message'] = "Exit not recorded: " . $e->getMessage();
+        $_SESSION['message'] = tr('Exit not recorded: {error}', ['error' => $e->getMessage()]);
         header("Location: animal_exit.php?" . http_build_query(['id' => $animalId, 'code' => $code]));
         exit;
     }
@@ -61,7 +61,7 @@ $stmt->execute();
 $animal = $stmt->get_result()->fetch_assoc();
 
 if (!$animal) {
-    echo "<div class='container mt-4'><div class='alert alert-danger'>Animal not found.</div></div>";
+    echo "<div class='container mt-4'><div class='alert alert-danger'>" . trh('Animal not found.') . "</div></div>";
     require 'footer.php';
     exit;
 }
@@ -69,49 +69,49 @@ $label = $animal['animal_uid'] ?? $animal['mouse_id'] ?? '#' . $animal['id'];
 ?>
 
 <!doctype html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
-    <title>Animal Exit | <?php echo htmlspecialchars($labName); ?></title>
+    <title><?= trh('Animal Exit') ?> | <?php echo htmlspecialchars($labName); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 
 <body>
     <div class="container mt-4 content" style="max-width: 600px;">
-        <h4>Exit of animal <?= htmlspecialchars($label); ?></h4>
-        <p class="text-muted">Records the animal leaving the facility (cage <?= htmlspecialchars($animal['cage_id'] ?? 'N/A'); ?>). Its full record (parentage, cage history, experiments, health) remains permanently accessible. To keep it in the facility, <a href="animal_transfer.php?animal_id=<?= (int) $animal['id']; ?>">move it to another cage</a> instead.</p>
+        <h4><?= trh('Exit of animal {uid}', ['uid' => $label]); ?></h4>
+        <p class="text-muted"><?= trh('Records the animal leaving the facility (cage {cage}). Its full record (parentage, cage history, experiments, health) remains permanently accessible.', ['cage' => $animal['cage_id'] ?? tr('N/A')]); ?> <?= trh('To keep it in the facility, move it to another cage instead:') ?> <a href="animal_transfer.php?animal_id=<?= (int) $animal['id']; ?>"><?= trh('Transfer') ?></a>.</p>
 
         <?php include('message.php'); ?>
 
         <?php if ($animal['status'] !== 'active') : ?>
-            <div class="alert alert-warning">This animal has already left the facility (status: <?= htmlspecialchars($animal['status']); ?>).</div>
+            <div class="alert alert-warning"><?= trh('This animal has already left the facility (status: {status}).', ['status' => tr(str_replace('_', ' ', $animal['status']))]); ?></div>
         <?php else : ?>
             <form method="POST">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                 <input type="hidden" name="animal_id" value="<?= (int) $animal['id']; ?>">
                 <div class="mb-3">
-                    <label class="form-label" for="exit_code">Exit code (motif de sortie)</label>
+                    <label class="form-label" for="exit_code"><?= trh('Exit code') ?></label>
                     <select class="form-select" id="exit_code" name="exit_code" required>
-                        <option value="" disabled <?= isset(ANIMAL_EXIT_CODES[$code]) ? '' : 'selected'; ?>>Choose…</option>
+                        <option value="" disabled <?= isset(ANIMAL_EXIT_CODES[$code]) ? '' : 'selected'; ?>><?= trh('Choose…') ?></option>
                         <?php foreach (ANIMAL_EXIT_CODES as $key => [$text]) : ?>
                             <option value="<?= $key; ?>" <?= $key === $code ? 'selected' : ''; ?>><?= htmlspecialchars($text); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="mb-3" id="destinationGroup">
-                    <label class="form-label" for="destination">Destination facility (for an export)</label>
-                    <input type="text" class="form-control" id="destination" name="destination" placeholder="e.g. Animalerie Institut X, Lyon">
+                    <label class="form-label" for="destination"><?= trh('Destination facility (for an export)') ?></label>
+                    <input type="text" class="form-control" id="destination" name="destination" placeholder="<?= trh('e.g. Animalerie Institut X, Lyon') ?>">
                 </div>
                 <div class="mb-3">
-                    <label class="form-label" for="exit_date">Date</label>
+                    <label class="form-label" for="exit_date"><?= trh('Date') ?></label>
                     <input type="date" class="form-control" id="exit_date" name="exit_date" value="<?= date('Y-m-d'); ?>" max="<?= date('Y-m-d'); ?>">
                 </div>
                 <div class="mb-3">
-                    <label class="form-label" for="reason">Reason / circumstances</label>
+                    <label class="form-label" for="reason"><?= trh('Reason / circumstances') ?></label>
                     <textarea class="form-control" id="reason" name="reason" required></textarea>
                 </div>
-                <button type="submit" class="btn btn-danger" onclick="return confirm('Confirm this animal leaves the facility?');">Record exit</button>
-                <a href="animal_view.php?id=<?= (int) $animal['id']; ?>" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-danger" onclick="return confirm(<?= htmlspecialchars(trj('Confirm this animal leaves the facility?')) ?>);"><?= trh('Record exit') ?></button>
+                <a href="animal_view.php?id=<?= (int) $animal['id']; ?>" class="btn btn-secondary"><?= trh('Cancel') ?></a>
             </form>
         <?php endif; ?>
     </div>

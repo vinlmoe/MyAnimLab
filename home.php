@@ -85,14 +85,14 @@ require 'header.php';
 ?>
 
 <!doctype html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
     <!-- Meta tags for character encoding and responsive design -->
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <title>Home | <?php echo htmlspecialchars($labName); ?></title>
+    <title><?= trh('Home') ?> | <?php echo htmlspecialchars($labName); ?></title>
 
     <style>
         body,
@@ -121,9 +121,9 @@ require 'header.php';
         <!-- Security warning for default admin account -->
         <?php if ($_SESSION['username'] === 'admin@myvivarium.online' && $_SESSION['role'] === 'admin'): ?>
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            <strong><i class="fas fa-exclamation-triangle"></i> Security Warning:</strong> You are using the default admin account.
-            For security reasons, please create a new admin user and delete this default account immediately.
-            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+            <strong><i class="fas fa-exclamation-triangle"></i> <?= trh('Security Warning:') ?></strong> <?= trh('You are using the default admin account.') ?>
+            <?= trh('For security reasons, please create a new admin user and delete this default account immediately.') ?>
+            <button type="button" class="close" data-dismiss="alert" aria-label="<?= trh('Close') ?>">
                 <span aria-hidden="true">&times;</span>
             </button>
         </div>
@@ -131,12 +131,12 @@ require 'header.php';
 
         <?php if ($pendingEndpointActions) : ?>
             <div class="alert alert-danger" id="pendingEndpointActions">
-                <i class="fas fa-exclamation-triangle"></i> <strong><?= count($pendingEndpointActions); ?> endpoint action(s) required</strong>
+                <i class="fas fa-exclamation-triangle"></i> <strong><?= trh('{n} endpoint action(s) required', ['n' => count($pendingEndpointActions)]); ?></strong>
                 <ul class="mb-0">
                     <?php foreach ($pendingEndpointActions as $pa) : ?>
                         <li><a href="experiment_followup.php?experiment_animal_id=<?= (int) $pa['experiment_animal_id']; ?>"><?= htmlspecialchars($pa['animal_uid']); ?></a>
-                            (<?= htmlspecialchars($pa['experiment_number']); ?>): <strong><?= htmlspecialchars(ENDPOINT_REQUIRED_ACTIONS[$pa['required_action']]); ?></strong>
-                            — <?= htmlspecialchars($pa['message'] ?? ''); ?> <small>(since <?= htmlspecialchars($pa['created_at']); ?>)</small></li>
+                            (<?= htmlspecialchars($pa['experiment_number']); ?>): <strong><?= htmlspecialchars(endpoint_required_actions()[$pa['required_action']]); ?></strong>
+                            — <?= htmlspecialchars($pa['message'] ?? ''); ?> <small>(<?= trh('since {date}', ['date' => $pa['created_at']]); ?>)</small></li>
                     <?php endforeach; ?>
                 </ul>
             </div>
@@ -144,10 +144,10 @@ require 'header.php';
 
         <?php if ($littersToWean) : ?>
             <div class="alert alert-warning" id="littersToWean">
-                <i class="fas fa-baby"></i> <strong><?= count($littersToWean); ?> litter(s) to wean</strong>
+                <i class="fas fa-baby"></i> <strong><?= trh('{n} litter(s) to wean', ['n' => count($littersToWean)]); ?></strong>
                 <ul class="mb-0">
                     <?php foreach ($littersToWean as $lw) : $over = $lw['expected_weaning_date'] < date('Y-m-d'); ?>
-                        <li class="<?= $over ? 'text-danger fw-bold' : ''; ?>"><a href="litter_manage.php?litter_id=<?= (int) $lw['id']; ?>">Litter #<?= (int) $lw['id']; ?></a> — cage <?= htmlspecialchars($lw['cage_id']); ?>, born <?= htmlspecialchars($lw['litter_dob']); ?>, weaning <?= $over ? 'overdue since' : 'expected'; ?> <?= htmlspecialchars($lw['expected_weaning_date']); ?></li>
+                        <li class="<?= $over ? 'text-danger fw-bold' : ''; ?>"><a href="litter_manage.php?litter_id=<?= (int) $lw['id']; ?>"><?= trh('Litter #{id}', ['id' => (int) $lw['id']]); ?></a> — <?= trh($over ? 'cage {cage}, born {dob}, weaning overdue since {date}' : 'cage {cage}, born {dob}, weaning expected {date}', ['cage' => $lw['cage_id'], 'dob' => $lw['litter_dob'], 'date' => $lw['expected_weaning_date']]); ?></li>
                     <?php endforeach; ?>
                 </ul>
             </div>
@@ -155,23 +155,23 @@ require 'header.php';
 
         <?php if ($housingAnomalies) : ?>
             <div class="alert alert-danger" id="housingAnomalies">
-                <i class="fas fa-exclamation-triangle"></i> <strong><?= $housingAnomalies; ?> living animal(s) without an active cage</strong> (data recorded before the housing rule).
-                <a href="animal_search.php?list=1&amp;status=active&amp;housing_anomaly=1">Move them to a cage or record their exit</a>.
+                <i class="fas fa-exclamation-triangle"></i> <strong><?= trh('{n} living animal(s) without an active cage', ['n' => $housingAnomalies]); ?></strong> <?= trh('(data recorded before the housing rule).') ?>
+                <a href="animal_search.php?list=1&amp;status=active&amp;housing_anomaly=1"><?= trh('Move them to a cage or record their exit') ?></a>.
             </div>
         <?php endif; ?>
 
         <?php if ($roundCages) : ?>
             <div class="alert <?= $seenToday === count($roundCages) ? 'alert-success' : 'alert-warning'; ?> d-flex justify-content-between align-items-center flex-wrap" id="dailyRoundStatus">
                 <span>
-                    <i class="fas fa-clipboard-check"></i> <strong>Daily round:</strong>
-                    <?= $seenToday; ?> / <?= count($roundCages); ?> cage(s) seen today.
+                    <i class="fas fa-clipboard-check"></i> <strong><?= trh('Daily round:') ?></strong>
+                    <?= trh('{seen} / {total} cage(s) seen today.', ['seen' => $seenToday, 'total' => count($roundCages)]); ?>
                     <?php if ($missedYesterday) : ?>
-                        <a href="daily_round.php?date=<?= date('Y-m-d', strtotime('-1 day')); ?>" class="text-danger fw-bold"><?= $missedYesterday; ?> cage(s) missed yesterday.</a>
+                        <a href="daily_round.php?date=<?= date('Y-m-d', strtotime('-1 day')); ?>" class="text-danger fw-bold"><?= trh('{n} cage(s) missed yesterday.', ['n' => $missedYesterday]); ?></a>
                     <?php endif; ?>
                 </span>
                 <span>
-                    <a href="daily_round.php?hide_seen=1" class="btn btn-sm btn-primary">Start / continue the round</a>
-                    <a href="qr_scan.php" class="btn btn-sm btn-success"><i class="fas fa-qrcode"></i> Scan</a>
+                    <a href="daily_round.php?hide_seen=1" class="btn btn-sm btn-primary"><?= trh('Start / continue the round') ?></a>
+                    <a href="qr_scan.php" class="btn btn-sm btn-success"><i class="fas fa-qrcode"></i> <?= trh('Scan') ?></a>
                 </span>
             </div>
         <?php endif; ?>
@@ -180,15 +180,15 @@ require 'header.php';
         <div class="row align-items-center">
             <!-- Welcome message with user information -->
             <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-                <h2>Welcome, <?php echo htmlspecialchars($_SESSION['name']); ?>
+                <h2><?= trh('Welcome, {name}', ['name' => $_SESSION['name']]); ?>
                     <span style="font-size: smaller; color: #555; border-bottom: 2px solid #ccc; padding: 0 5px;">
-                        [<?php echo htmlspecialchars($_SESSION['position']); ?>]
+                        [<?php echo htmlspecialchars(tr($_SESSION['position'])); ?>]
                     </span>
                 </h2>
             </div>
 
             <!-- Display stats for Holding Cage and Breeding Cage -->
-            <h2 class="mt-4">Cages Summary</h2>
+            <h2 class="mt-4"><?= trh('Cages Summary') ?></h2>
             <div class="card">
                 <div class="card-body">
                     <div class="row mt-4">
@@ -200,7 +200,7 @@ require 'header.php';
                                     </div>
                                     <div class="card-body">
                                         <h5 class="card-title"><?= $cageCounts[$kind]; ?></h5>
-                                        <p class="card-text">Cages actives</p>
+                                        <p class="card-text"><?= trh('Active cages') ?></p>
                                     </div>
                                 </div>
                             </div>
@@ -210,7 +210,7 @@ require 'header.php';
             </div>
 
             <!-- Display Task Stats for Logged-in User -->
-            <h2 class="mt-4">Summary of Your Tasks</h2>
+            <h2 class="mt-4"><?= trh('Summary of Your Tasks') ?></h2>
             <div class="card" style="margin-top: 20px;">
                 <div class="card-body">
                     <div class="row mt-4">
@@ -218,11 +218,11 @@ require 'header.php';
                         <div class="col-md-3">
                             <div class="card text-center">
                                 <div class="card-header bg-info text-white">
-                                    <a href="manage_tasks.php?filter=assigned_to_me" style="color: white; text-decoration: none;">Total Tasks</a>
+                                    <a href="manage_tasks.php?filter=assigned_to_me" style="color: white; text-decoration: none;"><?= trh('Total Tasks') ?></a>
                                 </div>
                                 <div class="card-body">
                                     <h5 class="card-title"><?php echo $totalTasks; ?></h5>
-                                    <p class="card-text">Total</p>
+                                    <p class="card-text"><?= trh('Total') ?></p>
                                 </div>
                             </div>
                         </div>
@@ -230,11 +230,11 @@ require 'header.php';
                         <div class="col-md-3">
                             <div class="card text-center">
                                 <div class="card-header bg-success text-white">
-                                    <a href="manage_tasks.php?search=completed&filter=assigned_to_me" style="color: white; text-decoration: none;">Completed</a>
+                                    <a href="manage_tasks.php?search=completed&filter=assigned_to_me" style="color: white; text-decoration: none;"><?= trh('Completed') ?></a>
                                 </div>
                                 <div class="card-body">
                                     <h5 class="card-title"><?php echo $completedTasks; ?></h5>
-                                    <p class="card-text">Completed</p>
+                                    <p class="card-text"><?= trh('Completed') ?></p>
                                 </div>
                             </div>
                         </div>
@@ -242,11 +242,11 @@ require 'header.php';
                         <div class="col-md-3">
                             <div class="card text-center">
                                 <div class="card-header bg-warning text-white">
-                                    <a href="manage_tasks.php?search=in+progress&filter=assigned_to_me" style="color: white; text-decoration: none;">In Progress</a>
+                                    <a href="manage_tasks.php?search=in+progress&filter=assigned_to_me" style="color: white; text-decoration: none;"><?= trh('In Progress') ?></a>
                                 </div>
                                 <div class="card-body">
                                     <h5 class="card-title"><?php echo $inProgressTasks; ?></h5>
-                                    <p class="card-text">In Progress</p>
+                                    <p class="card-text"><?= trh('In Progress') ?></p>
                                 </div>
                             </div>
                         </div>
@@ -254,11 +254,11 @@ require 'header.php';
                         <div class="col-md-3">
                             <div class="card text-center">
                                 <div class="card-header bg-danger text-white">
-                                    <a href="manage_tasks.php?search=pending&filter=assigned_to_me" style="color: white; text-decoration: none;">Pending</a>
+                                    <a href="manage_tasks.php?search=pending&filter=assigned_to_me" style="color: white; text-decoration: none;"><?= trh('Pending') ?></a>
                                 </div>
                                 <div class="card-body">
                                     <h5 class="card-title"><?php echo $pendingTasks; ?></h5>
-                                    <p class="card-text">Pending</p>
+                                    <p class="card-text"><?= trh('Pending') ?></p>
                                 </div>
                             </div>
                         </div>
@@ -268,7 +268,7 @@ require 'header.php';
 
             <!-- Display sticky notes section -->
             <div style="margin-top: 50px;">
-                <h2><?php echo htmlspecialchars($labName); ?> - General Notes</h2>
+                <h2><?php echo htmlspecialchars($labName); ?> - <?= trh('General Notes') ?></h2>
                 <?php include 'nt_app.php'; ?> <!-- Include the note application file -->
             </div>
         </div>

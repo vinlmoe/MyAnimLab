@@ -41,10 +41,10 @@ require 'header.php';
 ?>
 
 <!doctype html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
-    <title>Select Breeding Cages for Printing</title>
+    <title><?= trh('Select Breeding Cages for Printing') ?></title>
 
     <!-- Select2 CSS for enhanced dropdowns -->
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
@@ -83,11 +83,11 @@ require 'header.php';
         function validateSelection() {
             var selectedIds = document.getElementById("cageIds").selectedOptions;
             if (selectedIds.length > 4) {
-                alert("You can select up to 4 cage IDs only.");
+                alert(<?= trj('You can select up to 4 cage IDs only.') ?>);
                 return false;
             }
             if (selectedIds.length === 0) {
-                alert("Please select at least one cage ID.");
+                alert(<?= trj('Please select at least one cage ID.') ?>);
                 return false;
             }
             return true;
@@ -107,7 +107,7 @@ require 'header.php';
         // Initialize Select2 for the cage IDs dropdown
         $(document).ready(function() {
             $('#cageIds').select2({
-                placeholder: "Select Cage IDs",
+                placeholder: <?= trj('Select Cage IDs') ?>,
                 allowClear: true,
                 width: '100%'
             });
@@ -127,11 +127,11 @@ require 'header.php';
         <br>
         <br>
         <div class="container">
-            <h4>Select Breeding Cages for Printing</h4>
+            <h4><?= trh('Select Breeding Cages for Printing') ?></h4>
             <br>
             <form>
                 <div class="form-group">
-                    <label for="cageIds" class="form-label">Select Cage IDs (up to 4):</label>
+                    <label for="cageIds" class="form-label"><?= trh('Select Cage IDs (up to 4):') ?></label>
                     <br>
                     <select id="cageIds" name="id[]" class="form-select" multiple size="10">
                         <?php foreach ($cageIds as $cageId) : ?>
@@ -141,8 +141,8 @@ require 'header.php';
                 </div>
                 <br>
                 <div class="btn-container">
-                    <button type="submit" class="btn btn-primary btn-print" onclick="handleSubmit(event, 'bc_prnt_crd.php')">Print Cage Card</button>
-                    <button type="button" class="btn btn-secondary" onclick="goBack()">Go Back</button>
+                    <button type="submit" class="btn btn-primary btn-print" onclick="handleSubmit(event, 'bc_prnt_crd.php')"><?= trh('Print Cage Card') ?></button>
+                    <button type="button" class="btn btn-secondary" onclick="goBack()"><?= trh('Go Back') ?></button>
                 </div>
             </form>
         </div>

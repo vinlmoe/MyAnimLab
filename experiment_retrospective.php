@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->bind_param('issis', $enrollmentId, $classification, $notes, $userId, $userName);
             $stmt->execute();
             $stmt->close();
-            log_activity($con, 'retrospective_assessment', 'experiment_animal', (string) $enrollmentId, 'Actual severity: ' . $classification, $userId);
+            log_activity($con, 'retrospective_assessment', 'experiment_animal', (string) $enrollmentId, 'Sévérité réelle : ' . $classification, $userId);
             $_SESSION['message'] = 'Évaluation rétrospective enregistrée.';
         }
     }

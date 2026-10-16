@@ -61,7 +61,7 @@ $updateMessage = '';
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_lab'])) {
 
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        die('CSRF token validation failed');
+        die(tr('CSRF token validation failed'));
     }
 
     // Sanitize and fetch form inputs
@@ -105,7 +105,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_lab'])) {
 
     $labData = array_merge($defaultLabData, $labData);
 
-    $updateMessage = "Lab information updated successfully.";
+    $updateMessage = trh('Lab information updated successfully.');
 }
 
 // Include the header file
@@ -113,13 +113,13 @@ require 'header.php';
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
     <!-- Meta tags for character encoding and responsive design -->
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Manage Lab</title>
+    <title><?= trh('Manage Lab') ?></title>
 
     <!-- Inline CSS for styling -->
     <style>
@@ -164,74 +164,74 @@ require 'header.php';
 
 <body>
     <div class="container content">
-        <h2>Manage Lab</h2>
+        <h2><?= trh('Manage Lab') ?></h2>
         <!-- Form for updating lab information -->
         <form method="POST" action="">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
             <div class="form-group">
-                <label for="lab_name">Lab Name</label>
+                <label for="lab_name"><?= trh('Lab Name') ?></label>
                 <textarea class="form-control" id="lab_name" name="lab_name" oninput="adjustTextareaHeight(this)"><?php echo htmlspecialchars($labData['lab_name']); ?></textarea>
             </div>
             <div class="form-group">
-                <label for="url">URL (domain name only i.e domain.com)</label>
+                <label for="url"><?= trh('URL (domain name only, e.g. domain.com)') ?></label>
                 <textarea class="form-control" id="url" name="url" oninput="adjustTextareaHeight(this)"><?php echo htmlspecialchars($labData['url']); ?></textarea>
             </div>
             <div class="form-group">
-                <label for="timezone">Timezone</label><br>
-                <a href="https://www.php.net/manual/en/timezones.php" target="_blank" style="margin-bottom: 10px; display: inline-block;">List of Supported Timezones</a>
+                <label for="timezone"><?= trh('Timezone') ?></label><br>
+                <a href="https://www.php.net/manual/en/timezones.php" target="_blank" style="margin-bottom: 10px; display: inline-block;"><?= trh('List of Supported Timezones') ?></a>
                 <input type="text" class="form-control" id="timezone" name="timezone" value="<?php echo htmlspecialchars($labData['timezone']); ?>">
             </div>
             <div class="form-group">
-                <label for="round_alert_time">Daily round alert time</label>
-                <small class="form-text text-muted d-block">After this time (lab timezone), admins are alerted once about cages not yet seen today. Requires the daily_round_alert.php cron job.</small>
+                <label for="round_alert_time"><?= trh('Daily round alert time') ?></label>
+                <small class="form-text text-muted d-block"><?= trh('After this time (lab timezone), admins are alerted once about cages not yet seen today. Requires the daily_round_alert.php cron job.') ?></small>
                 <input type="time" class="form-control" id="round_alert_time" name="round_alert_time" value="<?php echo htmlspecialchars($labData['round_alert_time']); ?>">
             </div>
             <div class="form-group">
-                <label for="weaning_age_days">Weaning age (days)</label>
-                <small class="form-text text-muted d-block">Used to compute each litter's expected weaning date from its date of birth.</small>
+                <label for="weaning_age_days"><?= trh('Weaning age (days)') ?></label>
+                <small class="form-text text-muted d-block"><?= trh('Used to compute each litter’s expected weaning date from its date of birth.') ?></small>
                 <input type="number" min="1" class="form-control" id="weaning_age_days" name="weaning_age_days" value="<?php echo htmlspecialchars($labData['weaning_age_days']); ?>">
             </div>
             <div class="form-group">
-                <label for="r1_temp">Room 1 Temperature Sensor</label>
+                <label for="r1_temp"><?= trh('Room 1 Temperature Sensor') ?></label>
                 <textarea class="form-control" id="r1_temp" name="r1_temp" oninput="adjustTextareaHeight(this)"><?php echo htmlspecialchars($labData['r1_temp']); ?></textarea>
             </div>
             <div class="form-group">
-                <label for="r1_humi">Room 1 Humidity Sensor</label>
+                <label for="r1_humi"><?= trh('Room 1 Humidity Sensor') ?></label>
                 <textarea class="form-control" id="r1_humi" name="r1_humi" oninput="adjustTextareaHeight(this)"><?php echo htmlspecialchars($labData['r1_humi']); ?></textarea>
             </div>
             <div class="form-group">
-                <label for="r1_illu">Room 1 Illumination Sensor</label>
+                <label for="r1_illu"><?= trh('Room 1 Illumination Sensor') ?></label>
                 <textarea class="form-control" id="r1_illu" name="r1_illu" oninput="adjustTextareaHeight(this)"><?php echo htmlspecialchars($labData['r1_illu']); ?></textarea>
             </div>
             <div class="form-group">
-                <label for="r1_pres">Room 1 Pressure Sensor</label>
+                <label for="r1_pres"><?= trh('Room 1 Pressure Sensor') ?></label>
                 <textarea class="form-control" id="r1_pres" name="r1_pres" oninput="adjustTextareaHeight(this)"><?php echo htmlspecialchars($labData['r1_pres']); ?></textarea>
             </div>
             <div class="form-group">
-                <label for="r2_temp">Room 2 Temperature Sensor</label>
+                <label for="r2_temp"><?= trh('Room 2 Temperature Sensor') ?></label>
                 <textarea class="form-control" id="r2_temp" name="r2_temp" oninput="adjustTextareaHeight(this)"><?php echo htmlspecialchars($labData['r2_temp']); ?></textarea>
             </div>
             <div class="form-group">
-                <label for="r2_humi">Room 2 Humidity Sensor</label>
+                <label for="r2_humi"><?= trh('Room 2 Humidity Sensor') ?></label>
                 <textarea class="form-control" id="r2_humi" name="r2_humi" oninput="adjustTextareaHeight(this)"><?php echo htmlspecialchars($labData['r2_humi']); ?></textarea>
             </div>
             <div class="form-group">
-                <label for="r2_illu">Room 2 Illumination Sensor</label>
+                <label for="r2_illu"><?= trh('Room 2 Illumination Sensor') ?></label>
                 <textarea class="form-control" id="r2_illu" name="r2_illu" oninput="adjustTextareaHeight(this)"><?php echo htmlspecialchars($labData['r2_illu']); ?></textarea>
             </div>
             <div class="form-group">
-                <label for="r2_pres">Room 2 Pressure Sensor</label>
+                <label for="r2_pres"><?= trh('Room 2 Pressure Sensor') ?></label>
                 <textarea class="form-control" id="r2_pres" name="r2_pres" oninput="adjustTextareaHeight(this)"><?php echo htmlspecialchars($labData['r2_pres']); ?></textarea>
             </div>
             <div class="form-group">
-                <label for="cf-turnstile-sitekey">Cloudflare Turnstile Site Key</label>
+                <label for="cf-turnstile-sitekey"><?= trh('Cloudflare Turnstile Site Key') ?></label>
                 <input type="text" class="form-control" id="cf-turnstile-sitekey" name="cf-turnstile-sitekey" value="<?php echo htmlspecialchars($labData['cf-turnstile-sitekey']); ?>">
             </div>
             <div class="form-group">
-                <label for="cf-turnstile-secretKey">Cloudflare Turnstile Secret Key</label>
+                <label for="cf-turnstile-secretKey"><?= trh('Cloudflare Turnstile Secret Key') ?></label>
                 <input type="text" class="form-control" id="cf-turnstile-secretKey" name="cf-turnstile-secretKey" value="<?php echo htmlspecialchars($labData['cf-turnstile-secretKey']); ?>">
             </div>
-            <button type="submit" class="btn1 btn-primary" name="update_lab">Update Lab Information</button>
+            <button type="submit" class="btn1 btn-primary" name="update_lab"><?= trh('Update Lab Information') ?></button>
         </form>
         <?php if ($updateMessage) {
             echo "<p class='update-message'>$updateMessage</p>";

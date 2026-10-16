@@ -12,7 +12,7 @@ header('Content-Type: application/json');
 
 if (!isset($_SESSION['username'], $_SESSION['user_id'])) {
     http_response_code(401);
-    echo json_encode(['error' => 'Not authenticated']);
+    echo json_encode(['error' => tr('Not authenticated')]);
     exit;
 }
 

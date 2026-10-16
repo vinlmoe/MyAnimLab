@@ -127,14 +127,14 @@ if ($reminderResult) {
             $assignedToNamesString = implode(', ', $assignedToNames);
 
             // Prepare email content
-            $subject = "New Task Created from Reminder: $title";
-            $body = "A new task has been created from a reminder. Here are the details:<br><br>" .
-                "<strong>Title:</strong> $title<br>" .
-                "<strong>Description:</strong> $description<br>" .
-                "<strong>Status:</strong> $status<br>" .
-                "<strong>Due Date:</strong> $dueDate<br>" .
-                "<strong>Assigned By:</strong> $assignedByName<br>" .
-                "<strong>Assigned To:</strong> $assignedToNamesString<br>";
+            $subject = tr('New Task Created from Reminder: {title}', ['title' => $title]);
+            $body = tr('A new task has been created from a reminder. Here are the details:') . "<br><br>" .
+                "<strong>" . tr('Title:') . "</strong> $title<br>" .
+                "<strong>" . tr('Description:') . "</strong> $description<br>" .
+                "<strong>" . tr('Status:') . "</strong> " . tr($status) . "<br>" .
+                "<strong>" . tr('Due Date:') . "</strong> $dueDate<br>" .
+                "<strong>" . tr('Assigned By:') . "</strong> $assignedByName<br>" .
+                "<strong>" . tr('Assigned To:') . "</strong> $assignedToNamesString<br>";
 
             // Schedule the email
             $scheduledAt = $now->format('Y-m-d H:i:s');

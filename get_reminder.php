@@ -18,13 +18,13 @@ if (isset($_GET['id'])) {
             // Return the reminder details as JSON
             echo json_encode($reminder);
         } else {
-            echo json_encode(['error' => 'Reminder not found']);
+            echo json_encode(['error' => tr('Reminder not found')]);
         }
     } else {
-        echo json_encode(['error' => 'Error executing query']);
+        echo json_encode(['error' => tr('Error executing query')]);
     }
     $stmt->close();
 } else {
-    echo json_encode(['error' => 'Invalid request']);
+    echo json_encode(['error' => tr('Invalid request')]);
 }
 ?>

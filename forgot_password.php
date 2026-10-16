@@ -67,7 +67,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
 
         // Check if Turnstile verification was successful
         if (!$result['success']) {
-            $resultMessage = "Cloudflare Turnstile verification failed. Please try again.";
+            $resultMessage = trh('Cloudflare Turnstile verification failed. Please try again.');
         } else {
             // Continue with password reset process if Turnstile verification is successful
             handlePasswordReset($con, $email, $url);
@@ -101,8 +101,8 @@ function handlePasswordReset($con, $email, $url) {
         $resetLink = "https://" . $url . "/reset_password.php?token=$resetToken";
 
         $to = $email;
-        $subject = 'Password Reset';
-        $message = "To reset your password, click the following link:\n$resetLink";
+        $subject = tr('Password Reset');
+        $message = tr('To reset your password, click the following link:') . "\n$resetLink";
 
         $mail = new PHPMailer(true);
         try {
@@ -121,12 +121,12 @@ function handlePasswordReset($con, $email, $url) {
             $mail->Body = $message;
 
             $mail->send();
-            $resultMessage = "Password reset instructions have been sent to your email address.";
+            $resultMessage = trh('Password reset instructions have been sent to your email address.');
         } catch (Exception $e) {
-            $resultMessage = "Email could not be sent. Error: " . $mail->ErrorInfo;
+            $resultMessage = trh('Email could not be sent. Error: {error}', ['error' => $mail->ErrorInfo]);
         }
     } else {
-        $resultMessage = "Email address not found in our records. Please try again.";
+        $resultMessage = trh('Email address not found in our records. Please try again.');
     }
 
     $stmt->close();
@@ -146,7 +146,7 @@ function handlePasswordReset($con, $email, $url) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Forgot Password | <?php echo htmlspecialchars($labName); ?></title>
+    <title><?= trh('Forgot Password') ?> | <?php echo htmlspecialchars($labName); ?></title>
 
     <!-- Favicon and icons for different devices -->
     <link rel="icon" href="/icons/favicon.ico" type="image/x-icon">
@@ -284,13 +284,13 @@ function handlePasswordReset($con, $email, $url) {
     <br>
     <br>
     <div class="container content">
-        <h2>Forgot Password</h2>
+        <h2><?= trh('Forgot Password') ?></h2>
         <br>
-        <p class="warning-text">Fields marked with <span class="required-asterisk">*</span> are required.</p>
+        <p class="warning-text"><?= tr('Fields marked with {asterisk} are required.', ['asterisk' => '<span class="required-asterisk">*</span>']) ?></p>
         <br>
         <form method="POST" action="">
             <div class="form-group">
-                <label for="email">Email Address <span class="required-asterisk">*</span></label>
+                <label for="email"><?= trh('Email Address') ?> <span class="required-asterisk">*</span></label>
                 <input type="email" class="form-control" id="email" name="email" required>
             </div>
 
@@ -300,13 +300,13 @@ function handlePasswordReset($con, $email, $url) {
                 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
             <?php } ?>
 
-            <button type="submit" class="btn btn-primary" name="reset">Reset Password</button>
+            <button type="submit" class="btn btn-primary" name="reset"><?= trh('Reset Password') ?></button>
         </form>
         <?php if (isset($resultMessage)) {
             echo "<p class='result-message'>$resultMessage</p>";
         } ?>
         <br>
-        <a href="index.php" class="btn btn-secondary">Go Back</a>
+        <a href="index.php" class="btn btn-secondary"><?= trh('Go Back') ?></a>
     </div>
     <br>
 

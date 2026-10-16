@@ -77,14 +77,14 @@ if (isset($_GET['id'])) {
             $breedingcages[] = $breedingcage;
         } else {
             // Set an error message and redirect if the ID is invalid
-            $_SESSION['message'] = "Invalid ID: $id";
+            $_SESSION['message'] = tr('Invalid ID: {id}', ['id' => $id]);
             header("Location: bc_dash.php");
             exit();
         }
     }
 } else {
     // If the ID parameter is missing, set an error message and redirect to the dashboard
-    $_SESSION['message'] = 'ID parameter is missing.';
+    $_SESSION['message'] = tr('ID parameter is missing.');
     header("Location: bc_dash.php");
     exit();
 }
@@ -127,11 +127,11 @@ function getIacucIdsByCageId($con, $cageId)
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
     <meta charset="UTF-8">
-    <title>Printable 2x2 Card Table</title>
+    <title><?= trh('Printable 2x2 Card Table') ?></title>
     <style>
         @page {
             size: letter landscape;
@@ -203,16 +203,16 @@ function getIacucIdsByCageId($con, $cageId)
                         <tr>
                             <td colspan="3" style="width: 100%; text-align:center;">
                                 <span style="font-weight: bold; font-size: 10pt; text-transform: uppercase; padding:3px;">
-                                    Breeding Cage - # <?= $breedingcage["cage_id"] ?> </span>
+                                    <?= trh('Breeding Cage') ?> - # <?= $breedingcage["cage_id"] ?> </span>
                             </td>
                         </tr>
                         <tr>
                             <td style="width:40%;">
-                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;">PI Name:</span>
+                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;"><?= trh('PI Name:') ?></span>
                                 <span><?= htmlspecialchars($breedingcage["pi_name"]); ?></span>
                             </td>
                             <td style="width:40%;">
-                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;">Cross:</span>
+                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;"><?= trh('Cross:') ?></span>
                                 <span><?= $breedingcage["cross"] ?></span>
                             </td>
                             <td rowspan="4" style="width:20%; text-align:center;">
@@ -221,31 +221,31 @@ function getIacucIdsByCageId($con, $cageId)
                         </tr>
                         <tr>
                             <td style="width:40%;">
-                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;">IACUC:</span>
+                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;"><?= trh('IACUC:') ?></span>
                                 <span><?= htmlspecialchars(getIacucIdsByCageId($con, $breedingcage['cage_id'])); ?></span>
                             </td>
                             <td style="width:40%;">
-                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;">User:</span>
+                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;"><?= trh('User:') ?></span>
                                 <span><?= $breedingcage['user_initials']; ?></span>
                             </td>
                         </tr>
                         <tr>
                             <td style="width:40%;">
-                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;">Male ID:</span>
+                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;"><?= trh('Male ID:') ?></span>
                                 <span><?= $breedingcage["male_id"] ?></span>
                             </td>
                             <td style="width:40%;">
-                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;">Male DOB:</span>
+                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;"><?= trh('Male DOB:') ?></span>
                                 <span><?= $breedingcage["male_dob"] ?></span>
                             </td>
                         </tr>
                         <tr style="border-bottom: none;">
                             <td style="width:40%;">
-                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;">Female ID:</span>
+                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;"><?= trh('Female ID:') ?></span>
                                 <span><?= $breedingcage["female_id"] ?></span>
                             </td>
                             <td style="width:40%;">
-                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;">Female DOB:</span>
+                                <span style="font-weight: bold; padding:3px; text-transform: uppercase;"><?= trh('Female DOB:') ?></span>
                                 <span><?= $breedingcage["female_dob"] ?></span>
                             </td>
                         </tr>
@@ -253,22 +253,22 @@ function getIacucIdsByCageId($con, $cageId)
                     <table border="1" style="width: 5in; height: 1.5in; border-top: none;" id="cageB">
                         <tr>
                             <td style="width:25%;">
-                                <span style="font-weight: bold; padding:3px; text-transform: uppercase; border-top: none; text-align: center;">DOM</span>
+                                <span style="font-weight: bold; padding:3px; text-transform: uppercase; border-top: none; text-align: center;"><?= trh('DOM') ?></span>
                             </td>
                             <td style="width:25%;">
-                                <span style="font-weight: bold; padding:3px; text-transform: uppercase; border-top: none; text-align: center;">Litter DOB</span>
+                                <span style="font-weight: bold; padding:3px; text-transform: uppercase; border-top: none; text-align: center;"><?= trh('Litter DOB') ?></span>
                             </td>
                             <td style="width:12.5%;">
-                                <span style="font-weight: bold; padding:3px; text-transform: uppercase; border-top: none; text-align: center;">Pups Alive</span>
+                                <span style="font-weight: bold; padding:3px; text-transform: uppercase; border-top: none; text-align: center;"><?= trh('Pups Alive') ?></span>
                             </td>
                             <td style="width:12.5%;">
-                                <span style="font-weight: bold; padding:3px; text-transform: uppercase; border-top: none; text-align: center;">Pups Dead</span>
+                                <span style="font-weight: bold; padding:3px; text-transform: uppercase; border-top: none; text-align: center;"><?= trh('Pups Dead') ?></span>
                             </td>
                             <td style="width:12.5%;">
-                                <span style="font-weight: bold; padding:3px; text-transform: uppercase; border-top: none; text-align: center;">Pups Male</span>
+                                <span style="font-weight: bold; padding:3px; text-transform: uppercase; border-top: none; text-align: center;"><?= trh('Pups Male') ?></span>
                             </td>
                             <td style="width:12.5%;">
-                                <span style="font-weight: bold; padding:3px; text-transform: uppercase; border-top: none; text-align: center;">Pups Female</span>
+                                <span style="font-weight: bold; padding:3px; text-transform: uppercase; border-top: none; text-align: center;"><?= trh('Pups Female') ?></span>
                             </td>
                         </tr>
                         <?php for ($i = 0; $i < 5; $i++) : ?>

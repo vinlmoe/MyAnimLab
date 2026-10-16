@@ -103,7 +103,7 @@ if (($_GET['export'] ?? '') === 'csv') {
         $types,
         $params
     );
-    log_activity($con, 'export', 'health_registry', null, count($rows) . " rows exported", $_SESSION['user_id'] ?? null);
+    log_activity($con, 'export', 'health_registry', null, tr('{n} rows exported', ['n' => count($rows)]), $_SESSION['user_id'] ?? null);
 
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="health_registry_' . date('Y-m-d') . '.csv"');
@@ -142,10 +142,10 @@ require 'header.php';
 ?>
 
 <!doctype html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
-    <title>Health Registry | <?php echo htmlspecialchars($labName); ?></title>
+    <title><?= trh('Health Registry') ?> | <?php echo htmlspecialchars($labName); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         .container {
@@ -157,82 +157,82 @@ require 'header.php';
 <body>
     <div class="container mt-4 content">
         <div class="d-flex justify-content-between align-items-center flex-wrap">
-            <h4><i class="fas fa-book-medical"></i> Health Registry</h4>
+            <h4><i class="fas fa-book-medical"></i> <?= trh('Health Registry') ?></h4>
             <div>
-                <a href="health_report.php" class="btn btn-warning btn-sm"><i class="fas fa-notes-medical"></i> Report a health issue</a>
-                <a href="health_registry.php?<?= htmlspecialchars(http_build_query(array_merge($_GET, ['export' => 'csv']))); ?>" class="btn btn-outline-secondary btn-sm"><i class="fas fa-file-csv"></i> Export CSV</a>
+                <a href="health_report.php" class="btn btn-warning btn-sm"><i class="fas fa-notes-medical"></i> <?= trh('Report a health issue') ?></a>
+                <a href="health_registry.php?<?= htmlspecialchars(http_build_query(array_merge($_GET, ['export' => 'csv']))); ?>" class="btn btn-outline-secondary btn-sm"><i class="fas fa-file-csv"></i> <?= trh('Export CSV') ?></a>
             </div>
         </div>
-        <p class="text-muted">Every health report and its follow-up, kept permanently. Entries cannot be edited or deleted; corrections are made by adding a follow-up entry.</p>
+        <p class="text-muted"><?= trh('Every health report and its follow-up, kept permanently. Entries cannot be edited or deleted; corrections are made by adding a follow-up entry.') ?></p>
 
         <?php include('message.php'); ?>
 
         <div class="mb-3">
-            <a href="health_registry.php?status=open" class="badge bg-danger text-decoration-none fs-6">Open: <?= (int) ($totals['open'] ?? 0); ?></a>
-            <a href="health_registry.php?status=monitoring" class="badge bg-warning text-dark text-decoration-none fs-6">Monitoring: <?= (int) ($totals['monitoring'] ?? 0); ?></a>
-            <a href="health_registry.php?status=resolved" class="badge bg-success text-decoration-none fs-6">Resolved: <?= (int) ($totals['resolved'] ?? 0); ?></a>
+            <a href="health_registry.php?status=open" class="badge bg-danger text-decoration-none fs-6"><?= trh('Open: {n}', ['n' => (int) ($totals['open'] ?? 0)]); ?></a>
+            <a href="health_registry.php?status=monitoring" class="badge bg-warning text-dark text-decoration-none fs-6"><?= trh('Monitoring: {n}', ['n' => (int) ($totals['monitoring'] ?? 0)]); ?></a>
+            <a href="health_registry.php?status=resolved" class="badge bg-success text-decoration-none fs-6"><?= trh('Resolved: {n}', ['n' => (int) ($totals['resolved'] ?? 0)]); ?></a>
         </div>
 
         <form method="GET" class="card card-body mb-3">
             <div class="row g-2 align-items-end">
                 <div class="col-md-2">
-                    <label class="form-label" for="status">Status</label>
+                    <label class="form-label" for="status"><?= trh('Status') ?></label>
                     <select class="form-select" id="status" name="status">
-                        <option value="unresolved" <?= $status === 'unresolved' ? 'selected' : ''; ?>>Unresolved</option>
-                        <option value="all" <?= $status === 'all' ? 'selected' : ''; ?>>All</option>
+                        <option value="unresolved" <?= $status === 'unresolved' ? 'selected' : ''; ?>><?= trh('Unresolved') ?></option>
+                        <option value="all" <?= $status === 'all' ? 'selected' : ''; ?>><?= trh('All') ?></option>
                         <?php foreach (array_keys(HEALTH_STATUSES) as $s) : ?>
-                            <option value="<?= $s; ?>" <?= $status === $s ? 'selected' : ''; ?>><?= ucfirst($s); ?></option>
+                            <option value="<?= $s; ?>" <?= $status === $s ? 'selected' : ''; ?>><?= htmlspecialchars(ucfirst(tr($s))); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label" for="severity">Severity</label>
+                    <label class="form-label" for="severity"><?= trh('Severity') ?></label>
                     <select class="form-select" id="severity" name="severity">
-                        <option value="">All</option>
+                        <option value=""><?= trh('All') ?></option>
                         <?php foreach (array_keys(HEALTH_SEVERITIES) as $s) : ?>
-                            <option value="<?= $s; ?>" <?= $severity === $s ? 'selected' : ''; ?>><?= ucfirst($s); ?></option>
+                            <option value="<?= $s; ?>" <?= $severity === $s ? 'selected' : ''; ?>><?= htmlspecialchars(ucfirst(tr($s))); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label" for="category">Category</label>
+                    <label class="form-label" for="category"><?= trh('Category') ?></label>
                     <select class="form-select" id="category" name="category">
-                        <option value="">All</option>
-                        <?php foreach (HEALTH_CATEGORIES as $k => $label) : ?>
+                        <option value=""><?= trh('All') ?></option>
+                        <?php foreach (health_categories() as $k => $label) : ?>
                             <option value="<?= $k; ?>" <?= $category === $k ? 'selected' : ''; ?>><?= htmlspecialchars($label); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label" for="animal">Animal</label>
+                    <label class="form-label" for="animal"><?= trh('Animal') ?></label>
                     <input type="text" class="form-control" id="animal" name="animal" value="<?= htmlspecialchars($animalQ); ?>" placeholder="RSD-0002">
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label" for="cage">Cage</label>
+                    <label class="form-label" for="cage"><?= trh('Cage') ?></label>
                     <input type="text" class="form-control" id="cage" name="cage" value="<?= htmlspecialchars($cageQ); ?>" placeholder="P-00012">
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label" for="line">Line</label>
+                    <label class="form-label" for="line"><?= trh('Line') ?></label>
                     <select class="form-select" id="line" name="line">
-                        <option value="">All</option>
+                        <option value=""><?= trh('All') ?></option>
                         <?php foreach ($lines as $l) : ?>
                             <option value="<?= htmlspecialchars($l['code']); ?>" <?= $lineQ === $l['code'] ? 'selected' : ''; ?>><?= htmlspecialchars($l['code']); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label" for="from">Observed from</label>
+                    <label class="form-label" for="from"><?= trh('Observed from') ?></label>
                     <input type="date" class="form-control" id="from" name="from" value="<?= htmlspecialchars($from); ?>">
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label" for="to">to</label>
+                    <label class="form-label" for="to"><?= trh('to') ?></label>
                     <input type="date" class="form-control" id="to" name="to" value="<?= htmlspecialchars($to); ?>">
                 </div>
                 <div class="col-md-2">
-                    <button type="submit" class="btn btn-primary w-100"><i class="fas fa-filter"></i> Filter</button>
+                    <button type="submit" class="btn btn-primary w-100"><i class="fas fa-filter"></i> <?= trh('Filter') ?></button>
                 </div>
                 <div class="col-md-2">
-                    <a href="health_registry.php?status=all" class="btn btn-outline-secondary w-100">Show all</a>
+                    <a href="health_registry.php?status=all" class="btn btn-outline-secondary w-100"><?= trh('Show all') ?></a>
                 </div>
             </div>
         </form>
@@ -242,22 +242,22 @@ require 'header.php';
                 <thead class="table-light">
                     <tr>
                         <th>#</th>
-                        <th>Observed</th>
-                        <th>Animal</th>
-                        <th>Line</th>
-                        <th>Cage</th>
-                        <th>Category</th>
-                        <th>Severity</th>
-                        <th>Status</th>
-                        <th>Last update</th>
-                        <th>Entries</th>
+                        <th><?= trh('Observed') ?></th>
+                        <th><?= trh('Animal') ?></th>
+                        <th><?= trh('Line') ?></th>
+                        <th><?= trh('Cage') ?></th>
+                        <th><?= trh('Category') ?></th>
+                        <th><?= trh('Severity') ?></th>
+                        <th><?= trh('Status') ?></th>
+                        <th><?= trh('Last update') ?></th>
+                        <th><?= trh('Entries') ?></th>
                         <th></th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($reports)) : ?>
                         <tr>
-                            <td colspan="11" class="text-center text-muted">No health report matches these criteria.</td>
+                            <td colspan="11" class="text-center text-muted"><?= trh('No health report matches these criteria.') ?></td>
                         </tr>
                     <?php endif; ?>
                     <?php foreach ($reports as $r) : ?>
@@ -267,12 +267,12 @@ require 'header.php';
                             <td><a href="animal_view.php?id=<?= (int) $r['animal_id']; ?>"><?= htmlspecialchars($r['animal_uid']); ?></a></td>
                             <td><?= htmlspecialchars($r['line_code'] ?? '-'); ?></td>
                             <td><?= htmlspecialchars($r['cage_id'] ?? '-'); ?></td>
-                            <td><?= htmlspecialchars(HEALTH_CATEGORIES[$r['category']] ?? $r['category']); ?></td>
+                            <td><?= htmlspecialchars(health_categories()[$r['category']] ?? $r['category']); ?></td>
                             <td><?= health_badge($r['current_severity'], HEALTH_SEVERITIES); ?></td>
                             <td><?= health_badge($r['current_status'], HEALTH_STATUSES); ?></td>
                             <td><small><?= htmlspecialchars($r['last_update_at']); ?></small></td>
                             <td><?= (int) $r['n_entries']; ?></td>
-                            <td><a href="health_report_view.php?id=<?= (int) $r['id']; ?>" class="btn btn-sm btn-outline-primary">Follow-up</a></td>
+                            <td><a href="health_report_view.php?id=<?= (int) $r['id']; ?>" class="btn btn-sm btn-outline-primary"><?= trh('Follow-up') ?></a></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>

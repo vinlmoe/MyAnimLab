@@ -28,7 +28,7 @@ if ($row = mysqli_fetch_assoc($labResult)) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Email Confirmation | <?php echo htmlspecialchars($labName); ?></title>
+    <title><?= trh('Email Confirmation') ?> | <?php echo htmlspecialchars($labName); ?></title>
 
     <!-- Favicon and icons for different devices -->
     <link rel="icon" href="/icons/favicon.ico" type="image/x-icon">
@@ -144,7 +144,7 @@ if ($row = mysqli_fetch_assoc($labResult)) {
     </div>
     <br>
     <div class="container content">
-        <h2>Email Confirmation</h2>
+        <h2><?= trh('Email Confirmation') ?></h2>
         <br>
 
         <?php
@@ -162,17 +162,17 @@ if ($row = mysqli_fetch_assoc($labResult)) {
                 $updateStmt = $con->prepare("UPDATE users SET email_verified = 1, email_token = NULL WHERE username = ?");
                 $updateStmt->bind_param("s", $username);
                 if ($updateStmt->execute()) {
-                    echo "Email successfully confirmed. You can now <a href='index.php'>login</a>.";
+                    echo tr('Email successfully confirmed. You can now {link}log in{/link}.', ['link' => "<a href='index.php'>", '/link' => '</a>']);
                 } else {
-                    echo "Error confirming email. Please try again.";
+                    echo trh('Error confirming email. Please try again.');
                 }
                 $updateStmt->close();
             } else {
-                echo "Invalid or expired token.";
+                echo trh('Invalid or expired token.');
             }
             $stmt->close();
         } else {
-            echo "No token provided.";
+            echo trh('No token provided.');
         }
         $con->close();
         ?>

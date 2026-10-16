@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
     <!--
@@ -42,7 +42,7 @@
 <body>
     <!-- Demo warning banner -->
     <div class="demo-warning">
-        <span style="font-family: 'Arial', sans-serif;">DEMO WEBSITE: FOR TESTING PURPOSES ONLY.</span>
+        <span style="font-family: 'Arial', sans-serif;"><?= trh('DEMO WEBSITE: FOR TESTING PURPOSES ONLY.') ?></span>
     </div>
 </body>
 

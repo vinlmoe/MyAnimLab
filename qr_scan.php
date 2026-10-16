@@ -39,10 +39,10 @@ require 'header.php';
 ?>
 
 <!doctype html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
-    <title>Scan Cage QR | <?php echo htmlspecialchars($labName); ?></title>
+    <title><?= trh('Scan Cage QR') ?> | <?php echo htmlspecialchars($labName); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <style>
@@ -58,18 +58,18 @@ require 'header.php';
 
 <body>
     <div class="container mt-3 content">
-        <h4><i class="fas fa-qrcode"></i> Scan a cage QR code</h4>
-        <p class="text-muted">Point the camera at the QR code on the cage card. The cage's daily check opens automatically.</p>
+        <h4><i class="fas fa-qrcode"></i> <?= trh('Scan a cage QR code') ?></h4>
+        <p class="text-muted"><?= trh('Point the camera at the QR code on the cage card. The cage’s daily check opens automatically.') ?></p>
 
         <div id="reader" class="mb-3"></div>
         <div id="scanError" class="alert alert-warning d-none"></div>
 
         <form method="GET" class="input-group mb-3">
-            <input type="text" class="form-control" name="code" id="code" placeholder="Or type the cage ID (e.g. P-00012)" required>
-            <button class="btn btn-primary" type="submit">Open</button>
+            <input type="text" class="form-control" name="code" id="code" placeholder="<?= trh('Or type the cage ID (e.g. P-00012)') ?>" required>
+            <button class="btn btn-primary" type="submit"><?= trh('Open') ?></button>
         </form>
 
-        <a href="daily_round.php" class="btn btn-outline-secondary w-100">Back to the daily round</a>
+        <a href="daily_round.php" class="btn btn-outline-secondary w-100"><?= trh('Back to the daily round') ?></a>
     </div>
 
     <script>
@@ -80,7 +80,7 @@ require 'header.php';
                 errorBox.classList.remove('d-none');
             };
             if (typeof Html5Qrcode === 'undefined') {
-                showError('Camera scanner unavailable (library not loaded). Type the cage ID below.');
+                showError(<?= trj('Camera scanner unavailable (library not loaded). Type the cage ID below.') ?>);
                 return;
             }
             // Start the back camera straight away: one less tap during the round.
@@ -92,7 +92,7 @@ require 'header.php';
                 scanner.stop().catch(() => {});
                 window.location.href = 'qr_scan.php?code=' + encodeURIComponent(text);
             }, () => {}).catch(err => {
-                showError('Cannot access the camera (' + err + '). The site must be served over HTTPS and camera access allowed. You can type the cage ID below.');
+                showError(<?= trj('Cannot access the camera ({error}). The site must be served over HTTPS and camera access allowed. You can type the cage ID below.') ?>.replace('{error}', err));
             });
         })();
     </script>

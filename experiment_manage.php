@@ -29,14 +29,14 @@ $protocol = $protocolStmt->get_result()->fetch_assoc();
 
 if (!$protocol) {
     require 'header.php';
-    echo "<div class='container mt-4'><div class='alert alert-danger'>Protocol not found.</div></div>";
+    echo "<div class='container mt-4'><div class='alert alert-danger'>" . trh('Protocol not found.') . "</div></div>";
     require 'footer.php';
     exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        die('CSRF token validation failed');
+        die(tr('CSRF token validation failed'));
     }
 
     if (isset($_POST['add_experiment'])) {
@@ -126,47 +126,47 @@ require 'header.php';
 ?>
 
 <!doctype html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
-    <title>Experiments | <?php echo htmlspecialchars($labName); ?></title>
+    <title><?= trh('Experiments') ?> | <?php echo htmlspecialchars($labName); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 
 <body>
     <div class="container mt-4 content">
-        <h4>Experiments for Protocol <?= htmlspecialchars($protocol['protocol_number']); ?> (Trial <?= htmlspecialchars($protocol['trial_number']); ?>)</h4>
+        <h4><?= trh('Experiments for Protocol {protocol} (Trial {trial})', ['protocol' => $protocol['protocol_number'], 'trial' => $protocol['trial_number']]); ?></h4>
         <nav class="mb-3"><a href="trial_manage.php">Essais</a> <span class="text-muted">/</span> <a href="protocol_manage.php?trial_id=<?= (int) $protocol['trial_id']; ?>">Plan / protocole <?= htmlspecialchars($protocol['protocol_number']); ?></a> <span class="text-muted">/</span> <a href="protocol_report.php?protocol_id=<?= $protocolId; ?>">Rapport du plan</a> <span class="text-muted">/</span> Expérimentations</nav>
 
         <?php include('message.php'); ?>
 
         <div class="card my-4">
             <div class="card-body">
-                <h5>New Experiment</h5>
+                <h5><?= trh('New Experiment') ?></h5>
                 <form method="POST">
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                     <input type="hidden" name="protocol_id" value="<?= $protocolId; ?>">
                     <div class="alert alert-secondary py-2">Le numéro est attribué automatiquement à la validation (format <strong>EXP-00001</strong>).</div>
                     <div class="mb-3">
-                        <label class="form-label">Title *</label>
+                        <label class="form-label"><?= trh('Title') ?> *</label>
                         <input type="text" class="form-control" name="title" required>
                     </div>
                     <div class="row">
                         <div class="col mb-3">
-                            <label class="form-label">Start Date</label>
+                            <label class="form-label"><?= trh('Start Date') ?></label>
                             <input type="date" class="form-control" name="start_date">
                         </div>
                         <div class="col mb-3">
-                            <label class="form-label">End Date</label>
+                            <label class="form-label"><?= trh('End Date') ?></label>
                             <input type="date" class="form-control" name="end_date">
                         </div>
                     </div>
-                    <button type="submit" name="add_experiment" class="btn btn-primary">Create Experiment</button>
+                    <button type="submit" name="add_experiment" class="btn btn-primary"><?= trh('Create Experiment') ?></button>
                 </form>
             </div>
         </div>
 
-        <h5>Existing Experiments</h5>
+        <h5><?= trh('Existing Experiments') ?></h5>
         <?php while ($e = $experiments->fetch_assoc()) :
             $enrolled = $con->prepare(
                 "SELECT ea.*, m.animal_uid FROM experiment_animals ea JOIN mice m ON m.id = ea.animal_id WHERE ea.experiment_id = ?"
@@ -178,15 +178,15 @@ require 'header.php';
             <div class="card mb-3">
                 <div class="card-body">
                     <h6><?= htmlspecialchars($e['experiment_number']); ?> — <?= htmlspecialchars($e['title']); ?>
-                        <a class="btn btn-sm btn-outline-dark float-end" href="experiment_report.php?experiment_id=<?= (int) $e['id']; ?>"><i class="fas fa-file-alt"></i> Report (with grids)</a>
+                        <a class="btn btn-sm btn-outline-dark float-end" href="experiment_report.php?experiment_id=<?= (int) $e['id']; ?>"><i class="fas fa-file-alt"></i> <?= trh('Report (with grids)') ?></a>
                     </h6>
 
                     <table class="table table-sm">
                         <thead>
                             <tr>
-                                <th>Animal</th>
-                                <th>Baseline weight (g)</th>
-                                <th>Enrolled</th>
+                                <th><?= trh('Animal') ?></th>
+                                <th><?= trh('Baseline weight (g)') ?></th>
+                                <th><?= trh('Enrolled') ?></th>
                                 <th>Statut</th>
                             </tr>
                         </thead>
@@ -216,7 +216,7 @@ require 'header.php';
                         </div>
                         <div class="col-md-2"><label class="form-label">Ajouter toute la cage</label><select class="form-select cage-picker"><option value="">Choisir…</option><?php foreach (array_unique(array_filter(array_column($activeAnimalsList, 'cage_id'))) as $cage) : ?><option value="<?= htmlspecialchars($cage); ?>"><?= htmlspecialchars($cage); ?></option><?php endforeach; ?></select></div>
                         <div class="col-auto">
-                            <input type="number" step="0.01" class="form-control" name="baseline_weight_g" placeholder="Baseline weight (g)">
+                            <input type="number" step="0.01" class="form-control" name="baseline_weight_g" placeholder="<?= trh('Baseline weight (g)') ?>">
                         </div>
                         <div class="col-auto">
                             <button type="submit" name="enroll_animals" class="btn btn-success">Ajouter à l’expérience</button>

@@ -15,7 +15,7 @@ if (!isset($_SESSION['username'])) {
     exit;
 }
 if (($_SESSION['role'] ?? '') !== 'admin') {
-    $_SESSION['message'] = 'Admin only.';
+    $_SESSION['message'] = tr('Admin only.');
     header('Location: home.php');
     exit;
 }
@@ -56,7 +56,7 @@ foreach ($tables as $t) {
 $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
 if ($json === false) {
     http_response_code(500);
-    echo 'JSON encode failed: ' . json_last_error_msg();
+    echo htmlspecialchars(tr('JSON encode failed: {error}', ['error' => json_last_error_msg()]));
     exit;
 }
 
@@ -66,7 +66,7 @@ $helper = __DIR__ . '/log_activity.php';
 if (file_exists($helper)) {
     require_once $helper;
     if (function_exists('log_activity')) {
-        log_activity($con, 'export', 'v1_data', null, "Exported V1 data for V2 migration ($filename)");
+        log_activity($con, 'export', 'v1_data', null, tr('Exported V1 data for V2 migration ({file})', ['file' => $filename]));
     }
 }
 

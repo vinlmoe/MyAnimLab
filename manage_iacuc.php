@@ -32,7 +32,7 @@ function handleFileUpload($file) {
 
     // Validate file size
     if ($file['size'] > $maxFileSize) {
-        $_SESSION['message'] = "File size exceeds 10MB limit.";
+        $_SESSION['message'] = tr('File size exceeds 10MB limit.');
         return false;
     }
 
@@ -41,7 +41,7 @@ function handleFileUpload($file) {
 
     // Validate file extension
     if (!in_array($fileExtension, $allowedExtensions)) {
-        $_SESSION['message'] = "Invalid file type. Allowed: pdf, doc, docx, txt, xls, xlsx, ppt, pptx, jpg, jpeg, png, gif, bmp, svg, webp";
+        $_SESSION['message'] = tr('Invalid file type. Allowed: {types}', ['types' => 'pdf, doc, docx, txt, xls, xlsx, ppt, pptx, jpg, jpeg, png, gif, bmp, svg, webp']);
         return false;
     }
 
@@ -59,7 +59,7 @@ function handleFileUpload($file) {
     if (move_uploaded_file($file["tmp_name"], $targetFile)) {
         return $targetFile;
     } else {
-        $_SESSION['message'] = "Error uploading file.";
+        $_SESSION['message'] = tr('Error uploading file.');
         return false;
     }
 }
@@ -68,7 +68,7 @@ function handleFileUpload($file) {
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Validate CSRF token
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        die('CSRF token validation failed');
+        die(tr('CSRF token validation failed'));
     }
 
     if (isset($_POST['add'])) {
@@ -82,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $checkQuery->execute();
         $checkQuery->store_result();
         if ($checkQuery->num_rows > 0) {
-            $_SESSION['message'] = "IACUC ID already exists. Please use a different ID.";
+            $_SESSION['message'] = tr('IACUC ID already exists. Please use a different ID.');
             $checkQuery->close();
         } else {
             $checkQuery->close();
@@ -91,13 +91,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $stmt = $con->prepare("INSERT INTO iacuc (iacuc_id, iacuc_title, file_url) VALUES (?, ?, ?)");
                 $stmt->bind_param("sss", $iacucId, $iacucTitle, $fileUrl);
                 if ($stmt->execute()) {
-                    $_SESSION['message'] = "IACUC record added successfully."; // Success message
+                    $_SESSION['message'] = tr('IACUC record added successfully.'); // Success message
                 } else {
-                    $_SESSION['message'] = "Error adding IACUC record."; // Error message
+                    $_SESSION['message'] = tr('Error adding IACUC record.'); // Error message
                 }
                 $stmt->close(); // Close the statement
             } else {
-                $_SESSION['message'] = "Error uploading file.";
+                $_SESSION['message'] = tr('Error uploading file.');
             }
         }
     } elseif (isset($_POST['edit'])) {
@@ -110,13 +110,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $stmt = $con->prepare("UPDATE iacuc SET iacuc_title = ?, file_url = ? WHERE iacuc_id = ?");
             $stmt->bind_param("sss", $iacucTitle, $fileUrl, $iacucId);
             if ($stmt->execute()) {
-                $_SESSION['message'] = "IACUC record updated successfully."; // Success message
+                $_SESSION['message'] = tr('IACUC record updated successfully.'); // Success message
             } else {
-                $_SESSION['message'] = "Error updating IACUC record."; // Error message
+                $_SESSION['message'] = tr('Error updating IACUC record.'); // Error message
             }
             $stmt->close(); // Close the statement
         } else {
-            $_SESSION['message'] = "Error uploading file.";
+            $_SESSION['message'] = tr('Error uploading file.');
         }
     } elseif (isset($_POST['delete'])) {
         // Delete IACUC
@@ -124,9 +124,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $stmt = $con->prepare("DELETE FROM iacuc WHERE iacuc_id = ?");
         $stmt->bind_param("s", $iacucId);
         if ($stmt->execute()) {
-            $_SESSION['message'] = "IACUC record deleted successfully."; // Success message
+            $_SESSION['message'] = tr('IACUC record deleted successfully.'); // Success message
         } else {
-            $_SESSION['message'] = "Error deleting IACUC record."; // Error message
+            $_SESSION['message'] = tr('Error deleting IACUC record.'); // Error message
         }
         $stmt->close(); // Close the statement
     }
@@ -138,12 +138,12 @@ $iacucResult = $con->query($iacucQuery);
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manage IACUC</title>
+    <title><?= trh('Manage IACUC') ?></title>
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
@@ -272,7 +272,7 @@ $iacucResult = $con->query($iacucQuery);
 
 <body>
     <div class="container content mt-5">
-        <h2>Manage IACUC</h2>
+        <h2><?= trh('Manage IACUC') ?></h2>
         <?php if (isset($_SESSION['message'])) : ?>
             <div class="alert alert-info">
                 <?= $_SESSION['message']; ?>
@@ -282,67 +282,67 @@ $iacucResult = $con->query($iacucQuery);
 
         <!-- Button to open the popup form -->
         <div class="add-button">
-            <button onclick="openForm()" class="btn btn-primary"><i class="fas fa-plus"></i> Add New IACUC</button>
+            <button onclick="openForm()" class="btn btn-primary"><i class="fas fa-plus"></i> <?= trh('Add New IACUC') ?></button>
         </div>
 
         <!-- Popup form for adding and editing IACUC records -->
         <div class="popup-overlay" id="popupOverlay"></div>
         <div class="popup-form" id="popupForm">
-            <h4 id="formTitle">Add New IACUC</h4>
+            <h4 id="formTitle"><?= trh('Add New IACUC') ?></h4>
             <form action="manage_iacuc.php" method="post" enctype="multipart/form-data">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                 <div class="form-group">
-                    <label for="iacuc_id">IACUC ID <span class="required-asterisk">*</span></label>
+                    <label for="iacuc_id"><?= trh('IACUC ID') ?> <span class="required-asterisk">*</span></label>
                     <input type="text" name="iacuc_id" id="iacuc_id" class="form-control" required>
                 </div>
                 <div class="form-group">
-                    <label for="iacuc_title">Title <span class="required-asterisk">*</span></label>
+                    <label for="iacuc_title"><?= trh('Title') ?> <span class="required-asterisk">*</span></label>
                     <input type="text" name="iacuc_title" id="iacuc_title" class="form-control" required>
                 </div>
                 <div class="form-group">
-                    <label for="iacuc_file">Upload File</label>
+                    <label for="iacuc_file"><?= trh('Upload File') ?></label>
                     <input type="file" name="iacuc_file" id="iacuc_file" class="form-control">
                     <div id="existingFile" style="margin-top: 10px;"></div>
                 </div>
                 <input type="hidden" name="existing_file_url" id="existing_file_url">
                 <div class="form-buttons">
-                    <button type="submit" name="add" id="addButton" class="btn btn-primary"><i class="fas fa-plus"></i> Add IACUC</button>
-                    <button type="submit" name="edit" id="editButton" class="btn btn-success" style="display: none;"><i class="fas fa-save"></i> Update IACUC</button>
-                    <button type="button" class="btn btn-secondary" onclick="closeForm()">Cancel</button>
+                    <button type="submit" name="add" id="addButton" class="btn btn-primary"><i class="fas fa-plus"></i> <?= trh('Add IACUC') ?></button>
+                    <button type="submit" name="edit" id="editButton" class="btn btn-success" style="display: none;"><i class="fas fa-save"></i> <?= trh('Update IACUC') ?></button>
+                    <button type="button" class="btn btn-secondary" onclick="closeForm()"><?= trh('Cancel') ?></button>
                 </div>
             </form>
         </div>
 
         <!-- Display existing IACUC records -->
-        <h3>Existing IACUC Records</h3>
+        <h3><?= trh('Existing IACUC Records') ?></h3>
         <table class="table table-bordered">
             <thead>
                 <tr>
-                    <th>ID</th>
-                    <th>Title</th>
-                    <th>File</th>
-                    <th>Actions</th>
+                    <th><?= trh('ID') ?></th>
+                    <th><?= trh('Title') ?></th>
+                    <th><?= trh('File') ?></th>
+                    <th><?= trh('Actions') ?></th>
                 </tr>
             </thead>
             <tbody>
                 <?php while ($row = $iacucResult->fetch_assoc()) : ?>
                     <tr>
-                        <td data-label="ID"><?= htmlspecialchars($row['iacuc_id']); ?></td>
-                        <td data-label="Title"><?= htmlspecialchars($row['iacuc_title']); ?></td>
-                        <td data-label="File">
+                        <td data-label="<?= trh('ID') ?>"><?= htmlspecialchars($row['iacuc_id']); ?></td>
+                        <td data-label="<?= trh('Title') ?>"><?= htmlspecialchars($row['iacuc_title']); ?></td>
+                        <td data-label="<?= trh('File') ?>">
                             <?php if ($row['file_url']) : ?>
-                                <a href="<?= htmlspecialchars($row['file_url']); ?>" target="_blank">View/Download</a>
+                                <a href="<?= htmlspecialchars($row['file_url']); ?>" target="_blank"><?= trh('View/Download') ?></a>
                             <?php else : ?>
-                                No file uploaded
+                                <?= trh('No file uploaded') ?>
                             <?php endif; ?>
                         </td>
-                        <td data-label="Actions" class="table-actions">
+                        <td data-label="<?= trh('Actions') ?>" class="table-actions">
                             <div class="action-buttons">
-                                <button class="btn btn-warning btn-sm" title="Edit" onclick="editIACUC('<?= $row['iacuc_id']; ?>', '<?= htmlspecialchars($row['iacuc_title']); ?>', '<?= htmlspecialchars($row['file_url']); ?>')"><i class="fas fa-edit"></i></button>
+                                <button class="btn btn-warning btn-sm" title="<?= trh('Edit') ?>" onclick="editIACUC('<?= $row['iacuc_id']; ?>', '<?= htmlspecialchars($row['iacuc_title']); ?>', '<?= htmlspecialchars($row['file_url']); ?>')"><i class="fas fa-edit"></i></button>
                                 <form action="manage_iacuc.php" method="post" style="display:inline-block;">
                                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                                     <input type="hidden" name="iacuc_id" value="<?= $row['iacuc_id']; ?>">
-                                    <button type="submit" name="delete" class="btn btn-danger btn-sm" title="Delete" onclick="return confirm('Are you sure you want to delete this IACUC record?');"><i class="fas fa-trash-alt"></i></button>
+                                    <button type="submit" name="delete" class="btn btn-danger btn-sm" title="<?= trh('Delete') ?>" onclick="return confirm(<?= htmlspecialchars(trj('Are you sure you want to delete this IACUC record?')) ?>);"><i class="fas fa-trash-alt"></i></button>
                                 </form>
                             </div>
                         </td>
@@ -357,7 +357,7 @@ $iacucResult = $con->query($iacucQuery);
         function openForm() {
             document.getElementById('popupOverlay').style.display = 'block';
             document.getElementById('popupForm').style.display = 'block';
-            document.getElementById('formTitle').innerText = 'Add New IACUC';
+            document.getElementById('formTitle').innerText = <?= trj('Add New IACUC') ?>;
             document.getElementById('addButton').style.display = 'block';
             document.getElementById('editButton').style.display = 'none';
             document.getElementById('iacuc_id').readOnly = false; // Ensure field is editable when adding
@@ -377,14 +377,14 @@ $iacucResult = $con->query($iacucQuery);
         // Function to populate the form for editing
         function editIACUC(id, title, fileUrl) {
             openForm();
-            document.getElementById('formTitle').innerText = 'Edit IACUC';
+            document.getElementById('formTitle').innerText = <?= trj('Edit IACUC') ?>;
             document.getElementById('addButton').style.display = 'none';
             document.getElementById('editButton').style.display = 'block';
             document.getElementById('iacuc_id').readOnly = true; // Make field read-only when editing
             document.getElementById('iacuc_id').value = id;
             document.getElementById('iacuc_title').value = title;
             document.getElementById('existing_file_url').value = fileUrl;
-            document.getElementById('existingFile').innerHTML = fileUrl ? `<a href="${fileUrl}" target="_blank">Current File</a>` : 'No file uploaded';
+            document.getElementById('existingFile').innerHTML = fileUrl ? `<a href="${fileUrl}" target="_blank">${<?= trj('Current File') ?>}</a>` : <?= trj('No file uploaded') ?>;
         }
     </script>
 

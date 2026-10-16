@@ -62,13 +62,13 @@ require 'header.php';
 ?>
 
 <!doctype html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
     <!-- Required meta tags -->
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>IOT Sensors | <?php echo htmlspecialchars($labName); ?></title>
+    <title><?= trh('IoT Sensors') ?> | <?php echo htmlspecialchars($labName); ?></title>
 
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous">
@@ -104,7 +104,7 @@ require 'header.php';
         <?php if (!empty($r1_temp) || !empty($r1_humi) || !empty($r1_illu) || !empty($r1_pres)) : ?>
             <div class="row mb-4">
                 <div class="col-12">
-                    <h2><?php echo htmlspecialchars($labName); ?> - Room 1 IOT Sensors</h2>
+                    <h2><?php echo htmlspecialchars($labName); ?> - <?= trh('Room 1 IoT Sensors') ?></h2>
                 </div>
 
                 <div class="col-md-6 mb-4">
@@ -126,7 +126,7 @@ require 'header.php';
         <?php if (!empty($r2_temp) || !empty($r2_humi) || !empty($r2_illu) || !empty($r2_pres)) : ?>
             <div class="row">
                 <div class="col-12">
-                    <h2><?php echo htmlspecialchars($labName); ?> - Room 2 IOT Sensors</h2>
+                    <h2><?php echo htmlspecialchars($labName); ?> - <?= trh('Room 2 IoT Sensors') ?></h2>
                 </div>
 
                 <div class="col-md-6 mb-4">

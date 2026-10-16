@@ -18,7 +18,7 @@ if (empty($_SESSION['csrf_token'])) {
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        die('CSRF token validation failed');
+        die(tr('CSRF token validation failed'));
     }
 
     if (isset($_POST['add'])) {
@@ -35,14 +35,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $checkStmt->close();
 
         if ($count > 0) {
-            $_SESSION['message'] = "Error: Line code already exists.";
+            $_SESSION['message'] = tr('Error: Line code already exists.');
         } else {
             $stmt = $con->prepare("INSERT INTO animal_lines (code, species, name, notes) VALUES (?, ?, ?, ?)");
             $stmt->bind_param("ssss", $code, $species, $name, $notes);
             if ($stmt->execute()) {
-                $_SESSION['message'] = "Animal line added successfully.";
+                $_SESSION['message'] = tr('Animal line added successfully.');
             } else {
-                $_SESSION['message'] = "Error adding animal line.";
+                $_SESSION['message'] = tr('Error adding animal line.');
             }
             $stmt->close();
         }
@@ -55,9 +55,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $stmt = $con->prepare("UPDATE animal_lines SET species = ?, name = ?, notes = ? WHERE id = ?");
         $stmt->bind_param("sssi", $species, $name, $notes, $id);
         if ($stmt->execute()) {
-            $_SESSION['message'] = "Animal line updated successfully.";
+            $_SESSION['message'] = tr('Animal line updated successfully.');
         } else {
-            $_SESSION['message'] = "Error updating animal line.";
+            $_SESSION['message'] = tr('Error updating animal line.');
         }
         $stmt->close();
     } elseif (isset($_POST['delete'])) {
@@ -71,14 +71,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $checkStmt->close();
 
         if ($count > 0) {
-            $_SESSION['message'] = "Error: This line is used by existing animals and cannot be deleted.";
+            $_SESSION['message'] = tr('Error: This line is used by existing animals and cannot be deleted.');
         } else {
             $stmt = $con->prepare("DELETE FROM animal_lines WHERE id = ?");
             $stmt->bind_param("i", $id);
             if ($stmt->execute()) {
-                $_SESSION['message'] = "Animal line deleted successfully.";
+                $_SESSION['message'] = tr('Animal line deleted successfully.');
             } else {
-                $_SESSION['message'] = "Error deleting animal line.";
+                $_SESSION['message'] = tr('Error deleting animal line.');
             }
             $stmt->close();
         }
@@ -89,12 +89,12 @@ $linesResult = $con->query("SELECT * FROM animal_lines ORDER BY code");
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manage Animal Lines | <?php echo htmlspecialchars($labName); ?></title>
+    <title><?= trh('Manage Animal Lines') ?> | <?php echo htmlspecialchars($labName); ?></title>
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
@@ -144,8 +144,8 @@ $linesResult = $con->query("SELECT * FROM animal_lines ORDER BY code");
 
 <body>
     <div class="container content mt-5">
-        <h2>Manage Animal Lines</h2>
-        <p class="text-muted">Each line's code is the prefix used to build unique animal IDs (e.g. code <code>RSD</code> &rarr; <code>RSD-0002</code>).</p>
+        <h2><?= trh('Manage Animal Lines') ?></h2>
+        <p class="text-muted"><?= tr('Each line’s code is the prefix used to build unique animal IDs (e.g. code {code} → {uid}).', ['code' => '<code>RSD</code>', 'uid' => '<code>RSD-0002</code>']) ?></p>
 
         <?php if (isset($_SESSION['message'])) : ?>
             <div class="alert alert-info">
@@ -155,49 +155,49 @@ $linesResult = $con->query("SELECT * FROM animal_lines ORDER BY code");
         <?php endif; ?>
 
         <div class="add-button">
-            <button onclick="openForm()" class="btn btn-primary"><i class="fas fa-plus"></i> Add New Line</button>
+            <button onclick="openForm()" class="btn btn-primary"><i class="fas fa-plus"></i> <?= trh('Add New Line') ?></button>
         </div>
 
         <div class="popup-overlay" id="popupOverlay"></div>
         <div class="popup-form" id="popupForm">
-            <h4 id="formTitle">Add New Animal Line</h4>
+            <h4 id="formTitle"><?= trh('Add New Animal Line') ?></h4>
             <form action="manage_animal_lines.php" method="post">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                 <input type="hidden" name="id" id="line_id_field">
                 <div class="form-group">
-                    <label for="code">Code <span class="required-asterisk">*</span></label>
+                    <label for="code"><?= trh('Code') ?> <span class="required-asterisk">*</span></label>
                     <input type="text" name="code" id="code" class="form-control" required maxlength="20" style="text-transform: uppercase;">
-                    <small class="form-text text-muted">Short prefix, e.g. RSD, RY139, RN, CGN.</small>
+                    <small class="form-text text-muted"><?= trh('Short prefix, e.g. RSD, RY139, RN, CGN.') ?></small>
                 </div>
                 <div class="form-group">
-                    <label for="species">Species <span class="required-asterisk">*</span></label>
-                    <input type="text" name="species" id="species" class="form-control" required placeholder="e.g. Rat, Souris, Rat noir (Rattus rattus), Campagnol">
+                    <label for="species"><?= trh('Species') ?> <span class="required-asterisk">*</span></label>
+                    <input type="text" name="species" id="species" class="form-control" required placeholder="<?= trh('e.g. Rat, Souris, Rat noir (Rattus rattus), Campagnol') ?>">
                 </div>
                 <div class="form-group">
-                    <label for="name">Line Name <span class="required-asterisk">*</span></label>
-                    <input type="text" name="name" id="name" class="form-control" required placeholder="e.g. Rat Sprague Dawley">
+                    <label for="name"><?= trh('Line Name') ?> <span class="required-asterisk">*</span></label>
+                    <input type="text" name="name" id="name" class="form-control" required placeholder="<?= trh('e.g. Rat Sprague Dawley') ?>">
                 </div>
                 <div class="form-group">
-                    <label for="notes">Notes</label>
+                    <label for="notes"><?= trh('Notes') ?></label>
                     <textarea name="notes" id="notes" class="form-control" rows="3"></textarea>
                 </div>
                 <div class="form-buttons">
-                    <button type="submit" name="add" id="addButton" class="btn btn-primary"><i class="fas fa-plus"></i> Add Line</button>
-                    <button type="submit" name="edit" id="editButton" class="btn btn-success" style="display: none;"><i class="fas fa-save"></i> Update Line</button>
-                    <button type="button" class="btn btn-secondary" onclick="closeForm()">Cancel</button>
+                    <button type="submit" name="add" id="addButton" class="btn btn-primary"><i class="fas fa-plus"></i> <?= trh('Add Line') ?></button>
+                    <button type="submit" name="edit" id="editButton" class="btn btn-success" style="display: none;"><i class="fas fa-save"></i> <?= trh('Update Line') ?></button>
+                    <button type="button" class="btn btn-secondary" onclick="closeForm()"><?= trh('Cancel') ?></button>
                 </div>
             </form>
         </div>
 
-        <h3>Existing Lines</h3>
+        <h3><?= trh('Existing Lines') ?></h3>
         <table class="table table-bordered">
             <thead>
                 <tr>
-                    <th>Code</th>
-                    <th>Species</th>
-                    <th>Name</th>
-                    <th>Next ID</th>
-                    <th>Actions</th>
+                    <th><?= trh('Code') ?></th>
+                    <th><?= trh('Species') ?></th>
+                    <th><?= trh('Name') ?></th>
+                    <th><?= trh('Next ID') ?></th>
+                    <th><?= trh('Actions') ?></th>
                 </tr>
             </thead>
             <tbody>
@@ -208,11 +208,11 @@ $linesResult = $con->query("SELECT * FROM animal_lines ORDER BY code");
                         <td><?= htmlspecialchars($row['name']); ?></td>
                         <td><code><?= htmlspecialchars($row['code'] . '-' . str_pad($row['next_seq'], 4, '0', STR_PAD_LEFT)); ?></code></td>
                         <td>
-                            <button class="btn btn-warning btn-sm" title="Edit" onclick="editLine(<?= (int) $row['id']; ?>, '<?= htmlspecialchars($row['code'], ENT_QUOTES); ?>', '<?= htmlspecialchars($row['species'], ENT_QUOTES); ?>', '<?= htmlspecialchars($row['name'], ENT_QUOTES); ?>', `<?= htmlspecialchars($row['notes'] ?? '', ENT_QUOTES); ?>`)"><i class="fas fa-edit"></i></button>
+                            <button class="btn btn-warning btn-sm" title="<?= trh('Edit') ?>" onclick="editLine(<?= (int) $row['id']; ?>, '<?= htmlspecialchars($row['code'], ENT_QUOTES); ?>', '<?= htmlspecialchars($row['species'], ENT_QUOTES); ?>', '<?= htmlspecialchars($row['name'], ENT_QUOTES); ?>', `<?= htmlspecialchars($row['notes'] ?? '', ENT_QUOTES); ?>`)"><i class="fas fa-edit"></i></button>
                             <form action="manage_animal_lines.php" method="post" style="display:inline-block;">
                                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                                 <input type="hidden" name="id" value="<?= (int) $row['id']; ?>">
-                                <button type="submit" name="delete" class="btn btn-danger btn-sm" title="Delete" onclick="return confirm('Delete this line? Lines used by existing animals cannot be deleted.');"><i class="fas fa-trash-alt"></i></button>
+                                <button type="submit" name="delete" class="btn btn-danger btn-sm" title="<?= trh('Delete') ?>" onclick="return confirm(<?= htmlspecialchars(trj('Delete this line? Lines used by existing animals cannot be deleted.')) ?>);"><i class="fas fa-trash-alt"></i></button>
                             </form>
                         </td>
                     </tr>
@@ -225,7 +225,7 @@ $linesResult = $con->query("SELECT * FROM animal_lines ORDER BY code");
         function openForm() {
             document.getElementById('popupOverlay').style.display = 'block';
             document.getElementById('popupForm').style.display = 'block';
-            document.getElementById('formTitle').innerText = 'Add New Animal Line';
+            document.getElementById('formTitle').innerText = <?= trj('Add New Animal Line') ?>;
             document.getElementById('addButton').style.display = 'inline-block';
             document.getElementById('editButton').style.display = 'none';
             document.getElementById('code').readOnly = false;
@@ -243,7 +243,7 @@ $linesResult = $con->query("SELECT * FROM animal_lines ORDER BY code");
 
         function editLine(id, code, species, name, notes) {
             openForm();
-            document.getElementById('formTitle').innerText = 'Edit Animal Line';
+            document.getElementById('formTitle').innerText = <?= trj('Edit Animal Line') ?>;
             document.getElementById('addButton').style.display = 'none';
             document.getElementById('editButton').style.display = 'inline-block';
             document.getElementById('code').readOnly = true;

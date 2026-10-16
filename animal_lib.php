@@ -16,7 +16,7 @@ function allocate_animal_uid(mysqli $con, int $lineId): string
     $stmt->close();
 
     if (!$result) {
-        throw new Exception("Unknown animal line.");
+        throw new Exception(tr('Unknown animal line.'));
     }
 
     $seq = (int) $result['next_seq'];
@@ -41,7 +41,7 @@ function allocate_cage_id(mysqli $con): string
     $stmt->close();
 
     if (!$result) {
-        throw new Exception("Cage sequence not initialized.");
+        throw new Exception(tr('Cage sequence not initialized.'));
     }
 
     $seq = (int) $result['next_seq'];
@@ -121,6 +121,12 @@ const HEALTH_CATEGORIES = [
     'other' => 'Other',
 ];
 
+// HEALTH_CATEGORIES in the interface language.
+function health_categories(): array
+{
+    return array_map('tr', HEALTH_CATEGORIES);
+}
+
 const HEALTH_SEVERITIES = [
     'minor' => 'success',
     'moderate' => 'warning',
@@ -148,7 +154,7 @@ const HEALTH_REPORTS_WITH_STATE_SQL = "
 function health_badge(string $value, array $palette): string
 {
     $color = $palette[$value] ?? 'secondary';
-    return '<span class="badge bg-' . $color . '">' . htmlspecialchars($value) . '</span>';
+    return '<span class="badge bg-' . $color . '">' . htmlspecialchars(tr($value)) . '</span>';
 }
 
 // Number of not-yet-resolved health reports per animal id, for the given ids.
@@ -278,7 +284,7 @@ function cages_due_on(mysqli $con, string $date): array
 function cage_check_badge(array $check): string
 {
     $color = $check['result'] === 'ok' ? 'success' : 'danger';
-    $label = ['routine' => 'round', 'experimental' => 'exp. follow-up', 'health_report' => 'health report'][$check['check_type']] ?? $check['check_type'];
+    $label = ['routine' => tr('round'), 'experimental' => tr('exp. follow-up'), 'health_report' => tr('health report')][$check['check_type']] ?? tr($check['check_type']);
     $text = date('H:i', strtotime($check['checked_at'])) . ' ' . $label . ($check['method'] === 'qr' ? ' (QR)' : '')
         . ' · ' . ($check['checked_by_name'] ?? '?');
     return '<span class="badge bg-' . $color . ' me-1" title="' . htmlspecialchars($check['note'] ?? '') . '">' . htmlspecialchars($text) . '</span>';
@@ -315,7 +321,7 @@ function retire_cage_if_empty(mysqli $con, ?string $cageId, string $why, ?int $u
     if ($cageId === null || $cageId === '' || cage_active_animal_count($con, $cageId) > 0 || cage_nursing_litters($con, $cageId) > 0) {
         return false;
     }
-    return retire_cage($con, $cageId, "Automatically retired: no animal left ($why).", $userId, $userName, 'auto_retire');
+    return retire_cage($con, $cageId, tr('Automatically retired: no animal left ({why}).', ['why' => $why]), $userId, $userName, 'auto_retire');
 }
 
 // Take an (empty) active cage out of service: status archived, lifecycle
@@ -371,7 +377,7 @@ const ANIMAL_EXIT_CODES = [
 // recorded before exit codes existed.
 function exit_label(?string $code, string $status): string
 {
-    return ANIMAL_EXIT_CODES[$code][0] ?? str_replace('_', ' ', $status);
+    return ANIMAL_EXIT_CODES[$code][0] ?? tr(str_replace('_', ' ', $status));
 }
 
 // Move an active animal to another active cage, with its movement history.
@@ -386,10 +392,10 @@ function move_animal(mysqli $con, int $animalId, string $toCageId, ?string $reas
     $stmt->close();
 
     if (!$animal) {
-        throw new Exception("Animal not found.");
+        throw new Exception(tr('Animal not found.'));
     }
     if ($animal['status'] !== 'active') {
-        throw new Exception("Only living animals can be moved.");
+        throw new Exception(tr('Only living animals can be moved.'));
     }
     $check = $con->prepare("SELECT 1 FROM cages WHERE cage_id = ? AND status = 'active'");
     $check->bind_param("s", $toCageId);
@@ -397,11 +403,11 @@ function move_animal(mysqli $con, int $animalId, string $toCageId, ?string $reas
     $exists = $check->get_result()->num_rows > 0;
     $check->close();
     if (!$exists) {
-        throw new Exception("Destination cage does not exist or is retired.");
+        throw new Exception(tr('Destination cage does not exist or is retired.'));
     }
     $fromCageId = $animal['cage_id'];
     if ($fromCageId === $toCageId) {
-        throw new Exception("The animal is already in that cage.");
+        throw new Exception(tr('The animal is already in that cage.'));
     }
 
     $update = $con->prepare("UPDATE mice SET cage_id = ? WHERE id = ?");
@@ -414,7 +420,7 @@ function move_animal(mysqli $con, int $animalId, string $toCageId, ?string $reas
     // An animal under experiment makes its new cage an experimental cage.
     mark_cages_experimental_for_animals($con, [$animalId], $userId);
 
-    return $retireEmptySource && retire_cage_if_empty($con, $fromCageId, "last animal transferred to $toCageId", $userId, $userName);
+    return $retireEmptySource && retire_cage_if_empty($con, $fromCageId, tr('last animal transferred to {cage}', ['cage' => $toCageId]), $userId, $userName);
 }
 
 // Recalculate the cached number of living animals in a cage. Call this after
@@ -438,7 +444,7 @@ function allocate_experiment_number(mysqli $con): string
     $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
     if (!$row) {
-        throw new Exception('Experiment number sequence is not initialized.');
+        throw new Exception(tr('Experiment number sequence is not initialized.'));
     }
     $number = sprintf('EXP-%05d', (int) $row['next_seq']);
     $update = $con->prepare('UPDATE experiment_sequence SET next_seq = next_seq + 1 WHERE id = 1');
@@ -455,7 +461,7 @@ function move_animals(mysqli $con, array $animalIds, string $toCageId, ?string $
 {
     $animalIds = array_values(array_unique(array_filter(array_map('intval', $animalIds), static fn($id) => $id > 0)));
     if (!$animalIds) {
-        throw new Exception('Select at least one animal.');
+        throw new Exception(tr('Select at least one animal.'));
     }
 
     $destination = $con->prepare("SELECT 1 FROM cages WHERE cage_id = ? AND status = 'active'");
@@ -464,7 +470,7 @@ function move_animals(mysqli $con, array $animalIds, string $toCageId, ?string $
     $destinationExists = $destination->get_result()->num_rows > 0;
     $destination->close();
     if (!$destinationExists) {
-        throw new Exception('Destination cage does not exist or is retired.');
+        throw new Exception(tr('Destination cage does not exist or is retired.'));
     }
 
     $sources = [];
@@ -476,11 +482,11 @@ function move_animals(mysqli $con, array $animalIds, string $toCageId, ?string $
         $animal = $check->get_result()->fetch_assoc();
         if (!$animal || $animal['status'] !== 'active') {
             $check->close();
-            throw new Exception('Every selected animal must be living and active.');
+            throw new Exception(tr('Every selected animal must be living and active.'));
         }
         if ($animal['cage_id'] === $toCageId) {
             $check->close();
-            throw new Exception('An animal is already in the destination cage.');
+            throw new Exception(tr('An animal is already in the destination cage.'));
         }
         $sources[$animal['cage_id']] = true;
         $labels[] = $animal['animal_uid'] ?: ('#' . $animalId);
@@ -493,7 +499,7 @@ function move_animals(mysqli $con, array $animalIds, string $toCageId, ?string $
     refresh_cage_quantity($con, $toCageId);
     foreach (array_keys($sources) as $sourceCageId) {
         refresh_cage_quantity($con, $sourceCageId);
-        retire_cage_if_empty($con, $sourceCageId, "all remaining animals transferred to $toCageId", $userId, $userName);
+        retire_cage_if_empty($con, $sourceCageId, tr('all remaining animals transferred to {cage}', ['cage' => $toCageId]), $userId, $userName);
     }
 
     return ['count' => count($animalIds), 'labels' => $labels, 'source_cages' => array_keys($sources)];
@@ -507,11 +513,11 @@ function move_animals(mysqli $con, array $animalIds, string $toCageId, ?string $
 function exit_animal(mysqli $con, int $animalId, string $code, string $date, string $reason, ?string $destination, ?int $userId, ?string $userName, bool $retireEmptyCage = true): ?string
 {
     if (!isset(ANIMAL_EXIT_CODES[$code])) {
-        throw new Exception("Choose an exit code.");
+        throw new Exception(tr('Choose an exit code.'));
     }
     [$label, $status] = ANIMAL_EXIT_CODES[$code];
     if ($code === 'export' && trim((string) $destination) === '') {
-        throw new Exception("An export needs the destination facility.");
+        throw new Exception(tr('An export needs the destination facility.'));
     }
     $stmt = $con->prepare("SELECT cage_id, status, animal_uid FROM mice WHERE id = ? FOR UPDATE");
     $stmt->bind_param("i", $animalId);
@@ -519,10 +525,10 @@ function exit_animal(mysqli $con, int $animalId, string $code, string $date, str
     $animal = $stmt->get_result()->fetch_assoc();
     $stmt->close();
     if (!$animal) {
-        throw new Exception("Animal not found.");
+        throw new Exception(tr('Animal not found.'));
     }
     if ($animal['status'] !== 'active') {
-        throw new Exception("Animal {$animal['animal_uid']} has already left the facility.");
+        throw new Exception(tr('Animal {uid} has already left the facility.', ['uid' => $animal['animal_uid']]));
     }
 
     $destination = $code === 'export' ? trim($destination) : null;
@@ -551,7 +557,7 @@ function exit_animal(mysqli $con, int $animalId, string $code, string $date, str
     log_animal_event($con, $animalId, 'status_change', ['status' => $status, 'exit_code' => $code, 'date' => $date, 'reason' => $reason, 'destination' => $destination], $userId);
     log_activity($con, 'exit', 'animal', (string) $animalId, "{$animal['animal_uid']}: $label" . ($destination ? " → $destination" : '') . ($reason !== '' ? " ($reason)" : ''), $userId);
 
-    return ($retireEmptyCage && retire_cage_if_empty($con, $animal['cage_id'], "last animal exit: $label", $userId, $userName)) ? $animal['cage_id'] : null;
+    return ($retireEmptyCage && retire_cage_if_empty($con, $animal['cage_id'], tr('last animal exit: {label}', ['label' => $label]), $userId, $userName)) ? $animal['cage_id'] : null;
 }
 
 // Actions an endpoint (point limite) can require from the experimenter.
@@ -562,6 +568,12 @@ const ENDPOINT_REQUIRED_ACTIONS = [
     'increase_monitoring' => 'Increase monitoring',
     'other' => 'Other action (see message)',
 ];
+
+// ENDPOINT_REQUIRED_ACTIONS in the interface language.
+function endpoint_required_actions(): array
+{
+    return array_map('tr', ENDPOINT_REQUIRED_ACTIONS);
+}
 
 // A clinical grid with its items (ordered) and each item's levels.
 function load_clinical_grid(mysqli $con, int $gridId): ?array
@@ -612,11 +624,11 @@ function threshold_label(array $t, ?string $itemLabel = null): string
 {
     // $itemLabel: the grid item (item_score) or observation field (observation).
     $metric = [
-        'weight_loss_pct' => 'Weight loss %',
-        'clinical_score' => 'Total clinical score',
-        'item_score' => 'Score "' . ($itemLabel ?? '?') . '"',
+        'weight_loss_pct' => tr('Weight loss %'),
+        'clinical_score' => tr('Total clinical score'),
+        'item_score' => tr('Score "{item}"', ['item' => $itemLabel ?? '?']),
         'observation' => '"' . ($itemLabel ?? '?') . '"',
-        'custom' => 'Custom',
+        'custom' => tr('Custom'),
     ][$t['metric']] ?? $t['metric'];
     return $metric . ' ' . $t['operator'] . ' ' . rtrim(rtrim((string) $t['value'], '0'), '.');
 }
@@ -625,7 +637,7 @@ function threshold_label(array $t, ?string $itemLabel = null): string
 // (euthanasia done, or the action became moot).
 function resolve_endpoint_actions_on_exit(mysqli $con, int $animalId, string $exitLabel, ?int $userId, ?string $userName): void
 {
-    $note = "Animal left the facility: $exitLabel";
+    $note = tr('Animal left the facility: {label}', ['label' => $exitLabel]);
     $stmt = $con->prepare(
         "UPDATE endpoint_actions a JOIN experiment_animals ea ON ea.id = a.experiment_animal_id
          SET a.status = 'done', a.done_at = NOW(), a.done_by = ?, a.done_by_name = ?, a.done_note = ?

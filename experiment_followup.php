@@ -269,7 +269,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ins->bind_param("iiissd", $experimentAnimalId, $followupId, $t['id'], $t['required_action'], $b['text'], $b['actual']);
             $ins->execute();
             $ins->close();
-            $newActions[] = ENDPOINT_REQUIRED_ACTIONS[$t['required_action']];
+            $newActions[] = endpoint_required_actions()[$t['required_action']];
         }
 
         // The experimental daily follow-up counts as the cage's daily check.
@@ -366,7 +366,7 @@ require 'header.php';
 ?>
 
 <!doctype html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
     <title>Daily Follow-up | <?php echo htmlspecialchars($labName); ?></title>
@@ -397,7 +397,7 @@ require 'header.php';
 
         <?php foreach ($pendingActions as $a) : ?>
             <div class="alert alert-danger" id="pendingAction<?= (int) $a['id']; ?>">
-                <h5 class="alert-heading"><i class="fas fa-exclamation-triangle"></i> ACTION REQUIRED: <?= htmlspecialchars(ENDPOINT_REQUIRED_ACTIONS[$a['required_action']]); ?></h5>
+                <h5 class="alert-heading"><i class="fas fa-exclamation-triangle"></i> ACTION REQUIRED: <?= htmlspecialchars(endpoint_required_actions()[$a['required_action']]); ?></h5>
                 <p class="mb-2"><?= htmlspecialchars($a['message'] ?? ''); ?> — since <?= htmlspecialchars($a['created_at']); ?></p>
                 <?php if ($a['required_action'] === 'euthanasia') : ?>
                     <a href="animal_exit.php?<?= htmlspecialchars(http_build_query(['id' => $ea['animal_id'], 'code' => 'point_limite'])); ?>" class="btn btn-danger">Record the euthanasia (exit: Atteinte de point limite)</a>
@@ -425,7 +425,7 @@ require 'header.php';
                 <ul class="mb-0">
                     <?php foreach ($thresholds as $t) : ?>
                         <li><?= htmlspecialchars(threshold_label($t, threshold_target_label($t, $grid, $allObsFields))); ?>
-                            <?php if ($t['required_action'] !== 'none') : ?> → <strong><?= htmlspecialchars(ENDPOINT_REQUIRED_ACTIONS[$t['required_action']]); ?></strong><?php endif; ?>
+                            <?php if ($t['required_action'] !== 'none') : ?> → <strong><?= htmlspecialchars(endpoint_required_actions()[$t['required_action']]); ?></strong><?php endif; ?>
                             <?= $t['action_message'] ? '— ' . htmlspecialchars($t['action_message']) : ''; ?></li>
                     <?php endforeach; ?>
                 </ul>
@@ -578,7 +578,7 @@ require 'header.php';
                     <?php foreach ($actions as $a) : ?>
                         <tr>
                             <td><?= htmlspecialchars($a['created_at']); ?></td>
-                            <td><?= htmlspecialchars(ENDPOINT_REQUIRED_ACTIONS[$a['required_action']]); ?></td>
+                            <td><?= htmlspecialchars(endpoint_required_actions()[$a['required_action']]); ?></td>
                             <td><?= htmlspecialchars($a['message'] ?? ''); ?></td>
                             <td><span class="badge bg-<?= $a['status'] === 'pending' ? 'danger' : 'success'; ?>"><?= $a['status']; ?></span></td>
                             <td><?= $a['done_at'] ? htmlspecialchars($a['done_at'] . ' — ' . ($a['done_by_name'] ?? '') . ': ' . ($a['done_note'] ?? '')) : ''; ?></td>

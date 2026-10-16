@@ -41,10 +41,10 @@ require 'header.php';
 ?>
 
 <!doctype html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
-    <title>Select Holding Cages for Printing</title>
+    <title><?= trh('Select Holding Cages for Printing') ?></title>
 
     <!-- Select2 CSS for enhanced dropdowns -->
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
@@ -84,11 +84,11 @@ require 'header.php';
         function validateSelection() {
             var selectedIds = document.getElementById("cageIds").selectedOptions;
             if (selectedIds.length > 4) {
-                alert("You can select up to 4 cage IDs only."); // Alert if more than 4 IDs are selected
+                alert(<?= trj('You can select up to 4 cage IDs only.') ?>); // Alert if more than 4 IDs are selected
                 return false;
             }
             if (selectedIds.length === 0) {
-                alert("Please select at least one cage ID."); // Alert if no ID is selected
+                alert(<?= trj('Please select at least one cage ID.') ?>); // Alert if no ID is selected
                 return false;
             }
             return true; // Return true if the selection is valid
@@ -108,7 +108,7 @@ require 'header.php';
         // Initialize Select2 for the cage IDs dropdown
         $(document).ready(function() {
             $('#cageIds').select2({
-                placeholder: "Select Cage IDs", // Placeholder text for the dropdown
+                placeholder: <?= trj('Select Cage IDs') ?>, // Placeholder text for the dropdown
                 allowClear: true,
                 width: '100%' // Set the width to 100%
             });
@@ -128,11 +128,11 @@ require 'header.php';
         <br>
         <br>
         <div class="container">
-            <h4>Select Holding Cages for Printing</h4>
+            <h4><?= trh('Select Holding Cages for Printing') ?></h4>
             <br>
             <form>
                 <div class="mb-3">
-                    <label for="cageIds" class="form-label">Select Cage IDs (up to 4):</label>
+                    <label for="cageIds" class="form-label"><?= trh('Select Cage IDs (up to 4):') ?></label>
                     <br>
                     <!-- Multi-select dropdown for selecting cage IDs -->
                     <select id="cageIds" name="id[]" class="form-select" multiple size="10">
@@ -144,9 +144,9 @@ require 'header.php';
                 <br>
                 <div class="btn-container">
                     <!-- Button to print cage cards -->
-                    <button type="submit" class="btn btn-primary btn-print" onclick="handleSubmit(event, 'hc_prnt_crd.php')">Print Cage Card</button>
+                    <button type="submit" class="btn btn-primary btn-print" onclick="handleSubmit(event, 'hc_prnt_crd.php')"><?= trh('Print Cage Card') ?></button>
                     <!-- Button to go back to the previous page -->
-                    <button type="button" class="btn btn-secondary" onclick="goBack()">Go Back</button>
+                    <button type="button" class="btn btn-secondary" onclick="goBack()"><?= trh('Go Back') ?></button>
                 </div>
             </form>
         </div>

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
     <!--
@@ -38,8 +38,8 @@
 <body>
     <!-- Demo credentials display box -->
     <div class="demo-credentials">
-        <p><strong>DEMO Admin Credentials</strong></p>
-        <p><strong>Email:</strong> admin@myvivarium.online <strong>Password:</strong> P@ssw0rd</p>
+        <p><strong><?= trh('DEMO Admin Credentials') ?></strong></p>
+        <p><strong><?= trh('Email:') ?></strong> admin@myvivarium.online <strong><?= trh('Password:') ?></strong> P@ssw0rd</p>
     </div>
 </body>
 

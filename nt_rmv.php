@@ -18,7 +18,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 // Initialize response array
-$response = ['success' => false, 'message' => 'Invalid request.'];
+$response = ['success' => false, 'message' => tr('Invalid request.')];
 
 // Check if the request is a POST and the 'note_id' field is set
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['note_id'])) {
@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['note_id'])) {
     $sql = "DELETE FROM notes WHERE id = ?";
     $stmt = $con->prepare($sql);
     if ($stmt === false) {
-        $response['message'] = 'Prepare failed: ' . htmlspecialchars($con->error);
+        $response['message'] = tr('Prepare failed: {error}', ['error' => htmlspecialchars($con->error)]);
         echo json_encode($response);
         exit;
     }
@@ -40,9 +40,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['note_id'])) {
     // Execute the statement
     if ($stmt->execute()) {
         $response['success'] = true;
-        $response['message'] = 'Note deleted successfully.';
+        $response['message'] = tr('Note deleted successfully.');
     } else {
-        $response['message'] = 'Execute failed: ' . htmlspecialchars($stmt->error);
+        $response['message'] = tr('Execute failed: {error}', ['error' => htmlspecialchars($stmt->error)]);
     }
 
     // Close the statement

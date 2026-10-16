@@ -21,7 +21,7 @@ $currentUserId = $_SESSION['user_id'] ?? null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        die('CSRF token validation failed');
+        die(tr('CSRF token validation failed'));
     }
 
     $trialNumber = trim($_POST['trial_number']);
@@ -39,14 +39,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $check->close();
 
     if ($count > 0) {
-        $_SESSION['message'] = "Error: Trial number already exists.";
+        $_SESSION['message'] = tr('Error: Trial number already exists.');
     } else {
         $stmt = $con->prepare("INSERT INTO trials (trial_number, iacuc_id, title, description, start_date, end_date, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)");
         $stmt->bind_param("ssssssi", $trialNumber, $iacucId, $title, $description, $startDate, $endDate, $currentUserId);
         if ($stmt->execute()) {
-            $_SESSION['message'] = "Trial created successfully.";
+            $_SESSION['message'] = tr('Trial created successfully.');
         } else {
-            $_SESSION['message'] = "Error creating trial.";
+            $_SESSION['message'] = tr('Error creating trial.');
         }
         $stmt->close();
     }
@@ -64,69 +64,69 @@ $iacucList = $con->query("SELECT iacuc_id, iacuc_title FROM iacuc");
 ?>
 
 <!doctype html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
-    <title>Trials | <?php echo htmlspecialchars($labName); ?></title>
+    <title><?= trh('Trials') ?> | <?php echo htmlspecialchars($labName); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 
 <body>
     <div class="container mt-4 content">
-        <h4>Trials (Essais)</h4>
+        <h4><?= trh('Trials') ?></h4>
         <p class="text-muted">Root level of the experimentation module: essai &rarr; protocole(s) &rarr; expérimentation(s).</p>
 
         <?php include('message.php'); ?>
 
         <div class="card mb-4">
             <div class="card-body">
-                <h5>New Trial</h5>
+                <h5><?= trh('New Trial') ?></h5>
                 <form method="POST">
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                     <div class="mb-3">
-                        <label class="form-label">Trial Number *</label>
+                        <label class="form-label"><?= trh('Trial Number') ?> *</label>
                         <input type="text" class="form-control" name="trial_number" required placeholder="e.g. T-2026-001">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Title *</label>
+                        <label class="form-label"><?= trh('Title') ?> *</label>
                         <input type="text" class="form-control" name="title" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">IACUC</label>
+                        <label class="form-label"><?= trh('IACUC') ?></label>
                         <select class="form-control" name="iacuc_id">
-                            <option value="">None</option>
+                            <option value=""><?= trh('None') ?></option>
                             <?php while ($row = $iacucList->fetch_assoc()) : ?>
                                 <option value="<?= htmlspecialchars($row['iacuc_id']); ?>"><?= htmlspecialchars($row['iacuc_id'] . ' | ' . $row['iacuc_title']); ?></option>
                             <?php endwhile; ?>
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Description</label>
+                        <label class="form-label"><?= trh('Description') ?></label>
                         <textarea class="form-control" name="description"></textarea>
                     </div>
                     <div class="row">
                         <div class="col mb-3">
-                            <label class="form-label">Start Date</label>
+                            <label class="form-label"><?= trh('Start Date') ?></label>
                             <input type="date" class="form-control" name="start_date">
                         </div>
                         <div class="col mb-3">
-                            <label class="form-label">End Date</label>
+                            <label class="form-label"><?= trh('End Date') ?></label>
                             <input type="date" class="form-control" name="end_date">
                         </div>
                     </div>
-                    <button type="submit" class="btn btn-primary">Create Trial</button>
+                    <button type="submit" class="btn btn-primary"><?= trh('Create Trial') ?></button>
                 </form>
             </div>
         </div>
 
-        <h5>Existing Trials</h5>
+        <h5><?= trh('Existing Trials') ?></h5>
         <table class="table table-bordered">
             <thead>
                 <tr>
-                    <th>Number</th>
-                    <th>Title</th>
-                    <th>Status</th>
-                    <th>Dates</th>
+                    <th><?= trh('Number') ?></th>
+                    <th><?= trh('Title') ?></th>
+                    <th><?= trh('Status') ?></th>
+                    <th><?= trh('Dates') ?></th>
                     <th></th>
                 </tr>
             </thead>
@@ -135,7 +135,7 @@ $iacucList = $con->query("SELECT iacuc_id, iacuc_title FROM iacuc");
                     <tr>
                         <td><?= htmlspecialchars($t['trial_number']); ?></td>
                         <td><?= htmlspecialchars($t['title']); ?></td>
-                        <td><?= htmlspecialchars($t['status']); ?></td>
+                        <td><?= trh($t['status']); ?></td>
                         <td><?= htmlspecialchars($t['start_date'] ?? ''); ?> &rarr; <?= htmlspecialchars($t['end_date'] ?? ''); ?></td>
                         <td><a class="btn btn-sm btn-outline-dark" href="trial_report.php?trial_id=<?= (int) $t['id']; ?>"><i class="fas fa-file-alt"></i> Rapport</a> <a class="btn btn-sm btn-secondary" href="protocol_manage.php?trial_id=<?= (int) $t['id']; ?>">Plans / protocoles &raquo;</a></td>
                     </tr>

@@ -1,7 +1,7 @@
 <?php
 
+require 'session_config.php';
 require 'dbcon.php';
-require 'i18n.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST'
     || !hash_equals($_SESSION['locale_csrf_token'] ?? '', (string) ($_POST['csrf_token'] ?? ''))) {

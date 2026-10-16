@@ -231,7 +231,7 @@ require 'header.php';
 ?>
 
 <!doctype html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
     <title>Add New Breeding Cage | <?php echo htmlspecialchars($labName); ?></title>

@@ -278,7 +278,7 @@ require 'header.php';
 ?>
 
 <!doctype html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
     <title>Litters <?= htmlspecialchars($cageId); ?> | <?php echo htmlspecialchars($labName); ?></title>
