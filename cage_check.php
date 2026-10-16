@@ -33,7 +33,7 @@ $stmt->close();
 // follow-up of every animal, entered on the cage's grouped follow-up page.
 if ($cage && $cage['status'] === 'active' && cage_experimental_progress($con, $cageId)) {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $_SESSION['message'] = tr('Cage {cage} is under experiment: it is validated once every animal has its follow-up for the day.', ['cage' => $cageId]);
+        $_SESSION['message'] = tr('Cage {cage} is under experiment: it is validated once every animal has its follow-up for the day and every act due is confirmed.', ['cage' => $cageId]);
     }
     header('Location: experiment_cage_followup.php?' . http_build_query(['cage_id' => $cageId]));
     exit;
