@@ -1,395 +1,256 @@
 <?php
+
 /**
- * Manage IACUC
- * 
- * This script provides functionality for managing IACUC records in a database. It allows users to add new IACUC records,
- * edit existing records, and delete records. The interface includes a responsive popup form for data entry and 
- * a table for displaying existing records. The script uses PHP sessions for message handling and includes basic 
- * input sanitization for security. File upload functionality is included for the IACUC records.
- * 
+ * Project authorizations (admin)
+ *
+ * Each authorization is identified by its ethics number and carries the
+ * ministerial authorization number, its validity period — the period every
+ * linked trial must fit in — and the three regulatory PDF documents: the
+ * authorization request, the ethics committee opinion and the authorization
+ * decision. The PDFs are stored privately and served by ethics_file.php.
  */
 
-session_start(); // Start the session to use session variables
-require 'dbcon.php'; // Include database connection
-require 'header.php'; // Include the header for consistent page structure
+session_start();
+require 'dbcon.php';
+require 'animal_lib.php';
+require 'ethics_lib.php';
 
-// Generate CSRF token if not already set
+if (!isset($_SESSION['username'])) {
+    header('Location: index.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
+    exit;
+}
+if (($_SESSION['role'] ?? '') !== 'admin') {
+    $_SESSION['message'] = tr('Admin only.');
+    header('Location: home.php');
+    exit;
+}
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
+$currentUserId = $_SESSION['user_id'] ?? null;
 
-// Handle file upload with validation
-function handleFileUpload($file) {
-    // Define allowed file types and maximum size
-    $allowedExtensions = ['pdf', 'doc', 'docx', 'txt', 'xls', 'xlsx', 'ppt', 'pptx',
-                          'jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'];
-    $maxFileSize = 10 * 1024 * 1024; // 10MB in bytes
-
-    // Check if file was uploaded without errors
-    if ($file['error'] !== UPLOAD_ERR_OK) {
-        return false;
-    }
-
-    // Validate file size
-    if ($file['size'] > $maxFileSize) {
-        $_SESSION['message'] = tr('File size exceeds 10MB limit.');
-        return false;
-    }
-
-    // Get file extension
-    $fileExtension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-
-    // Validate file extension
-    if (!in_array($fileExtension, $allowedExtensions)) {
-        $_SESSION['message'] = tr('Invalid file type. Allowed: {types}', ['types' => 'pdf, doc, docx, txt, xls, xlsx, ppt, pptx, jpg, jpeg, png, gif, bmp, svg, webp']);
-        return false;
-    }
-
-    // Sanitize filename to prevent directory traversal
-    $safeFilename = preg_replace("/[^a-zA-Z0-9._-]/", "_", basename($file["name"]));
-
-    $targetDir = "uploads/iacuc/";
-    if (!is_dir($targetDir)) {
-        mkdir($targetDir, 0755, true); // Create directory if it doesn't exist
-    }
-
-    $targetFile = $targetDir . $safeFilename;
-
-    // Move uploaded file
-    if (move_uploaded_file($file["tmp_name"], $targetFile)) {
-        return $targetFile;
-    } else {
-        $_SESSION['message'] = tr('Error uploading file.');
-        return false;
-    }
+// Trials linked to an authorization.
+function authorization_trials(mysqli $con, string $ethicsNumber): array
+{
+    $stmt = $con->prepare("SELECT id, trial_number, title, start_date, end_date FROM trials WHERE iacuc_id = ? ORDER BY start_date, trial_number");
+    $stmt->bind_param("s", $ethicsNumber);
+    $stmt->execute();
+    $trials = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    return $trials;
 }
 
-// Handle form submission
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Validate CSRF token
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!hash_equals($_SESSION['csrf_token'], (string) ($_POST['csrf_token'] ?? ''))) {
         die(tr('CSRF token validation failed'));
     }
+    $ethicsNumber = trim((string) ($_POST['iacuc_id'] ?? ''));
+    $back = 'manage_iacuc.php';
 
-    if (isset($_POST['add'])) {
-        // Add new IACUC
-        $iacucId = htmlspecialchars($_POST['iacuc_id']); // Sanitize input
-        $iacucTitle = htmlspecialchars($_POST['iacuc_title']); // Sanitize input
-
-        // Check if the IACUC ID already exists
-        $checkQuery = $con->prepare("SELECT iacuc_id FROM iacuc WHERE iacuc_id = ?");
-        $checkQuery->bind_param("s", $iacucId);
-        $checkQuery->execute();
-        $checkQuery->store_result();
-        if ($checkQuery->num_rows > 0) {
-            $_SESSION['message'] = tr('IACUC ID already exists. Please use a different ID.');
-            $checkQuery->close();
+    try {
+        if (isset($_POST['delete'])) {
+            $linked = authorization_trials($con, $ethicsNumber);
+            if ($linked) {
+                throw new Exception(tr('Authorization {number} is used by {n} trial(s): it cannot be deleted.', ['number' => $ethicsNumber, 'n' => count($linked)]));
+            }
+            $stmt = $con->prepare("DELETE FROM iacuc WHERE iacuc_id = ?");
+            $stmt->bind_param("s", $ethicsNumber);
+            $stmt->execute();
+            $stmt->close();
+            log_activity($con, 'delete', 'authorization', $ethicsNumber, null, $currentUserId);
+            $_SESSION['message'] = tr('Authorization {number} deleted.', ['number' => $ethicsNumber]);
         } else {
-            $checkQuery->close();
-            $fileUrl = !empty($_FILES['iacuc_file']['name']) ? handleFileUpload($_FILES['iacuc_file']) : null;
-            if ($fileUrl !== false) {
-                $stmt = $con->prepare("INSERT INTO iacuc (iacuc_id, iacuc_title, file_url) VALUES (?, ?, ?)");
-                $stmt->bind_param("sss", $iacucId, $iacucTitle, $fileUrl);
-                if ($stmt->execute()) {
-                    $_SESSION['message'] = tr('IACUC record added successfully.'); // Success message
-                } else {
-                    $_SESSION['message'] = tr('Error adding IACUC record.'); // Error message
+            $isEdit = isset($_POST['edit']);
+            $title = trim((string) ($_POST['iacuc_title'] ?? ''));
+            $authorizationNumber = trim((string) ($_POST['authorization_number'] ?? '')) ?: null;
+            $validFrom = (string) ($_POST['valid_from'] ?? '');
+            $validUntil = (string) ($_POST['valid_until'] ?? '');
+            $back = $isEdit ? 'manage_iacuc.php?' . http_build_query(['edit' => $ethicsNumber]) : 'manage_iacuc.php?new=1';
+
+            if ($ethicsNumber === '' || $title === '') {
+                throw new Exception(tr('The ethics number and the title are required.'));
+            }
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $validFrom) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $validUntil)) {
+                throw new Exception(tr('Give both validity dates of the authorization.'));
+            }
+            if ($validFrom > $validUntil) {
+                throw new Exception(tr('The validity must end after it starts.'));
+            }
+            $existing = load_authorization($con, $ethicsNumber);
+            if (!$isEdit && $existing) {
+                throw new Exception(tr('Ethics number {number} already exists.', ['number' => $ethicsNumber]));
+            }
+            if ($isEdit && !$existing) {
+                throw new Exception(tr('Authorization not found.'));
+            }
+            // Shortening the validity must not leave a linked trial outside it.
+            if ($isEdit) {
+                $updated = ['iacuc_id' => $ethicsNumber, 'valid_from' => $validFrom, 'valid_until' => $validUntil];
+                foreach (authorization_trials($con, $ethicsNumber) as $t) {
+                    if ($t['start_date'] && $t['end_date'] && trial_period_error($updated, $t['start_date'], $t['end_date'])) {
+                        throw new Exception(tr('Trial {trial} ({start} → {end}) would no longer fit in this validity: change the trial first.', ['trial' => $t['trial_number'], 'start' => $t['start_date'], 'end' => $t['end_date']]));
+                    }
                 }
-                $stmt->close(); // Close the statement
-            } else {
-                $_SESSION['message'] = tr('Error uploading file.');
             }
-        }
-    } elseif (isset($_POST['edit'])) {
-        // Update existing IACUC
-        $iacucId = htmlspecialchars($_POST['iacuc_id']); // Sanitize input
-        $iacucTitle = htmlspecialchars($_POST['iacuc_title']); // Sanitize input
-        $fileUrl = !empty($_FILES['iacuc_file']['name']) ? handleFileUpload($_FILES['iacuc_file']) : htmlspecialchars($_POST['existing_file_url']);
-        
-        if ($fileUrl !== false) {
-            $stmt = $con->prepare("UPDATE iacuc SET iacuc_title = ?, file_url = ? WHERE iacuc_id = ?");
-            $stmt->bind_param("sss", $iacucTitle, $fileUrl, $iacucId);
-            if ($stmt->execute()) {
-                $_SESSION['message'] = tr('IACUC record updated successfully.'); // Success message
-            } else {
-                $_SESSION['message'] = tr('Error updating IACUC record.'); // Error message
+
+            // Store the uploaded PDFs; a document not re-uploaded is kept.
+            $files = [];
+            foreach (ETHICS_DOCUMENTS as $doc => [, $column]) {
+                $stored = store_ethics_pdf($_FILES[$doc] ?? []);
+                $files[$column] = $stored ?? ($existing[$column] ?? null);
             }
-            $stmt->close(); // Close the statement
-        } else {
-            $_SESSION['message'] = tr('Error uploading file.');
+
+            if ($isEdit) {
+                $stmt = $con->prepare("UPDATE iacuc SET iacuc_title = ?, authorization_number = ?, valid_from = ?, valid_until = ?, request_file = ?, committee_opinion_file = ?, decision_file = ? WHERE iacuc_id = ?");
+                $stmt->bind_param("ssssssss", $title, $authorizationNumber, $validFrom, $validUntil, $files['request_file'], $files['committee_opinion_file'], $files['decision_file'], $ethicsNumber);
+            } else {
+                $stmt = $con->prepare("INSERT INTO iacuc (iacuc_id, iacuc_title, authorization_number, valid_from, valid_until, request_file, committee_opinion_file, decision_file) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->bind_param("ssssssss", $ethicsNumber, $title, $authorizationNumber, $validFrom, $validUntil, $files['request_file'], $files['committee_opinion_file'], $files['decision_file']);
+            }
+            $stmt->execute();
+            $stmt->close();
+            log_activity($con, $isEdit ? 'update' : 'create', 'authorization', $ethicsNumber, tr('Authorization {auth}, valid {from} → {until}', ['auth' => $authorizationNumber ?? '—', 'from' => $validFrom, 'until' => $validUntil]), $currentUserId);
+            $_SESSION['message'] = $isEdit ? tr('Authorization {number} updated.', ['number' => $ethicsNumber]) : tr('Authorization {number} added.', ['number' => $ethicsNumber]);
+            $back = 'manage_iacuc.php';
         }
-    } elseif (isset($_POST['delete'])) {
-        // Delete IACUC
-        $iacucId = htmlspecialchars($_POST['iacuc_id']); // Sanitize input
-        $stmt = $con->prepare("DELETE FROM iacuc WHERE iacuc_id = ?");
-        $stmt->bind_param("s", $iacucId);
-        if ($stmt->execute()) {
-            $_SESSION['message'] = tr('IACUC record deleted successfully.'); // Success message
-        } else {
-            $_SESSION['message'] = tr('Error deleting IACUC record.'); // Error message
-        }
-        $stmt->close(); // Close the statement
+    } catch (Exception $e) {
+        $_SESSION['message'] = $e->getMessage();
     }
+    header('Location: ' . $back);
+    exit;
 }
 
-// Fetch all IACUC records for display
-$iacucQuery = "SELECT * FROM iacuc";
-$iacucResult = $con->query($iacucQuery);
-?>
+$authorizations = $con->query(
+    "SELECT i.*, (SELECT COUNT(*) FROM trials t WHERE t.iacuc_id = i.iacuc_id) AS n_trials
+     FROM iacuc i ORDER BY i.valid_until IS NULL, i.valid_until DESC, i.iacuc_id"
+)->fetch_all(MYSQLI_ASSOC);
+$editing = isset($_GET['edit']) ? load_authorization($con, (string) $_GET['edit']) : null;
+$showForm = $editing || isset($_GET['new']);
 
-<!DOCTYPE html>
+require 'header.php';
+?>
+<!doctype html>
 <html lang="<?= htmlspecialchars(current_locale()) ?>">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= trh('Manage IACUC') ?></title>
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <style>
-        /* Popup Form Styles */
-        .popup-form {
-            display: none;
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background-color: white;
-            padding: 20px;
-            border: 2px solid #000;
-            z-index: 1000;
-            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
-            width: 80%;
-            max-width: 800px;
-        }
-
-        .popup-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 999;
-        }
-
-        /* Button and Form Layout */
-        .table-actions,
-        .action-buttons,
-        .form-buttons {
-            display: flex;
-            gap: 10px;
-        }
-
-        .table-actions {
-            justify-content: flex-start;
-        }
-
-        .form-buttons {
-            justify-content: space-between;
-        }
-
-        .add-button {
-            display: flex;
-            justify-content: flex-end;
-            margin-bottom: 20px;
-        }
-
-        .add-button .btn {
-            margin-bottom: 20px;
-        }
-
-        .required-asterisk {
-            color: red;
-        }
-
-        .extra-space {
-            margin-bottom: 50px;
-        }
-
-        /* Responsive Styles */
-        @media (max-width: 767px) {
-            .form-buttons {
-                flex-direction: column;
-            }
-
-            .form-buttons button {
-                width: 100%;
-                margin-bottom: 10px;
-            }
-        }
-
-        @media (max-width: 576px) {
-            .table thead {
-                display: none;
-            }
-
-            .table tr {
-                display: flex;
-                flex-direction: column;
-                margin-bottom: 20px;
-            }
-
-            .table td {
-                display: flex;
-                justify-content: space-between;
-                padding: 10px;
-                border: 1px solid #dee2e6;
-            }
-
-            .table td::before {
-                content: attr(data-label);
-                font-weight: bold;
-                text-transform: uppercase;
-                margin-bottom: 5px;
-                display: block;
-            }
-
-            .table-actions,
-            .action-buttons {
-                flex-direction: column;
-            }
-
-            .table-actions button,
-            .action-buttons .btn {
-                width: 100%;
-                margin-bottom: 10px;
-            }
-
-            .table-actions {
-                gap: 10px;
-                flex-wrap: wrap;
-            }
-        }
-
-        .table {
-            width: 100%;
-        }
-    </style>
-
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title><?= trh('Project authorizations') ?> | <?= htmlspecialchars($labName); ?></title>
 </head>
 
 <body>
-    <div class="container content mt-5">
-        <h2><?= trh('Manage IACUC') ?></h2>
-        <?php if (isset($_SESSION['message'])) : ?>
-            <div class="alert alert-info">
-                <?= $_SESSION['message']; ?>
-                <?php unset($_SESSION['message']); ?>
+    <div class="container mt-4 content">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+            <h4 class="mb-0"><i class="fas fa-file-signature"></i> <?= trh('Project authorizations') ?></h4>
+            <?php if (!$showForm) : ?>
+                <a href="manage_iacuc.php?new=1" class="btn btn-primary"><i class="fas fa-plus"></i> <?= trh('New authorization') ?></a>
+            <?php endif; ?>
+        </div>
+        <p class="text-muted"><?= trh('Each authorization is identified by its ethics number. Its validity period is checked for every linked trial. The authorization request, the ethics committee opinion and the authorization decision are kept as PDF files.') ?></p>
+
+        <?php include 'message.php'; ?>
+
+        <?php if ($showForm) : ?>
+            <div class="card mb-4 border-primary" id="authorizationForm">
+                <div class="card-header bg-primary text-white">
+                    <?= $editing ? trh('Edit authorization {number}', ['number' => $editing['iacuc_id']]) : trh('New authorization') ?>
+                </div>
+                <div class="card-body">
+                    <form method="POST" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label" for="iacuc_id"><?= trh('Ethics number') ?> *</label>
+                                <input type="text" class="form-control" id="iacuc_id" name="iacuc_id" required maxlength="255"
+                                    value="<?= htmlspecialchars($editing['iacuc_id'] ?? ''); ?>" <?= $editing ? 'readonly' : ''; ?> placeholder="<?= trh('e.g. APAFIS#12345-2026010112345678 v1') ?>">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="authorization_number"><?= trh('Authorization number') ?></label>
+                                <input type="text" class="form-control" id="authorization_number" name="authorization_number" maxlength="100"
+                                    value="<?= htmlspecialchars($editing['authorization_number'] ?? ''); ?>">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label" for="valid_from"><?= trh('Valid from') ?> *</label>
+                                <input type="date" class="form-control" id="valid_from" name="valid_from" required value="<?= htmlspecialchars($editing['valid_from'] ?? ''); ?>">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label" for="valid_until"><?= trh('Valid until') ?> *</label>
+                                <input type="date" class="form-control" id="valid_until" name="valid_until" required value="<?= htmlspecialchars($editing['valid_until'] ?? ''); ?>">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label" for="iacuc_title"><?= trh('Project title') ?> *</label>
+                                <input type="text" class="form-control" id="iacuc_title" name="iacuc_title" required maxlength="255" value="<?= htmlspecialchars($editing['iacuc_title'] ?? ''); ?>">
+                            </div>
+                            <?php foreach (ETHICS_DOCUMENTS as $doc => [$label, $column]) : ?>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="doc_<?= $doc; ?>"><?= trh($label) ?> (PDF)</label>
+                                    <input type="file" class="form-control" id="doc_<?= $doc; ?>" name="<?= $doc; ?>" accept="application/pdf,.pdf">
+                                    <?php if (!empty($editing[$column])) : ?>
+                                        <small class="text-muted"><a href="<?= htmlspecialchars(ethics_document_url($editing['iacuc_id'], $doc)); ?>" target="_blank"><i class="fas fa-file-pdf"></i> <?= trh('Current file') ?></a> — <?= trh('a new file replaces it') ?></small>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <div class="mt-3">
+                            <button type="submit" name="<?= $editing ? 'edit' : 'add'; ?>" class="btn btn-primary"><i class="fas fa-save"></i> <?= trh('Save') ?></button>
+                            <a href="manage_iacuc.php" class="btn btn-secondary"><?= trh('Cancel') ?></a>
+                        </div>
+                    </form>
+                </div>
             </div>
         <?php endif; ?>
 
-        <!-- Button to open the popup form -->
-        <div class="add-button">
-            <button onclick="openForm()" class="btn btn-primary"><i class="fas fa-plus"></i> <?= trh('Add New IACUC') ?></button>
-        </div>
-
-        <!-- Popup form for adding and editing IACUC records -->
-        <div class="popup-overlay" id="popupOverlay"></div>
-        <div class="popup-form" id="popupForm">
-            <h4 id="formTitle"><?= trh('Add New IACUC') ?></h4>
-            <form action="manage_iacuc.php" method="post" enctype="multipart/form-data">
-                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                <div class="form-group">
-                    <label for="iacuc_id"><?= trh('IACUC ID') ?> <span class="required-asterisk">*</span></label>
-                    <input type="text" name="iacuc_id" id="iacuc_id" class="form-control" required>
-                </div>
-                <div class="form-group">
-                    <label for="iacuc_title"><?= trh('Title') ?> <span class="required-asterisk">*</span></label>
-                    <input type="text" name="iacuc_title" id="iacuc_title" class="form-control" required>
-                </div>
-                <div class="form-group">
-                    <label for="iacuc_file"><?= trh('Upload File') ?></label>
-                    <input type="file" name="iacuc_file" id="iacuc_file" class="form-control">
-                    <div id="existingFile" style="margin-top: 10px;"></div>
-                </div>
-                <input type="hidden" name="existing_file_url" id="existing_file_url">
-                <div class="form-buttons">
-                    <button type="submit" name="add" id="addButton" class="btn btn-primary"><i class="fas fa-plus"></i> <?= trh('Add IACUC') ?></button>
-                    <button type="submit" name="edit" id="editButton" class="btn btn-success" style="display: none;"><i class="fas fa-save"></i> <?= trh('Update IACUC') ?></button>
-                    <button type="button" class="btn btn-secondary" onclick="closeForm()"><?= trh('Cancel') ?></button>
-                </div>
-            </form>
-        </div>
-
-        <!-- Display existing IACUC records -->
-        <h3><?= trh('Existing IACUC Records') ?></h3>
-        <table class="table table-bordered">
-            <thead>
-                <tr>
-                    <th><?= trh('ID') ?></th>
-                    <th><?= trh('Title') ?></th>
-                    <th><?= trh('File') ?></th>
-                    <th><?= trh('Actions') ?></th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php while ($row = $iacucResult->fetch_assoc()) : ?>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle" id="authorizationList">
+                <thead class="table-light">
                     <tr>
-                        <td data-label="<?= trh('ID') ?>"><?= htmlspecialchars($row['iacuc_id']); ?></td>
-                        <td data-label="<?= trh('Title') ?>"><?= htmlspecialchars($row['iacuc_title']); ?></td>
-                        <td data-label="<?= trh('File') ?>">
-                            <?php if ($row['file_url']) : ?>
-                                <a href="<?= htmlspecialchars($row['file_url']); ?>" target="_blank"><?= trh('View/Download') ?></a>
-                            <?php else : ?>
-                                <?= trh('No file uploaded') ?>
-                            <?php endif; ?>
-                        </td>
-                        <td data-label="<?= trh('Actions') ?>" class="table-actions">
-                            <div class="action-buttons">
-                                <button class="btn btn-warning btn-sm" title="<?= trh('Edit') ?>" onclick="editIACUC('<?= $row['iacuc_id']; ?>', '<?= htmlspecialchars($row['iacuc_title']); ?>', '<?= htmlspecialchars($row['file_url']); ?>')"><i class="fas fa-edit"></i></button>
-                                <form action="manage_iacuc.php" method="post" style="display:inline-block;">
-                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                                    <input type="hidden" name="iacuc_id" value="<?= $row['iacuc_id']; ?>">
-                                    <button type="submit" name="delete" class="btn btn-danger btn-sm" title="<?= trh('Delete') ?>" onclick="return confirm(<?= htmlspecialchars(trj('Are you sure you want to delete this IACUC record?')) ?>);"><i class="fas fa-trash-alt"></i></button>
-                                </form>
-                            </div>
-                        </td>
+                        <th><?= trh('Ethics number') ?></th>
+                        <th><?= trh('Authorization number') ?></th>
+                        <th><?= trh('Validity') ?></th>
+                        <th><?= trh('Documents') ?></th>
+                        <th class="text-center"><?= trh('Trials') ?></th>
+                        <th class="text-end"><?= trh('Actions') ?></th>
                     </tr>
-                <?php endwhile; ?>
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    <?php foreach ($authorizations as $a) : ?>
+                        <tr>
+                            <td><strong><?= htmlspecialchars($a['iacuc_id']); ?></strong><br><small class="text-muted"><?= htmlspecialchars($a['iacuc_title']); ?></small></td>
+                            <td><?= htmlspecialchars($a['authorization_number'] ?: '—'); ?></td>
+                            <td><?= authorization_badge($a); ?><br><small><?= htmlspecialchars(authorization_period($a)); ?></small></td>
+                            <td>
+                                <?php foreach (ETHICS_DOCUMENTS as $doc => [$label, $column]) : ?>
+                                    <?php if (!empty($a[$column])) : ?>
+                                        <a href="<?= htmlspecialchars(ethics_document_url($a['iacuc_id'], $doc)); ?>" target="_blank" class="d-block small"><i class="fas fa-file-pdf text-danger"></i> <?= trh($label) ?></a>
+                                    <?php else : ?>
+                                        <span class="d-block small text-muted"><i class="far fa-file"></i> <?= trh($label) ?> — <?= trh('missing') ?></span>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                                <?php if (!empty($a['file_url'])) : ?>
+                                    <a href="<?= htmlspecialchars($a['file_url']); ?>" target="_blank" class="d-block small"><i class="fas fa-paperclip"></i> <?= trh('Former attachment') ?></a>
+                                <?php endif; ?>
+                            </td>
+                            <td class="text-center"><?= (int) $a['n_trials']; ?></td>
+                            <td class="text-end text-nowrap">
+                                <a href="manage_iacuc.php?<?= htmlspecialchars(http_build_query(['edit' => $a['iacuc_id']])); ?>" class="btn btn-sm btn-outline-primary" title="<?= trh('Edit') ?>"><i class="fas fa-edit"></i></a>
+                                <form method="POST" class="d-inline" onsubmit="return confirm(<?= htmlspecialchars(trj('Delete this authorization?')) ?>);">
+                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                    <input type="hidden" name="iacuc_id" value="<?= htmlspecialchars($a['iacuc_id']); ?>">
+                                    <button type="submit" name="delete" class="btn btn-sm btn-outline-danger" title="<?= trh('Delete') ?>" <?= $a['n_trials'] ? 'disabled' : ''; ?>><i class="fas fa-trash-alt"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    <?php if (!$authorizations) : ?>
+                        <tr><td colspan="6" class="text-muted text-center"><?= trh('No authorization yet.') ?></td></tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
     </div>
 
-    <script>
-        // Function to open the popup form
-        function openForm() {
-            document.getElementById('popupOverlay').style.display = 'block';
-            document.getElementById('popupForm').style.display = 'block';
-            document.getElementById('formTitle').innerText = <?= trj('Add New IACUC') ?>;
-            document.getElementById('addButton').style.display = 'block';
-            document.getElementById('editButton').style.display = 'none';
-            document.getElementById('iacuc_id').readOnly = false; // Ensure field is editable when adding
-            document.getElementById('iacuc_id').value = '';
-            document.getElementById('iacuc_title').value = '';
-            document.getElementById('iacuc_file').value = '';
-            document.getElementById('existing_file_url').value = '';
-            document.getElementById('existingFile').innerHTML = ''; // Clear existing file info
-        }
-
-        // Function to close the popup form
-        function closeForm() {
-            document.getElementById('popupOverlay').style.display = 'none';
-            document.getElementById('popupForm').style.display = 'none';
-        }
-
-        // Function to populate the form for editing
-        function editIACUC(id, title, fileUrl) {
-            openForm();
-            document.getElementById('formTitle').innerText = <?= trj('Edit IACUC') ?>;
-            document.getElementById('addButton').style.display = 'none';
-            document.getElementById('editButton').style.display = 'block';
-            document.getElementById('iacuc_id').readOnly = true; // Make field read-only when editing
-            document.getElementById('iacuc_id').value = id;
-            document.getElementById('iacuc_title').value = title;
-            document.getElementById('existing_file_url').value = fileUrl;
-            document.getElementById('existingFile').innerHTML = fileUrl ? `<a href="${fileUrl}" target="_blank">${<?= trj('Current File') ?>}</a>` : <?= trj('No file uploaded') ?>;
-        }
-    </script>
-
-    <div class="extra-space"></div> <!-- Add extra space before the footer -->
-    <?php require 'footer.php'; // Include the footer ?>
+    <br>
+    <?php include 'footer.php'; ?>
 </body>
 
 </html>

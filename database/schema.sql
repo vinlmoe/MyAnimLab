@@ -2,10 +2,19 @@
 SET NAMES utf8mb4;
 
 -- Table for storing IACUC (Institutional Animal Care and Use Committee) records
+-- Project authorizations: iacuc_id is the ethics number (e.g. APAFIS#12345),
+-- with the authorization number, its validity period (trials must fit in it)
+-- and the regulatory PDF documents, served only to signed-in users.
 CREATE TABLE `iacuc` (
   `iacuc_id` varchar(255) NOT NULL,
   `iacuc_title` varchar(255) NOT NULL,
+  `authorization_number` varchar(100) DEFAULT NULL,
+  `valid_from` date DEFAULT NULL,
+  `valid_until` date DEFAULT NULL,
   `file_url` varchar(255) DEFAULT NULL,
+  `request_file` varchar(255) DEFAULT NULL,
+  `committee_opinion_file` varchar(255) DEFAULT NULL,
+  `decision_file` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`iacuc_id`)
 );
 
