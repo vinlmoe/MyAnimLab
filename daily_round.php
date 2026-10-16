@@ -13,6 +13,7 @@
 session_start();
 require 'dbcon.php';
 require 'animal_lib.php';
+require 'experiment_acts_lib.php';
 
 if (!isset($_SESSION['username'])) {
     $currentUrl = urlencode($_SERVER['REQUEST_URI']);
@@ -87,6 +88,8 @@ $treatmentRows = $con->query(
      GROUP BY m.cage_id"
 )->fetch_all(MYSQLI_ASSOC);
 foreach ($treatmentRows as $treatment) $treatmentsByCage[$treatment['cage_id']] = (int) $treatment['pending_count'];
+// Experimental acts to confirm today (or overdue), per cage.
+$actsDueByCage = acts_due_by_cage($con, date('Y-m-d'));
 
 // Room summary (cages with no room are grouped under "").
 $rooms = [];
@@ -266,6 +269,9 @@ require 'header.php';
                                     <td class="text-end">
                                         <?php if (!empty($treatmentsByCage[$cid])) : ?>
                                             <a href="medication_administration.php?cage_id=<?= rawurlencode($cid); ?>" class="btn btn-outline-primary btn-sm" title="Administrations actives"><i class="fas fa-syringe"></i> <?= $treatmentsByCage[$cid]; ?></a>
+                                        <?php endif; ?>
+                                        <?php if (!empty($actsDueByCage[$cid])) : ?>
+                                            <a href="experiment_cage_followup.php?<?= htmlspecialchars(http_build_query(['cage_id' => $cid])); ?>#cageActs" class="btn btn-warning btn-sm" title="<?= trh('{n} experimental act(s) to confirm', ['n' => $actsDueByCage[$cid]]); ?>"><i class="fas fa-syringe"></i> <?= trh('{n} act(s)', ['n' => $actsDueByCage[$cid]]); ?></a>
                                         <?php endif; ?>
                                         <?php if ($progress) : ?>
                                             <a href="experiment_cage_followup.php?<?= htmlspecialchars(http_build_query(['cage_id' => $cid])); ?>" class="btn btn-<?= $progress['done'] < $progress['total'] ? 'primary' : 'outline-success'; ?> btn-sm"><i class="fas fa-flask"></i> <?= trh('Experimental follow-up ({done}/{total})', ['done' => $progress['done'], 'total' => $progress['total']]); ?></a>

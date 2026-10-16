@@ -12,6 +12,7 @@ session_start();
 require 'dbcon.php';
 require 'animal_lib.php';
 require 'ethics_lib.php';
+require 'experiment_acts_lib.php';
 
 if (!isset($_SESSION['username'])) {
     header('Location: index.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
@@ -90,13 +91,16 @@ if ($reports) {
 $treatments = $rows(
     "SELECT ma.*, mp.name AS product_name, ml.lot_number, pr.prescriber_name, pr.prescription_reference
      FROM medication_administrations ma
-     JOIN prescriptions pr ON pr.id = ma.prescription_id
-     JOIN medication_products mp ON mp.id = pr.product_id
+     LEFT JOIN prescriptions pr ON pr.id = ma.prescription_id
      JOIN medication_lots ml ON ml.id = ma.medication_lot_id
+     JOIN medication_products mp ON mp.id = ml.product_id
      WHERE ma.animal_id = ? ORDER BY ma.administered_at",
     'i',
     $animalId
 );
+// Experimental acts of the participation (all, cancelled excepted).
+$expActs = array_values(array_filter(enrollment_acts($con, $enrollmentId, '9999-12-31'), fn($a) => $a['status'] !== 'cancelled'));
+$expActValues = experiment_act_values($con, array_column($expActs, 'id'));
 $movements = $rows("SELECT mv.*, u.name AS moved_by_name FROM animal_movements mv LEFT JOIN users u ON u.id = mv.moved_by WHERE mv.animal_id = ? ORDER BY mv.moved_at, mv.id", 'i', $animalId);
 $otherParticipations = $rows(
     "SELECT ea.id, ea.enrolled_at, ea.removed_at, e.experiment_number, e.title FROM experiment_animals ea JOIN experiments e ON e.id = ea.experiment_id
@@ -139,6 +143,7 @@ require 'header.php';
                 <a href="#followups"><?= trh('Daily follow-ups') ?> (<?= count($followups) ?>)</a> ·
                 <a href="#endpoints"><?= trh('Endpoint actions') ?> (<?= count($actions) ?>)</a> ·
                 <a href="#health"><?= trh('Health reports') ?> (<?= count($reports) ?>)</a> ·
+                <a href="#acts"><?= trh('Experimental acts') ?> (<?= count($expActs) ?>)</a> ·
                 <a href="#treatments"><?= trh('Treatments given') ?> (<?= count($treatments) ?>)</a> ·
                 <a href="#movements"><?= trh('Cage movements') ?> (<?= count($movements) ?>)</a>
             </nav>
@@ -288,6 +293,28 @@ require 'header.php';
             <?php endforeach; ?>
         <?php endif; ?>
 
+        <h5 id="acts"><i class="fas fa-syringe"></i> <?= trh('Experimental acts') ?></h5>
+        <?php if (!$expActs) : ?>
+            <p class="text-muted"><?= trh('No experimental act planned.') ?></p>
+        <?php else : ?>
+            <table class="table table-sm table-bordered">
+                <thead class="table-light"><tr><th><?= trh('Planned') ?></th><th><?= trh('Act') ?></th><th><?= trh('Status') ?></th><th><?= trh('Done on') ?></th><th><?= trh('Medication') ?></th><th><?= trh('Information') ?></th><th><?= trh('By') ?></th></tr></thead>
+                <tbody>
+                    <?php foreach ($expActs as $xa) : ?>
+                        <tr class="<?= $xa['status'] === 'not_done' ? 'table-danger' : ($xa['status'] === 'planned' ? 'text-muted' : '') ?>">
+                            <td class="text-nowrap"><?= htmlspecialchars($xa['planned_date']) ?></td>
+                            <td><?= htmlspecialchars((experiment_act_types()[$xa['act_type']] ?? $xa['act_type']) . ' — ' . $xa['label']) ?><?php if ($summary = experiment_act_summary($xa)) : ?> <small class="text-muted">(<?= htmlspecialchars($summary) ?>)</small><?php endif; ?></td>
+                            <td><?= htmlspecialchars(experiment_act_statuses()[$xa['status']]) ?></td>
+                            <td class="text-nowrap"><?= htmlspecialchars(substr((string) $xa['done_at'], 0, 16)) ?></td>
+                            <td><?= $xa['medication_lot_id'] ? trh('{qty} {unit}, lot {lot}', ['qty' => act_number($xa['quantity_used']), 'unit' => $xa['product_unit'], 'lot' => $xa['lot_number']]) : '' ?></td>
+                            <td class="small"><?= implode('<br>', array_map(fn($v) => htmlspecialchars($v['label'] . ' : ' . observation_value($v)), $expActValues[(int) $xa['id']] ?? [])) ?><?= $xa['note'] ? ' <em>' . htmlspecialchars($xa['note']) . '</em>' : '' ?></td>
+                            <td class="small"><?= htmlspecialchars($xa['done_by_name'] ?? '') ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+
         <h5 id="treatments"><i class="fas fa-syringe"></i> <?= trh('Treatments given') ?></h5>
         <?php if (!$treatments) : ?>
             <p class="text-muted"><?= trh('No treatment given.') ?></p>
@@ -301,7 +328,7 @@ require 'header.php';
                             <td><?= htmlspecialchars($tm['product_name']) ?> <small class="text-muted">(<?= trh('lot {lot}', ['lot' => $tm['lot_number']]) ?>)</small></td>
                             <td><?= htmlspecialchars(rtrim(rtrim((string) $tm['quantity_used'], '0'), '.') . ' ' . $tm['unit']) ?></td>
                             <td><?= htmlspecialchars($tm['route'] ?? '—') ?></td>
-                            <td><?= htmlspecialchars($tm['prescriber_name']) ?><?= $tm['prescription_reference'] ? ' · ' . htmlspecialchars($tm['prescription_reference']) : '' ?></td>
+                            <td><?= $tm['experiment_act_animal_id'] ? trh('Experimental act (no prescription)') : htmlspecialchars($tm['prescriber_name'] ?? '') ?><?= $tm['prescription_reference'] ? ' · ' . htmlspecialchars($tm['prescription_reference']) : '' ?></td>
                             <td class="small"><?= htmlspecialchars($tm['notes'] ?? '') ?></td>
                             <td class="small"><?= htmlspecialchars($tm['administered_by_name'] ?? '') ?></td>
                         </tr>

@@ -191,6 +191,21 @@ $experiments->bind_param("i", $protocolId);
 $experiments->execute();
 $experiments = $experiments->get_result()->fetch_all(MYSQLI_ASSOC);
 
+// Experimental acts of each experiment: how many are planned, and how many are
+// still to do up to today (overdue included).
+$actCounts = [];
+$actStmt = $con->prepare(
+    "SELECT a.experiment_id, COUNT(DISTINCT a.id) AS acts, SUM(aa.status = 'planned' AND aa.planned_date <= CURDATE()) AS due
+     FROM experiment_acts a JOIN experiments e ON e.id = a.experiment_id LEFT JOIN experiment_act_animals aa ON aa.act_id = a.id
+     WHERE e.protocol_id = ? GROUP BY a.experiment_id"
+);
+$actStmt->bind_param("i", $protocolId);
+$actStmt->execute();
+foreach ($actStmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
+    $actCounts[(int) $row['experiment_id']] = ['acts' => (int) $row['acts'], 'due' => (int) $row['due']];
+}
+$actStmt->close();
+
 // Enrollments of every experiment of the protocol, grouped by experiment.
 $enrolledByExperiment = [];
 $enrolledStmt = $con->prepare(
@@ -474,6 +489,9 @@ require 'header.php';
                         <?php if (!$enrollmentBlock) : ?>
                             <button class="btn btn-sm btn-success" type="button" data-bs-toggle="collapse" data-bs-target="#enroll<?= $eid; ?>"><i class="fas fa-user-plus"></i> Ajouter des animaux</button>
                         <?php endif; ?>
+                        <a class="btn btn-sm btn-outline-primary" href="experiment_acts.php?experiment_id=<?= $eid; ?>" title="<?= trh('Injections, gavages, baits, anaesthesia... planned on the animals') ?>"><i class="fas fa-syringe"></i> <?= trh('Acts') ?>
+                            <?php if (!empty($actCounts[$eid]['acts'])) : ?><span class="badge bg-secondary"><?= $actCounts[$eid]['acts']; ?></span><?php endif; ?>
+                            <?php if (!empty($actCounts[$eid]['due'])) : ?><span class="badge bg-warning text-dark" title="<?= trh('{n} act(s) to confirm up to today', ['n' => $actCounts[$eid]['due']]); ?>"><?= $actCounts[$eid]['due']; ?> !</span><?php endif; ?></a>
                         <a class="btn btn-sm btn-outline-dark" href="experiment_report.php?experiment_id=<?= $eid; ?>"><i class="fas fa-file-alt"></i> <?= trh('Report (with grids)') ?></a>
                     </div>
                 </div>

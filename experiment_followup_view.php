@@ -9,6 +9,7 @@
 session_start();
 require 'dbcon.php';
 require 'animal_lib.php';
+require 'experiment_acts_lib.php';
 
 if (!isset($_SESSION['username'])) {
     header('Location: index.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
@@ -65,6 +66,12 @@ $itemMax = fn(array $s): ?int => !empty($levelsByItem[(int) $s['grid_item_id']])
 $gridMax = array_sum(array_map(fn($s) => (int) $itemMax($s), $scores));
 $observations = $fetchAll("SELECT * FROM experiment_followup_observations WHERE followup_id = ? ORDER BY field_id IS NULL, id", $followupId);
 $actions = $fetchAll("SELECT * FROM endpoint_actions WHERE followup_id = ? ORDER BY id", $followupId);
+// Experimental acts confirmed that day for this participation.
+$dayActs = array_values(array_filter(
+    enrollment_acts($con, (int) $f['experiment_animal_id'], $f['observed_at']),
+    fn($a) => $a['status'] !== 'planned' && substr((string) $a['done_at'], 0, 10) === $f['observed_at']
+));
+$dayActValues = experiment_act_values($con, array_column($dayActs, 'id'));
 
 // Previous / next follow-ups of the same participation.
 $neighbours = $fetchAll("SELECT id, observed_at FROM experiment_followups WHERE experiment_animal_id = ? ORDER BY observed_at", (int) $f['experiment_animal_id']);
@@ -165,6 +172,25 @@ require 'header.php';
                                         <?php endforeach; ?>
                                     </div>
                                 <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+
+        <?php if ($dayActs) : ?>
+            <h5><?= trh('Experimental acts of the day') ?></h5>
+            <table class="table table-sm table-bordered">
+                <tbody>
+                    <?php foreach ($dayActs as $xa) : ?>
+                        <tr class="<?= $xa['status'] === 'not_done' ? 'table-danger' : '' ?>">
+                            <th style="width: 30%"><?= htmlspecialchars($xa['label']) ?><?php if ($summary = experiment_act_summary($xa)) : ?><br><small class="text-muted fw-normal"><?= htmlspecialchars($summary) ?></small><?php endif; ?></th>
+                            <td>
+                                <strong><?= htmlspecialchars(experiment_act_statuses()[$xa['status']]) ?></strong> — <?= htmlspecialchars(substr((string) $xa['done_at'], 11, 5) . ' · ' . ($xa['done_by_name'] ?? '')) ?>
+                                <?php if ($xa['medication_lot_id']) : ?><br><?= trh('{qty} {unit}, lot {lot}', ['qty' => act_number($xa['quantity_used']), 'unit' => $xa['product_unit'], 'lot' => $xa['lot_number']]) ?><?php endif; ?>
+                                <?php foreach ($dayActValues[(int) $xa['id']] ?? [] as $v) : ?><br><?= htmlspecialchars($v['label'] . ' : ' . observation_value($v)) ?><?php endforeach; ?>
+                                <?php if ($xa['note']) : ?><br><em><?= htmlspecialchars($xa['note']) ?></em><?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>
