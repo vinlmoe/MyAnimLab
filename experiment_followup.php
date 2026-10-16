@@ -544,7 +544,7 @@ require 'header.php';
                 <tbody>
                     <?php foreach ($history as $h) : ?>
                         <tr class="<?= $h['endpoint_reached'] ? 'table-danger' : ''; ?>">
-                            <td><?= htmlspecialchars($h['observed_at']); ?></td>
+                            <td class="text-nowrap"><a href="<?= htmlspecialchars('experiment_followup_view.php?' . http_build_query(['id' => $h['id'], 'return' => $selfUrl])); ?>" title="<?= trh('Read the full evaluation') ?>"><?= htmlspecialchars($h['observed_at']); ?> <i class="fas fa-search small"></i></a></td>
                             <td><?= htmlspecialchars($h['weight_g'] ?? '-'); ?></td>
                             <td><?= ($h['weight_g'] !== null && !empty($ea['baseline_weight_g'])) ? round(($ea['baseline_weight_g'] - $h['weight_g']) / $ea['baseline_weight_g'] * 100, 1) : '-'; ?></td>
                             <?php foreach ($historyLabels as $label) : ?><td><?= htmlspecialchars((string) ($scoresByFollowup[$h['id']][$label] ?? '-')); ?></td><?php endforeach; ?>

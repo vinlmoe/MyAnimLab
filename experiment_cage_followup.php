@@ -132,7 +132,7 @@ require 'header.php';
                                 <td>
                                     <?php if ($en['followup_id']) : ?>
                                         <span class="badge bg-success"><?= trh('Entered') ?></span>
-                                        <?= trh('weight {weight} g · score {score}', ['weight' => $en['weight_g'] ?? '—', 'score' => $en['clinical_score'] ?? '—']) ?>
+                                        <a href="<?= htmlspecialchars('experiment_followup_view.php?' . http_build_query(['id' => $en['followup_id'], 'return' => $selfUrl])) ?>" title="<?= trh('Read the full evaluation') ?>"><?= trh('weight {weight} g · score {score}', ['weight' => $en['weight_g'] ?? '—', 'score' => $en['clinical_score'] ?? '—']) ?></a>
                                         <?php if ($en['endpoint_reached']) : ?><span class="badge bg-danger"><?= trh('Endpoint') ?></span><?php endif; ?>
                                     <?php else : ?>
                                         <span class="badge bg-warning text-dark"><?= trh('To enter') ?></span>
