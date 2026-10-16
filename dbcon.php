@@ -42,7 +42,7 @@ $con = new mysqli($servername, $username, $password, $dbname);
 if ($con->connect_error) {
     // Log the error message (for production, avoid displaying detailed errors to users)
     error_log('Connection Failed: ' . $con->connect_error);
-    die('Connection Failed. Please try again later.');
+    die(tr('Connection Failed. Please try again later.'));
 }
 
 // Use the lab's timezone (Manage Lab) for both PHP and MySQL, so "today"

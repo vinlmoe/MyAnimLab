@@ -36,8 +36,8 @@ correspondances dans `jcms_import_map`. Il peut ainsi être audité et repris
 sans ambiguïté.
 
 La création groupée quotidienne ne crée pas de cages vides : dans
-`Create Animals & Cages in Bulk`, saisissez par exemple **40**, sélectionnez
-la ligne **SPD**, **male**, et **3 animaux par cage**. MyVivarium crée alors
+« Créer des animaux et cages en lot », saisissez par exemple **40**, sélectionnez
+la lignée **SPD**, **Mâle**, et **3 animaux par cage**. MyVivarium crée alors
 les 40 animaux identifiés et les répartit automatiquement dans 14 cages.
 Vous pouvez également fixer un minimum par cage : la création est bloquée si
 aucune répartition ne peut respecter ce minimum et la capacité maximale.

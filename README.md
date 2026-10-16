@@ -2,167 +2,178 @@
 
 # MyVivarium
 
-![Project Status](https://img.shields.io/badge/status-active-brightgreen) [![LGPL License](https://img.shields.io/badge/License-LGPL--3.0-blue.svg)](https://choosealicense.com/licenses/lgpl-3.0/)
+![Statut du projet](https://img.shields.io/badge/status-active-brightgreen) [![Licence LGPL](https://img.shields.io/badge/License-LGPL--3.0-blue.svg)](https://choosealicense.com/licenses/lgpl-3.0/)
 
-[![Visit Demo Site](https://img.shields.io/badge/Visit-Demo%20Site-blue?style=for-the-badge)](https://demo.myvivarium.online)
+[![Visiter le site de démonstration](https://img.shields.io/badge/Visit-Demo%20Site-blue?style=for-the-badge)](https://demo.myvivarium.online)
 
 ![PHP](https://img.shields.io/badge/php-%23777BB4.svg?&style=for-the-badge&logo=php&logoColor=white) ![HTML](https://img.shields.io/badge/html5-%23E34F26.svg?&style=for-the-badge&logo=html5&logoColor=white) ![CSS](https://img.shields.io/badge/css3-%231572B6.svg?&style=for-the-badge&logo=css3&logoColor=white) ![JavaScript](https://img.shields.io/badge/javascript-%23F7DF1E.svg?&style=for-the-badge&logo=javascript&logoColor=black) ![Font Awesome](https://img.shields.io/badge/font%20awesome-%23339AF0.svg?&style=for-the-badge&logo=font-awesome&logoColor=white) ![Bootstrap](https://img.shields.io/badge/bootstrap-%23563D7C.svg?&style=for-the-badge&logo=bootstrap&logoColor=white)
 
-MyVivarium is an online platform designed to manage your vivarium effectively. It provides features such as user registration, profile management, lab management, and real-time environmental monitoring with IoT sensors.
+MyVivarium est une plateforme en ligne pour gérer efficacement votre animalerie. Elle propose notamment l’inscription des utilisateurs, la gestion des profils et du laboratoire, ainsi que la surveillance environnementale en temps réel grâce à des capteurs IoT.
 
-## Table of Contents
-- [Features](#features)
-- [Screenshot](#screenshot)
+## Sommaire
+- [Fonctionnalités](#fonctionnalités)
+- [Langue de l’interface](#langue-de-linterface)
+- [Capture d’écran](#capture-décran)
 - [Installation](#installation)
-- [Usage](#usage)
-- [Function of Each File](#function-of-each-file)
-- [Citations](#citations)
-- [Contributing](#contributing)
-- [License](#license)
+- [Utilisation](#utilisation)
+- [Rôle de chaque fichier](#rôle-de-chaque-fichier)
+- [Citer ce travail](#citer-ce-travail)
+- [Contribuer](#contribuer)
+- [Licence](#licence)
 
-## Features
-- User registration and login with email verification.
-- User profile management and password reset.
-- Admin functionalities for managing users and labs.
-- Real-time environmental monitoring using IoT sensors. For more details, refer to the [RPi-IoT Repository](https://github.com/myvivarium/RPi-IoT).
-- Secure and compliant data management.
+## Fonctionnalités
+- Connexion des utilisateurs avec vérification de l’adresse e-mail.
+- Gestion du profil utilisateur et réinitialisation du mot de passe.
+- Fonctions d’administration pour gérer les utilisateurs et le laboratoire.
+- Surveillance environnementale en temps réel par capteurs IoT. Pour plus de détails, consultez le [dépôt RPi-IoT](https://github.com/myvivarium/RPi-IoT).
+- Gestion des données sécurisée et conforme.
 
 ![image](https://myvivarium.online/images/illustration.jpg)
 
+## Langue de l’interface
+
+L’interface est en français par défaut et peut être affichée en anglais. Chaque utilisateur choisit sa langue dans le menu de l’en-tête ou dans son profil ; ce choix est conservé dans son compte.
+
+Les textes sont traduits par `i18n.php` :
+
+- `tr('Texte anglais')` renvoie la traduction du texte dans la langue courante (`trh()` l’échappe pour le HTML, `trj()` le renvoie sous forme de chaîne JavaScript). Les valeurs variables passent par des marqueurs : `tr('Cage {cage} retired.', ['cage' => $id])` ;
+- les traductions françaises se trouvent dans `lang/fr_text.php`, indexées par le texte anglais d’origine. Un texte absent du catalogue s’affiche en anglais ;
+- quelques libellés de navigation utilisent des clés (`t('nav.home')`) définies dans `lang/fr.php` et `lang/en.php`.
+
+Pour ajouter un texte à l’interface, écrivez-le en anglais dans `tr()` puis ajoutez sa traduction dans `lang/fr_text.php`.
+
 ## Installation
 
-### Local test session (Docker)
+### Session de test locale (Docker)
 
-The local stack uses an isolated MySQL database and enables the demo banner. It does
-not connect to a production database or SMTP server.
+L’environnement local utilise une base MySQL isolée et active le bandeau de démonstration. Il ne se connecte ni à une base de production ni à un serveur SMTP.
 
-1. Install and start Docker Desktop.
-2. From the repository root, start the session:
+1. Installez puis lancez Docker Desktop.
+2. Depuis la racine du dépôt, démarrez la session :
 
    ```bash
    docker compose up --build
    ```
 
-3. Open <http://localhost:8080> and sign in with:
-   - Email: `admin@myvivarium.online`
-   - Password: `P@ssw0rd`
+3. Ouvrez <http://localhost:8080> et connectez-vous avec :
+   - E-mail : `admin@myvivarium.online`
+   - Mot de passe : `P@ssw0rd`
 
-Stop the session with `docker compose down`. To reset all local test data and reload
-the schema, use `docker compose down -v`, then start it again.
+Arrêtez la session avec `docker compose down`. Pour effacer toutes les données de test locales et recharger le schéma, utilisez `docker compose down -v`, puis relancez-la.
 
-### 1. DigitalOcean One-Click Install (Recommended for Ease of Use)
+### 1. Installation en un clic sur DigitalOcean (la plus simple)
 
-[![DigitalOcean Referral Badge](https://web-platforms.sfo2.cdn.digitaloceanspaces.com/WWW/Badge%203.svg)](https://www.digitalocean.com/?refcode=fdb1aa3adb7d&utm_campaign=Referral_Invite&utm_medium=Referral_Program&utm_source=badge)
+[![Badge de parrainage DigitalOcean](https://web-platforms.sfo2.cdn.digitaloceanspaces.com/WWW/Badge%203.svg)](https://www.digitalocean.com/?refcode=fdb1aa3adb7d&utm_campaign=Referral_Invite&utm_medium=Referral_Program&utm_source=badge)
 
-#### Steps:
+#### Étapes :
 
-1. **Sign up for a DigitalOcean account** using the referral link above to get your credits.
+1. **Créez un compte DigitalOcean** avec le lien de parrainage ci-dessus pour obtenir vos crédits.
 
-2. **Create a PHPMyAdmin Droplet**:
-   - Use this link to deploy DigitalOcean's [PHPMyAdmin Droplet](https://marketplace.digitalocean.com/apps/phpmyadmin), which installs PHPMyAdmin, MySQL Server, Apache, PHP, and Certbot as a 1-click setup.
-   - After clicking **Create PHPMyAdmin Droplet**, log in to your DigitalOcean account and follow these steps:
-     - Choose the **Region** and **Datacenter** for your server.
-     - Ensure the **PHPMyAdmin** image from the Marketplace is selected.
-     - Under **Choose a plan**, select **Basic** and **Regular (1 GB / 1 CPU)** for the CPU options.
-     - Set up access by creating an **SSH Key** or choosing a **password**.
-     - Finally, click on **Create Droplet**.
+2. **Créez un Droplet PHPMyAdmin** :
+   - Utilisez ce lien pour déployer le [Droplet PHPMyAdmin](https://marketplace.digitalocean.com/apps/phpmyadmin) de DigitalOcean, qui installe en un clic PHPMyAdmin, MySQL Server, Apache, PHP et Certbot.
+   - Après avoir cliqué sur **Create PHPMyAdmin Droplet**, connectez-vous à votre compte DigitalOcean puis :
+     - choisissez la **région** et le **datacenter** de votre serveur ;
+     - vérifiez que l’image **PHPMyAdmin** du Marketplace est sélectionnée ;
+     - dans **Choose a plan**, sélectionnez **Basic** puis **Regular (1 GB / 1 CPU)** pour le processeur ;
+     - configurez l’accès en créant une **clé SSH** ou en choisissant un **mot de passe** ;
+     - enfin, cliquez sur **Create Droplet**.
 
-3. **Access the Droplet**:
-   - Once your droplet is ready, use the console option in the DigitalOcean dashboard to access the server.
-   - If you have a domain, use the droplet’s IPv4 address to set up an A record in your domain DNS settings.
+3. **Accédez au Droplet** :
+   - Une fois le droplet prêt, utilisez la console du tableau de bord DigitalOcean pour accéder au serveur.
+   - Si vous disposez d’un nom de domaine, utilisez l’adresse IPv4 du droplet pour créer un enregistrement A dans la configuration DNS de votre domaine.
 
-4. **Download the Installation Script**:
-    After connecting to your Linux server's console, use the following command to download the installation shell script:
+4. **Téléchargez le script d’installation** :
+   Une fois connecté à la console de votre serveur Linux, téléchargez le script d’installation avec la commande suivante :
 
    ```bash
    curl -O https://raw.githubusercontent.com/myvivarium/MyVivarium/main/setup/setup.sh
-    ```
-5. **Make the Script Executable**:
+   ```
+5. **Rendez le script exécutable** :
    ```bash
    chmod +x setup.sh
-    ```
-6. **Run the Script**:
+   ```
+6. **Lancez le script** :
    ```bash
    sudo ./setup.sh
-    ```
-7. **Follow the Script Prompts**:
-   - Provide details such as email, domain name, set database password, and SMTP settings to complete the installation and configuration.
+   ```
+7. **Répondez aux questions du script** :
+   - Indiquez l’e-mail, le nom de domaine, le mot de passe de la base de données et les paramètres SMTP pour terminer l’installation et la configuration.
 
-8. **Complete Setup**:
-   - Once DNS settings propagate (if using a domain), the site will be accessible, and you can begin using MyVivarium
+8. **Finalisez l’installation** :
+   - Une fois la configuration DNS propagée (si vous utilisez un domaine), le site est accessible et vous pouvez commencer à utiliser MyVivarium.
 
-### 2. Custom Installation
+### 2. Installation personnalisée
 
-#### Prerequisites
+#### Prérequis
 - PHP [8.1.2]
 - MySQL Server [8.0.32]
 - Apache [2.4.41]
 - phpMyAdmin [5.2.1]
-- Tutorial to install Linux, Apache, MySQL, PHP (LAMP) Stack on Ubuntu - [DigitalOcean LAMP Stack Tutorial](https://www.digitalocean.com/community/tutorials/how-to-install-lamp-stack-on-ubuntu)
+- Tutoriel d’installation d’une pile Linux, Apache, MySQL, PHP (LAMP) sous Ubuntu : [tutoriel LAMP de DigitalOcean](https://www.digitalocean.com/community/tutorials/how-to-install-lamp-stack-on-ubuntu)
 - Composer
 
-#### Steps
+#### Étapes
 
-1. **Clone the repository:**
+1. **Clonez le dépôt :**
     ```bash
     git clone https://github.com/myvivarium/MyVivarium.git
     ```
-    or
+    ou
     ```bash
     git clone git@github.com:myvivarium/MyVivarium.git
     ```
     ```bash
     cd MyVivarium
-    ````
+    ```
 
-2. **Set up the environment configuration:**
-    - Copy the `.env.example` to `.env`:
+2. **Configurez l’environnement :**
+    - Copiez `.env.example` vers `.env` :
         ```bash
         cp .env.example .env
         ```
-    - Update the `.env` file with your database and SMTP settings. See [Configuration](#configuration)
+    - Renseignez dans `.env` les paramètres de la base de données et du SMTP. Voir [Configuration](#configuration).
 
-3. **Place the project files in the web server directory:**
-    - Move all the contents of the MyVivarium directory to your web server’s public directory (e.g., `public_html`, `www`):
+3. **Placez les fichiers du projet dans le dossier du serveur web :**
+    - Déplacez tout le contenu du dossier MyVivarium dans le dossier public de votre serveur web (par ex. `public_html`, `www`) :
         ```bash
-        mv * /path/to/your/public_html/
-        cp .env /path/to/your/public_html/
+        mv * /chemin/vers/votre/public_html/
+        cp .env /chemin/vers/votre/public_html/
         ```
 
-4. **Install dependencies using Composer:**
+4. **Installez les dépendances avec Composer :**
     ```bash
     composer install
     ```
 
-5. **Set up the database:**
-    - Log in to your MySQL server:
+5. **Créez la base de données :**
+    - Connectez-vous à votre serveur MySQL :
         ```bash
-        mysql -u yourusername -p
+        mysql -u votre_utilisateur -p
         ```
-    - Create the database and import the schema:
+    - Créez la base et importez le schéma :
         ```sql
         CREATE DATABASE myvivarium;
         USE myvivarium;
-        SOURCE /path/to/your/public_html/database/schema.sql;
+        SOURCE /chemin/vers/votre/public_html/database/schema.sql;
         ```
-    - Alternatively, you can use your own database or an already existing database:
+    - Vous pouvez aussi utiliser une base de données existante :
         ```sql
-        SOURCE /path/to/your/public_html/database/schema.sql;
+        SOURCE /chemin/vers/votre/public_html/database/schema.sql;
         ```
 
-6. **Set up a cron job for `send_email.php` & `process_reminders.php`:**
-    Follow the instructions on [Cloudways Blog](https://www.cloudways.com/blog/schedule-cron-jobs-in-php/#run-a-cron-job-in-php) to schedule a cron job for `send_email.php`.
+6. **Programmez des tâches cron pour `send_email.php` et `process_reminders.php` :**
+    Suivez les instructions du [blog Cloudways](https://www.cloudways.com/blog/schedule-cron-jobs-in-php/#run-a-cron-job-in-php) pour programmer une tâche cron exécutant `send_email.php`.
 
-7. **Set ownership and permissions (if required):**
+7. **Réglez le propriétaire et les permissions (si nécessaire) :**
     ```bash
-    sudo chown -R www-data:www-data /path/to/your/public_html
-    sudo chmod -R 755 /path/to/your/public_html
+    sudo chown -R www-data:www-data /chemin/vers/votre/public_html
+    sudo chmod -R 755 /chemin/vers/votre/public_html
     ```
 
 #### Configuration
-##### SMTP Configuration
-Update the following environment variables in your `.env` file:
- ```bash
+##### Configuration SMTP
+Renseignez les variables d’environnement suivantes dans votre fichier `.env` :
+```bash
 SMTP_HOST=smtp.example.com
 SMTP_PORT=587
 SMTP_USERNAME=username
@@ -170,125 +181,129 @@ SMTP_PASSWORD=password
 SMTP_ENCRYPTION=tls
 SENDER_EMAIL=sender@example.com
 SENDER_NAME=MyVivarium
- ```
+```
 
-##### Database Configuration
-Ensure the database credentials are set correctly in the `.env` file:
- ```bash
+##### Configuration de la base de données
+Vérifiez que les identifiants de la base de données sont correctement renseignés dans `.env` :
+```bash
 DB_HOST=localhost
 DB_USERNAME=username
 DB_PASSWORD=password
 DB_DATABASE=myvivarium
- ```
+```
 
-## Screenshot
+## Capture d’écran
 
 ![image](https://myvivarium.online/images/myvivarium.gif)
 
-## Usage
-1. Access the application in your web browser:
+## Utilisation
+1. Ouvrez l’application dans votre navigateur :
     ```
-    http://yourdomain.com
+    http://votredomaine.fr
     ```
 
-2. Log in with an account created by an administrator (User Management page).
+2. Connectez-vous avec un compte créé par un administrateur (page Gestion des utilisateurs).
 
-3. Manage your lab, users, and monitor environmental conditions in real-time.
+3. Gérez votre laboratoire et vos utilisateurs, et suivez les conditions environnementales en temps réel.
 
-### Default Admin User
+### Administrateur par défaut
 
-For initial setup, use the following default admin credentials:
+Pour la configuration initiale, utilisez les identifiants administrateur par défaut :
 
-- **Email**: admin@myvivarium.online
-- **Password**: P@ssw0rd
+- **E-mail** : admin@myvivarium.online
+- **Mot de passe** : P@ssw0rd
 
-**Important**: Delete this default admin user and create a new admin user after the initial setup for security reasons.
+**Important** : pour des raisons de sécurité, supprimez cet administrateur par défaut et créez un nouvel administrateur après la configuration initiale.
 
-## Function of Each File
-- `dbcon.php`: Manages database connections.
-- `config.php`: Contains SMTP configuration.
-- `session_config.php`: Configures secure session settings including HttpOnly cookies, HTTPS-only transmission, CSRF protection, and 30-minute timeout. See file comments for deployment instructions.
-- `index.php`: Main entry point for the application, handles user login.
-- `register.php`: Self-registration is disabled; redirects to the login page (accounts are created by admins in `manage_users.php`).
-- `home.php`: Displays the home page with a welcome message, cage statistics, and general notes.
-- `forgot_password.php`: Handles the password reset process, including generating and sending reset emails.
-- `reset_password.php`: Manages the password reset process.
-- `confirm_email.php`: Manages email confirmation by verifying tokens and updating user status.
-- `user_profile.php`: Allows users to update their profile and request password resets.
-- `manage_users.php`: Provides functionalities for admin to manage users.
-- `manage_lab.php`: Allows admins to manage lab details.
-- `manage_strain.php`: Allows admins to manage mouse strain details.
-- `manage_iacuc.php`: Allows admins to manage IACUC details.
-- `iot_sensors.php`: Displays IoT sensor data for different rooms using iframes.
-- `annual_report.php`: Annual animal use report (admins and BEA responsibles): population, procedures ended in the year by actual severity, use per project authorization, exits, animals not used; CSV export per table or ZIP.
-- `cage_dash.php`: Shared cage dashboard for every category (holding, breeding, experimental, all): room, rack, living animals, search, room filter, and group selection to change room/rack or switch holding/experimental. `hc_dash.php`, `bc_dash.php` and `ec_dash.php` open it on their category.
-- `cage_label_select.php` / `cage_labels.php`: Cage labels (A6, four per A4 sheet) with the same layout for every cage category; select by category and room, or print a selection from a cage dashboard. The former `hc_/bc_slct_crd.php` and `hc_/bc_prnt_crd.php` URLs redirect here.
-- `cage_location.php`: Applies a room/rack change or a category change to one or several cages. A holding cage also becomes experimental automatically (same cage number) when one of its animals is enrolled in an experiment or an enrolled animal is moved into it.
-- `cage_view_parts.php`: Location and animals sections shared by all cage pages.
-- `bc_dash.php`: Displays a dashboard for managing breeding cages with search and pagination.
-- `bc_addn.php`: Handles the creation of new breeding cages and associated litter data.
-- `bc_view.php`: Viewing the details of a breeding cage.
-- `bc_edit.php`: Manages editing of breeding cage details, including litter information and file uploads.
-- `bc_drop.php`: Handles the deletion of breeding cages and their related data.
-- `hc_dash.php`: Displays a dashboard for managing holding cages.
-- `hc_addn.php`: Adds new holding cages.
-- `hc_view.php`: Viewing the details of a holding cage.
-- `hc_edit.php`: Manages editing of holding cage details.
-- `hc_drop.php`: Handles the deletion of holding cages.
-- `nt_app.php`: Main script for the sticky note application.
-- `nt_add.php`: Adds new sticky notes.
-- `nt_edit.php`: Edits existing sticky notes.
-- `nt_rmv.php`: Removes sticky notes.
-- `header.php`: Generates the header and navigation menu for the web application.
-- `footer.php`: Provides the footer section with dynamic lab name and current year.
-- `message.php`: Displays session messages as Bootstrap alerts.
-- `logout.php`: Logs out the user by destroying the session and redirecting to the login page.
-- `delete_file.php`: Script handles deleting uploaded files from the server and database.
-- `export_data.php`: Allows admins to export all database tables into CSV files.
-- `manage_tasks.php`: Manages tasks in a database, allowing users to add, edit, and delete tasks.
-- `get_task.php`: Retrieves specific task details from the database with the provided task ID.
-- `send_email.php`: Processes a queue of pending emails, requires setting it up as a cron job.
-- `demo-banner.php`: Displays a banner at the top of the page in demo mode.
-- `demo-credentials.php`: Displays the demo admin credentials on the login page.
-- `demo-disclaimer.php`: Displays the demo disclaimer on the login page.
-- `maintenance.php`: Adds maintenance records for cages with optional comments.
-- `get_reminder.php`: Retrieves scheduled reminders from the database, likely for notifications.
-- `manage_reminder.php`: Manages reminders within the application, allowing users to add, edit, or delete reminders.
-- `process_reminders.php`: Processes and sends scheduled reminders, possibly running as a cron job.
-- `daily_round_alert.php`: End-of-day alert to admins listing cages not seen on the daily round; run it from cron every few minutes (e.g. `*/5 * * * * php /path/to/daily_round_alert.php`), it sends at most once a day after the time set in Manage Lab.
+## Rôle de chaque fichier
+- `dbcon.php` : gère la connexion à la base de données et charge les traductions de l’interface.
+- `i18n.php` : choix de la langue et fonctions de traduction `t()`, `tr()`, `trh()` et `trj()`.
+- `lang/fr_text.php` : traductions françaises de l’interface, indexées par le texte anglais.
+- `lang/fr.php` / `lang/en.php` : libellés de navigation et du profil, par clé.
+- `set_locale.php` : enregistre la langue choisie dans le menu de l’en-tête.
+- `config.php` : contient la configuration SMTP.
+- `session_config.php` : paramètre des sessions sécurisées (cookies HttpOnly, transmission HTTPS uniquement, protection CSRF, expiration après 30 minutes). Voir les commentaires du fichier pour le déploiement.
+- `index.php` : point d’entrée de l’application, gère la connexion des utilisateurs.
+- `register.php` : l’auto-inscription est désactivée ; redirige vers la page de connexion (les comptes sont créés par les administrateurs dans `manage_users.php`).
+- `home.php` : page d’accueil avec message de bienvenue, statistiques des cages et notes générales.
+- `forgot_password.php` : gère la demande de réinitialisation du mot de passe, y compris la génération et l’envoi de l’e-mail.
+- `reset_password.php` : gère la réinitialisation du mot de passe.
+- `confirm_email.php` : confirme l’adresse e-mail en vérifiant le jeton et en mettant à jour le statut de l’utilisateur.
+- `user_profile.php` : permet aux utilisateurs de mettre à jour leur profil, leur langue et de demander une réinitialisation du mot de passe.
+- `manage_users.php` : gestion des utilisateurs par les administrateurs.
+- `manage_lab.php` : gestion des informations du laboratoire par les administrateurs.
+- `manage_strain.php` : gestion des souches par les administrateurs.
+- `manage_iacuc.php` : gestion des autorisations de projet (IACUC) par les administrateurs.
+- `iot_sensors.php` : affiche les données des capteurs IoT de chaque salle dans des iframes.
+- `annual_report.php` : bilan annuel d’utilisation des animaux (administrateurs et responsables BEA) : effectifs, procédures terminées dans l’année par sévérité réelle, utilisation par autorisation de projet, sorties, animaux non utilisés ; export CSV par tableau ou ZIP.
+- `cage_dash.php` : tableau de bord commun à toutes les catégories de cages (hébergement, accouplement, expérimentation, toutes) : salle, rack, animaux vivants, recherche, filtre par salle et sélection groupée pour changer de salle / rack ou basculer entre hébergement et expérimentation. `hc_dash.php`, `bc_dash.php` et `ec_dash.php` l’ouvrent sur leur catégorie.
+- `cage_label_select.php` / `cage_labels.php` : étiquettes de cages (A6, quatre par feuille A4) avec la même mise en page pour toutes les catégories ; sélection par catégorie et salle, ou impression d’une sélection depuis un tableau de bord. Les anciennes adresses `hc_/bc_slct_crd.php` et `hc_/bc_prnt_crd.php` redirigent ici.
+- `cage_location.php` : applique un changement de salle / rack ou de catégorie à une ou plusieurs cages. Une cage d’hébergement devient aussi automatiquement une cage d’expérimentation (même numéro) lorsqu’un de ses animaux est inclus dans une expérience ou qu’un animal inclus y est déplacé.
+- `cage_view_parts.php` : sections Emplacement et Animaux communes à toutes les pages de cage.
+- `bc_dash.php` : tableau de bord des cages d’accouplement, avec recherche et pagination.
+- `bc_addn.php` : création des cages d’accouplement et des données de portée associées.
+- `bc_view.php` : affichage du détail d’une cage d’accouplement.
+- `bc_edit.php` : modification d’une cage d’accouplement, y compris les portées et l’envoi de fichiers.
+- `bc_drop.php` : suppression des cages d’accouplement et de leurs données.
+- `hc_dash.php` : tableau de bord des cages d’hébergement.
+- `hc_addn.php` : ajout de cages d’hébergement.
+- `hc_view.php` : affichage du détail d’une cage d’hébergement.
+- `hc_edit.php` : modification d’une cage d’hébergement.
+- `hc_drop.php` : suppression des cages d’hébergement.
+- `nt_app.php` : script principal de l’application de notes.
+- `nt_add.php` : ajout de notes.
+- `nt_edit.php` : modification de notes.
+- `nt_rmv.php` : suppression de notes.
+- `header.php` : en-tête et menu de navigation de l’application, avec le sélecteur de langue.
+- `footer.php` : pied de page avec le nom du laboratoire et l’année en cours.
+- `message.php` : affiche les messages de session sous forme d’alertes Bootstrap.
+- `logout.php` : déconnecte l’utilisateur en détruisant la session et redirige vers la page de connexion.
+- `delete_file.php` : supprime les fichiers envoyés, sur le serveur et dans la base de données.
+- `export_data.php` : permet aux administrateurs d’exporter toutes les tables de la base en fichiers CSV.
+- `manage_tasks.php` : gestion des tâches (ajout, modification, suppression).
+- `get_task.php` : renvoie le détail d’une tâche à partir de son identifiant.
+- `send_email.php` : traite la file des e-mails en attente ; à programmer en tâche cron.
+- `demo-banner.php` : affiche un bandeau en haut de page en mode démonstration.
+- `demo-credentials.php` : affiche les identifiants administrateur de démonstration sur la page de connexion.
+- `demo-disclaimer.php` : affiche l’avertissement de démonstration sur la page de connexion.
+- `maintenance.php` : ajoute des entrées de maintenance aux cages, avec commentaire facultatif.
+- `get_reminder.php` : renvoie les rappels programmés enregistrés dans la base de données.
+- `manage_reminder.php` : gestion des rappels (ajout, modification, suppression).
+- `process_reminders.php` : traite les rappels programmés et crée les tâches correspondantes ; à exécuter en tâche cron.
+- `daily_round_alert.php` : alerte de fin de journée envoyée aux administrateurs avec les cages non vues lors de la tournée quotidienne ; à lancer par cron toutes les quelques minutes (par ex. `*/5 * * * * php /chemin/vers/daily_round_alert.php`). Elle n’est envoyée qu’une fois par jour, après l’heure définie dans Gérer le laboratoire.
 
-## Demo Website
+## Site de démonstration
 
-### Explore MyVivarium
+### Découvrir MyVivarium
 
-We have a demo website available for you to explore the features of MyVivarium. Click the button below to access the demo site:
+Un site de démonstration est disponible pour découvrir les fonctionnalités de MyVivarium. Cliquez sur le bouton ci-dessous pour y accéder :
 
-[![Visit Demo Site](https://img.shields.io/badge/Visit-Demo%20Site-blue?style=for-the-badge)](https://demo.myvivarium.online)
+[![Visiter le site de démonstration](https://img.shields.io/badge/Visit-Demo%20Site-blue?style=for-the-badge)](https://demo.myvivarium.online)
 
-### Access Details
+### Identifiants d’accès
 
-To log in and explore the functionalities, please use the following access details:
+Pour vous connecter et découvrir les fonctionnalités, utilisez les identifiants suivants :
 
-- **Email**: 
+- **E-mail** :
     ```
     admin@myvivarium.online
     ```
-- **Password**: 
+- **Mot de passe** :
     ```
     P@ssw0rd
     ```
 
-### Important Notice
+### Avertissement
 
-**Disclaimer**: This is a demo site for exploring features. All data will be cleared periodically. Do not enter any sensitive or critical information.
+**Avertissement** : ce site de démonstration permet de découvrir les fonctionnalités. Toutes les données sont effacées périodiquement. N’y saisissez aucune information sensible ou critique.
 
-Feel free to explore, test, and provide feedback. Enjoy your experience with MyVivarium!
+N’hésitez pas à explorer, tester et nous faire part de vos retours. Bonne découverte de MyVivarium !
 
 ---
 
-## Citations
+## Citer ce travail
 
-If you use this code, please cite the following paper:
+Si vous utilisez ce code, merci de citer l’article suivant :
 
 Vidva, R., Raza, M. A., Prabhakaran, J., Sheikh, A., Sharp, A., Ott, H., Moore, A., Fleisher, C., Pitychoutis, P. M., Nguyen, T. V., & Sathyanesan, A. (2024). MyVivarium: A cloud-based lab animal colony management application with near-realtime ambient sensing. *bioRxiv*. https://doi.org/10.1101/2024.08.10.607395
 
@@ -308,14 +323,14 @@ Vidva, R., Raza, M. A., Prabhakaran, J., Sheikh, A., Sharp, A., Ott, H., Moore, 
 }
 ```
 
-## Contributing
-We welcome contributions to improve MyVivarium. Please follow these steps to contribute:
+## Contribuer
+Les contributions pour améliorer MyVivarium sont les bienvenues. Pour contribuer :
 
-1. Fork the repository.
-2. Create a new branch: `git checkout -b feature/your-feature-name`
-3. Commit your changes: `git commit -m 'Add some feature'`
-4. Push to the branch: `git push origin feature/your-feature-name`
-5. Open a pull request.
+1. Forkez le dépôt.
+2. Créez une branche : `git checkout -b feature/nom-de-votre-fonctionnalite`
+3. Validez vos modifications : `git commit -m 'Ajout d’une fonctionnalité'`
+4. Poussez la branche : `git push origin feature/nom-de-votre-fonctionnalite`
+5. Ouvrez une pull request.
 
-## License
-This project is licensed under the LGPL License - see the [LICENSE](LICENSE) file for details.
+## Licence
+Ce projet est distribué sous licence LGPL — voir le fichier [LICENSE](LICENSE) pour plus de détails.

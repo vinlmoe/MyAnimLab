@@ -3,7 +3,7 @@
 # are deliberately excluded. Requires mdbtools (mdb-export).
 set -euo pipefail
 
-SOURCE=${1:?Usage: tools/jcms_export.sh /path/to/JCMS.mdb [output-directory]}
+SOURCE=${1:?Usage : tools/jcms_export.sh /chemin/vers/JCMS.mdb [dossier-de-sortie]}
 OUTPUT=${2:-jcms-export}
 mkdir -p "$OUTPUT"
 
@@ -13,4 +13,4 @@ for table in Strain1 Room1 Container2 ContainerHistory2 cv_ContainerStatus2 Mous
   mdb-export -D '%Y-%m-%d' -T '%Y-%m-%d %H:%M:%S' "$SOURCE" "$table" > "$OUTPUT/$table.csv"
 done
 
-printf 'Export complete: %s\n' "$OUTPUT"
+printf 'Export terminé : %s\n' "$OUTPUT"

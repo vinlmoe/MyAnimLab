@@ -151,7 +151,7 @@ require 'header.php';
     <div class="container mt-4 content">
         <h4><?= trh('Retire cage {cage}', ['cage' => $cageId]); ?></h4>
         <p class="text-muted">
-            <?= htmlspecialchars($cage['kind']); ?> cage<?= $cage['room'] ? ' · Room ' . htmlspecialchars($cage['room']) : ''; ?>.
+            <?= trh(ucfirst($cage['kind']) . ' cage'); ?><?= $cage['room'] ? ' · ' . trh('Room {room}', ['room' => $cage['room']]) : ''; ?>.
             <?= trh('Every living animal must stay in an active cage: give each animal of this cage a fate — move it to another cage, or record its exit with an exit code. The cage is retired only when all animals are handled.') ?>
         </p>
 
@@ -181,7 +181,7 @@ require 'header.php';
                             <select class="form-select" id="allCage">
                                 <option value="">—</option>
                                 <?php foreach ($otherCages as $oc) : ?>
-                                    <option value="<?= htmlspecialchars($oc['cage_id']); ?>"><?= htmlspecialchars($oc['cage_id'] . ($oc['room'] ? " (room {$oc['room']})" : '')); ?></option>
+                                    <option value="<?= htmlspecialchars($oc['cage_id']); ?>"><?= htmlspecialchars($oc['cage_id'] . ($oc['room'] ? ' (' . tr('room {room}', ['room' => $oc['room']]) . ')' : '')); ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
@@ -223,7 +223,7 @@ require 'header.php';
                                         <select class="form-select form-select-sm to-cage" name="to_cage[<?= $aid; ?>]">
                                             <option value=""><?= trh('Destination cage…') ?></option>
                                             <?php foreach ($otherCages as $oc) : ?>
-                                                <option value="<?= htmlspecialchars($oc['cage_id']); ?>"><?= htmlspecialchars($oc['cage_id'] . ($oc['room'] ? " (room {$oc['room']})" : '')); ?></option>
+                                                <option value="<?= htmlspecialchars($oc['cage_id']); ?>"><?= htmlspecialchars($oc['cage_id'] . ($oc['room'] ? ' (' . tr('room {room}', ['room' => $oc['room']]) . ')' : '')); ?></option>
                                             <?php endforeach; ?>
                                         </select>
                                         <input type="text" class="form-control form-control-sm destination" name="destination[<?= $aid; ?>]" placeholder="<?= trh('Destination facility') ?>">

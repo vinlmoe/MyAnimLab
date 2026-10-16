@@ -96,7 +96,7 @@ $cages = $con->query("SELECT cage_id FROM cages WHERE status = 'active' ORDER BY
                 <select class="form-control" id="animal_ids" name="animal_ids[]" multiple size="12" required>
                     <?php while ($row = $animals->fetch_assoc()) : ?>
                         <option value="<?= (int) $row['id']; ?>" <?= (int) $row['id'] === $preselectedAnimalId ? 'selected' : ''; ?>>
-                            <?= htmlspecialchars($row['animal_uid']); ?> (currently in cage <?= htmlspecialchars($row['cage_id']); ?>)
+                            <?= htmlspecialchars($row['animal_uid']); ?> (<?= trh('currently in cage {cage}', ['cage' => $row['cage_id']]); ?>)
                         </option>
                     <?php endwhile; ?>
                 </select>

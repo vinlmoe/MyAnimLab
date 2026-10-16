@@ -6,13 +6,13 @@
  * Genotyping is intentionally not read.
  */
 
-if (PHP_SAPI !== 'cli') { fwrite(STDERR, "CLI only\n"); exit(1); }
+if (PHP_SAPI !== 'cli') { fwrite(STDERR, "Ligne de commande uniquement\n"); exit(1); }
 $apply = in_array('--apply', $argv, true);
 $args = array_values(array_filter($argv, static fn($a) => $a !== '--apply'));
-if (count($args) < 3) { fwrite(STDERR, "Usage: php tools/import_jcms.php --apply <csv-directory> <source-name>\n"); exit(1); }
+if (count($args) < 3) { fwrite(STDERR, "Usage : php tools/import_jcms.php --apply <dossier-csv> <nom-de-la-source>\n"); exit(1); }
 $directory = rtrim($args[1], '/');
 $sourceName = $args[2];
-if (!$apply) { fwrite(STDERR, "Refusing to write without --apply.\n"); exit(1); }
+if (!$apply) { fwrite(STDERR, "Écriture refusée sans --apply.\n"); exit(1); }
 
 require dirname(__DIR__) . '/dbcon.php';
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
@@ -51,7 +51,7 @@ $tables = [];
 foreach (['Strain1','Room1','Container2','ContainerHistory2','cv_ContainerStatus2','Mouse1','Mating1','MatingUnitLink1','Litter1','ExpPlan1','ExpTest1','ExpPlanMouseMap1','ExpTestPlanMap1','ExpData1','MouseUsage1','HealthLevelHistory3','cv_HealthLevel3'] as $table) {
     $tables[$table] = rows($directory, $table);
 }
-if (!$tables['Mouse1'] || !$tables['Container2']) { fwrite(STDERR, "CSV export is incomplete (Mouse1 and Container2 are required).\n"); exit(1); }
+if (!$tables['Mouse1'] || !$tables['Container2']) { fwrite(STDERR, "L’export CSV est incomplet (Mouse1 et Container2 sont obligatoires).\n"); exit(1); }
 
 $summary = [];
 $con->begin_transaction();
@@ -63,7 +63,7 @@ try {
     $lineByStrain = [];
     foreach ($tables['Strain1'] as $row) {
         $key = $row['_strain_key']; if ($key === '') continue;
-        $strId = 'JCMS-' . $key; $name = $row['strainName'] ?: ('JCMS strain ' . $key);
+        $strId = 'JCMS-' . $key; $name = $row['strainName'] ?: ('Souche JCMS ' . $key);
         $aka = $row['nickname'] ?: null; $notes = $row['comment'] ?: null;
         $stmt = $con->prepare('INSERT INTO strains (str_id, str_name, str_aka, str_notes) VALUES (?, ?, ?, ?)');
         $stmt->bind_param('ssss', $strId, $name, $aka, $notes);
@@ -120,7 +120,7 @@ try {
             $find = $con->prepare('SELECT id FROM mice WHERE animal_uid = ?'); $find->bind_param('s', $uid); $find->execute(); $mouseIdTarget = (int) $find->get_result()->fetch_assoc()['id']; $find->close();
         }
         $insert->close(); $mouseByKey[$key] = $mouseIdTarget; $mouseRows[$key] = $row;
-        if ($cageId) { $move = $con->prepare('INSERT INTO animal_movements (animal_id, from_cage_id, to_cage_id, reason) VALUES (?, NULL, ?, "Imported from JCMS")'); $move->bind_param('is', $mouseIdTarget, $cageId); $move->execute(); $move->close(); }
+        if ($cageId) { $move = $con->prepare('INSERT INTO animal_movements (animal_id, from_cage_id, to_cage_id, reason) VALUES (?, NULL, ?, "Importé depuis JCMS")'); $move->bind_param('is', $mouseIdTarget, $cageId); $move->execute(); $move->close(); }
         source_map($con, $runId, 'Mouse1', $key, 'mice', $mouseIdTarget);
     }
     $summary['animals'] = count($mouseByKey);
@@ -131,7 +131,7 @@ try {
         $key = $row['_mating_key']; $sire = $mouseByKey[$row['_sire_key'] ?? ''] ?? null; $dam = $mouseByKey[$row['_dam1_key'] ?? ''] ?? ($mouseByKey[$row['_dam2_key'] ?? ''] ?? null);
         $sourceAnimal = $mouseRows[$row['_sire_key'] ?? ''] ?? ($mouseRows[$row['_dam1_key'] ?? ''] ?? []); $cageId = $cageByContainer[$sourceAnimal['_pen_key'] ?? ''] ?? null;
         if (!$cageId) continue;
-        $cross = 'JCMS mating ' . ($row['matingID'] ?: $key); $insert = $con->prepare('INSERT INTO breeding (cage_id, `cross`) VALUES (?, ?)'); $insert->bind_param('ss', $cageId, $cross); $insert->execute(); $breedingId = $con->insert_id; $insert->close();
+        $cross = 'Accouplement JCMS ' . ($row['matingID'] ?: $key); $insert = $con->prepare('INSERT INTO breeding (cage_id, `cross`) VALUES (?, ?)'); $insert->bind_param('ss', $cageId, $cross); $insert->execute(); $breedingId = $con->insert_id; $insert->close();
         foreach ([[$sire, 'male'], [$dam, 'female']] as [$animalId, $sex]) if ($animalId) { $link = $con->prepare('INSERT IGNORE INTO breeding_animals (breeding_id, animal_id, sex) VALUES (?, ?, ?)'); $link->bind_param('iis', $breedingId, $animalId, $sex); $link->execute(); $link->close(); }
         $matingByKey[$key] = ['id' => $breedingId, 'cage_id' => $cageId, 'sire' => $sire, 'dam' => $dam]; source_map($con, $runId, 'Mating1', $key, 'breeding', $breedingId);
     }
@@ -147,7 +147,7 @@ try {
 
     // 5. Plans/tests/data become trials/protocols/experiments/follow-ups.
     $protocolByPlan = []; foreach ($tables['ExpPlan1'] as $row) {
-        $key = $row['_expPlan_key']; $title = $row['expPlanName'] ?: ('JCMS plan ' . $key); $status = in_array($row['expStatus'], ['active','completed']) ? $row['expStatus'] : 'planned';
+        $key = $row['_expPlan_key']; $title = $row['expPlanName'] ?: ('Plan JCMS ' . $key); $status = in_array($row['expStatus'], ['active','completed']) ? $row['expStatus'] : 'planned';
         $number = 'JCMS-PLAN-' . $key; $trial = $con->prepare('INSERT INTO trials (trial_number, title, description, status) VALUES (?, ?, ?, ?)'); $trial->bind_param('ssss', $number, $title, $row['expNotes'], $status); $trial->execute(); $trialId = $con->insert_id; $trial->close();
         $protocolNumber = 'JCMS-PROTO-' . $key; $protocol = $con->prepare('INSERT INTO protocols (trial_id, protocol_number, title, methodology, status) VALUES (?, ?, ?, ?, ?)'); $protocol->bind_param('issss', $trialId, $protocolNumber, $title, $row['fieldOfStudy'], $status); $protocol->execute(); $protocolByPlan[$key] = $con->insert_id; $protocol->close(); source_map($con, $runId, 'ExpPlan1', $key, 'protocols', $protocolByPlan[$key]);
     }
@@ -160,12 +160,12 @@ try {
     foreach ($tables['ExpData1'] as $row) { $experimentId = $experimentByTest[$row['_expTest_key'] ?? ''] ?? null; $animalId = $mouseByKey[$row['_specimen_key'] ?? ''] ?? null; if (!$experimentId || !$animalId) continue; $find = $con->prepare('SELECT id FROM experiment_animals WHERE experiment_id = ? AND animal_id = ?'); $find->bind_param('ii', $experimentId, $animalId); $find->execute(); $joined = $find->get_result()->fetch_assoc(); $find->close(); if (!$joined) continue; $values = []; for ($i=1;$i<=30;$i++) if (($row['d'.$i] ?? '') !== '') $values[] = 'd'.$i.': '.$row['d'.$i]; $date = date_only($row['expDate'] ?? null) ?: date('Y-m-d'); $note = implode("\n", $values); $insert = $con->prepare('INSERT INTO experiment_followups (experiment_animal_id, observed_at, observations) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE observations = CONCAT_WS("\\n", observations, VALUES(observations))'); $insert->bind_param('iss', $joined['id'], $date, $note); $insert->execute(); $insert->close(); }
 
     // 6. Planned animal uses and room health-level history.
-    foreach ($tables['MouseUsage1'] as $row) { $animalId = $mouseByKey[$row['_mouse_key'] ?? ''] ?? null; if (!$animalId) continue; $label = $row['use'] ?: 'JCMS scheduled use'; $projected = date_only($row['projectedDate'] ?? null); $actual = date_only($row['actualDate'] ?? null); $done = (int) (($row['done'] ?? 0) != 0); $notes = $row['comment'] ?: null; $key = $row['_usage_key']; $insert = $con->prepare("INSERT INTO animal_use_schedule (animal_id, use_label, projected_date, actual_date, completed, notes, source_system, source_key) VALUES (?, ?, ?, ?, ?, ?, 'JCMS', ?) ON DUPLICATE KEY UPDATE animal_id = VALUES(animal_id)"); $insert->bind_param('isssiss', $animalId, $label, $projected, $actual, $done, $notes, $key); $insert->execute(); $insert->close(); }
+    foreach ($tables['MouseUsage1'] as $row) { $animalId = $mouseByKey[$row['_mouse_key'] ?? ''] ?? null; if (!$animalId) continue; $label = $row['use'] ?: 'Utilisation planifiée JCMS'; $projected = date_only($row['projectedDate'] ?? null); $actual = date_only($row['actualDate'] ?? null); $done = (int) (($row['done'] ?? 0) != 0); $notes = $row['comment'] ?: null; $key = $row['_usage_key']; $insert = $con->prepare("INSERT INTO animal_use_schedule (animal_id, use_label, projected_date, actual_date, completed, notes, source_system, source_key) VALUES (?, ?, ?, ?, ?, ?, 'JCMS', ?) ON DUPLICATE KEY UPDATE animal_id = VALUES(animal_id)"); $insert->bind_param('isssiss', $animalId, $label, $projected, $actual, $done, $notes, $key); $insert->execute(); $insert->close(); }
     $levels = []; foreach ($tables['cv_HealthLevel3'] as $row) $levels[$row['_healthLevel_key']] = trim(($row['healthLevel'] ?? '') . ' ' . ($row['description'] ?? ''));
     foreach ($tables['HealthLevelHistory3'] as $row) { $room = $roomByKey[$row['_room_key'] ?? ''] ?? null; if (!$room) continue; $level = $levels[$row['_healthLevel_key'] ?? ''] ?? 'Unknown'; $date = date_only($row['startDate'] ?? null); $key = $row['_healthLevelHistory_key']; $insert = $con->prepare("INSERT INTO room_health_history (room, health_level, start_date, source_system, source_key) VALUES (?, ?, ?, 'JCMS', ?) ON DUPLICATE KEY UPDATE room = VALUES(room)"); $insert->bind_param('ssss', $room, $level, $date, $key); $insert->execute(); $insert->close(); }
 
     foreach ($cageByContainer as $cageId) { $update = $con->prepare("UPDATE cages SET quantity = (SELECT COUNT(*) FROM mice WHERE cage_id = ? AND status = 'active') WHERE cage_id = ?"); $update->bind_param('ss', $cageId, $cageId); $update->execute(); $update->close(); }
     $summary += ['matings' => count($matingByKey), 'litters' => count($tables['Litter1']), 'plans' => count($protocolByPlan), 'experiments' => count($experimentByTest), 'uses' => count($tables['MouseUsage1'])];
     $json = json_encode($summary); $finish = $con->prepare("UPDATE jcms_import_runs SET status = 'completed', finished_at = NOW(), summary = ? WHERE id = ?"); $finish->bind_param('si', $json, $runId); $finish->execute(); $finish->close();
-    $con->commit(); echo "JCMS import complete: " . json_encode($summary, JSON_PRETTY_PRINT) . "\n";
-} catch (Throwable $e) { $con->rollback(); fwrite(STDERR, "Import failed: {$e->getMessage()}\n"); exit(1); }
+    $con->commit(); echo "Import JCMS terminé : " . json_encode($summary, JSON_PRETTY_PRINT) . "\n";
+} catch (Throwable $e) { $con->rollback(); fwrite(STDERR, "Échec de l’import : {$e->getMessage()}\n"); exit(1); }
