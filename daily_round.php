@@ -55,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         log_activity($con, 'daily_check', 'cage', implode(',', $cageIds), tr('{n} cage(s) checked OK on the round', ['n' => count($cageIds)]), $_SESSION['user_id'] ?? null);
     }
     $_SESSION['message'] = ($cageIds ? tr('{n} cage(s) marked as checked OK.', ['n' => count($cageIds)]) : ($underExperiment ? '' : tr('No cage selected.')))
-        . ($underExperiment ? ' ' . tr('Cage(s) under experiment not validated: {cages} — enter the follow-up of each animal.', ['cages' => implode(', ', $underExperiment)]) : '');
+        . ($underExperiment ? ' ' . tr('Cage(s) under experiment not validated: {cages} — enter the follow-up of each animal and confirm the acts due.', ['cages' => implode(', ', $underExperiment)]) : '');
 
     header("Location: daily_round.php?" . http_build_query(['room' => $room, 'hide_seen' => $_POST['hide_seen'] ?? null]));
     exit;
@@ -152,7 +152,7 @@ require 'header.php';
                 </form>
             </div>
         </div>
-        <p class="text-muted"><?= trh('Every active cage must be seen at least once a day. A cage counts as seen when it is ticked on this round, validated from its QR code, or has a health report on one of its animals. A cage under experiment is validated only once every one of its animals has its experimental follow-up for the day.') ?></p>
+        <p class="text-muted"><?= trh('Every active cage must be seen at least once a day. A cage counts as seen when it is ticked on this round, validated from its QR code, or has a health report on one of its animals. A cage under experiment is validated only once every one of its animals has its experimental follow-up for the day and every experimental act due on them is confirmed.') ?></p>
 
         <?php include('message.php'); ?>
 
@@ -263,7 +263,7 @@ require 'header.php';
                                 <td>
                                     <?php foreach ($cageChecks as $chk) echo cage_check_badge($chk); ?>
                                     <?php if (!$cageChecks) : ?><span class="badge bg-<?= $isToday ? 'secondary' : 'danger'; ?>"><?= trh($isToday ? 'not yet' : 'MISSED'); ?></span><?php endif; ?>
-                                    <?php if ($progress) : ?><div class="small <?= $progress['done'] < $progress['total'] ? 'text-danger' : 'text-success'; ?>"><?= trh('{done}/{total} animal(s) evaluated', ['done' => $progress['done'], 'total' => $progress['total']]); ?></div><?php endif; ?>
+                                    <?php if ($progress) : ?><div class="small <?= $progress['done'] < $progress['total'] ? 'text-danger' : 'text-success'; ?>"><?= trh('{done}/{total} animal(s) evaluated', ['done' => $progress['done'], 'total' => $progress['total']]); ?></div><?php if ($progress['acts_pending']) : ?><div class="small text-danger"><?= trh('{n} experimental act(s) to confirm', ['n' => $progress['acts_pending']]); ?></div><?php endif; ?><?php endif; ?>
                                 </td>
                                 <?php if ($isToday) : ?>
                                     <td class="text-end">
@@ -274,7 +274,7 @@ require 'header.php';
                                             <a href="experiment_cage_followup.php?<?= htmlspecialchars(http_build_query(['cage_id' => $cid])); ?>#cageActs" class="btn btn-warning btn-sm" title="<?= trh('{n} experimental act(s) to confirm', ['n' => $actsDueByCage[$cid]]); ?>"><i class="fas fa-syringe"></i> <?= trh('{n} act(s)', ['n' => $actsDueByCage[$cid]]); ?></a>
                                         <?php endif; ?>
                                         <?php if ($progress) : ?>
-                                            <a href="experiment_cage_followup.php?<?= htmlspecialchars(http_build_query(['cage_id' => $cid])); ?>" class="btn btn-<?= $progress['done'] < $progress['total'] ? 'primary' : 'outline-success'; ?> btn-sm"><i class="fas fa-flask"></i> <?= trh('Experimental follow-up ({done}/{total})', ['done' => $progress['done'], 'total' => $progress['total']]); ?></a>
+                                            <a href="experiment_cage_followup.php?<?= htmlspecialchars(http_build_query(['cage_id' => $cid])); ?>" class="btn btn-<?= experimental_cage_complete($progress) ? 'outline-success' : 'primary'; ?> btn-sm"><i class="fas fa-flask"></i> <?= trh('Experimental follow-up ({done}/{total})', ['done' => $progress['done'], 'total' => $progress['total']]); ?></a>
                                         <?php else : ?>
                                             <button type="submit" name="cage_ids[]" value="<?= htmlspecialchars($cid); ?>" formnovalidate class="btn btn-success btn-sm single-ok"><?= trh('All OK') ?></button>
                                         <?php endif; ?>

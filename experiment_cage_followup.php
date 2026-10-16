@@ -6,7 +6,8 @@
  * check is validated only once each of them has its follow-up for the day
  * (the "all OK" button of the round is not available for such a cage).
  * The experimental acts due today (or overdue) for the animals of the cage
- * can be confirmed here for the whole cage at once.
+ * can be confirmed here for the whole cage at once; the cage is validated
+ * only once they are all confirmed (done or not done) too.
  */
 session_start();
 require 'dbcon.php';
@@ -59,6 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_acts'])) {
         foreach ($animals as $actAnimalId => [$animalId, $status]) {
             log_animal_event($con, $animalId, 'experiment_act', ['act_animal_id' => $actAnimalId, 'status' => $status, 'cage_id' => $cageId], $userId);
         }
+        record_experimental_cage_check_if_complete($con, $cageId, $userId, $userName);
         mysqli_commit($con);
         $_SESSION['message'] = tr('{n} act(s) confirmed.', ['n' => count($confirmations)]);
     } catch (Exception $e) {
@@ -90,9 +92,11 @@ $enrollStmt->close();
 
 $total = count($enrollments);
 $done = count(array_filter($enrollments, fn($en) => $en['followup_id']));
-$complete = $total > 0 && $done === $total;
-// The check is recorded on the last follow-up; record it here too when the
-// cage became complete otherwise (e.g. an animal left the experiment).
+$actsDue = cage_acts_due($con, $cageId, $today);
+$actsPending = array_sum(array_map('count', $actsDue));
+$complete = $total > 0 && $done === $total && $actsPending === 0;
+// The check is recorded on the last follow-up or act; record it here too when
+// the cage became complete otherwise (e.g. an animal left the experiment).
 if ($complete && $cage['status'] === 'active') {
     record_experimental_cage_check_if_complete($con, $cageId, $_SESSION['user_id'] ?? null, $_SESSION['name'] ?? null);
 }
@@ -100,7 +104,6 @@ $followupUrl = fn(array $en): string => 'experiment_followup.php?' . http_build_
 $next = current(array_filter($enrollments, fn($en) => !$en['followup_id'])) ?: null;
 $pct = $total ? (int) round($done * 100 / $total) : 0;
 
-$actsDue = cage_acts_due($con, $cageId, $today);
 $actFields = experiment_act_fields($con, array_keys($actsDue));
 $lotsByProduct = $actsDue ? usable_lots_by_product($con) : [];
 
@@ -138,10 +141,14 @@ require 'header.php';
                         <div>
                             <?php if ($complete) : ?>
                                 <strong class="text-success"><i class="fas fa-check-circle"></i> <?= trh('Cage validated for today') ?></strong>
-                                <div class="small text-muted"><?= trh('Every animal under experiment has its follow-up for the day.') ?></div>
+                                <div class="small text-muted"><?= trh('Every animal under experiment has its follow-up for the day and every act due is confirmed.') ?></div>
                             <?php else : ?>
                                 <strong class="text-warning"><i class="fas fa-hourglass-half"></i> <?= trh('Cage not validated yet') ?></strong>
-                                <div class="small text-muted"><?= trh('{n} animal(s) still to evaluate today. The cage is validated once every animal has its follow-up.', ['n' => $total - $done]) ?></div>
+                                <div class="small text-muted">
+                                    <?php if ($done < $total) : ?><?= trh('{n} animal(s) still to evaluate today.', ['n' => $total - $done]) ?><?php endif; ?>
+                                    <?php if ($actsPending) : ?><a href="#cageActs" class="text-danger"><?= trh('{n} experimental act(s) to confirm', ['n' => $actsPending]) ?></a>.<?php endif; ?>
+                                    <?= trh('The cage is validated once every animal has its follow-up and every act due is confirmed (done or not done).') ?>
+                                </div>
                             <?php endif; ?>
                         </div>
                         <?php if ($next) : ?>
