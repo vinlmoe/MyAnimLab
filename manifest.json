@@ -1,7 +1,7 @@
 {
    "name": "My Vivarium",
    "short_name": "Vivarium",
-   "description": "An online platform for managing your vivarium",
+   "description": "Une plateforme en ligne pour gérer votre animalerie",
    "start_url": "/",
    "display": "standalone",
    "background_color": "#FFFFFF",

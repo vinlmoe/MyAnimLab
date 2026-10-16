@@ -6,7 +6,7 @@ require 'dbcon.php';
 if ($_SERVER['REQUEST_METHOD'] !== 'POST'
     || !hash_equals($_SESSION['locale_csrf_token'] ?? '', (string) ($_POST['csrf_token'] ?? ''))) {
     http_response_code(403);
-    exit('Invalid language change request.');
+    exit(tr('Invalid language change request.'));
 }
 
 $locale = (string) ($_POST['locale'] ?? APP_DEFAULT_LOCALE);

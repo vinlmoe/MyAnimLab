@@ -94,7 +94,7 @@ function sendPendingEmails()
             $errorMessage = null;
         } else {
             $status = 'failed';
-            $errorMessage = 'Error sending email'; // Customize this with more detailed error info if needed
+            $errorMessage = tr('Error sending email'); // Customize this with more detailed error info if needed
         }
 
         // Update email status in the database

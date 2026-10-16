@@ -224,7 +224,7 @@ require 'header.php';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= $cageKind === 'experimental' ? 'Cage d’expérimentation' : 'View Holding Cage'; ?> | <?php echo htmlspecialchars($labName); ?></title>
+    <title><?= $cageKind === 'experimental' ? trh('Experimental cage') : trh('Holding Cage'); ?> | <?php echo htmlspecialchars($labName); ?></title>
 
     <style>
         body {
@@ -403,7 +403,7 @@ require 'header.php';
         <?php render_cage_location($con, $holdingcage['cage_id'], 'hc_view.php?id=' . rawurlencode($holdingcage['cage_id'])); ?>
         <div class="card">
             <div class="card-header">
-                <h4><?= $cageKind === 'experimental' ? 'Cage d’expérimentation' : 'View Holding Cage'; ?> <?= htmlspecialchars($holdingcage['cage_id']); ?></h4>
+                <h4><?= $cageKind === 'experimental' ? trh('Experimental cage') : trh('Holding Cage'); ?> <?= htmlspecialchars($holdingcage['cage_id']); ?></h4>
                 <div class="action-buttons">
                     <a href="javascript:void(0);" onclick="goBack()" class="btn btn-primary btn-sm btn-icon" data-toggle="tooltip" data-placement="top" title="<?= trh('Go Back') ?>">
                         <i class="fas fa-arrow-circle-left"></i>

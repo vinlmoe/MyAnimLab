@@ -87,8 +87,8 @@ $roomKey = ($cage['room'] ?? '') === '' ? '__none' : $cage['room'];
     <div class="container mt-3 content">
         <h4><i class="fas fa-clipboard-check"></i> <?= trh('Daily check — cage {cage}', ['cage' => $cageId]); ?></h4>
         <p class="text-muted mb-2">
-            <?= htmlspecialchars($cage['kind']); ?> cage ·
-            <?= htmlspecialchars(($cage['room'] ?? '') !== '' ? 'Room ' . $cage['room'] : 'No room assigned'); ?>
+            <?= trh(ucfirst($cage['kind']) . ' cage'); ?> ·
+            <?= htmlspecialchars(($cage['room'] ?? '') !== '' ? tr('Room {room}', ['room' => $cage['room']]) : tr('No room assigned')); ?>
             <?= ($cage['rack'] ?? '') !== '' ? '· Rack ' . htmlspecialchars($cage['rack']) : ''; ?>
         </p>
 

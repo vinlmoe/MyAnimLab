@@ -600,9 +600,9 @@ return [
     'This distribution is not possible: {count} animals cannot fill cages with at least {min} and at most {max} animals each.' => 'Cette répartition est impossible : {count} animaux ne peuvent pas remplir des cages d’au moins {min} et au plus {max} animaux chacune.',
     'Select a PI.' => 'Sélectionnez un responsable scientifique.',
     'Select an animal line, sex and date of birth.' => 'Sélectionnez une lignée, un sexe et une date de naissance.',
-    'Bulk creation: {n} {sex} animal(s)' => 'Création groupée : {n} animal(aux) {sex}',
+    'Bulk creation: {n} {sex} animal(s)' => 'Création groupée : {n} animal(aux) ({sex})',
     'Bulk creation' => 'Création groupée',
-    '{n} {sex} animal(s) created and distributed across {cages} cage(s): {list}.' => '{n} animal(aux) {sex} créé(s) et réparti(s) dans {cages} cage(s) : {list}.',
+    '{n} {sex} animal(s) created and distributed across {cages} cage(s): {list}.' => '{n} animal(aux) ({sex}) créé(s) et réparti(s) dans {cages} cage(s) : {list}.',
     'Bulk cage creation failed: {error}' => 'Échec de la création groupée : {error}',
     'Protocol not found.' => 'Plan / protocole introuvable.',
     'Experiments' => 'Expériences',
@@ -1248,4 +1248,17 @@ return [
     'Lab Manager' => 'Responsable de laboratoire',
     'Animal Care Technician' => 'Animalier / zootechnicien',
     'Interns and Volunteers' => 'Stagiaires et bénévoles',
+
+    // zz_misc
+    'Connection Failed. Please try again later.' => 'Échec de la connexion. Veuillez réessayer plus tard.',
+    'Error sending email' => 'Erreur lors de l’envoi de l’e-mail',
+    'Invalid language change request.' => 'Demande de changement de langue invalide.',
+
+    // zz_misc2
+    'Experimental cage' => 'Cage d’expérimentation',
+    'Holding cage' => 'Cage d’hébergement',
+    'Breeding cage' => 'Cage d’accouplement',
+
+    // zz_misc3
+    'currently in cage {cage}' => 'actuellement dans la cage {cage}',
 ];
