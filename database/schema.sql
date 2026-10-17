@@ -809,7 +809,8 @@ CREATE TABLE `activity_log` (
 CREATE TABLE `medication_products` (
   `id` int NOT NULL AUTO_INCREMENT, `name` varchar(255) NOT NULL,
   `presentation` varchar(255) DEFAULT NULL, `active_ingredient` varchar(255) DEFAULT NULL,
-  `default_unit` varchar(30) NOT NULL DEFAULT 'unit', `notes` text DEFAULT NULL,
+  `default_unit` varchar(30) NOT NULL DEFAULT 'unit', `is_narcotic` tinyint(1) NOT NULL DEFAULT 0,
+  `concentration` decimal(12,4) DEFAULT NULL, `concentration_unit` varchar(30) DEFAULT NULL, `notes` text DEFAULT NULL,
   `active` tinyint(1) NOT NULL DEFAULT 1, PRIMARY KEY (`id`), UNIQUE KEY `uq_medication_product_name` (`name`)
 );
 CREATE TABLE `medication_lots` (
@@ -846,7 +847,9 @@ CREATE TABLE `medication_administrations` (
   `medication_lot_id` int NOT NULL, `administered_at` datetime NOT NULL, `quantity_used` decimal(12,3) NOT NULL,
   `unit` varchar(30) NOT NULL, `route` varchar(100) DEFAULT NULL, `notes` text DEFAULT NULL,
   `administered_by` int DEFAULT NULL, `administered_by_name` varchar(255) DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(), PRIMARY KEY (`id`),
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `cancelled_at` datetime DEFAULT NULL, `cancelled_by_name` varchar(255) DEFAULT NULL, `cancel_reason` text DEFAULT NULL,
+  PRIMARY KEY (`id`),
   FOREIGN KEY (`prescription_id`) REFERENCES `prescriptions` (`id`) ON DELETE RESTRICT,
   FOREIGN KEY (`animal_id`) REFERENCES `mice` (`id`) ON DELETE RESTRICT,
   FOREIGN KEY (`medication_lot_id`) REFERENCES `medication_lots` (`id`) ON DELETE RESTRICT,
@@ -854,7 +857,8 @@ CREATE TABLE `medication_administrations` (
 );
 CREATE TABLE `medication_stock_movements` (
   `id` int NOT NULL AUTO_INCREMENT, `medication_lot_id` int NOT NULL,
-  `movement_type` ENUM('receipt','administration','adjustment') NOT NULL, `quantity_delta` decimal(12,3) NOT NULL,
+  `movement_type` ENUM('receipt','administration','adjustment','inventory','correction') NOT NULL, `quantity_delta` decimal(12,3) NOT NULL,
+  `counted_quantity` decimal(12,3) DEFAULT NULL,
   `reason` text DEFAULT NULL, `administration_id` int DEFAULT NULL, `performed_by` int DEFAULT NULL,
   `performed_at` timestamp NOT NULL DEFAULT current_timestamp(), PRIMARY KEY (`id`),
   FOREIGN KEY (`medication_lot_id`) REFERENCES `medication_lots` (`id`) ON DELETE RESTRICT,
@@ -949,8 +953,32 @@ CREATE TABLE `experiment_act_values` (
 -- A medication given during an experimental act is traced like a treatment
 -- (one administration per animal, stock debited) but without a prescription.
 ALTER TABLE `medication_administrations`
-  ADD UNIQUE KEY `uq_medication_admin_act_animal` (`experiment_act_animal_id`),
+  ADD KEY `idx_medication_admin_act_animal` (`experiment_act_animal_id`),
   ADD CONSTRAINT `fk_medication_admin_act_animal` FOREIGN KEY (`experiment_act_animal_id`) REFERENCES `experiment_act_animals` (`id`) ON DELETE RESTRICT;
+
+-- Corrections of experimental act confirmations: what was recorded (status,
+-- time, person, lot, quantity, values, note) is kept with the reason of the
+-- correction; the act goes back to "to do".
+CREATE TABLE `experiment_act_corrections` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `act_animal_id` int NOT NULL,
+  `previous_status` varchar(20) NOT NULL,
+  `previous_done_at` datetime DEFAULT NULL,
+  `previous_done_by_name` varchar(255) DEFAULT NULL,
+  `previous_lot_id` int DEFAULT NULL,
+  `previous_quantity` decimal(12,3) DEFAULT NULL,
+  `previous_values` text DEFAULT NULL,
+  `previous_note` text DEFAULT NULL,
+  `reason` text NOT NULL,
+  `corrected_by` int DEFAULT NULL,
+  `corrected_by_name` varchar(255) DEFAULT NULL,
+  `corrected_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_act_correction_act_animal` (`act_animal_id`),
+  FOREIGN KEY (`act_animal_id`) REFERENCES `experiment_act_animals` (`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`previous_lot_id`) REFERENCES `medication_lots` (`id`) ON DELETE SET NULL,
+  FOREIGN KEY (`corrected_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+);
 
 -- Table for storing system settings
 CREATE TABLE `settings` (

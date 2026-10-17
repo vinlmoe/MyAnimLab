@@ -101,6 +101,7 @@ $treatments = $rows(
 // Experimental acts of the participation (all, cancelled excepted).
 $expActs = array_values(array_filter(enrollment_acts($con, $enrollmentId, '9999-12-31'), fn($a) => $a['status'] !== 'cancelled'));
 $expActValues = experiment_act_values($con, array_column($expActs, 'id'));
+$expActCorrections = experiment_act_corrections($con, array_column($rows('SELECT id FROM experiment_act_animals WHERE experiment_animal_id = ?', 'i', $enrollmentId), 'id'));
 $movements = $rows("SELECT mv.*, u.name AS moved_by_name FROM animal_movements mv LEFT JOIN users u ON u.id = mv.moved_by WHERE mv.animal_id = ? ORDER BY mv.moved_at, mv.id", 'i', $animalId);
 $otherParticipations = $rows(
     "SELECT ea.id, ea.enrolled_at, ea.removed_at, e.experiment_number, e.title FROM experiment_animals ea JOIN experiments e ON e.id = ea.experiment_id
@@ -314,6 +315,12 @@ require 'header.php';
                 </tbody>
             </table>
         <?php endif; ?>
+        <?php if ($expActCorrections) : ?>
+            <p class="small mb-1"><strong><?= trh('Corrections of act confirmations') ?></strong></p>
+            <ul class="small">
+                <?php foreach ($expActCorrections as $list) : foreach ($list as $c) : ?><li><?= htmlspecialchars(act_correction_text($c)) ?></li><?php endforeach; endforeach; ?>
+            </ul>
+        <?php endif; ?>
 
         <h5 id="treatments"><i class="fas fa-syringe"></i> <?= trh('Treatments given') ?></h5>
         <?php if (!$treatments) : ?>
@@ -323,7 +330,7 @@ require 'header.php';
                 <thead class="table-light"><tr><th><?= trh('Date') ?></th><th><?= trh('Medication') ?></th><th><?= trh('Quantity') ?></th><th><?= trh('Administration route') ?></th><th><?= trh('Prescriber') ?></th><th><?= trh('Notes') ?></th><th><?= trh('By') ?></th></tr></thead>
                 <tbody>
                     <?php foreach ($treatments as $tm) : ?>
-                        <tr class="<?= $inWindow($tm['administered_at']) ? 'table-primary' : '' ?>">
+                        <tr class="<?= $tm['cancelled_at'] ? 'text-decoration-line-through text-muted' : ($inWindow($tm['administered_at']) ? 'table-primary' : '') ?>" title="<?= $tm['cancelled_at'] ? htmlspecialchars(tr('Cancelled on {date} by {user}: {reason} (quantity re-credited)', ['date' => substr($tm['cancelled_at'], 0, 16), 'user' => $tm['cancelled_by_name'] ?? '', 'reason' => $tm['cancel_reason'] ?? ''])) : '' ?>">
                             <td class="text-nowrap"><?= htmlspecialchars(substr($tm['administered_at'], 0, 16)) ?></td>
                             <td><?= htmlspecialchars($tm['product_name']) ?> <small class="text-muted">(<?= trh('lot {lot}', ['lot' => $tm['lot_number']]) ?>)</small></td>
                             <td><?= htmlspecialchars(rtrim(rtrim((string) $tm['quantity_used'], '0'), '.') . ' ' . $tm['unit']) ?></td>
