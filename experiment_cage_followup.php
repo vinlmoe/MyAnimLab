@@ -13,7 +13,7 @@ session_start();
 require 'dbcon.php';
 require 'animal_lib.php';
 require 'experiment_acts_lib.php';
-require 'training_lib.php';
+require_once 'training_lib.php';
 
 if (!isset($_SESSION['username'])) {
     header('Location: index.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
@@ -183,6 +183,7 @@ require 'header.php';
                             <button type="button" class="btn btn-sm btn-outline-success all-done"><i class="fas fa-check-double"></i> <?= trh('Tick all as done') ?></button>
                         </div>
                         <div class="card-body">
+                            <?= training_supervisor_field($con, (string) $actId) ?>
                             <div class="table-responsive">
                                 <table class="table table-sm align-middle mb-2">
                                     <thead class="table-light">

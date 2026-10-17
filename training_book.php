@@ -2,7 +2,7 @@
 
 /**
  * Personal training record (livret de formation / de compétences) of one
- * person: initial regulatory training per function, competences validated
+ * person: initial diploma, initial regulatory training per function, competences validated
  * after supervision, continuing training (with the check of the minimum over
  * the rolling period) and other training, each with its certificate.
  * Everyone keeps their own record (entries to validate); administrators and
@@ -13,7 +13,7 @@
 session_start();
 require 'dbcon.php';
 require 'animal_lib.php';
-require 'training_lib.php';
+require_once 'training_lib.php';
 
 if (!isset($_SESSION['username'])) {
     header('Location: index.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
@@ -65,6 +65,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!in_array($category, ['initial', 'competence'], true)) {
                 $function = null;
             }
+            $level = $category === 'diploma' ? (string) ($_POST['diploma_level'] ?? '') : null;
+            if ($category === 'diploma' && !isset(training_diploma_levels()[$level])) {
+                throw new Exception(tr('Choose the level of the diploma.'));
+            }
+            if ($category === 'diploma' && trim((string) ($_POST['title'] ?? '')) === '') {
+                throw new Exception(tr('Give the title and speciality of the diploma.'));
+            }
             if ($title === '') {
                 $title = training_categories()[$category];
             }
@@ -94,11 +101,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'notes' => trim((string) ($_POST['notes'] ?? '')) ?: null,
             ];
             $ins = $con->prepare(
-                'INSERT INTO training_records (user_id, category, function_code, title, organisation, start_date, end_date, duration_hours, species, supervisor_name,
+                'INSERT INTO training_records (user_id, category, function_code, diploma_level, title, organisation, start_date, end_date, duration_hours, species, supervisor_name,
                     certificate_ref, certificate_file, notes, status, validated_by, validated_by_name, validated_at, created_by, created_by_name)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
             );
-            $ins->bind_param('issssssdssssssissis', $userId, $category, $function, $title, $fields['organisation'], $start, $end, $hours, $fields['species'], $fields['supervisor'],
+            $ins->bind_param('isssssssdssssssissis', $userId, $category, $function, $level, $title, $fields['organisation'], $start, $end, $hours, $fields['species'], $fields['supervisor'],
                 $fields['ref'], $file, $fields['notes'], $status, $validatedBy, $validatedByName, $validatedAt, $currentUserId, $currentUserName);
             $ins->execute();
             $entryId = (int) $con->insert_id;
@@ -197,6 +204,9 @@ require 'header.php';
             <h4><i class="fas fa-user-graduate"></i> <?= trh('Training record') ?> — <?= htmlspecialchars($person['name']) ?></h4>
             <p class="text-muted mb-2"><?= htmlspecialchars(trim($person['position'] . ' · ' . $person['username'])) ?> · <?= trh('printed on {date}', ['date' => date('Y-m-d')]) ?> · <?= htmlspecialchars($labName) ?></p>
 
+            <p class="mb-2" id="initialDiploma"><strong><?= trh('Initial diploma:') ?></strong>
+                <?php if ($status['diploma']) : ?><?= htmlspecialchars(training_diploma_text($status['diploma'])) ?>
+                <?php else : ?><span class="text-danger"><?= trh('not recorded (or not validated yet)') ?></span><?php endif; ?></p>
             <div class="row g-3 mb-3">
                 <div class="col-md-7">
                     <div class="card h-100">
@@ -254,23 +264,30 @@ require 'header.php';
                                 <?php foreach (training_functions() as $code => $label) : ?><option value="<?= $code ?>" <?= $code === 'procedures' ? 'selected' : '' ?>><?= htmlspecialchars($label) ?></option><?php endforeach; ?>
                             </select>
                         </div>
+                        <div class="col-md-4" id="levelBox" hidden>
+                            <label class="form-label small" for="diploma_level"><?= trh('Level') ?> *</label>
+                            <select class="form-select form-select-sm" name="diploma_level" id="diploma_level">
+                                <option value=""><?= trh('Choose…') ?></option>
+                                <?php foreach (training_diploma_levels() as $code => $label) : ?><option value="<?= $code ?>"><?= htmlspecialchars($label) ?></option><?php endforeach; ?>
+                            </select>
+                        </div>
                         <div class="col-md-4">
-                            <label class="form-label small" for="title"><?= trh('Title') ?></label>
+                            <label class="form-label small" for="title"><span id="titleLabel"><?= trh('Title') ?></span><span id="diplomaTitleLabel" hidden><?= trh('Title and speciality') ?> *</span></label>
                             <input class="form-control form-control-sm" name="title" id="title" maxlength="255" placeholder="<?= trh('e.g. Regulatory training rodents & lagomorphs, Congress, Surgery module') ?>">
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label small" for="organisation"><?= trh('Organisation') ?></label>
+                            <label class="form-label small" for="organisation"><span id="orgLabel"><?= trh('Organisation') ?></span><span id="schoolLabel" hidden><?= trh('Institution') ?></span></label>
                             <input class="form-control form-control-sm" name="organisation" id="organisation" maxlength="255">
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label small" for="start_date"><?= trh('Start Date') ?> *</label>
+                            <label class="form-label small" for="start_date"><span id="startLabel"><?= trh('Start Date') ?></span><span id="obtainedLabel" hidden><?= trh('Date obtained') ?></span> *</label>
                             <input type="date" class="form-control form-control-sm" name="start_date" id="start_date" required max="<?= date('Y-m-d') ?>">
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-md-2 not-diploma">
                             <label class="form-label small" for="end_date"><?= trh('End Date') ?></label>
                             <input type="date" class="form-control form-control-sm" name="end_date" id="end_date" max="<?= date('Y-m-d') ?>">
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-4 not-diploma">
                             <label class="form-label small" for="duration"><?= trh('Duration') ?> <span id="durationStar" hidden>*</span></label>
                             <div class="input-group input-group-sm">
                                 <input class="form-control" name="duration" id="duration" inputmode="decimal" pattern="[0-9]+([.,][0-9]+)?">
@@ -280,7 +297,7 @@ require 'header.php';
                                 </select>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-4 not-diploma">
                             <label class="form-label small" for="species"><?= trh('Species') ?></label>
                             <input class="form-control form-control-sm" name="species" id="species" maxlength="255" placeholder="<?= trh('e.g. mouse, rat') ?>">
                         </div>
@@ -320,7 +337,7 @@ require 'header.php';
                                 <tr>
                                     <th><?= trh('Dates') ?></th><th><?= trh('Training') ?></th>
                                     <?php if (in_array($category, ['initial', 'competence'], true)) : ?><th><?= trh('Function') ?></th><?php endif; ?>
-                                    <th><?= trh('Duration') ?></th><th><?= trh('Species') ?></th>
+                                    <?php if ($category === 'diploma') : ?><th><?= trh('Level') ?></th><?php else : ?><th><?= trh('Duration') ?></th><th><?= trh('Species') ?></th><?php endif; ?>
                                     <?php if ($category === 'competence') : ?><th><?= trh('Supervisor / tutor') ?></th><?php endif; ?>
                                     <th><?= trh('Certificate') ?></th><th><?= trh('Status') ?></th><th class="no-print"></th>
                                 </tr>
@@ -331,9 +348,13 @@ require 'header.php';
                                     <td class="text-nowrap"><?= htmlspecialchars($r['start_date'] . ($r['end_date'] && $r['end_date'] !== $r['start_date'] ? ' → ' . $r['end_date'] : '')) ?></td>
                                     <td><strong><?= htmlspecialchars($r['title']) ?></strong><?= $r['organisation'] ? '<br><small>' . htmlspecialchars($r['organisation']) . '</small>' : '' ?><?= $r['notes'] ? '<br><small class="text-muted">' . htmlspecialchars($r['notes']) . '</small>' : '' ?></td>
                                     <?php if (in_array($category, ['initial', 'competence'], true)) : ?><td><?= htmlspecialchars(training_functions()[$r['function_code']] ?? '—') ?></td><?php endif; ?>
-                                    <td class="text-nowrap"><?= $r['duration_hours'] !== null ? htmlspecialchars(training_hours_text((float) $r['duration_hours'], $hoursPerDay)) : '—' ?>
-                                        <?php if ($category === 'continuing') : ?><br><small class="<?= $inWindow ? 'text-success' : 'text-muted' ?>"><?= $inWindow ? trh('counted') : trh('outside the period') ?></small><?php endif; ?></td>
-                                    <td><?= htmlspecialchars($r['species'] ?? '') ?></td>
+                                    <?php if ($category === 'diploma') : ?>
+                                        <td><?= htmlspecialchars(training_diploma_levels()[$r['diploma_level']] ?? (string) $r['diploma_level']) ?></td>
+                                    <?php else : ?>
+                                        <td class="text-nowrap"><?= $r['duration_hours'] !== null ? htmlspecialchars(training_hours_text((float) $r['duration_hours'], $hoursPerDay)) : '—' ?>
+                                            <?php if ($category === 'continuing') : ?><br><small class="<?= $inWindow ? 'text-success' : 'text-muted' ?>"><?= $inWindow ? trh('counted') : trh('outside the period') ?></small><?php endif; ?></td>
+                                        <td><?= htmlspecialchars($r['species'] ?? '') ?></td>
+                                    <?php endif; ?>
                                     <?php if ($category === 'competence') : ?><td><?= htmlspecialchars($r['supervisor_name'] ?? '') ?></td><?php endif; ?>
                                     <td><?= htmlspecialchars($r['certificate_ref'] ?? '') ?><?php if ($r['certificate_file']) : ?> <a href="<?= htmlspecialchars($fileUrl($r)) ?>" target="_blank" class="no-print"><i class="fas fa-file-pdf"></i> PDF</a><?php endif; ?></td>
                                     <td>
@@ -382,6 +403,15 @@ require 'header.php';
                 document.getElementById('supervisorBox').hidden = category.value !== 'competence';
                 document.getElementById('duration').required = category.value === 'continuing';
                 document.getElementById('durationStar').hidden = category.value !== 'continuing';
+                const diploma = category.value === 'diploma';
+                document.getElementById('levelBox').hidden = !diploma;
+                document.getElementById('diploma_level').required = diploma;
+                document.getElementById('title').required = diploma;
+                document.querySelectorAll('.not-diploma').forEach(el => el.hidden = diploma);
+                [['titleLabel', 'diplomaTitleLabel'], ['orgLabel', 'schoolLabel'], ['startLabel', 'obtainedLabel']].forEach(([a, b]) => {
+                    document.getElementById(a).hidden = diploma;
+                    document.getElementById(b).hidden = !diploma;
+                });
             };
             category.addEventListener('change', sync);
             sync();

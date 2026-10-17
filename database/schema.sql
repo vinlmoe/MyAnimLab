@@ -920,6 +920,8 @@ CREATE TABLE `experiment_act_animals` (
   `done_at` datetime DEFAULT NULL,
   `done_by` int DEFAULT NULL,
   `done_by_name` varchar(255) DEFAULT NULL,
+  `supervised_by` int DEFAULT NULL,
+  `supervised_by_name` varchar(255) DEFAULT NULL,
   `note` text DEFAULT NULL,
   `followup_id` int DEFAULT NULL,
   `medication_lot_id` int DEFAULT NULL,
@@ -930,6 +932,7 @@ CREATE TABLE `experiment_act_animals` (
   FOREIGN KEY (`act_id`) REFERENCES `experiment_acts` (`id`) ON DELETE CASCADE,
   FOREIGN KEY (`experiment_animal_id`) REFERENCES `experiment_animals` (`id`) ON DELETE CASCADE,
   FOREIGN KEY (`done_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_act_animal_supervisor` FOREIGN KEY (`supervised_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   FOREIGN KEY (`followup_id`) REFERENCES `experiment_followups` (`id`) ON DELETE SET NULL,
   FOREIGN KEY (`medication_lot_id`) REFERENCES `medication_lots` (`id`) ON DELETE RESTRICT
 );
@@ -993,8 +996,9 @@ CREATE TABLE `experiment_act_corrections` (
 CREATE TABLE `training_records` (
   `id` int NOT NULL AUTO_INCREMENT,
   `user_id` int NOT NULL,
-  `category` ENUM('initial','competence','continuing','other') NOT NULL,
+  `category` ENUM('diploma','initial','competence','continuing','other') NOT NULL,
   `function_code` varchar(30) DEFAULT NULL,
+  `diploma_level` varchar(30) DEFAULT NULL,
   `title` varchar(255) NOT NULL,
   `organisation` varchar(255) DEFAULT NULL,
   `start_date` date NOT NULL,

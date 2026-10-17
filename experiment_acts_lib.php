@@ -14,8 +14,12 @@
  * known. A confirmation can be corrected with a reason: what was recorded is
  * kept in experiment_act_corrections, a medication given is cancelled (kept
  * in the registers) and re-credited, and the act is to do again.
+ * A person not competent to apply procedures (training record) confirms an
+ * act as done only with the competent person supervising them.
  * Requires animal_lib.php.
  */
+
+require_once __DIR__ . '/training_lib.php';
 
 function experiment_act_types(): array
 {
@@ -309,6 +313,8 @@ function confirm_experiment_act(mysqli $con, int $actAnimalId, array $raw, ?int 
     $valueRows = [];
     $lotId = null;
     $quantity = null;
+    $supervisorId = null;
+    $supervisorName = null;
     if ($status === 'not_done') {
         if ($note === '') {
             throw new Exception(tr('{act}: give the reason why the act was not done.', ['act' => $label]));
@@ -328,6 +334,19 @@ function confirm_experiment_act(mysqli $con, int $actAnimalId, array $raw, ?int 
             }
             $valueRows[] = [$fieldId, $field['label'], $field['value_type'], $field['unit'], $number, $field['value_type'] === 'text' ? $value : null];
         }
+        // Not competent alone: the supervisor present is required.
+        if ($userId && training_needs_supervisor($con, (int) $userId)) {
+            $choice = (string) ($raw['supervisor'] ?? '');
+            if ($choice === 'other') {
+                $supervisorName = trim((string) ($raw['supervisor_other'] ?? ''));
+            } elseif (ctype_digit($choice)) {
+                $supervisorName = training_competent_supervisors($con, (int) $userId)[(int) $choice] ?? '';
+                $supervisorId = $supervisorName !== '' ? (int) $choice : null;
+            }
+            if (($supervisorName ?? '') === '') {
+                throw new Exception(tr('{act}: give the competent person supervising you (your competence to apply procedures is not validated).', ['act' => $label]));
+            }
+        }
         if ($row['product_id'] !== null) {
             $lotId = (int) ($raw['lot_id'] ?? 0);
             $quantity = parse_number((string) ($raw['quantity'] ?? ''));
@@ -340,9 +359,9 @@ function confirm_experiment_act(mysqli $con, int $actAnimalId, array $raw, ?int 
         }
     }
 
-    $up = $con->prepare("UPDATE experiment_act_animals SET status = ?, done_at = ?, done_by = ?, done_by_name = ?, note = ?, followup_id = ?, medication_lot_id = ?, quantity_used = ? WHERE id = ?");
+    $up = $con->prepare("UPDATE experiment_act_animals SET status = ?, done_at = ?, done_by = ?, done_by_name = ?, supervised_by = ?, supervised_by_name = ?, note = ?, followup_id = ?, medication_lot_id = ?, quantity_used = ? WHERE id = ?");
     $noteValue = $note !== '' ? $note : null;
-    $up->bind_param('ssissiidi', $status, $doneAt, $userId, $userName, $noteValue, $followupId, $lotId, $quantity, $actAnimalId);
+    $up->bind_param('ssisissiidi', $status, $doneAt, $userId, $userName, $supervisorId, $supervisorName, $noteValue, $followupId, $lotId, $quantity, $actAnimalId);
     $up->execute();
     $up->close();
 
@@ -421,6 +440,8 @@ function posted_act_confirmations(array $post, string $date, ?int $sharedLot = n
             'quantity' => (string) ($post['act_qty'][$id] ?? ''),
             'note' => $note !== '' ? $note : (string) $sharedNote,
             'done_at' => $date . ' ' . $time . ':00',
+            'supervisor' => (string) ($post['act_supervisor'] ?? ''),
+            'supervisor_other' => (string) ($post['act_supervisor_other'] ?? ''),
         ];
     }
     return $out;
@@ -526,7 +547,8 @@ function correct_experiment_act(mysqli $con, int $actAnimalId, string $reason, ?
     $valuesText = $values !== '' ? $values : null;
     $lotId = $row['medication_lot_id'] !== null ? (int) $row['medication_lot_id'] : null;
     $qty = $row['quantity_used'] !== null ? (float) $row['quantity_used'] : null;
-    $ins->bind_param('isssidsssis', $actAnimalId, $row['status'], $row['done_at'], $row['done_by_name'], $lotId, $qty, $valuesText, $row['note'], $reason, $userId, $userName);
+    $previousBy = act_done_by_text($row);
+    $ins->bind_param('isssidsssis', $actAnimalId, $row['status'], $row['done_at'], $previousBy, $lotId, $qty, $valuesText, $row['note'], $reason, $userId, $userName);
     $ins->execute();
     $ins->close();
 
@@ -556,7 +578,7 @@ function correct_experiment_act(mysqli $con, int $actAnimalId, string $reason, ?
     $del->bind_param('i', $actAnimalId);
     $del->execute();
     $del->close();
-    $reset = $con->prepare("UPDATE experiment_act_animals SET status = 'planned', done_at = NULL, done_by = NULL, done_by_name = NULL, note = NULL,
+    $reset = $con->prepare("UPDATE experiment_act_animals SET status = 'planned', done_at = NULL, done_by = NULL, done_by_name = NULL, supervised_by = NULL, supervised_by_name = NULL, note = NULL,
                             followup_id = NULL, medication_lot_id = NULL, quantity_used = NULL WHERE id = ?");
     $reset->bind_param('i', $actAnimalId);
     $reset->execute();
@@ -593,4 +615,10 @@ function act_correction_text(array $c): string
         'was' => $was, 'at' => substr((string) $c['previous_done_at'], 0, 16), 'by' => $c['previous_done_by_name'] ?? '—',
         'details' => $details ? ' — ' . implode(' · ', $details) : '',
     ]);
+}
+
+// Who did an act, with the supervisor when there was one.
+function act_done_by_text(array $row): string
+{
+    return trim((string) ($row['done_by_name'] ?? '')) . (!empty($row['supervised_by_name']) ? ' ' . tr('(supervised by {name})', ['name' => $row['supervised_by_name']]) : '');
 }

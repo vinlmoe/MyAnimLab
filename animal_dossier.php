@@ -309,7 +309,7 @@ require 'header.php';
                             <td class="text-nowrap"><?= htmlspecialchars(substr((string) $xa['done_at'], 0, 16)) ?></td>
                             <td><?= $xa['medication_lot_id'] ? trh('{qty} {unit}, lot {lot}', ['qty' => act_number($xa['quantity_used']), 'unit' => $xa['product_unit'], 'lot' => $xa['lot_number']]) : '' ?></td>
                             <td class="small"><?= implode('<br>', array_map(fn($v) => htmlspecialchars($v['label'] . ' : ' . observation_value($v)), $expActValues[(int) $xa['id']] ?? [])) ?><?= $xa['note'] ? ' <em>' . htmlspecialchars($xa['note']) . '</em>' : '' ?></td>
-                            <td class="small"><?= htmlspecialchars($xa['done_by_name'] ?? '') ?></td>
+                            <td class="small"><?= htmlspecialchars(act_done_by_text($xa)) ?></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
