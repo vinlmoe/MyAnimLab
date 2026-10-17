@@ -1721,4 +1721,12 @@ return [
     '{qty} {unit}, lot {lot}' => '{qty} {unit}, lot {lot}',
     '{n} animal(s) still to evaluate today.' => '{n} animal(aux) encore à évaluer aujourd’hui.',
     'The cage is validated once every animal has its follow-up and every act due is confirmed (done or not done).' => 'La cage est validée une fois le suivi de chaque animal saisi et tous les actes prévus confirmés (réalisés ou non réalisés).',
+    'Download the acts (CSV)' => 'Télécharger les actes (CSV)',
+    'Substance, dose, route' => 'Substance, dose, voie',
+    'Information asked' => 'Informations demandées',
+    '{product}, {qty} {unit} per animal' => '{product}, {qty} {unit} par animal',
+    'Experimental acts planned' => 'Actes expérimentaux planifiés',
+    'Information asked by the experimental acts' => 'Informations demandées par les actes expérimentaux',
+    'Experimental acts per animal and date (status, confirmation, lot)' => 'Actes expérimentaux par animal et par date (statut, confirmation, lot)',
+    'Information entered when confirming the experimental acts' => 'Informations saisies à la confirmation des actes expérimentaux',
 ];

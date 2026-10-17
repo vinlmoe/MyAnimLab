@@ -24,7 +24,8 @@ if (($_SESSION['role'] ?? '') !== 'admin') {
     exit;
 }
 
-// Exportable logs: key => [label, table, timestamp column used by the date filter].
+// Exportable logs: key => [label, table, date column used by the date filter
+// (of the table t, or of a joined table), optional join giving that column].
 const RAW_LOGS = [
     'activity_log' => ['Activity log (all actions)', 'activity_log', 'created_at'],
     'animal_events' => ['Animal events', 'animal_events', 'created_at'],
@@ -34,6 +35,10 @@ const RAW_LOGS = [
     'litter_events' => ['Litter events', 'litter_events', 'created_at'],
     'health_report_updates' => ['Health registry follow-up entries', 'health_report_updates', 'created_at'],
     'endpoint_actions' => ['Endpoint actions', 'endpoint_actions', 'created_at'],
+    'experiment_acts' => ['Experimental acts planned', 'experiment_acts', 't.created_at'],
+    'experiment_act_fields' => ['Information asked by the experimental acts', 'experiment_act_fields', 'a.created_at', 'JOIN experiment_acts a ON a.id = t.act_id'],
+    'experiment_act_animals' => ['Experimental acts per animal and date (status, confirmation, lot)', 'experiment_act_animals', 't.planned_date'],
+    'experiment_act_values' => ['Information entered when confirming the experimental acts', 'experiment_act_values', 'aa.planned_date', 'JOIN experiment_act_animals aa ON aa.id = t.act_animal_id'],
     'notifications' => ['In-app notifications', 'notifications', 'created_at'],
     'outbox' => ['Email queue', 'outbox', 'created_at'],
 ];
@@ -53,17 +58,21 @@ if (!$validDate($from) || !$validDate($to)) {
 function raw_log_query(mysqli $con, string $key, string $from, string $to, bool $countOnly = false): mysqli_result
 {
     [, $table, $dateColumn] = RAW_LOGS[$key];
+    $join = RAW_LOGS[$key][3] ?? '';
+    if (!str_contains($dateColumn, '.')) {
+        $dateColumn = "t.`$dateColumn`";
+    }
     $where = [];
     $params = [];
     if ($from !== '') {
-        $where[] = "`$dateColumn` >= ?";
+        $where[] = "$dateColumn >= ?";
         $params[] = "$from 00:00:00";
     }
     if ($to !== '') {
-        $where[] = "`$dateColumn` < ? + INTERVAL 1 DAY";
+        $where[] = "$dateColumn < ? + INTERVAL 1 DAY";
         $params[] = $to;
     }
-    $sql = ($countOnly ? 'SELECT COUNT(*)' : 'SELECT *') . " FROM `$table`" . ($where ? ' WHERE ' . implode(' AND ', $where) : '') . ($countOnly ? '' : ' ORDER BY id');
+    $sql = ($countOnly ? 'SELECT COUNT(*)' : 'SELECT t.*') . " FROM `$table` t $join" . ($where ? ' WHERE ' . implode(' AND ', $where) : '') . ($countOnly ? '' : ' ORDER BY t.id');
     $stmt = $con->prepare($sql);
     if ($params) {
         $stmt->bind_param(str_repeat('s', count($params)), ...$params);
