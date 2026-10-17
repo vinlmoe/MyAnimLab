@@ -57,7 +57,7 @@ $result1 = $con->query($query1);
 
 // Check if the ID parameter is set in the URL
 if (isset($_GET['id'])) {
-    $id = mysqli_real_escape_string($con, $_GET['id']);
+    $id = (string) $_GET['id'];
 
     // Fetch the breeding cage record with the specified ID including PI name details
     $query = "SELECT b.*, c.remarks AS remarks, c.pi_name AS pi_name, c.room, c.rack
@@ -258,7 +258,7 @@ if (isset($_GET['id'])) {
             if (isset($_FILES['fileUpload']) && $_FILES['fileUpload']['error'] == UPLOAD_ERR_OK) {
                 // Define allowed file types and maximum size
                 $allowedExtensions = ['pdf', 'doc', 'docx', 'txt', 'xls', 'xlsx', 'ppt', 'pptx',
-                                      'jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'];
+                                      'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp']; // no SVG: it could carry a script served from uploads/
                 $maxFileSize = 10 * 1024 * 1024; // 10MB in bytes
 
                 // Validate file size
@@ -269,7 +269,7 @@ if (isset($_GET['id'])) {
                     $fileExtension = strtolower(pathinfo($_FILES['fileUpload']['name'], PATHINFO_EXTENSION));
 
                     if (!in_array($fileExtension, $allowedExtensions)) {
-                        $_SESSION['message'] .= ' ' . tr('Invalid file type. Allowed: {types}', ['types' => 'pdf, doc, docx, txt, xls, xlsx, ppt, pptx, jpg, jpeg, png, gif, bmp, svg, webp']);
+                        $_SESSION['message'] .= ' ' . tr('Invalid file type. Allowed: {types}', ['types' => 'pdf, doc, docx, txt, xls, xlsx, ppt, pptx, jpg, jpeg, png, gif, bmp, webp']);
                     } else {
                         // Sanitize filename to prevent directory traversal
                         $originalFileName = preg_replace("/[^a-zA-Z0-9._-]/", "_", basename($_FILES['fileUpload']['name']));
@@ -793,7 +793,8 @@ require 'header.php';
                     </div>
 
                     <div class="card-body">
-                    <form id="editForm" method="POST" action="bc_edit.php?id=<?= $id; ?>&<?= getCurrentUrlParams(); ?>" enctype="multipart/form-data">
+                    <form id="deleteFileForm" method="POST" action="delete_file.php"><input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>"></form>
+                    <form id="editForm" method="POST" action="bc_edit.php?id=<?= rawurlencode($id); ?>&<?= getCurrentUrlParams(); ?>" enctype="multipart/form-data">
                             <p class="warning-text"><?= tr('Fields marked with {asterisk} are required.', ['asterisk' => '<span class="required-asterisk">*</span>']) ?></p>
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
 
@@ -930,9 +931,9 @@ require 'header.php';
                                                             <a href="<?= htmlspecialchars($file['file_path']); ?>" download="<?= htmlspecialchars($file['file_name']); ?>" class="btn btn-sm btn-outline-primary">
                                                                 <i class="fas fa-cloud-download-alt fa-sm"></i>
                                                             </a>
-                                                            <a href="delete_file.php?url=bc_edit&id=<?= intval($file['id']); ?>" class="btn-sm" onclick="return confirm(<?= htmlspecialchars(trj('Are you sure you want to delete this file?')) ?>);" aria-label="<?= trh('Delete {file}', ['file' => $file['file_name']]); ?>">
+                                                            <button type="submit" formaction="delete_file.php?url=bc_edit&amp;id=<?= intval($file['id']); ?>" form="deleteFileForm" class="btn btn-sm btn-link p-0" onclick="return confirm(<?= htmlspecialchars(trj('Are you sure you want to delete this file?')) ?>);" aria-label="<?= trh('Delete {file}', ['file' => $file['file_name']]); ?>">
                                                                 <i class="fas fa-trash fa-sm" style="color:red"></i>
-                                                            </a>
+                                                            </button>
                                                         </td>
                                                     </tr>
                                                 <?php endwhile; ?>

@@ -467,7 +467,7 @@ require 'header.php';
                     // Populate the dropdown with options from the database
                     while ($userRow = $userResult->fetch_assoc()) {
                         $user_id = htmlspecialchars($userRow['id']);
-                        $initials = htmlspecialchars($userRow['initials']);
+                        $initials = htmlspecialchars($userRow['initials'] ?? '');
                         $name = htmlspecialchars($userRow['name']);
                         echo "<option value='$user_id'>$initials [$name]</option>";
                     }

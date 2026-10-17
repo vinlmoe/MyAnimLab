@@ -10,6 +10,17 @@
 
 session_start();
 require 'dbcon.php';
+
+if (!isset($_SESSION['username'])) {
+    header('Location: index.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
+    exit;
+}
+// Reference data shared by the whole facility: administrators only (as in the menu).
+if (($_SESSION['role'] ?? '') !== 'admin') {
+    $_SESSION['message'] = tr('Admin only.');
+    header('Location: home.php');
+    exit;
+}
 require 'header.php';
 
 if (empty($_SESSION['csrf_token'])) {
