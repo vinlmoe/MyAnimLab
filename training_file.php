@@ -8,7 +8,7 @@
 session_start();
 require 'dbcon.php';
 require 'animal_lib.php';
-require 'training_lib.php';
+require_once 'training_lib.php';
 
 if (!isset($_SESSION['username'])) {
     header('Location: index.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));

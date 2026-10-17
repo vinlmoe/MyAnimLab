@@ -139,14 +139,14 @@ if (($_GET['format'] ?? '') === 'acts_csv') {
     header('Content-Disposition: attachment; filename="experiment_' . preg_replace('/[^A-Za-z0-9_-]/', '_', $exp['experiment_number']) . '_acts_' . date('Y-m-d') . '.csv"');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF");
-    fputcsv($out, ['experiment', 'animal', 'cage', 'act_type', 'act', 'substance', 'dose', 'dose_unit', 'route', 'planned_date', 'status', 'done_at', 'done_by',
+    fputcsv($out, ['experiment', 'animal', 'cage', 'act_type', 'act', 'substance', 'dose', 'dose_unit', 'route', 'planned_date', 'status', 'done_at', 'done_by', 'supervised_by',
         'medication', 'lot', 'quantity_used', 'unit', 'values', 'note']);
     $safe = fn($v) => is_string($v) && preg_match('/^[=+\-@]/', $v) ? "'" . $v : $v;
     foreach ($actRows as $r) {
         fputcsv($out, array_map($safe, [
             $exp['experiment_number'], $r['animal_uid'] ?: $r['mouse_id'], $r['cage_id'], $r['act_type'], $r['label'], $r['substance'],
             act_number($r['dose_amount']), $r['dose_unit'], $r['route'], $r['planned_date'], $r['status'],
-            $r['status'] === 'planned' ? '' : $r['done_at'], $r['done_by_name'],
+            $r['status'] === 'planned' ? '' : $r['done_at'], $r['done_by_name'], $r['supervised_by_name'],
             $r['medication_lot_id'] ? $r['product_name'] : '', $r['lot_number'], act_number($r['quantity_used']), $r['medication_lot_id'] ? $r['product_unit'] : '',
             $actValuesText((int) $r['id']), $r['note'],
         ]));
@@ -405,7 +405,7 @@ require 'header.php';
                                     <td><?= $r['medication_lot_id'] ? trh('{qty} {unit}, lot {lot}', ['qty' => act_number($r['quantity_used']), 'unit' => $r['product_unit'], 'lot' => $r['lot_number']]) : ''; ?></td>
                                     <td><?= htmlspecialchars($actValuesText((int) $r['id'])); ?><?= $r['note'] ? ' <em>' . htmlspecialchars($r['note']) . '</em>' : ''; ?>
                                         <?php foreach ($actCorrections[(int) $r['id']] ?? [] as $c) : ?><div class="small text-warning-emphasis"><i class="fas fa-undo"></i> <?= htmlspecialchars(act_correction_text($c)); ?></div><?php endforeach; ?></td>
-                                    <td><?= htmlspecialchars($r['done_by_name'] ?? ''); ?></td>
+                                    <td><?= htmlspecialchars(act_done_by_text($r)); ?></td>
                                 </tr>
                             <?php endforeach; ?>
                         </table>

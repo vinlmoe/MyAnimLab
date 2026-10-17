@@ -14,7 +14,7 @@ session_start();
 require 'dbcon.php';
 require 'animal_lib.php';
 require 'experiment_acts_lib.php';
-require 'training_lib.php';
+require_once 'training_lib.php';
 
 if (!isset($_SESSION['username'])) {
     header('Location: index.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
@@ -441,7 +441,7 @@ require 'header.php';
                                             }
                                             $tip = [$d . ' — ' . $statusLabels[$r['status']]];
                                             if ($r['done_at'] && $r['status'] !== 'planned') {
-                                                $tip[] = substr($r['done_at'], 0, 16) . ' — ' . ($r['done_by_name'] ?? '');
+                                                $tip[] = substr($r['done_at'], 0, 16) . ' — ' . act_done_by_text($r);
                                             }
                                             if ($r['medication_lot_id']) {
                                                 $tip[] = tr('{qty} {unit}, lot {lot}', ['qty' => act_number($r['quantity_used']), 'unit' => $r['product_unit'], 'lot' => $r['lot_number']]);

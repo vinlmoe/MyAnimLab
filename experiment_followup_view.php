@@ -187,7 +187,7 @@ require 'header.php';
                         <tr class="<?= $xa['status'] === 'not_done' ? 'table-danger' : '' ?>">
                             <th style="width: 30%"><?= htmlspecialchars($xa['label']) ?><?php if ($summary = experiment_act_summary($xa)) : ?><br><small class="text-muted fw-normal"><?= htmlspecialchars($summary) ?></small><?php endif; ?></th>
                             <td>
-                                <strong><?= htmlspecialchars(experiment_act_statuses()[$xa['status']]) ?></strong> — <?= htmlspecialchars(substr((string) $xa['done_at'], 11, 5) . ' · ' . ($xa['done_by_name'] ?? '')) ?>
+                                <strong><?= htmlspecialchars(experiment_act_statuses()[$xa['status']]) ?></strong> — <?= htmlspecialchars(substr((string) $xa['done_at'], 11, 5) . ' · ' . act_done_by_text($xa)) ?>
                                 <?php if ($xa['medication_lot_id']) : ?><br><?= trh('{qty} {unit}, lot {lot}', ['qty' => act_number($xa['quantity_used']), 'unit' => $xa['product_unit'], 'lot' => $xa['lot_number']]) ?><?php endif; ?>
                                 <?php foreach ($dayActValues[(int) $xa['id']] ?? [] as $v) : ?><br><?= htmlspecialchars($v['label'] . ' : ' . observation_value($v)) ?><?php endforeach; ?>
                                 <?php if ($xa['note']) : ?><br><em><?= htmlspecialchars($xa['note']) ?></em><?php endif; ?>

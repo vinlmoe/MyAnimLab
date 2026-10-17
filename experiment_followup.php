@@ -19,7 +19,7 @@ session_start();
 require 'dbcon.php';
 require 'animal_lib.php';
 require 'experiment_acts_lib.php';
-require 'training_lib.php';
+require_once 'training_lib.php';
 
 if (!isset($_SESSION['username'])) {
     header("Location: index.php");
@@ -606,6 +606,7 @@ require 'header.php';
                         <?php if ($plannedActs || $confirmedActList) : ?>
                             <div id="actsSection" class="mb-3">
                                 <h6><i class="fas fa-syringe"></i> <?= trh('Experimental acts') ?> <small class="text-muted">(<?= trh('tick each act done; leave “later” if it is not done yet') ?>)</small></h6>
+                                <?php if ($plannedActs) : ?><?= training_supervisor_field($con) ?><?php endif; ?>
                                 <?php foreach ($plannedActs as $act) :
                                     $aid = (int) $act['id'];
                                     $fields = $actFields[(int) $act['act_id']] ?? []; ?>
@@ -665,7 +666,7 @@ require 'header.php';
                                         <span class="badge bg-<?= $act['status'] === 'done' ? 'success' : 'danger' ?>"><?= htmlspecialchars(experiment_act_statuses()[$act['status']]) ?></span>
                                         <strong><?= htmlspecialchars($act['label']) ?></strong>
                                         <?php if ($summary = experiment_act_summary($act)) : ?><span class="text-muted">— <?= htmlspecialchars($summary) ?></span><?php endif; ?>
-                                        <span class="small text-muted">· <?= htmlspecialchars(substr((string) $act['done_at'], 0, 16) . ' — ' . ($act['done_by_name'] ?? '')) ?></span>
+                                        <span class="small text-muted">· <?= htmlspecialchars(substr((string) $act['done_at'], 0, 16) . ' — ' . act_done_by_text($act)) ?></span>
                                         <div class="small">
                                             <?php if ($act['medication_lot_id']) : ?><?= trh('{qty} {unit}, lot {lot}', ['qty' => act_number($act['quantity_used']), 'unit' => $act['product_unit'], 'lot' => $act['lot_number']]) ?> · <?php endif; ?>
                                             <?= implode(' · ', array_map(fn($v) => htmlspecialchars($v['label'] . ' : ' . observation_value($v)), $actValues[(int) $act['id']] ?? [])) ?>
@@ -744,7 +745,7 @@ require 'header.php';
                                 <td class="text-nowrap"><?= htmlspecialchars(substr((string) $act['done_at'], 0, 16)) ?></td>
                                 <td><?= $act['medication_lot_id'] ? trh('{qty} {unit}, lot {lot}', ['qty' => act_number($act['quantity_used']), 'unit' => $act['product_unit'], 'lot' => $act['lot_number']]) : '' ?></td>
                                 <td><?= implode('<br>', array_map(fn($v) => htmlspecialchars($v['label'] . ' : ' . observation_value($v)), $actValues[(int) $act['id']] ?? [])) ?><?= $act['note'] ? ' <em>' . htmlspecialchars($act['note']) . '</em>' : '' ?></td>
-                                <td><?= htmlspecialchars($act['done_by_name'] ?? '') ?></td>
+                                <td><?= htmlspecialchars(act_done_by_text($act)) ?></td>
                                 <td class="text-nowrap">
                                     <?php if ($canCorrect) : ?>
                                         <details>

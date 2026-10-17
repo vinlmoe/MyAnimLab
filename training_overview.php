@@ -2,7 +2,7 @@
 
 /**
  * Training records of the staff (administrators and BEA responsibles): for
- * every approved user, the functions held (trained / competence validated),
+ * every approved user, the initial diploma, the functions held (trained / competence validated),
  * the continuing training over the rolling period against the regulatory
  * minimum with its deadline, and the entries waiting for validation.
  * Non-compliant people first; CSV export. Administrators set the continuing
@@ -12,7 +12,7 @@
 session_start();
 require 'dbcon.php';
 require 'animal_lib.php';
-require 'training_lib.php';
+require_once 'training_lib.php';
 
 if (!isset($_SESSION['username'])) {
     header('Location: index.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
@@ -82,12 +82,13 @@ if (($_GET['format'] ?? '') === 'csv') {
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF");
     $safe = fn($v) => is_string($v) && preg_match('/^[=+\-@]/', $v) ? "'" . $v : $v;
-    fputcsv($out, array_merge(['name', 'email', 'position'], array_map(fn($c) => "function_$c", array_keys(training_functions())),
+    fputcsv($out, array_merge(['name', 'email', 'position', 'initial_diploma', 'diploma_level'], array_map(fn($c) => "function_$c", array_keys(training_functions())),
         ['first_initial_training', 'cpd_hours_in_period', 'cpd_required_hours', 'period_start', 'cpd_status', 'deadline', 'entries_to_validate']), ';');
     foreach ($rows as $r) {
         $s = $r['status'];
         $fn = array_map(fn($f) => $f['state'] === 'competent' ? 'competent ' . $f['competent_on'] : ($f['state'] === 'supervised' ? 'supervised ' . $f['trained_on'] : ''), $s['functions']);
-        fputcsv($out, array_map($safe, array_merge([$r['user']['name'], $r['user']['username'], $r['user']['position']], array_values($fn),
+        fputcsv($out, array_map($safe, array_merge([$r['user']['name'], $r['user']['username'], $r['user']['position'],
+            $s['diploma'] ? training_diploma_text($s['diploma']) : '', $s['diploma']['diploma_level'] ?? ''], array_values($fn),
             [$s['cpd']['first_initial'], $s['cpd']['hours'], $s['cpd']['required_hours'], $s['cpd']['window_from'], $s['cpd']['state'], $s['cpd']['deadline'], $s['pending']])), ';');
     }
     fclose($out);
@@ -126,6 +127,7 @@ require 'header.php';
                 <thead class="table-light">
                     <tr>
                         <th><?= trh('Person') ?></th>
+                        <th><?= trh('Initial diploma') ?></th>
                         <?php foreach ($functionShort as $code => $label) : ?><th title="<?= htmlspecialchars(training_functions()[$code]) ?>"><?= htmlspecialchars($label) ?></th><?php endforeach; ?>
                         <th><?= trh('Continuing training') ?></th>
                         <th><?= trh('Status') ?></th>
@@ -136,6 +138,7 @@ require 'header.php';
                     <?php foreach ($rows as $r) : $s = $r['status']; $u = $r['user']; ?>
                         <tr class="<?= $s['cpd']['state'] === 'late' ? 'table-danger' : '' ?>">
                             <td><a href="training_book.php?user_id=<?= (int) $u['id'] ?>" class="fw-bold"><?= htmlspecialchars($u['name']) ?></a><br><small class="text-muted"><?= htmlspecialchars($u['position']) ?></small></td>
+                            <td class="small"><?= $s['diploma'] ? htmlspecialchars(training_diploma_text($s['diploma'])) : '<span class="text-danger">' . trh('not recorded') . '</span>' ?></td>
                             <?php foreach (array_keys($functionShort) as $code) : $f = $s['functions'][$code]; ?>
                                 <td class="text-center">
                                     <?php if ($f['state'] === 'competent') : ?><i class="fas fa-check-circle text-success" title="<?= trh('Competent since {date}', ['date' => $f['competent_on']]) ?>"></i>

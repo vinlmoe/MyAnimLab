@@ -33,11 +33,35 @@ function training_functions(): array
 function training_categories(): array
 {
     return [
+        'diploma' => tr('Initial diploma'),
         'initial' => tr('Initial regulatory training'),
         'competence' => tr('Competence validated (end of supervision)'),
         'continuing' => tr('Continuing training'),
-        'other' => tr('Other training or diploma'),
+        'other' => tr('Other training'),
     ];
+}
+
+// Levels of the initial diploma (French / European qualification levels).
+function training_diploma_levels(): array
+{
+    return [
+        'cap_bep' => tr('CAP / BEP (level 3)'),
+        'bac' => tr('Baccalauréat (level 4)'),
+        'bac2' => tr('BTS / DUT / BTSA, bac+2 (level 5)'),
+        'bac3' => tr('Licence / BUT, bac+3 (level 6)'),
+        'bac5' => tr('Master / engineer, bac+5 (level 7)'),
+        'phd' => tr('Doctorate (level 8)'),
+        'dvm' => tr('Doctor of veterinary medicine'),
+        'md' => tr('Doctor of medicine / pharmacy'),
+        'other' => tr('Other diploma'),
+    ];
+}
+
+// Summary of a diploma entry: title, level, institution, year.
+function training_diploma_text(array $r): string
+{
+    return trim($r['title'] . ($r['diploma_level'] ? ' — ' . (training_diploma_levels()[$r['diploma_level']] ?? $r['diploma_level']) : '')
+        . ($r['organisation'] ? ', ' . $r['organisation'] : '') . ' (' . substr((string) $r['start_date'], 0, 4) . ')');
 }
 
 function training_entry_statuses(): array
@@ -104,6 +128,7 @@ function training_status(mysqli $con, array $records, ?string $today = null): ar
         $functions[$code] = ['state' => 'none', 'trained_on' => null, 'competent_on' => null];
     }
     $firstInitial = null;
+    $diploma = null;
     $continuing = [];
     $pending = 0;
     foreach ($records as $r) {
@@ -115,7 +140,10 @@ function training_status(mysqli $con, array $records, ?string $today = null): ar
         }
         $date = $r['end_date'] ?: $r['start_date'];
         $code = $r['function_code'];
-        if ($r['category'] === 'initial' && isset($functions[$code])) {
+        if ($r['category'] === 'diploma') {
+            // Highest recorded diploma: the most recent one.
+            $diploma = $diploma === null || $r['start_date'] > $diploma['start_date'] ? $r : $diploma;
+        } elseif ($r['category'] === 'initial' && isset($functions[$code])) {
             $functions[$code]['trained_on'] = min($functions[$code]['trained_on'] ?? $date, $date);
             $firstInitial = min($firstInitial ?? $date, $date);
         } elseif ($r['category'] === 'competence' && isset($functions[$code])) {
@@ -151,7 +179,7 @@ function training_status(mysqli $con, array $records, ?string $today = null): ar
         $cpd['state'] = $deadline > $today ? 'to_complete' : 'late';
     }
     $ok = $cpd['state'] !== 'late' && !in_array('supervised', array_column($functions, 'state'), true);
-    return ['functions' => $functions, 'cpd' => $cpd, 'pending' => $pending, 'ok' => $ok];
+    return ['functions' => $functions, 'cpd' => $cpd, 'pending' => $pending, 'ok' => $ok, 'diploma' => $diploma];
 }
 
 function training_status_for_user(mysqli $con, int $userId): array
@@ -303,4 +331,73 @@ function training_send_reminders(mysqli $con): void
             }
         }
     }
+}
+
+// True when the user is not competent to apply procedures alone (not
+// trained, or trained and still under supervision): an act they confirm
+// needs the name of the competent person supervising them.
+function training_needs_supervisor(mysqli $con, int $userId): bool
+{
+    static $cache = [];
+    return $cache[$userId] ??= training_status_for_user($con, $userId)['functions']['procedures']['state'] !== 'competent';
+}
+
+// Approved users whose competence to apply procedures is validated, other
+// than $excludeUserId: [id => name].
+function training_competent_supervisors(mysqli $con, int $excludeUserId): array
+{
+    static $cache = [];
+    if (isset($cache[$excludeUserId])) {
+        return $cache[$excludeUserId];
+    }
+    $users = $con->query("SELECT id, name FROM users WHERE status = 'approved' ORDER BY name")->fetch_all(MYSQLI_ASSOC);
+    $records = training_records($con, array_column($users, 'id'));
+    $out = [];
+    foreach ($users as $u) {
+        if ((int) $u['id'] !== $excludeUserId && training_status($con, $records[(int) $u['id']] ?? [])['functions']['procedures']['state'] === 'competent') {
+            $out[(int) $u['id']] = $u['name'];
+        }
+    }
+    return $cache[$excludeUserId] = $out;
+}
+
+/**
+ * Supervisor field of an act confirmation form, for a user who needs one:
+ * a competent person of the establishment, or another person whose name is
+ * typed (e.g. from another establishment). Posted as act_supervisor /
+ * act_supervisor_other; required as soon as an act of the form is ticked done.
+ */
+function training_supervisor_field(mysqli $con, string $idSuffix = ''): string
+{
+    $userId = (int) ($_SESSION['user_id'] ?? 0);
+    if (!$userId || !training_needs_supervisor($con, $userId)) {
+        return '';
+    }
+    $options = '<option value="">' . trh('Choose the supervisor…') . '</option>';
+    foreach (training_competent_supervisors($con, $userId) as $id => $name) {
+        $options .= '<option value="' . $id . '">' . htmlspecialchars($name) . '</option>';
+    }
+    $options .= '<option value="other">' . trh('Other person (name)') . '</option>';
+    $sel = 'actSupervisor' . $idSuffix;
+    return '<div class="alert alert-warning py-2 mb-2 act-supervisor-box"><div class="row g-2 align-items-end">'
+        . '<div class="col-md-5"><label class="form-label small mb-0" for="' . $sel . '"><i class="fas fa-user-shield"></i> ' . trh('Supervisor present') . ' *</label>'
+        . '<select class="form-select form-select-sm act-supervisor" name="act_supervisor" id="' . $sel . '">' . $options . '</select></div>'
+        . '<div class="col-md-4 act-supervisor-other" hidden><input class="form-control form-control-sm" name="act_supervisor_other" maxlength="255" placeholder="' . trh('Name of the supervisor') . '"></div>'
+        . '<div class="col-12 small">' . trh('Your competence to apply procedures is not validated in your training record: an act you confirm as done needs the competent person supervising you.') . '</div>'
+        . '</div></div>' . training_supervisor_script();
+}
+
+// Script of the supervisor fields (emitted once per page).
+function training_supervisor_script(): string
+{
+    static $done = false;
+    if ($done) {
+        return '';
+    }
+    $done = true;
+    return "<script>document.addEventListener('DOMContentLoaded', () => document.querySelectorAll('.act-supervisor-box').forEach(box => {"
+        . "const form = box.closest('form'), sel = box.querySelector('.act-supervisor'), otherBox = box.querySelector('.act-supervisor-other'), other = otherBox.querySelector('input');"
+        . "const sync = () => { const done = [...form.querySelectorAll('.act-status:checked')].some(r => r.value === 'done' && !r.disabled);"
+        . "sel.required = done; otherBox.hidden = sel.value !== 'other'; other.required = done && sel.value === 'other'; };"
+        . "form.addEventListener('change', sync); form.addEventListener('click', () => setTimeout(sync)); sync(); }));</script>";
 }
