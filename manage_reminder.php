@@ -396,7 +396,7 @@ ob_end_flush(); // Flush the output buffer
         <h2><?= trh('Manage Reminders') ?></h2>
         <?php if (isset($_SESSION['message'])) : ?>
             <div class="alert alert-info">
-                <?= $_SESSION['message']; ?>
+                <?= htmlspecialchars($_SESSION['message']); ?>
                 <?php unset($_SESSION['message']); ?>
             </div>
         <?php endif; ?>
@@ -684,7 +684,7 @@ ob_end_flush(); // Flush the output buffer
             $('#monthlyOptions').hide();
             $('#titleCounter').text(charactersUsed(0, 100));
             $('#descriptionCounter').text(charactersUsed(0, 500));
-            $('#assigned_by').val('<?= $currentUserName; ?>');
+            $('#assigned_by').val(<?= json_encode((string) $currentUserName, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>);
         }
 
         // Fetch reminder data for editing

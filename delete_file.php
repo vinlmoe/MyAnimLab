@@ -21,7 +21,14 @@ if (!isset($_SESSION['username'])) {
     exit; // Exit to ensure no further code is executed
 }
 
-// Check if the 'id' parameter is set in the GET request
+// Deleting changes data: only by POST with the session's CSRF token (the
+// delete buttons submit the cage edit form, which carries it).
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], (string) ($_POST['csrf_token'] ?? ''))) {
+    http_response_code(403);
+    exit(trh('CSRF token validation failed'));
+}
+
+// Check if the 'id' parameter is set in the request
 if (isset($_GET['id'])) {
     $id = $_GET['id']; // Get the file ID from the GET request
 

@@ -203,7 +203,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
         <br>
         <form method="POST" action="">
             <!-- Hidden field for the token -->
-            <input type="hidden" id="token" name="token" value="<?= htmlspecialchars($_GET['token']); ?>">
+            <input type="hidden" id="token" name="token" value="<?= htmlspecialchars($_GET['token'] ?? ''); ?>">
 
             <!-- New Password Field -->
             <div class="form-group">

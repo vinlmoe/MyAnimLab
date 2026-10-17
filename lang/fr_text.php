@@ -1955,4 +1955,8 @@ return [
     'not recorded' => 'non renseigné',
     'not recorded (or not validated yet)' => 'non renseigné (ou pas encore validé)',
     '{act}: give the competent person supervising you (your competence to apply procedures is not validated).' => '{act} : indiquez la personne compétente qui vous encadre (votre compétence pour appliquer les procédures n’est pas validée).',
+
+    // quality review
+    'Only the author of the note or an administrator can change it.' => 'Seul l’auteur de la note ou un administrateur peut la modifier.',
+    'You must be logged in.' => 'Vous devez être connecté.',
 ];
