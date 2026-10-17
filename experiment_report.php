@@ -119,6 +119,7 @@ $stmt->execute();
 $actRows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 $actValues = experiment_act_values($con, array_column($actRows, 'id'));
+$actCorrections = experiment_act_corrections($con, array_column($actRows, 'id'));
 $actsByEnrollment = $actCounts = [];
 foreach ($actRows as $r) {
     $actsByEnrollment[(int) $r['experiment_animal_id']][] = $r;
@@ -402,7 +403,8 @@ require 'header.php';
                                     <td><?= htmlspecialchars($actStatus[$r['status']]); ?></td>
                                     <td class="text-nowrap"><?= $r['status'] === 'planned' ? '' : htmlspecialchars(substr((string) $r['done_at'], 0, 16)); ?></td>
                                     <td><?= $r['medication_lot_id'] ? trh('{qty} {unit}, lot {lot}', ['qty' => act_number($r['quantity_used']), 'unit' => $r['product_unit'], 'lot' => $r['lot_number']]) : ''; ?></td>
-                                    <td><?= htmlspecialchars($actValuesText((int) $r['id'])); ?><?= $r['note'] ? ' <em>' . htmlspecialchars($r['note']) . '</em>' : ''; ?></td>
+                                    <td><?= htmlspecialchars($actValuesText((int) $r['id'])); ?><?= $r['note'] ? ' <em>' . htmlspecialchars($r['note']) . '</em>' : ''; ?>
+                                        <?php foreach ($actCorrections[(int) $r['id']] ?? [] as $c) : ?><div class="small text-warning-emphasis"><i class="fas fa-undo"></i> <?= htmlspecialchars(act_correction_text($c)); ?></div><?php endforeach; ?></td>
                                     <td><?= htmlspecialchars($r['done_by_name'] ?? ''); ?></td>
                                 </tr>
                             <?php endforeach; ?>

@@ -93,6 +93,7 @@ $enrollStmt->close();
 $total = count($enrollments);
 $done = count(array_filter($enrollments, fn($en) => $en['followup_id']));
 $actsDue = cage_acts_due($con, $cageId, $today);
+$actWeights = enrollment_latest_weights($con, array_merge([], ...array_map(fn($rows) => array_column($rows, 'experiment_animal_id'), array_values($actsDue))));
 $actsPending = array_sum(array_map('count', $actsDue));
 $complete = $total > 0 && $done === $total && $actsPending === 0;
 // The check is recorded on the last follow-up or act; record it here too when
@@ -212,7 +213,13 @@ require 'header.php';
                                                     <td><input type="text" class="form-control form-control-sm act-input" name="act_value[<?= $rid ?>][<?= (int) $fieldId ?>]" <?= $f['value_type'] === 'number' ? 'inputmode="decimal" pattern="-?[0-9]+([.,][0-9]+)?"' : '' ?> data-required="<?= (int) $f['required'] ?>"></td>
                                                 <?php endforeach; ?>
                                                 <?php if ($act['product_id']) : ?>
-                                                    <td style="width: 8rem"><input type="text" class="form-control form-control-sm act-input" name="act_qty[<?= $rid ?>]" inputmode="decimal" pattern="[0-9]+([.,][0-9]+)?" value="<?= htmlspecialchars(act_number($act['quantity_per_animal'])) ?>" data-required="1"></td>
+                                                    <?php $w = $actWeights[(int) $r['experiment_animal_id']] ?? null;
+                                                    $suggested = act_suggested_quantity($r, $w['weight'] ?? null); ?>
+                                                    <td style="width: 9rem">
+                                                        <input type="text" class="form-control form-control-sm act-input" name="act_qty[<?= $rid ?>]" inputmode="decimal" pattern="[0-9]+([.,][0-9]+)?" value="<?= htmlspecialchars($suggested !== null ? act_number((string) $suggested) : act_number($act['quantity_per_animal'])) ?>" data-required="1">
+                                                        <?php if ($suggested !== null) : ?><small class="text-success" title="<?= htmlspecialchars(act_quantity_per_gram($r)[1]) ?>"><i class="fas fa-weight"></i> <?= trh('for {weight} g ({date})', ['weight' => act_number((string) $w['weight']), 'date' => $w['date'] ?? tr('baseline')]) ?></small>
+                                                        <?php elseif (act_quantity_per_gram($r)) : ?><small class="text-warning"><?= trh('weight unknown') ?></small><?php endif; ?>
+                                                    </td>
                                                 <?php endif; ?>
                                             </tr>
                                         <?php endforeach; ?>

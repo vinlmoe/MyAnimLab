@@ -139,7 +139,7 @@ $nOngoing = array_sum(array_map('count', $ongoingByCage));
 
 // Planned acts with the status of every animal on every date.
 $stmt = $con->prepare(
-    "SELECT a.*, mp.name AS product_name, mp.default_unit AS product_unit FROM experiment_acts a
+    "SELECT a.*, mp.name AS product_name, mp.default_unit AS product_unit, mp.is_narcotic, mp.concentration, mp.concentration_unit FROM experiment_acts a
      LEFT JOIN medication_products mp ON mp.id = a.product_id WHERE a.experiment_id = ? ORDER BY a.id DESC"
 );
 $stmt->bind_param('i', $experimentId);
@@ -167,7 +167,7 @@ foreach ($rowsByAct as $rows) {
 }
 $valuesByRow = experiment_act_values($con, $allRowIds);
 
-$products = $con->query('SELECT id, name, default_unit, active_ingredient FROM medication_products WHERE active = 1 ORDER BY name')->fetch_all(MYSQLI_ASSOC);
+$products = $con->query('SELECT id, name, default_unit, active_ingredient, is_narcotic, concentration, concentration_unit FROM medication_products WHERE active = 1 ORDER BY name')->fetch_all(MYSQLI_ASSOC);
 $today = date('Y-m-d');
 $statusLabels = experiment_act_statuses();
 $statusCell = [
@@ -268,17 +268,18 @@ require 'header.php';
                             <select class="form-select" name="product_id" id="product_id">
                                 <option value="" data-unit=""><?= trh('None (not taken from the stock)') ?></option>
                                 <?php foreach ($products as $p) : ?>
-                                    <option value="<?= (int) $p['id'] ?>" data-unit="<?= htmlspecialchars($p['default_unit']) ?>"><?= htmlspecialchars($p['name'] . ($p['active_ingredient'] ? ' (' . $p['active_ingredient'] . ')' : '')) ?></option>
+                                    <option value="<?= (int) $p['id'] ?>" data-unit="<?= htmlspecialchars($p['default_unit']) ?>" data-conc="<?= htmlspecialchars(act_number($p['concentration'])) ?>" data-conc-unit="<?= htmlspecialchars($p['concentration_unit'] ?? '') ?>"><?= htmlspecialchars($p['name'] . ($p['active_ingredient'] ? ' (' . $p['active_ingredient'] . ')' : '') . ($p['concentration'] ? ' — ' . act_number($p['concentration']) . ' ' . $p['concentration_unit'] : '') . ($p['is_narcotic'] ? ' — ' . tr('narcotic') : '')) ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
                         <div class="col-md-4 d-none" id="quantityBox">
-                            <label class="form-label" for="quantity_per_animal"><?= trh('Quantity taken from the stock per animal') ?> *</label>
+                            <label class="form-label" for="quantity_per_animal"><?= trh('Quantity taken from the stock per animal') ?> <span id="quantityStar">*</span></label>
                             <div class="input-group">
                                 <input class="form-control" name="quantity_per_animal" id="quantity_per_animal" inputmode="decimal" pattern="[0-9]+([.,][0-9]+)?">
                                 <span class="input-group-text" id="quantityUnit"></span>
                             </div>
-                            <div class="form-text"><?= trh('Suggested at confirmation, where it can be adjusted to the animal (e.g. dose by weight).') ?></div>
+                            <div class="form-text" id="quantityHelp"><?= trh('Suggested at confirmation, where it can be adjusted to the animal.') ?></div>
+                            <div class="form-text text-success d-none" id="weightDoseHelp"><i class="fas fa-weight"></i> <?= str_replace('{formula}', '<span id="weightFormula"></span>', trh('Dose by weight: the volume of each animal is calculated at confirmation from its latest weight ({formula}). A fixed quantity is optional (used when the weight is unknown).', ['formula' => '{formula}'])) ?></div>
                         </div>
                         <div class="col-md-8">
                             <label class="form-label" for="instructions"><?= trh('Instructions') ?></label>
@@ -386,7 +387,9 @@ require 'header.php';
                         <strong><?= htmlspecialchars($act['label']) ?></strong>
                         <?php if ($summary = experiment_act_summary($act)) : ?><span class="text-muted">— <?= htmlspecialchars($summary) ?></span><?php endif; ?>
                         <div class="small text-muted">
-                            <?php if ($act['product_id']) : ?><i class="fas fa-pills"></i> <?= trh('Stock: {product}, {qty} {unit} per animal', ['product' => $act['product_name'], 'qty' => act_number($act['quantity_per_animal']), 'unit' => $act['product_unit']]) ?> · <?php endif; ?>
+                            <?php if ($act['product_id']) : $perGram = act_quantity_per_gram($act); ?><i class="fas fa-pills"></i> <?= $perGram
+                                ? trh('Stock: {product}, volume by weight ({formula})', ['product' => $act['product_name'], 'formula' => $perGram[1]])
+                                : trh('Stock: {product}, {qty} {unit} per animal', ['product' => $act['product_name'], 'qty' => act_number($act['quantity_per_animal']), 'unit' => $act['product_unit']]) ?><?= $act['is_narcotic'] ? ' <span class="badge bg-dark">' . trh('narcotic') . '</span>' : '' ?> · <?php endif; ?>
                             <?php if ($fields) : ?><?= trh('Asks: {fields}', ['fields' => implode(', ', array_map(fn($f) => $f['label'] . ($f['unit'] ? ' (' . $f['unit'] . ')' : '') . ($f['required'] ? ' *' : ''), $fields))]) ?> · <?php endif; ?>
                             <?= trh('planned by {user} on {date}', ['user' => $act['created_by_name'] ?? '—', 'date' => substr($act['created_at'], 0, 10)]) ?>
                         </div>
@@ -482,13 +485,35 @@ require 'header.php';
             const product = document.getElementById('product_id');
             const qtyBox = document.getElementById('quantityBox');
             const qty = document.getElementById('quantity_per_animal');
+            const doseAmount = document.getElementById('dose_amount');
+            const doseUnit = document.getElementById('dose_unit');
+            // Same rule as act_quantity_per_gram(): X mass/kg with a product in mL of known concentration, or X mL/kg.
+            const byWeight = () => {
+                const o = product.options[product.selectedIndex];
+                const unit = (doseUnit.value || '').replace(/\s/g, '').toLowerCase();
+                const dose = parseFloat((doseAmount.value || '').replace(',', '.'));
+                if (!product.value || !(dose > 0) || (o.dataset.unit || '').toLowerCase() !== 'ml') return null;
+                if (unit === 'ml/kg') return dose + ' mL/kg × ' + <?= trj('weight') ?>;
+                const conc = (o.dataset.concUnit || '').replace(/\s/g, '').toLowerCase();
+                if (/^(g|mg|µg|ug|mcg|ng)\/kg$/.test(unit) && o.dataset.conc && /^(g|mg|µg|ug|mcg|ng)\/ml$/.test(conc)) {
+                    return dose + ' ' + doseUnit.value + ' × ' + <?= trj('weight') ?> + ' ÷ ' + o.dataset.conc + ' ' + o.dataset.concUnit;
+                }
+                return null;
+            };
             const syncProduct = () => {
                 const on = product.value !== '';
+                const formula = byWeight();
                 qtyBox.classList.toggle('d-none', !on);
-                qty.required = on;
+                qty.required = on && !formula;
+                document.getElementById('quantityStar').hidden = !!formula;
+                document.getElementById('weightDoseHelp').classList.toggle('d-none', !formula);
+                document.getElementById('quantityHelp').classList.toggle('d-none', !!formula);
+                document.getElementById('weightFormula').textContent = formula || '';
                 document.getElementById('quantityUnit').textContent = product.options[product.selectedIndex].dataset.unit || '';
             };
             product.addEventListener('change', syncProduct);
+            doseAmount.addEventListener('input', syncProduct);
+            doseUnit.addEventListener('input', syncProduct);
             syncProduct();
 
             // Information to ask.

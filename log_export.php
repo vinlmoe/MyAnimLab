@@ -38,6 +38,7 @@ const RAW_LOGS = [
     'experiment_acts' => ['Experimental acts planned', 'experiment_acts', 't.created_at'],
     'experiment_act_fields' => ['Information asked by the experimental acts', 'experiment_act_fields', 'a.created_at', 'JOIN experiment_acts a ON a.id = t.act_id'],
     'experiment_act_animals' => ['Experimental acts per animal and date (status, confirmation, lot)', 'experiment_act_animals', 't.planned_date'],
+    'experiment_act_corrections' => ['Corrections of experimental act confirmations', 'experiment_act_corrections', 't.corrected_at'],
     'experiment_act_values' => ['Information entered when confirming the experimental acts', 'experiment_act_values', 'aa.planned_date', 'JOIN experiment_act_animals aa ON aa.id = t.act_animal_id'],
     'notifications' => ['In-app notifications', 'notifications', 'created_at'],
     'outbox' => ['Email queue', 'outbox', 'created_at'],
