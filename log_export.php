@@ -40,6 +40,7 @@ const RAW_LOGS = [
     'experiment_act_animals' => ['Experimental acts per animal and date (status, confirmation, lot)', 'experiment_act_animals', 't.planned_date'],
     'experiment_act_corrections' => ['Corrections of experimental act confirmations', 'experiment_act_corrections', 't.corrected_at'],
     'experiment_act_values' => ['Information entered when confirming the experimental acts', 'experiment_act_values', 'aa.planned_date', 'JOIN experiment_act_animals aa ON aa.id = t.act_animal_id'],
+    'training_records' => ['Training records (initial, competences, continuing training)', 'training_records', 't.created_at'],
     'notifications' => ['In-app notifications', 'notifications', 'created_at'],
     'outbox' => ['Email queue', 'outbox', 'created_at'],
 ];

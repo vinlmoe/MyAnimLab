@@ -255,7 +255,9 @@ if (isset($settings['r2_pres'])) {
                 <ul class="dropdown-menu" aria-labelledby="settingsMenuButton">
                     <li><a class="dropdown-item" href="user_profile.php"><?= htmlspecialchars(t('nav.profile')) ?></a></li>
                     <li><a class="dropdown-item" href="manage_tasks.php"><?= htmlspecialchars(t('nav.tasks')) ?></a></li>
+                    <li><a class="dropdown-item" href="training_book.php"><i class="fas fa-user-graduate me-1"></i> <?= trh('My training record') ?></a></li>
                     <?php if ($showBeaReview) : ?>
+                        <li><a class="dropdown-item" href="training_overview.php"><i class="fas fa-users me-1"></i> <?= trh('Training records of the staff') ?></a></li>
                         <li><a class="dropdown-item" href="experiment_retrospective.php"><i class="fas fa-clipboard-list me-1"></i> <?= trh('BEA retrospective review') ?></a></li>
                         <li><a class="dropdown-item" href="annual_report.php"><i class="fas fa-chart-bar me-1"></i> <?= htmlspecialchars(t('nav.annual_report')) ?></a></li>
                     <?php endif; ?>

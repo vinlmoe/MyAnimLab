@@ -13,6 +13,7 @@ session_start();
 require 'dbcon.php';
 require 'animal_lib.php';
 require 'experiment_acts_lib.php';
+require 'training_lib.php';
 
 if (!isset($_SESSION['username'])) {
     header('Location: index.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
@@ -131,6 +132,7 @@ require 'header.php';
         </div>
 
         <?php include 'message.php'; ?>
+        <?= training_warning_banner($con) ?>
 
         <?php if (!$enrollments) : ?>
             <div class="alert alert-secondary"><?= trh('No animal of this cage is currently under experiment.') ?></div>
