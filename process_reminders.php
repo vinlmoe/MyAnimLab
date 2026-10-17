@@ -147,4 +147,8 @@ if ($reminderResult) {
         }
     }
 }
-?>
+
+// Training records: continuing training reminders and entries to validate (once a day).
+require_once 'animal_lib.php';
+require_once 'training_lib.php';
+training_send_reminders($con);

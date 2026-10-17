@@ -14,6 +14,7 @@ session_start();
 require 'dbcon.php';
 require 'animal_lib.php';
 require 'experiment_acts_lib.php';
+require 'training_lib.php';
 
 if (!isset($_SESSION['username'])) {
     header('Location: index.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
@@ -210,6 +211,7 @@ require 'header.php';
         <p class="text-muted small"><?= trh('Plan the acts of the experiment (injection, gavage, bait, anaesthesia...) on all the animals or a group of them. On the planned day, each act is confirmed by ticking it during the daily follow-up of the animal or of its cage, with the information it asks for. A medication of the stock is debited from the lot chosen at confirmation; no prescription is needed within an experiment.') ?></p>
 
         <?php include 'message.php'; ?>
+        <?= training_warning_banner($con) ?>
 
         <div class="d-flex justify-content-between align-items-center mb-2">
             <h5 class="mb-0"><?= trh('Planned acts') ?> <span class="badge bg-secondary"><?= count($acts) ?></span></h5>
