@@ -13,7 +13,9 @@
  *  - sign-out after a period of inactivity set by an administrator in Manage
  *    Lab (setting session_timeout_minutes, 30 minutes by default); the next
  *    page shows that the session expired;
- *  - the session id is renewed every 30 minutes (session fixation).
+ *  - the session id is renewed every 30 minutes (session fixation);
+ *  - a user who must set up two-factor authentication reaches no other page
+ *    than two_factor.php until it is done.
  * A request that must not count as activity (the notifications polled by
  * every page) defines SESSION_PASSIVE_REQUEST before including this file.
  *
@@ -74,6 +76,14 @@ if (PHP_SAPI !== 'cli') {
         $_SESSION['LAST_ACTIVITY'] = time();
     } else {
         $_SESSION['LAST_ACTIVITY'] ??= time();
+    }
+
+    // Two-factor authentication required but not set up yet: nothing else
+    // until it is (see auth_lib.php).
+    if (!empty($_SESSION['must_setup_2fa'])
+        && !in_array(basename((string) ($_SERVER['SCRIPT_NAME'] ?? '')), ['two_factor.php', 'logout.php', 'index.php', 'set_locale.php', 'get_notifications.php'], true)) {
+        header('Location: two_factor.php');
+        exit;
     }
 
     // Renew the session id periodically (session fixation).

@@ -43,6 +43,8 @@ $defaultLabData = [
     'round_alert_time' => '18:00',
     'weaning_age_days' => '21',
     'session_timeout_minutes' => (string) SESSION_TIMEOUT_DEFAULT_MINUTES,
+    'acts_reminder_time' => '07:30',
+    'require_2fa_privileged' => '1',
     'r1_temp' => '',
     'r1_humi' => '',
     'r1_illu' => '',
@@ -67,11 +69,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_lab'])) {
     }
 
     // Sanitize and fetch form inputs
-    $inputFields = ['lab_name', 'url', 'timezone', 'round_alert_time', 'weaning_age_days', 'session_timeout_minutes', 'r1_temp', 'r1_humi', 'r1_illu', 'r1_pres', 'r2_temp', 'r2_humi', 'r2_illu', 'r2_pres', 'cf-turnstile-secretKey', 'cf-turnstile-sitekey'];
+    $inputFields = ['lab_name', 'url', 'timezone', 'round_alert_time', 'weaning_age_days', 'session_timeout_minutes', 'acts_reminder_time', 'require_2fa_privileged', 'r1_temp', 'r1_humi', 'r1_illu', 'r1_pres', 'r2_temp', 'r2_humi', 'r2_illu', 'r2_pres', 'cf-turnstile-secretKey', 'cf-turnstile-sitekey'];
     $inputData = [];
     foreach ($inputFields as $field) {
         // Stored as typed (every output escapes it); FILTER_SANITIZE_STRING is deprecated.
         $inputData[$field] = trim(strip_tags((string) ($_POST[$field] ?? '')));
+    }
+    $inputData['acts_reminder_time'] = preg_match('/^\d{2}:\d{2}$/', $inputData['acts_reminder_time']) ? $inputData['acts_reminder_time'] : '07:30';
+    $inputData['require_2fa_privileged'] = !empty($_POST['require_2fa_privileged']) ? '1' : '0';
+    if ($inputData['require_2fa_privileged'] !== $labData['require_2fa_privileged']) {
+        log_activity($con, 'settings_changed', 'settings', 'require_2fa_privileged', $labData['require_2fa_privileged'] . ' → ' . $inputData['require_2fa_privileged'], $_SESSION['user_id'] ?? null);
     }
     // Inactivity before sign-out: whole minutes within the allowed range.
     $minutes = (int) $inputData['session_timeout_minutes'];
@@ -199,6 +206,17 @@ require 'header.php';
                 <label for="session_timeout_minutes"><?= trh('Sign-out after inactivity (minutes)') ?></label>
                 <small class="form-text text-muted d-block"><?= trh('A user who does nothing for this time is signed out and must sign in again ({min} to {max} minutes; default {default}).', ['min' => SESSION_TIMEOUT_MIN_MINUTES, 'max' => SESSION_TIMEOUT_MAX_MINUTES, 'default' => SESSION_TIMEOUT_DEFAULT_MINUTES]) ?></small>
                 <input type="number" min="<?= SESSION_TIMEOUT_MIN_MINUTES ?>" max="<?= SESSION_TIMEOUT_MAX_MINUTES ?>" step="1" class="form-control" id="session_timeout_minutes" name="session_timeout_minutes" value="<?php echo htmlspecialchars($labData['session_timeout_minutes']); ?>" required>
+            </div>
+            <div class="form-group">
+                <label for="acts_reminder_time"><?= trh('Reminder of the experimental acts of the day') ?></label>
+                <small class="form-text text-muted d-block"><?= trh('From this time (lab timezone), the acts of the day are sent once to the people who planned them and to the users of the cages; overdue acts also go to the administrators and BEA responsibles. Requires the process_reminders.php cron job.') ?></small>
+                <input type="time" class="form-control" id="acts_reminder_time" name="acts_reminder_time" value="<?php echo htmlspecialchars($labData['acts_reminder_time']); ?>">
+            </div>
+            <div class="form-group form-check">
+                <input type="hidden" name="require_2fa_privileged" value="0">
+                <input type="checkbox" class="form-check-input" id="require_2fa_privileged" name="require_2fa_privileged" value="1" <?= $labData['require_2fa_privileged'] === '1' ? 'checked' : '' ?>>
+                <label class="form-check-label" for="require_2fa_privileged"><?= trh('Two-factor authentication required for administrators and BEA responsibles') ?></label>
+                <small class="form-text text-muted d-block"><?= trh('They set it up at their next sign-in (authenticator application) before reaching any other page.') ?></small>
             </div>
             <div class="form-group">
                 <label for="weaning_age_days"><?= trh('Weaning age (days)') ?></label>

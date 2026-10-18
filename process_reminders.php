@@ -152,3 +152,7 @@ if ($reminderResult) {
 require_once 'animal_lib.php';
 require_once 'training_lib.php';
 training_send_reminders($con);
+
+// Experimental acts of the day and overdue ones (once a day, after the time set in Manage Lab).
+require_once 'experiment_acts_lib.php';
+acts_send_reminders($con);

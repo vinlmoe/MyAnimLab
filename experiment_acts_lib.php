@@ -622,3 +622,101 @@ function act_done_by_text(array $row): string
 {
     return trim((string) ($row['done_by_name'] ?? '')) . (!empty($row['supervised_by_name']) ? ' ' . tr('(supervised by {name})', ['name' => $row['supervised_by_name']]) : '');
 }
+
+/**
+ * Morning reminders of the experimental acts (called by process_reminders.php,
+ * once a day after the "acts_reminder_time" of Manage Lab, 07:30 by default):
+ *  - acts of the day: to the person who planned each act and to the users of
+ *    the cages concerned, one notification and one e-mail each;
+ *  - acts overdue (planned before today, still to do): to the person who
+ *    planned them and to the administrators and BEA responsibles.
+ * Returns the number of people notified.
+ */
+function acts_send_reminders(mysqli $con, ?string $now = null): int
+{
+    $now ??= date('Y-m-d H:i');
+    $today = substr($now, 0, 10);
+    $time = (string) ($con->query("SELECT value FROM settings WHERE name = 'acts_reminder_time'")->fetch_row()[0] ?? '07:30');
+    if (!preg_match('/^\d{2}:\d{2}$/', $time)) {
+        $time = '07:30';
+    }
+    $last = (string) ($con->query("SELECT value FROM settings WHERE name = 'acts_reminders_last'")->fetch_row()[0] ?? '');
+    if ($last === $today || substr($now, 11, 5) < $time) {
+        return 0;
+    }
+    $set = $con->prepare("INSERT INTO settings (name, value) VALUES ('acts_reminders_last', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)");
+    $set->bind_param('s', $today);
+    $set->execute();
+    $set->close();
+
+    // Acts still to do up to today, for animals still followed.
+    $stmt = $con->prepare(
+        "SELECT aa.planned_date, a.id AS act_id, a.label, a.created_by, a.experiment_id, e.experiment_number, m.cage_id
+         FROM experiment_act_animals aa
+         JOIN experiment_acts a ON a.id = aa.act_id
+         JOIN experiments e ON e.id = a.experiment_id
+         JOIN experiment_animals ea ON ea.id = aa.experiment_animal_id
+         JOIN mice m ON m.id = ea.animal_id
+         WHERE aa.status = 'planned' AND aa.planned_date <= ? AND ea.removed_at IS NULL AND m.status = 'active'
+         ORDER BY m.cage_id, a.label"
+    );
+    $stmt->bind_param('s', $today);
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    if (!$rows) {
+        return 0;
+    }
+    $cageUsers = [];
+    foreach ($con->query('SELECT cage_id, user_id FROM cage_users') as $cu) {
+        $cageUsers[$cu['cage_id']][] = (int) $cu['user_id'];
+    }
+    $privileged = array_map('intval', array_column($con->query("SELECT id FROM users WHERE status = 'approved' AND (role = 'admin' OR is_bea_responsible = 1)")->fetch_all(MYSQLI_ASSOC), 'id'));
+
+    // [user id => ['today' => [line => count], 'overdue' => [line => count]]]
+    $byUser = [];
+    foreach ($rows as $r) {
+        $kind = $r['planned_date'] === $today ? 'today' : 'overdue';
+        $line = $r['experiment_number'] . ' — ' . $r['label'] . ' — ' . tr('cage {cage}', ['cage' => $r['cage_id'] ?? '—'])
+            . ($kind === 'overdue' ? ' (' . tr('planned on {date}', ['date' => $r['planned_date']]) . ')' : '');
+        $recipients = $r['created_by'] ? [(int) $r['created_by']] : [];
+        $recipients = array_merge($recipients, $kind === 'today' ? ($cageUsers[$r['cage_id']] ?? []) : $privileged);
+        foreach (array_unique($recipients) as $userId) {
+            $byUser[$userId][$kind][$line] = ($byUser[$userId][$kind][$line] ?? 0) + 1;
+        }
+    }
+
+    $users = [];
+    foreach ($con->query("SELECT id, username FROM users WHERE status = 'approved'") as $u) {
+        $users[(int) $u['id']] = $u['username'];
+    }
+    $mail = $con->prepare("INSERT INTO outbox (recipient, subject, body, scheduled_at) VALUES (?, ?, ?, NOW())");
+    $notified = 0;
+    foreach ($byUser as $userId => $kinds) {
+        if (!isset($users[$userId])) {
+            continue;
+        }
+        $nToday = array_sum($kinds['today'] ?? []);
+        $nOverdue = array_sum($kinds['overdue'] ?? []);
+        $title = $nToday
+            ? tr('{n} experimental act(s) to do today', ['n' => $nToday]) . ($nOverdue ? ' · ' . tr('{n} overdue', ['n' => $nOverdue]) : '')
+            : tr('{n} experimental act(s) overdue', ['n' => $nOverdue]);
+        $lines = [];
+        foreach (['today' => tr('Today'), 'overdue' => tr('Overdue')] as $kind => $heading) {
+            if (!empty($kinds[$kind])) {
+                $lines[] = $heading . ' :';
+                foreach ($kinds[$kind] as $line => $n) {
+                    $lines[] = '• ' . $line . ' : ' . tr('{n} animal(s)', ['n' => $n]);
+                }
+            }
+        }
+        create_notification($con, $userId, $title, implode("\n", array_slice($lines, 0, 12)), 'daily_round.php', 'reminder');
+        $subject = $title;
+        $body = nl2br(htmlspecialchars(implode("\n", $lines))) . '<br><br>' . htmlspecialchars(tr('Confirm them during the daily follow-up (daily round).'));
+        $mail->bind_param('sss', $users[$userId], $subject, $body);
+        $mail->execute();
+        $notified++;
+    }
+    $mail->close();
+    return $notified;
+}

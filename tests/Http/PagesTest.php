@@ -22,7 +22,7 @@ final class PagesTest extends TestCase
     private const NOT_PAGES = [
         'animal_lib.php', 'cage_view_parts.php', 'config.php', 'daily_round_alert.php', 'dbcon.php', 'ethics_lib.php',
         'experiment_acts_lib.php', 'export_for_v2.php', 'footer.php', 'header.php', 'i18n.php', 'logout.php', 'message.php',
-        'notes_lib.php', 'pdf_lib.php', 'process_reminders.php', 'send_email.php', 'session_config.php', 'training_lib.php',
+        'notes_lib.php', 'auth_lib.php', 'pdf_lib.php', 'process_reminders.php', 'send_email.php', 'session_config.php', 'training_lib.php',
     ];
     private const PUBLIC_PAGES = ['confirm_email.php', 'forgot_password.php', 'index.php', 'register.php', 'reset_password.php'];
 
@@ -36,6 +36,8 @@ final class PagesTest extends TestCase
         self::$users['admin'] = TestDatabase::user($con, ['role' => 'admin', 'username' => TestDatabase::unique('admin') . '@test.local']);
         self::$users['user'] = TestDatabase::user($con);
         $con->query("INSERT INTO settings (name, value) VALUES ('session_timeout_minutes', '30') ON DUPLICATE KEY UPDATE value = '30'");
+        // Two-factor authentication is tested on its own (testTwoFactorAuthentication).
+        $con->query("INSERT INTO settings (name, value) VALUES ('require_2fa_privileged', '0') ON DUPLICATE KEY UPDATE value = '0'");
 
         // Some fixtures so that pages with an id have something to show.
         $cage = TestDatabase::cage($con);
@@ -107,11 +109,19 @@ final class PagesTest extends TestCase
         return $jar;
     }
 
+    // The page's CSRF token (not the one of the header's language form, which has its own).
+    private function pageToken(string $body): string
+    {
+        $body = preg_replace('#<form[^>]*set_locale\.php.*?</form>#s', '', $body);
+        $this->assertGreaterThan(0, preg_match_all('/name="csrf_token" value="([0-9a-f]{64})"/', $body, $m), 'CSRF token on the page');
+        return $m[1][0];
+    }
+
     private function csrfToken(string $jar): string
     {
-        [, $body] = $this->request('trial_manage.php', $jar);
-        $this->assertSame(1, preg_match('/name="csrf_token" value="([0-9a-f]{64})"/', $body, $m), 'CSRF token on the page');
-        return $m[1];
+        // The sticky-note form of the home page carries the session's token for every user.
+        [, $body] = $this->request('home.php', $jar);
+        return $this->pageToken($body);
     }
 
     private function pages(): array
@@ -190,6 +200,12 @@ final class PagesTest extends TestCase
         $this->assertSame('admin note', TestDatabase::value($con, "SELECT note_text FROM notes WHERE id = $noteId"));
         [$status] = $this->request('nt_edit.php', null, ['note_id' => $noteId, 'note_text' => 'anonymous']);
         $this->assertSame(401, $status);
+        // With the same token, the author's own note can be changed (the token is right).
+        $con->query('INSERT INTO notes (note_text, user_id) VALUES (\'user note\', ' . self::$users['user'] . ')');
+        $ownId = $con->insert_id;
+        [$status] = $this->request('nt_edit.php', $jar, ['note_id' => $ownId, 'note_text' => 'changed', 'csrf_token' => $token]);
+        $this->assertSame(200, $status);
+        $this->assertSame('changed', TestDatabase::value($con, "SELECT note_text FROM notes WHERE id = $ownId"));
         @unlink($jar);
     }
 
@@ -218,5 +234,69 @@ final class PagesTest extends TestCase
         [, $body] = $this->request('index.php', $jar);
         $this->assertStringContainsString('30 minutes', $body);
         @unlink($jar);
+    }
+
+    public function testTwoFactorAuthentication(): void
+    {
+        require_once APP_ROOT . '/auth_lib.php';
+        $con = TestDatabase::connection();
+        $con->query("UPDATE settings SET value = '1' WHERE name = 'require_2fa_privileged'");
+        $adminId = TestDatabase::user($con, ['role' => 'admin']);
+        $username = TestDatabase::value($con, "SELECT username FROM users WHERE id = $adminId");
+        $jar = tempnam(sys_get_temp_dir(), 'jar');
+        try {
+            // Required for an administrator: sent to the set-up page, nothing else is reachable.
+            [$status, , $location] = $this->request('index.php', $jar, ['username' => $username, 'password' => 'secret-pass', 'login' => '1']);
+            $this->assertSame(302, $status);
+            $this->assertStringContainsString('two_factor.php', $location);
+            [$status, , $location] = $this->request('trial_manage.php', $jar);
+            $this->assertSame(302, $status);
+            $this->assertStringContainsString('two_factor.php', $location);
+
+            // Set-up: the key is shown, the first code turns it on, recovery codes appear once.
+            [, $body] = $this->request('two_factor.php', $jar);
+            $token = $this->pageToken($body);
+            [, $body] = $this->request('two_factor.php', $jar, ['csrf_token' => $token, 'start_setup' => '1']);
+            [, $body] = $this->request('two_factor.php', $jar);
+            $this->assertSame(1, preg_match('/user-select-all">([A-Z2-7 ]+)</', $body, $m), 'Key shown');
+            $secret = str_replace(' ', '', $m[1]);
+            [$status, $body] = $this->request('two_factor.php', $jar, ['csrf_token' => $token, 'confirm_setup' => '1', 'code' => totp_code($secret, intdiv(time(), 30))]);
+            $this->assertSame(200, $status);
+            $this->assertStringContainsString('recoveryCodes', $body);
+            preg_match_all('/<div class="col-6 col-md-4">([a-z2-7]{4}-[a-z2-7]{4})<\/div>/', $body, $codes);
+            $this->assertCount(TOTP_RECOVERY_CODES, $codes[1]);
+            $this->assertSame('1', (string) TestDatabase::value($con, "SELECT totp_enabled FROM users WHERE id = $adminId"));
+            [$status] = $this->request('trial_manage.php', $jar);
+            $this->assertSame(200, $status);
+
+            // Next sign-in: the code is asked after the password.
+            $this->request('logout.php', $jar);
+            [$status, , $location] = $this->request('index.php', $jar, ['username' => $username, 'password' => 'secret-pass', 'login' => '1']);
+            $this->assertStringContainsString('login_2fa.php', $location);
+            [$status] = $this->request('home.php', $jar);
+            $this->assertSame(302, $status, 'Not signed in before the code');
+            [, $body] = $this->request('login_2fa.php', $jar);
+            preg_match('/name="csrf_token" value="([0-9a-f]{64})"/', $body, $m);
+            [$status, $body] = $this->request('login_2fa.php', $jar, ['csrf_token' => $m[1], 'code' => '000000']);
+            $this->assertSame(200, $status);
+            $this->assertStringContainsString('alert-danger', $body);
+            [$status, , $location] = $this->request('login_2fa.php', $jar, ['csrf_token' => $m[1], 'code' => totp_code($secret, intdiv(time(), 30) + 1)]);
+            $this->assertSame(302, $status);
+            $this->assertStringContainsString('home.php', $location);
+            [$status] = $this->request('home.php', $jar);
+            $this->assertSame(200, $status);
+
+            // A recovery code works once.
+            $this->request('logout.php', $jar);
+            $this->request('index.php', $jar, ['username' => $username, 'password' => 'secret-pass', 'login' => '1']);
+            [, $body] = $this->request('login_2fa.php', $jar);
+            preg_match('/name="csrf_token" value="([0-9a-f]{64})"/', $body, $m);
+            [$status, , $location] = $this->request('login_2fa.php', $jar, ['csrf_token' => $m[1], 'code' => $codes[1][0]]);
+            $this->assertStringContainsString('home.php', $location);
+            $this->assertSame(TOTP_RECOVERY_CODES - 1, totp_recovery_count(TestDatabase::value($con, "SELECT totp_recovery_codes FROM users WHERE id = $adminId")));
+        } finally {
+            $con->query("UPDATE settings SET value = '0' WHERE name = 'require_2fa_privileged'");
+            @unlink($jar);
+        }
     }
 }

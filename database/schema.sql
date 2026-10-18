@@ -36,6 +36,12 @@ CREATE TABLE `users` (
   `initials` varchar(5) DEFAULT NULL,
   `preferred_locale` varchar(5) NOT NULL DEFAULT 'fr',
   `is_bea_responsible` tinyint(1) NOT NULL DEFAULT 0,
+  -- Two-factor authentication (TOTP): secret, last step used, hashed recovery codes.
+  `totp_secret` varchar(64) DEFAULT NULL,
+  `totp_enabled` tinyint(1) NOT NULL DEFAULT 0,
+  `totp_enabled_at` datetime DEFAULT NULL,
+  `totp_last_step` bigint DEFAULT NULL,
+  `totp_recovery_codes` text DEFAULT NULL,
   PRIMARY KEY (`id`)
 );
 
@@ -56,6 +62,21 @@ CREATE TABLE `cages` (
 );
 
 -- Junction table for associating cages with IACUC records
+-- Number of animals authorized per species by a project authorization.
+-- An animal counts once per authorization, from its first enrollment in an
+-- experiment of a trial under it (reuse inside the project is not counted
+-- twice). alert_level remembers the last alert sent (80 or 100 %).
+CREATE TABLE `iacuc_animal_quotas` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `iacuc_id` varchar(255) NOT NULL,
+  `species` varchar(100) NOT NULL,
+  `max_animals` int NOT NULL,
+  `alert_level` tinyint NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_iacuc_species` (`iacuc_id`, `species`),
+  FOREIGN KEY (`iacuc_id`) REFERENCES `iacuc` (`iacuc_id`) ON UPDATE CASCADE ON DELETE CASCADE
+);
+
 CREATE TABLE `cage_iacuc` (
   `cage_id` varchar(255) NOT NULL,
   `iacuc_id` varchar(255) NOT NULL,
@@ -1040,6 +1061,9 @@ INSERT INTO `settings` (`name`, `value`) VALUES ('training_cpd_days', '3'), ('tr
 
 -- Inactivity (minutes) before sign-out, set in Manage Lab.
 INSERT INTO `settings` (`name`, `value`) VALUES ('session_timeout_minutes', '30');
+
+-- Morning reminder of the acts of the day; two-factor obligation for administrators and BEA responsibles.
+INSERT INTO `settings` (`name`, `value`) VALUES ('acts_reminder_time', '07:30'), ('require_2fa_privileged', '1');
 
 -- Insert initial data into the users table
 INSERT INTO `users` (`name`, `username`, `position`, `role`, `password`, `status`, `reset_token`, `reset_token_expiration`, `login_attempts`, `account_locked`, `email_verified`, `email_token`, `initials`, `is_bea_responsible`)
