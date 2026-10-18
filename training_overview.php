@@ -22,13 +22,10 @@ if (!is_bea_user($con)) {
     http_response_code(403);
     exit(trh('Access restricted to the BEA responsible.'));
 }
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 $isAdmin = ($_SESSION['role'] ?? '') === 'admin';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_requirement'])) {
-    if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'] ?? '')) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
     $days = parse_number($_POST['cpd_days'] ?? '');

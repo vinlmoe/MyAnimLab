@@ -11,6 +11,7 @@
 require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
+require_once 'cage_files_lib.php';
 require 'cage_view_parts.php';
 
 // Check if the user is not logged in
@@ -212,9 +213,6 @@ $stmtMaintenance->execute();
 $maintenanceLogs = $stmtMaintenance->get_result();
 
 $cageKind = cage_kind($con, $id);
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 require 'header.php';
 ?>
 
@@ -498,13 +496,13 @@ require 'header.php';
                             <tbody>
                                 <?php
                                 while ($file = $files->fetch_assoc()) {
-                                    $file_path = htmlspecialchars($file['file_path']);
+                                    $file_url = htmlspecialchars(cage_file_url((int) $file['id']));
                                     $file_name = htmlspecialchars($file['file_name']);
                                     $file_id = intval($file['id']);
 
                                     echo "<tr>";
                                     echo "<td>$file_name</td>";
-                                    echo "<td><a href='$file_path' download='$file_name' class='btn btn-sm btn-outline-primary'> <i class='fas fa-cloud-download-alt fa-sm'></i></a></td>";
+                                    echo "<td><a href='$file_url' class='btn btn-sm btn-outline-primary'> <i class='fas fa-cloud-download-alt fa-sm'></i></a></td>";
                                     echo "</tr>";
                                 }
                                 ?>

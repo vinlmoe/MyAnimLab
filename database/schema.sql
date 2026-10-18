@@ -1202,6 +1202,60 @@ INSERT INTO `settings` (`name`, `value`) VALUES ('session_timeout_minutes', '30'
 -- Morning reminder of the acts of the day; two-factor obligation for administrators and BEA responsibles.
 INSERT INTO `settings` (`name`, `value`) VALUES ('acts_reminder_time', '07:30'), ('require_2fa_privileged', '1');
 
+-- Corrections of a daily experimental follow-up: re-saving a day that was
+-- already entered requires a reason, and the values it replaces (weight,
+-- scores, observations, author) are kept here.
+CREATE TABLE `experiment_followup_revisions` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `followup_id` int NOT NULL,
+  `previous_values` JSON NOT NULL,
+  `reason` text NOT NULL,
+  `revised_by` int DEFAULT NULL,
+  `revised_by_name` varchar(255) DEFAULT NULL,
+  `revised_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_followup_revision_followup` (`followup_id`),
+  FOREIGN KEY (`followup_id`) REFERENCES `experiment_followups` (`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`revised_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+);
+
+-- Audit and traceability tables are append-only, whatever the code path
+-- (like the health registry, cage checks and cage lifecycle). Rows removed
+-- with their parent by a foreign key cascade are not concerned. Creating
+-- triggers needs an administrator account of the database (tools/migrate.php).
+CREATE TRIGGER `experiment_followup_revisions_no_update` BEFORE UPDATE ON `experiment_followup_revisions`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Follow-up revisions are append-only';
+CREATE TRIGGER `experiment_followup_revisions_no_delete` BEFORE DELETE ON `experiment_followup_revisions`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Follow-up revisions are append-only';
+CREATE TRIGGER `activity_log_no_update` BEFORE UPDATE ON `activity_log`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Activity log is append-only';
+CREATE TRIGGER `activity_log_no_delete` BEFORE DELETE ON `activity_log`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Activity log is append-only';
+CREATE TRIGGER `animal_events_no_update` BEFORE UPDATE ON `animal_events`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Animal events are append-only';
+CREATE TRIGGER `animal_events_no_delete` BEFORE DELETE ON `animal_events`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Animal events are append-only';
+CREATE TRIGGER `animal_movements_no_update` BEFORE UPDATE ON `animal_movements`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Animal movements are append-only';
+CREATE TRIGGER `animal_movements_no_delete` BEFORE DELETE ON `animal_movements`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Animal movements are append-only';
+CREATE TRIGGER `experiment_act_corrections_no_update` BEFORE UPDATE ON `experiment_act_corrections`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Act corrections are append-only';
+CREATE TRIGGER `experiment_act_corrections_no_delete` BEFORE DELETE ON `experiment_act_corrections`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Act corrections are append-only';
+CREATE TRIGGER `litter_events_no_update` BEFORE UPDATE ON `litter_events`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Litter events are append-only';
+CREATE TRIGGER `litter_events_no_delete` BEFORE DELETE ON `litter_events`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Litter events are append-only';
+CREATE TRIGGER `terrarium_events_no_update` BEFORE UPDATE ON `terrarium_events`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Terrarium events are append-only';
+CREATE TRIGGER `terrarium_events_no_delete` BEFORE DELETE ON `terrarium_events`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Terrarium events are append-only';
+CREATE TRIGGER `medication_stock_movements_no_update` BEFORE UPDATE ON `medication_stock_movements`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Stock movements are append-only';
+CREATE TRIGGER `medication_stock_movements_no_delete` BEFORE DELETE ON `medication_stock_movements`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Stock movements are append-only';
+
 -- Insert initial data into the users table
 INSERT INTO `users` (`name`, `username`, `position`, `role`, `password`, `status`, `reset_token`, `reset_token_expiration`, `login_attempts`, `account_locked`, `email_verified`, `email_token`, `initials`, `is_bea_responsible`)
 VALUES ('Administrateur temporaire', 'admin@myvivarium.online', 'Principal Investigator', 'admin', '$2y$10$roVlhpjZsRFXY.m9JtRB/OAaN2dp50O7D2J5idI2MsUotxMyrHRZ6', 'approved', NULL, NULL, 0, NULL, 1, NULL, 'TAN', 1);
@@ -1216,3 +1270,47 @@ INSERT INTO `animal_lines` (`code`, `species`, `name`) VALUES
   ('RY139', 'Rat', 'Rat Y139'),
   ('RN', 'Rat noir (Rattus rattus)', 'Rat noir'),
   ('CGN', 'Campagnol', 'Campagnol');
+
+-- Migrations already included in this schema (tools/migrate.php applies the
+-- later ones). Keep this list in step with database/migrations.
+CREATE TABLE `schema_migrations` (
+  `version` varchar(255) NOT NULL,
+  `applied_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`version`)
+);
+INSERT INTO `schema_migrations` (`version`) VALUES
+  ('001_traceability.sql'),
+  ('002_myvivarium2_parity.sql'),
+  ('003_auto_ids_bulk_add.sql'),
+  ('004_health_registry.sql'),
+  ('005_daily_cage_checks.sql'),
+  ('006_cage_lifecycle.sql'),
+  ('007_animal_fate_on_cage_retirement.sql'),
+  ('008_exit_codes.sql'),
+  ('009_clinical_grids_endpoint_actions.sql'),
+  ('010_followup_observations.sql'),
+  ('011_litters_weaning.sql'),
+  ('012_distinctive_mark.sql'),
+  ('013_jcms_import_and_scheduling.sql'),
+  ('014_localization.sql'),
+  ('015_experiment_cage_followup_and_retro.sql'),
+  ('016_experiment_number_sequence.sql'),
+  ('017_pharmacy_prescriptions_administrations.sql'),
+  ('018_medication_lot_in_use_date.sql'),
+  ('019_prescription_multi_animal.sql'),
+  ('020_admins_bea_responsible.sql'),
+  ('021_experimental_cages.sql'),
+  ('022_experimental_cages_from_enrollments.sql'),
+  ('023_ethics_authorizations.sql'),
+  ('024_experimental_cage_round.sql'),
+  ('025_protocol_expected_severity.sql'),
+  ('026_animal_entry_register.sql'),
+  ('027_experiment_acts.sql'),
+  ('028_narcotics_corrections_weight_dose.sql'),
+  ('029_training_records.sql'),
+  ('030_act_supervisor_initial_diploma.sql'),
+  ('031_session_timeout_setting.sql'),
+  ('032_quotas_act_reminders_two_factor.sql'),
+  ('033_terrarium_populations.sql'),
+  ('034_terrarium_capture_weight.sql'),
+  ('035_followup_revisions_append_only_logs.sql');

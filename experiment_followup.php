@@ -20,14 +20,11 @@ require 'dbcon.php';
 require 'animal_lib.php';
 require 'experiment_acts_lib.php';
 require_once 'training_lib.php';
+require_once 'followup_lib.php';
 
 if (!isset($_SESSION['username'])) {
     header("Location: index.php");
     exit;
-}
-
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
 $currentUserId = $_SESSION['user_id'] ?? null;
@@ -81,7 +78,7 @@ $experimentUrl = 'experiment_manage.php?protocol_id=' . (int) $ea['protocol_id']
 $backUrl = $returnUrl ?: $experimentUrl;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
 
@@ -99,7 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['message'] = tr('Confirmation cancelled: the act is to do again (the correction is kept in the history).');
         } catch (Exception $e) {
             mysqli_rollback($con);
-            $_SESSION['message'] = tr('Act not corrected: {error}', ['error' => $e->getMessage()]);
+            $_SESSION['message'] = tr('Act not corrected: {error}', ['error' => error_message($e)]);
         }
         header("Location: $selfUrl#actsHistory");
         exit;
@@ -239,8 +236,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $actConfirmations = posted_act_confirmations($_POST, $observedAt);
     $confirmedActs = [];
 
+    // Saving a day already entered corrects it: the reason is required and
+    // the values it replaces are kept (followup_lib.php).
+    $existingStmt = $con->prepare("SELECT id FROM experiment_followups WHERE experiment_animal_id = ? AND observed_at = ?");
+    $existingStmt->bind_param("is", $experimentAnimalId, $observedAt);
+    $existingStmt->execute();
+    $existingId = (int) ($existingStmt->get_result()->fetch_assoc()['id'] ?? 0);
+    $existingStmt->close();
+    $revisionReason = trim((string) ($_POST['revision_reason'] ?? ''));
+    if ($existingId && $revisionReason === '') {
+        $fail(tr('The follow-up of {date} was already entered: give the reason for the correction.', ['date' => $observedAt]));
+    }
+
     mysqli_begin_transaction($con);
     try {
+        $previous = $existingId ? followup_snapshot($con, $existingId) : null;
         $stmt = $con->prepare(
             "INSERT INTO experiment_followups (experiment_animal_id, observed_at, weight_g, clinical_score, observations, endpoint_reached, recorded_by)
              VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -257,7 +267,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $followupId = (int) $fid->get_result()->fetch_assoc()['id'];
         $fid->close();
 
-        // One entry per day: re-saving the day replaces its grid scores.
+        // One entry per day: re-saving the day replaces its grid scores (the previous ones are in the revision).
         $del = $con->prepare("DELETE FROM experiment_followup_scores WHERE followup_id = ?");
         $del->bind_param("i", $followupId);
         $del->execute();
@@ -280,6 +290,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ins->bind_param("iisssds", $followupId, $row['field_id'], $row['label'], $row['value_type'], $row['unit'], $row['number'], $row['text']);
             $ins->execute();
             $ins->close();
+        }
+
+        if ($previous !== null) {
+            record_followup_revision($con, $followupId, $previous, $revisionReason, $currentUserId, $currentUserName);
+            log_activity($con, 'followup_corrected', 'animal', (string) $ea['animal_id'], tr('Follow-up of {date} corrected: {reason}', ['date' => $observedAt, 'reason' => $revisionReason]), $currentUserId);
         }
 
         // Endpoints requiring an action open a pending action (one per endpoint at a time).
@@ -341,7 +356,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         mysqli_commit($con);
     } catch (Exception $e) {
         mysqli_rollback($con);
-        $_SESSION['message'] = tr('Follow-up not saved: {error}', ['error' => $e->getMessage()]);
+        $_SESSION['message'] = tr('Follow-up not saved: {error}', ['error' => error_message($e)]);
         header("Location: $selfUrl");
         exit;
     }
@@ -358,20 +373,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $history = $con->prepare(
-    "SELECT f.*, u.name AS recorded_by_name FROM experiment_followups f
+    "SELECT f.*, u.name AS recorded_by_name,
+            COALESCE((SELECT MAX(r.revised_at) FROM experiment_followup_revisions r WHERE r.followup_id = f.id), f.created_at) AS entered_at
+     FROM experiment_followups f
      LEFT JOIN users u ON u.id = f.recorded_by
      WHERE f.experiment_animal_id = ? ORDER BY f.observed_at DESC"
 );
 $history->bind_param("i", $experimentAnimalId);
 $history->execute();
 $history = $history->get_result()->fetch_all(MYSQLI_ASSOC);
+$revisionCounts = followup_revision_counts($con, array_column($history, 'id'));
 
 // Item scores of the history, keyed by follow-up then item label (snapshots).
 $scoresByFollowup = [];
 $historyLabels = [];
 if ($history) {
-    $ids = implode(',', array_map('intval', array_column($history, 'id')));
-    foreach ($con->query("SELECT followup_id, item_label, score FROM experiment_followup_scores WHERE followup_id IN ($ids) ORDER BY id") as $sc) {
+    $ids = array_map('intval', array_column($history, 'id'));
+    $in = db_placeholders(count($ids));
+    $idTypes = str_repeat('i', count($ids));
+    foreach (db_rows($con, "SELECT followup_id, item_label, score FROM experiment_followup_scores WHERE followup_id IN ($in) ORDER BY id", $idTypes, $ids) as $sc) {
         $scoresByFollowup[$sc['followup_id']][$sc['item_label']] = $sc['score'];
         $historyLabels[$sc['item_label']] = true;
     }
@@ -383,7 +403,7 @@ $historyLabels = array_keys($historyLabels);
 $obsByFollowup = [];
 $obsColumns = array_map(fn($f) => $f['label'], $obsFields);
 if ($history) {
-    foreach ($con->query("SELECT * FROM experiment_followup_observations WHERE followup_id IN ($ids) ORDER BY id") as $o) {
+    foreach (db_rows($con, "SELECT * FROM experiment_followup_observations WHERE followup_id IN ($in) ORDER BY id", $idTypes, $ids) as $o) {
         if ($o['field_id'] !== null) {
             $obsByFollowup[$o['followup_id']]['fields'][$o['label']] = $o;
             if (!in_array($o['label'], $obsColumns, true)) {
@@ -405,7 +425,7 @@ foreach ($history as $h) {
         'clinical_score' => $h['clinical_score'] === null ? '' : (string) $h['clinical_score'],
         'observations' => (string) ($h['observations'] ?? ''),
         'by' => (string) ($h['recorded_by_name'] ?? ''),
-        'at' => substr((string) $h['created_at'], 0, 16),
+        'at' => substr((string) $h['entered_at'], 0, 16), // last correction, or creation
         'endpoint' => (bool) $h['endpoint_reached'],
         'scores' => new stdClass(),
         'fields' => new stdClass(),
@@ -414,10 +434,10 @@ foreach ($history as $h) {
 }
 if ($history) {
     $idToDate = array_column($history, 'observed_at', 'id');
-    foreach ($con->query("SELECT followup_id, grid_item_id, score FROM experiment_followup_scores WHERE followup_id IN ($ids) AND grid_item_id IS NOT NULL") as $sc) {
+    foreach (db_rows($con, "SELECT followup_id, grid_item_id, score FROM experiment_followup_scores WHERE followup_id IN ($in) AND grid_item_id IS NOT NULL", $idTypes, $ids) as $sc) {
         $entriesByDate[$idToDate[$sc['followup_id']]]['scores']->{$sc['grid_item_id']} = (int) $sc['score'];
     }
-    foreach ($con->query("SELECT * FROM experiment_followup_observations WHERE followup_id IN ($ids) ORDER BY id") as $o) {
+    foreach (db_rows($con, "SELECT * FROM experiment_followup_observations WHERE followup_id IN ($in) ORDER BY id", $idTypes, $ids) as $o) {
         $value = $o['value_type'] === 'number' ? $trimNumber($o['value_number']) : (string) $o['value_text'];
         if ($o['field_id'] !== null) {
             $entriesByDate[$idToDate[$o['followup_id']]]['fields']->{$o['field_id']} = $value;
@@ -443,7 +463,7 @@ $lotsByProduct = array_filter(array_column($acts, 'product_id')) ? usable_lots_b
 $plannedActs = array_filter($acts, fn($a) => $a['status'] === 'planned');
 $confirmedActList = array_reverse(array_filter($acts, fn($a) => $a['status'] !== 'planned'));
 $isAdmin = ($_SESSION['role'] ?? '') === 'admin';
-$allActRowIds = $con->query('SELECT id FROM experiment_act_animals WHERE experiment_animal_id = ' . (int) $experimentAnimalId)->fetch_all(MYSQLI_ASSOC);
+$allActRowIds = db_rows($con, 'SELECT id FROM experiment_act_animals WHERE experiment_animal_id = ?', 'i', [$experimentAnimalId]);
 $actCorrections = experiment_act_corrections($con, array_column($allActRowIds, 'id'));
 // Weight used to suggest the volume of a dose by weight: the one typed in the
 // form, else the latest known weight.
@@ -681,6 +701,10 @@ require 'header.php';
                             <label class="form-label"><?= trh('General observations') ?></label>
                             <textarea class="form-control" name="observations" id="general_observations"></textarea>
                         </div>
+                        <div class="mb-3 d-none" id="revisionReasonGroup">
+                            <label class="form-label" for="revision_reason"><?= trh('Reason for the correction') ?> *</label>
+                            <input type="text" class="form-control" name="revision_reason" id="revision_reason" maxlength="1000" placeholder="<?= trh('e.g. wrong animal weighed, score entered on the wrong item') ?>">
+                        </div>
                         <button type="submit" class="btn btn-primary" id="followupSubmit"><?= trh('Save Follow-up') ?></button>
                     </form>
                 </div>
@@ -710,7 +734,8 @@ require 'header.php';
                 <tbody>
                     <?php foreach ($history as $h) : ?>
                         <tr class="<?= $h['endpoint_reached'] ? 'table-danger' : ''; ?>">
-                            <td class="text-nowrap"><a href="<?= htmlspecialchars('experiment_followup_view.php?' . http_build_query(['id' => $h['id'], 'return' => $selfUrl])); ?>" title="<?= trh('Read the full evaluation') ?>"><?= htmlspecialchars($h['observed_at']); ?> <i class="fas fa-search small"></i></a></td>
+                            <td class="text-nowrap"><a href="<?= htmlspecialchars('experiment_followup_view.php?' . http_build_query(['id' => $h['id'], 'return' => $selfUrl])); ?>" title="<?= trh('Read the full evaluation') ?>"><?= htmlspecialchars($h['observed_at']); ?> <i class="fas fa-search small"></i></a>
+                                <?php if (!empty($revisionCounts[(int) $h['id']])) : ?><span class="badge bg-warning text-dark" title="<?= trh('Corrections kept with their reason: see the full evaluation') ?>"><?= trh('corrected ({n})', ['n' => $revisionCounts[(int) $h['id']]]) ?></span><?php endif; ?></td>
                             <td><?= htmlspecialchars($h['weight_g'] ?? '-'); ?></td>
                             <td><?= ($h['weight_g'] !== null && !empty($ea['baseline_weight_g'])) ? round(($ea['baseline_weight_g'] - $h['weight_g']) / $ea['baseline_weight_g'] * 100, 1) : '-'; ?></td>
                             <?php foreach ($historyLabels as $label) : ?><td><?= htmlspecialchars((string) ($scoresByFollowup[$h['id']][$label] ?? '-')); ?></td><?php endforeach; ?>
@@ -936,8 +961,10 @@ require 'header.php';
             const dateInput = document.getElementById('observed_at');
             const mode = document.getElementById('entryMode');
             const submit = document.getElementById('followupSubmit');
+            const reasonGroup = document.getElementById('revisionReasonGroup');
+            const reason = document.getElementById('revision_reason');
             const texts = {
-                edit: <?= trj('Editing the follow-up of {date}, entered by {user} on {at}: its current values are loaded; saving replaces them.') ?>,
+                edit: <?= trj('Correcting the follow-up of {date}, entered by {user} on {at}: its current values are loaded; give the reason for the correction, the values replaced are kept in its history.') ?>,
                 endpoint: <?= trj('An endpoint was reached on that day.') ?>,
                 create: <?= trj('New follow-up for {date}.') ?>,
                 saveEdit: <?= trj('Save the changes') ?>,
@@ -962,6 +989,9 @@ require 'header.php';
                 if (entry && window.addExtraObsRow) entry.free.forEach(o => window.addExtraObsRow(o, false));
                 if (window.updateGridTotal) window.updateGridTotal();
                 mode.classList.remove('d-none', 'alert-info', 'alert-warning');
+                reasonGroup.classList.toggle('d-none', !entry);
+                reason.required = !!entry;
+                reason.value = '';
                 if (entry) {
                     mode.classList.add('alert-warning');
                     mode.textContent = texts.edit.replace('{date}', date).replace('{user}', entry.by || '—').replace('{at}', entry.at)

@@ -17,7 +17,7 @@ if (!isset($_SESSION['username'])) {
 
 $animalId = (int) ($_POST['animal_id'] ?? 0);
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['csrf_token']) || $_POST['csrf_token'] !== ($_SESSION['csrf_token'] ?? null)) {
+if (!csrf_valid()) {
     die(tr('CSRF token validation failed'));
 }
 

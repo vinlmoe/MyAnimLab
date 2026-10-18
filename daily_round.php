@@ -21,10 +21,6 @@ if (!isset($_SESSION['username'])) {
     exit;
 }
 
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-
 $today = date('Y-m-d');
 $date = $_GET['date'] ?? $today;
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || $date > $today) {
@@ -35,7 +31,7 @@ $room = $_GET['room'] ?? $_POST['room'] ?? '';
 $hideSeen = !empty($_GET['hide_seen']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
 

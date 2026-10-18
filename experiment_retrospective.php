@@ -20,9 +20,6 @@ if (!is_bea_user($con)) {
     http_response_code(403);
     exit(trh('Access restricted to the BEA responsible.'));
 }
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 
 $classes = retrospective_severities();
 $trialId = (int) ($_GET['trial_id'] ?? 0);
@@ -77,7 +74,7 @@ $closedEnrollments = function () use ($con, $experimentId): array {
 };
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $experiment) {
-    if (!hash_equals($_SESSION['csrf_token'], (string) ($_POST['csrf_token'] ?? ''))) {
+    if (!csrf_valid()) {
         die(trh('CSRF token validation failed'));
     }
     $postedClasses = (array) ($_POST['classification'] ?? []);
@@ -130,7 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $experiment) {
         } catch (Throwable $e) {
             $con->rollback();
             $_SESSION['retrospective_draft'][$experimentId] = $entries;
-            $_SESSION['message'] = tr('Nothing saved: {error}', ['error' => $e->getMessage()]);
+            $_SESSION['message'] = tr('Nothing saved: {error}', ['error' => error_message($e)]);
         }
     }
     header('Location: ' . $experimentUrl);

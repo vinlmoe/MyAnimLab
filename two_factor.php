@@ -17,9 +17,6 @@ if (!isset($_SESSION['username'])) {
     header('Location: index.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
     exit;
 }
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 $userId = (int) $_SESSION['user_id'];
 $isAdmin = ($_SESSION['role'] ?? '') === 'admin';
 
@@ -50,7 +47,7 @@ $checkCode = function (array $u, string $code) use ($con): bool {
 };
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!hash_equals($_SESSION['csrf_token'], (string) ($_POST['csrf_token'] ?? ''))) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
     $code = trim((string) ($_POST['code'] ?? ''));
@@ -88,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (empty($user['totp_enabled']) || !$checkCode($user, $code)) {
                 throw new Exception(tr('Wrong code.'));
             }
-            $con->query('UPDATE users SET totp_secret = NULL, totp_enabled = 0, totp_enabled_at = NULL, totp_last_step = NULL, totp_recovery_codes = NULL WHERE id = ' . $userId);
+            db_execute($con, 'UPDATE users SET totp_secret = NULL, totp_enabled = 0, totp_enabled_at = NULL, totp_last_step = NULL, totp_recovery_codes = NULL WHERE id = ?', 'i', [$userId]);
             log_activity($con, 'two_factor_disabled', 'user', (string) $userId, null, $userId);
             $_SESSION['message'] = tr('Two-factor authentication is off.');
         } elseif (isset($_POST['admin_reset']) && $isAdmin) {
@@ -110,7 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['message'] = tr('Two-factor authentication reset for this user.');
         }
     } catch (Exception $e) {
-        $_SESSION['message'] = $e->getMessage();
+        $_SESSION['message'] = error_message($e);
     }
     if ($newCodes === null) {
         header('Location: two_factor.php');

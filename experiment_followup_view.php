@@ -10,6 +10,7 @@ require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 require 'experiment_acts_lib.php';
+require_once 'followup_lib.php';
 
 if (!isset($_SESSION['username'])) {
     header('Location: index.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
@@ -57,8 +58,7 @@ $scores = $fetchAll("SELECT * FROM experiment_followup_scores WHERE followup_id 
 $levelsByItem = [];
 $itemIds = array_values(array_filter(array_map(fn($s) => (int) $s['grid_item_id'], $scores)));
 if ($itemIds) {
-    $in = implode(',', $itemIds);
-    foreach ($con->query("SELECT item_id, score, description FROM clinical_grid_levels WHERE item_id IN ($in) ORDER BY item_id, score") as $level) {
+    foreach (db_rows($con, "SELECT item_id, score, description FROM clinical_grid_levels WHERE item_id IN (" . db_placeholders(count($itemIds)) . ") ORDER BY item_id, score", str_repeat('i', count($itemIds)), $itemIds) as $level) {
         $levelsByItem[(int) $level['item_id']][] = $level;
     }
 }
@@ -208,6 +208,20 @@ require 'header.php';
                     <?php if ($f['observations']) : ?><tr><th style="width: 30%"><?= trh('Comment') ?></th><td><?= nl2br(htmlspecialchars($f['observations'])) ?></td></tr><?php endif; ?>
                 </tbody>
             </table>
+        <?php endif; ?>
+
+        <?php if ($revisions = followup_revisions($con, $followupId)) : ?>
+            <h5><?= trh('Corrections of this follow-up') ?></h5>
+            <p class="small text-muted"><?= trh('The values shown above are the current ones; each correction keeps the values it replaced.') ?></p>
+            <ul class="list-group mb-3" id="followupRevisions">
+                <?php foreach ($revisions as $r) : ?>
+                    <li class="list-group-item">
+                        <strong><?= htmlspecialchars(substr((string) $r['revised_at'], 0, 16) . ' — ' . ($r['revised_by_name'] ?? '')) ?></strong> :
+                        <?= htmlspecialchars($r['reason']) ?>
+                        <div class="small text-muted"><?= trh('Replaced values: {values}', ['values' => followup_revision_summary($r['previous'])]) ?></div>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
         <?php endif; ?>
 
         <?php if ($actions) : ?>

@@ -40,12 +40,14 @@ if ($_SESSION['role'] != 'admin') {
 function exportTableToCSV($con, $tableName)
 {
     // Define a specific query for the 'users' table; otherwise, select all columns
-    $query = ($tableName == 'users') ? "SELECT id, name, username, position, role, status FROM `$tableName`" : "SELECT * FROM `$tableName`";
+    // Table names come from SHOW TABLES (identifiers cannot be bound): quoted.
+    $table = '`' . str_replace('`', '``', $tableName) . '`';
+    $query = ($tableName == 'users') ? "SELECT id, name, username, position, role, status FROM $table" : "SELECT * FROM $table";
     $result = $con->query($query);
 
     // Check if the query execution was successful
     if (!$result) {
-        echo htmlspecialchars(tr('Failed to retrieve data from {table}: {error}', ['table' => $tableName, 'error' => $con->error]));
+        echo htmlspecialchars(db_error_message($con->error));
         return '';
     }
 
@@ -82,7 +84,7 @@ $tableResult = $con->query($tableQuery);
 
 // Check if the table names retrieval was successful
 if (!$tableResult) {
-    die(htmlspecialchars(tr('Error retrieving tables: {error}', ['error' => $con->error])));
+    die(htmlspecialchars(db_error_message($con->error)));
 }
 
 // Set headers to prompt the browser to download the ZIP file

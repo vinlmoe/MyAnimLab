@@ -19,9 +19,6 @@ if (!isset($_SESSION['username'])) {
     header('Location: index.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
     exit;
 }
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 $userId = (int) ($_SESSION['user_id'] ?? 0);
 $isAdmin = ($_SESSION['role'] ?? '') === 'admin';
 
@@ -36,7 +33,7 @@ $num = fn($n): string => $n === null || $n === '' ? '' : rtrim(rtrim(number_form
 
 // Inventory: the counted quantity of each lot; a difference must be justified.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['inventory'])) {
-    if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'] ?? '')) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
     if (!$isAdmin || !$product) {
@@ -106,7 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['inventory'])) {
         $_SESSION['message'] = tr('Inventory recorded ({n} lot(s)).', ['n' => $recorded]) . ($differences ? ' ' . tr('Differences applied to the stock: {list}.', ['list' => implode(', ', $differences)]) : ' ' . tr('No difference.'));
     } catch (Exception $e) {
         mysqli_rollback($con);
-        $_SESSION['message'] = tr('Inventory not recorded: {error}', ['error' => $e->getMessage()]);
+        $_SESSION['message'] = tr('Inventory not recorded: {error}', ['error' => error_message($e)]);
     }
     header("Location: $selfUrl#inventory");
     exit;

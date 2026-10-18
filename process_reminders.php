@@ -7,13 +7,18 @@
  * It also schedules emails by inserting records into the outbox table.
  */
 
-require 'dbcon.php';
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    exit('This script must be run from the command line (cron). / Ce script doit être exécuté en ligne de commande (cron).');
+}
+
+require __DIR__ . '/dbcon.php';
 
 // Fetch the timezone from the settings table
 $timezoneQuery = "SELECT value FROM settings WHERE name = 'timezone'";
 $timezoneResult = mysqli_query($con, $timezoneQuery);
 $timezoneRow = mysqli_fetch_assoc($timezoneResult);
-$timezone = $timezoneRow['value'] ?? 'America/New_York';
+$timezone = $timezoneRow['value'] ?? 'Europe/Paris';
 
 // Set the default timezone
 date_default_timezone_set($timezone);

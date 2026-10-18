@@ -11,6 +11,11 @@
  * 
  */
 
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    exit('This script must be run from the command line (cron). / Ce script doit être exécuté en ligne de commande (cron).');
+}
+
 require 'dbcon.php';  // Include database connection file
 require 'config.php';  // Include configuration file
 require 'vendor/autoload.php'; // Load PHPMailer library

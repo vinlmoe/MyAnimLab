@@ -43,6 +43,24 @@ function session_timeout_minutes(mysqli $con): int
 
 $sessionTimeout = session_timeout_minutes($con) * 60;
 
+// CSRF protection: one token per session, sent by every form that changes
+// data (hidden field csrf_token) and checked with csrf_valid().
+function csrf_token(): string
+{
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+// True when the request is a POST carrying the session's CSRF token.
+function csrf_valid(): bool
+{
+    return ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST'
+        && !empty($_SESSION['csrf_token'])
+        && hash_equals($_SESSION['csrf_token'], (string) ($_POST['csrf_token'] ?? ''));
+}
+
 if (session_status() === PHP_SESSION_NONE && PHP_SAPI !== 'cli') {
     $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
         || strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
@@ -85,6 +103,9 @@ if (PHP_SAPI !== 'cli') {
         header('Location: two_factor.php');
         exit;
     }
+
+    // The session's CSRF token exists before any form is shown.
+    csrf_token();
 
     // Renew the session id periodically (session fixation).
     if (!isset($_SESSION['CREATED'])) {

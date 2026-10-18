@@ -22,10 +22,6 @@ if (!isset($_SESSION['username'])) {
     exit;
 }
 
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-
 $currentUserId = $_SESSION['user_id'] ?? null;
 $currentUserName = $_SESSION['name'] ?? null;
 $cageId = trim($_GET['id'] ?? $_POST['cage_id'] ?? '');
@@ -76,7 +72,7 @@ $animals = $animalsStmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $animalsStmt->close();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
 
@@ -120,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     } catch (Exception $e) {
         mysqli_rollback($con);
-        $_SESSION['message'] = tr('Cage not retired: {error}', ['error' => $e->getMessage()]);
+        $_SESSION['message'] = tr('Cage not retired: {error}', ['error' => error_message($e)]);
         header("Location: cage_retire.php?id=" . rawurlencode($cageId));
         exit;
     }

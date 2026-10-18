@@ -14,6 +14,7 @@ require_once 'session_config.php';
 
 // Include the database connection file
 require 'dbcon.php';
+require_once 'cage_files_lib.php';
 
 // Check if the user is not logged in, redirect them to index.php with the current URL for redirection after login
 if (!isset($_SESSION['username'])) {
@@ -23,7 +24,7 @@ if (!isset($_SESSION['username'])) {
 
 // Deleting changes data: only by POST with the session's CSRF token (the
 // delete buttons submit the cage edit form, which carries it).
-if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], (string) ($_POST['csrf_token'] ?? ''))) {
+if (!csrf_valid()) {
     http_response_code(403);
     exit(trh('CSRF token validation failed'));
 }
@@ -68,9 +69,10 @@ if (isset($_GET['id'])) {
             exit();
         }
 
-        // Check if the file exists on the server
-        if (file_exists($file['file_path'])) {
-            unlink($file['file_path']); // Delete the file from the server
+        // Delete the stored file (only inside uploads/, see cage_files_lib.php)
+        $diskPath = cage_file_disk_path($file['file_path']);
+        if ($diskPath !== null) {
+            unlink($diskPath);
         }
 
         // SQL query to delete the file record from the database

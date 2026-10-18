@@ -4,7 +4,6 @@ require 'dbcon.php';
 require 'animal_lib.php';
 
 if (!isset($_SESSION['username'])) { header('Location:index.php'); exit; }
-if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 $userId = (int) $_SESSION['user_id'];
 $userName = $_SESSION['name'] ?? '';
 $cageId = trim($_GET['cage_id'] ?? $_POST['cage_id'] ?? '');
@@ -68,7 +67,7 @@ function record_administration(mysqli $con, int $prescriptionId, array $animals,
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'] ?? '')) die('CSRF token validation failed');
+    if (!csrf_valid()) die('CSRF token validation failed');
     $mode = $_POST['mode'] ?? 'single';
     $prescriptionId = (int) ($_POST['prescription_id'] ?? 0);
     $lotId = (int) ($_POST['medication_lot_id'] ?? 0);
@@ -94,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['message'] = $recorded . ' administration(s) enregistrée(s) et stock débité.';
     } catch (Exception $e) {
         @mysqli_rollback($con);
-        $_SESSION['message'] = 'Erreur : ' . $e->getMessage();
+        $_SESSION['message'] = 'Erreur : ' . error_message($e);
     }
     header('Location:medication_administration.php' . ($cageId !== '' ? '?cage_id=' . rawurlencode($cageId) : '')); exit;
 }

@@ -19,9 +19,6 @@ if (!isset($_SESSION['username'])) {
     header('Location: index.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
     exit;
 }
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 
 $currentUserId = (int) ($_SESSION['user_id'] ?? 0);
 $currentUserName = $_SESSION['name'] ?? null;
@@ -44,7 +41,7 @@ $selfUrl = 'training_book.php' . ($userId !== $currentUserId ? '?user_id=' . $us
 [$reqDays, $reqYears, $hoursPerDay] = training_requirement($con);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'] ?? '')) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
     try {
@@ -154,7 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['message'] = tr('Entry deleted.');
         }
     } catch (Exception $e) {
-        $_SESSION['message'] = tr('Not saved: {error}', ['error' => $e->getMessage()]);
+        $_SESSION['message'] = tr('Not saved: {error}', ['error' => error_message($e)]);
     }
     header("Location: $selfUrl");
     exit;

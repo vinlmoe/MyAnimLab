@@ -21,6 +21,7 @@ use Dotenv\Dotenv;
 
 // Interface translations (t(), tr()) are available to every page.
 require_once __DIR__ . '/i18n.php';
+require_once __DIR__ . '/db_lib.php';
 
 // Check if the .env file exists in the current directory
 if (file_exists(__DIR__ . '/.env')) {
@@ -59,5 +60,5 @@ $tzResult = $con->query("SELECT value FROM settings WHERE name = 'timezone'");
 $labTimezone = $tzResult ? ($tzResult->fetch_assoc()['value'] ?? '') : '';
 if ($labTimezone !== '' && in_array($labTimezone, timezone_identifiers_list(), true)) {
     date_default_timezone_set($labTimezone);
-    $con->query("SET time_zone = '" . (new DateTime())->format('P') . "'");
+    db_execute($con, 'SET time_zone = ?', 's', [(new DateTime())->format('P')]);
 }

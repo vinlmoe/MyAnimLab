@@ -19,9 +19,6 @@ if (!isset($_SESSION['username'])) {
     header('Location: index.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
     exit;
 }
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 $userId = $_SESSION['user_id'] ?? null;
 $userName = $_SESSION['name'] ?? null;
 $canManage = is_bea_user($con);
@@ -34,7 +31,7 @@ if (!$t) {
 $self = 'terrarium_view.php?id=' . $id;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'] ?? '')) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
     $action = (string) ($_POST['action'] ?? '');
@@ -77,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $post['product_id'] = null;
                 if ((int) ($post['lot_id'] ?? 0)) {
                     $lotId = (int) $post['lot_id'];
-                    $post['product_id'] = (int) ($con->query("SELECT product_id FROM medication_lots WHERE id = $lotId")->fetch_row()[0] ?? 0) ?: null;
+                    $post['product_id'] = (int) (db_value($con, "SELECT product_id FROM medication_lots WHERE id = ?", 'i', [$lotId]) ?? 0) ?: null;
                 }
                 $con->begin_transaction();
                 try {
@@ -117,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception(tr('Unknown action.'));
         }
     } catch (Throwable $e) {
-        $_SESSION['message'] = $e instanceof mysqli_sql_exception ? tr('The record could not be saved.') : $e->getMessage();
+        $_SESSION['message'] = error_message($e);
     }
     header('Location: ' . $self . $anchor);
     exit;
@@ -126,17 +123,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $pop = terrarium_population($con, $t);
 $health = terrarium_health_summary($con, $t);
 $withdrawal = terrarium_withdrawal_until($con, $id);
-$events = $con->query("SELECT * FROM terrarium_events WHERE terrarium_id = $id ORDER BY event_date DESC, id DESC")->fetch_all(MYSQLI_ASSOC);
-$treatments = $con->query(
-    "SELECT tr.*, l.lot_number FROM terrarium_treatments tr LEFT JOIN medication_lots l ON l.id = tr.medication_lot_id WHERE tr.terrarium_id = $id ORDER BY tr.treated_at DESC, tr.id DESC"
-)->fetch_all(MYSQLI_ASSOC);
-$checks = $con->query("SELECT * FROM terrarium_health_checks WHERE terrarium_id = $id ORDER BY checked_on DESC, id DESC")->fetch_all(MYSQLI_ASSOC);
-$captured = $con->query(
+$events = db_rows($con, "SELECT * FROM terrarium_events WHERE terrarium_id = ? ORDER BY event_date DESC, id DESC", 'i', [$id]);
+$treatments = db_rows(
+    $con,
+    "SELECT tr.*, l.lot_number FROM terrarium_treatments tr LEFT JOIN medication_lots l ON l.id = tr.medication_lot_id WHERE tr.terrarium_id = ? ORDER BY tr.treated_at DESC, tr.id DESC",
+    'i',
+    [$id]
+);
+$checks = db_rows($con, "SELECT * FROM terrarium_health_checks WHERE terrarium_id = ? ORDER BY checked_on DESC, id DESC", 'i', [$id]);
+$captured = db_rows(
+    $con,
     "SELECT ca.event_id, ca.weight_g, m.id, m.animal_uid, m.mouse_id, m.cage_id, m.status, m.sex,
             (SELECT GROUP_CONCAT(e.experiment_number SEPARATOR ', ') FROM experiment_animals ea JOIN experiments e ON e.id = ea.experiment_id WHERE ea.animal_id = m.id) AS experiments
      FROM terrarium_capture_animals ca JOIN terrarium_events ev ON ev.id = ca.event_id JOIN mice m ON m.id = ca.animal_id
-     WHERE ev.terrarium_id = $id ORDER BY ca.event_id DESC, m.id"
-)->fetch_all(MYSQLI_ASSOC);
+     WHERE ev.terrarium_id = ? ORDER BY ca.event_id DESC, m.id",
+    'i',
+    [$id]
+);
 $censuses = array_reverse(array_values(array_filter($events, fn($e) => $e['event_type'] === 'census')));
 $lots = $con->query(
     'SELECT l.id, l.lot_number, l.remaining_quantity, l.expiry_date, p.name, p.default_unit FROM medication_lots l JOIN medication_products p ON p.id = l.product_id

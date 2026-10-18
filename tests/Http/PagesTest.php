@@ -22,7 +22,7 @@ final class PagesTest extends TestCase
     private const NOT_PAGES = [
         'animal_lib.php', 'cage_view_parts.php', 'config.php', 'daily_round_alert.php', 'dbcon.php', 'ethics_lib.php',
         'experiment_acts_lib.php', 'export_for_v2.php', 'footer.php', 'header.php', 'i18n.php', 'logout.php', 'message.php',
-        'notes_lib.php', 'auth_lib.php', 'pdf_lib.php', 'process_reminders.php', 'send_email.php', 'session_config.php', 'training_lib.php', 'terrarium_lib.php', 'terrarium_form_fields.php',
+        'notes_lib.php', 'auth_lib.php', 'cage_files_lib.php', 'followup_lib.php', 'db_lib.php', 'pdf_lib.php', 'process_reminders.php', 'send_email.php', 'session_config.php', 'training_lib.php', 'terrarium_lib.php', 'terrarium_form_fields.php',
     ];
     private const PUBLIC_PAGES = ['confirm_email.php', 'forgot_password.php', 'index.php', 'register.php', 'reset_password.php'];
 
@@ -79,7 +79,7 @@ final class PagesTest extends TestCase
         }
     }
 
-    /** GET or POST; returns [status, body, location]. */
+    /** GET or POST; returns [status, body, location, headers]. */
     private function request(string $path, ?string $jar, array $post = null): array
     {
         $ch = curl_init('http://127.0.0.1:' . self::$port . '/' . $path);
@@ -95,7 +95,7 @@ final class PagesTest extends TestCase
         $headerSize = (int) curl_getinfo($ch, CURLINFO_HEADER_SIZE);
         curl_close($ch);
         preg_match('/^Location:\s*(.+)$/mi', substr($raw, 0, $headerSize), $m);
-        return [$status, substr($raw, $headerSize), trim($m[1] ?? '')];
+        return [$status, substr($raw, $headerSize), trim($m[1] ?? ''), substr($raw, 0, $headerSize)];
     }
 
     /** Sign in through the login form; returns the cookie jar. */
@@ -297,6 +297,107 @@ final class PagesTest extends TestCase
         } finally {
             $con->query("UPDATE settings SET value = '0' WHERE name = 'require_2fa_privileged'");
             @unlink($jar);
+        }
+    }
+
+    public function testCageFilesAreDownloadedBySignedInUsersOnly(): void
+    {
+        $con = TestDatabase::connection();
+        $cage = TestDatabase::cage($con, false);
+        cage_files_dir();
+        $stored = 'uploads/' . bin2hex(random_bytes(16)) . '.txt';
+        file_put_contents(APP_ROOT . '/' . $stored, '<script>alert(1)</script>');
+        try {
+            $s = $con->prepare("INSERT INTO files (file_name, file_path, cage_id) VALUES ('notes.txt', ?, ?)");
+            $s->bind_param('ss', $stored, $cage);
+            $s->execute();
+            $fileId = (int) $con->insert_id;
+            // A recorded path is never followed outside uploads/.
+            $s = $con->prepare("INSERT INTO files (file_name, file_path, cage_id) VALUES ('env', '.env', ?)");
+            $s->bind_param('s', $cage);
+            $s->execute();
+            $outsideId = (int) $con->insert_id;
+
+            [$status, , $location] = $this->request("file_download.php?id=$fileId", null);
+            $this->assertSame(302, $status);
+            $this->assertStringContainsString('index.php', $location);
+
+            $jar = $this->login('user');
+            [$status, $body, , $headers] = $this->request("file_download.php?id=$fileId", $jar);
+            $this->assertSame(200, $status);
+            $this->assertSame('<script>alert(1)</script>', $body);
+            $this->assertMatchesRegularExpression('/^Content-Disposition: attachment; filename="notes\.txt"/mi', $headers);
+            $this->assertMatchesRegularExpression('/^Content-Type: text\/plain/mi', $headers);
+            $this->assertMatchesRegularExpression('/^X-Content-Type-Options: nosniff/mi', $headers);
+            [$status] = $this->request("file_download.php?id=$outsideId", $jar);
+            $this->assertSame(404, $status);
+            @unlink($jar);
+        } finally {
+            @unlink(APP_ROOT . '/' . $stored);
+        }
+    }
+
+    public function testCorrectingAFollowupRequiresAReasonAndKeepsTheReplacedValues(): void
+    {
+        $con = TestDatabase::connection();
+        $animal = TestDatabase::animal($con, TestDatabase::cage($con));
+        $enrollment = TestDatabase::enroll($con, TestDatabase::experiment($con), $animal);
+        $page = "experiment_followup.php?experiment_animal_id=$enrollment";
+        $jar = $this->login('admin');
+        [, $body] = $this->request($page, $jar);
+        $entry = fn(string $weight, array $more = []): array => [
+            'csrf_token' => $this->pageToken($body), 'experiment_animal_id' => $enrollment,
+            'observed_at' => date('Y-m-d'), 'weight_g' => $weight, 'clinical_score' => '1', 'observations' => '',
+        ] + $more;
+        $weight = fn() => TestDatabase::value($con, "SELECT weight_g FROM experiment_followups WHERE experiment_animal_id = $enrollment");
+        $revisions = fn() => (int) TestDatabase::value($con, "SELECT COUNT(*) FROM experiment_followup_revisions r JOIN experiment_followups f ON f.id = r.followup_id WHERE f.experiment_animal_id = $enrollment");
+
+        $this->request($page, $jar, $entry('24'));
+        $this->assertSame('24.00', $weight());
+
+        // Same day again without a reason: refused, nothing changed.
+        $this->request($page, $jar, $entry('22'));
+        $this->assertSame('24.00', $weight());
+        $this->assertSame(0, $revisions());
+
+        // With a reason: corrected, the replaced weight is kept.
+        $this->request($page, $jar, $entry('22', ['revision_reason' => 'wrong animal weighed']));
+        $this->assertSame('22.00', $weight());
+        $this->assertSame(1, $revisions());
+        $followupId = (int) TestDatabase::value($con, "SELECT id FROM experiment_followups WHERE experiment_animal_id = $enrollment");
+        [, $view] = $this->request("experiment_followup_view.php?id=$followupId", $jar);
+        $this->assertStringContainsString('wrong animal weighed', $view);
+        $this->assertStringContainsString('24', $view);
+        $this->assertSame(1, (int) TestDatabase::value($con, "SELECT COUNT(*) FROM activity_log WHERE action = 'followup_corrected' AND entity_id = '$animal'"));
+        @unlink($jar);
+    }
+
+    public function testExportForV2LeavesSecretsOutAndIsLogged(): void
+    {
+        $con = TestDatabase::connection();
+        $before = (int) TestDatabase::value($con, "SELECT COUNT(*) FROM activity_log WHERE action = 'export'");
+        $jar = $this->login('admin');
+        [$status, $body] = $this->request('export_for_v2.php', $jar);
+        $this->assertSame(200, $status);
+        $data = json_decode($body, true);
+        $this->assertNotEmpty($data['tables']['users']);
+        foreach ($data['tables']['users'] as $user) {
+            foreach (['password', 'reset_token', 'email_token', 'totp_secret', 'totp_recovery_codes'] as $secret) {
+                $this->assertArrayNotHasKey($secret, $user);
+            }
+            $this->assertArrayHasKey('username', $user);
+        }
+        $this->assertSame($before + 1, (int) TestDatabase::value($con, "SELECT COUNT(*) FROM activity_log WHERE action = 'export'"));
+        [$status] = $this->request('export_for_v2.php', $this->login('user'));
+        $this->assertSame(302, $status);
+        @unlink($jar);
+    }
+
+    public function testCommandLineScriptsAreRefusedOverHttp(): void
+    {
+        foreach (['process_reminders.php', 'send_email.php', 'daily_round_alert.php'] as $script) {
+            [$status] = $this->request($script, null);
+            $this->assertSame(403, $status, $script);
         }
     }
 }

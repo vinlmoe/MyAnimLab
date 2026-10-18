@@ -14,6 +14,7 @@ require_once 'session_config.php';
 // Include the database connection
 require 'dbcon.php';
 require 'animal_lib.php';
+require_once 'cage_files_lib.php';
 
 // Disable error display in production (errors logged to server logs)
 error_reporting(E_ALL);
@@ -37,9 +38,6 @@ if ($redirectCageId !== '') {
 exit;
 
 // Generate CSRF token if not already set
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 
 function getCurrentUrlParams() {
     $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
@@ -137,7 +135,7 @@ if (isset($_GET['id'])) {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Validate CSRF token
-            if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+            if (!csrf_valid()) {
                 die(tr('CSRF token validation failed'));
             }
 
@@ -250,61 +248,13 @@ if (isset($_GET['id'])) {
             } catch (Exception $e) {
                 // Rollback transaction on error
                 $con->rollback();
-                $_SESSION['message'] = tr('Update failed: {error}', ['error' => $e->getMessage()]);
+                $_SESSION['message'] = tr('Update failed: {error}', ['error' => error_message($e)]);
             }
 
 
-            // Handle file upload with validation
+            // Attached file (cage_files_lib.php: random name, content checked, downloaded through file_download.php)
             if (isset($_FILES['fileUpload']) && $_FILES['fileUpload']['error'] == UPLOAD_ERR_OK) {
-                // Define allowed file types and maximum size
-                $allowedExtensions = ['pdf', 'doc', 'docx', 'txt', 'xls', 'xlsx', 'ppt', 'pptx',
-                                      'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp']; // no SVG: it could carry a script served from uploads/
-                $maxFileSize = 10 * 1024 * 1024; // 10MB in bytes
-
-                // Validate file size
-                if ($_FILES['fileUpload']['size'] > $maxFileSize) {
-                    $_SESSION['message'] .= ' ' . tr('File size exceeds 10MB limit.');
-                } else {
-                    // Get and validate file extension
-                    $fileExtension = strtolower(pathinfo($_FILES['fileUpload']['name'], PATHINFO_EXTENSION));
-
-                    if (!in_array($fileExtension, $allowedExtensions)) {
-                        $_SESSION['message'] .= ' ' . tr('Invalid file type. Allowed: {types}', ['types' => 'pdf, doc, docx, txt, xls, xlsx, ppt, pptx, jpg, jpeg, png, gif, bmp, webp']);
-                    } else {
-                        // Sanitize filename to prevent directory traversal
-                        $originalFileName = preg_replace("/[^a-zA-Z0-9._-]/", "_", basename($_FILES['fileUpload']['name']));
-
-                        $targetDirectory = "uploads/$cage_id/"; // Define the target directory
-
-                        // Create the cage_id specific sub-directory if it doesn't exist
-                        if (!file_exists($targetDirectory)) {
-                            if (!mkdir($targetDirectory, 0777, true)) {
-                                $_SESSION['message'] .= ' ' . tr('Failed to create directory.');
-                                exit;
-                            }
-                        }
-
-                        $targetFilePath = $targetDirectory . $originalFileName;
-
-                        // Check if file already exists
-                        if (!file_exists($targetFilePath)) {
-                            if (move_uploaded_file($_FILES['fileUpload']['tmp_name'], $targetFilePath)) {
-                                // Insert file info into the database
-                                $insert = $con->prepare("INSERT INTO files (file_name, file_path, cage_id) VALUES (?, ?, ?)");
-                                $insert->bind_param("sss", $originalFileName, $targetFilePath, $cage_id);
-                                if ($insert->execute()) {
-                                    $_SESSION['message'] .= ' ' . tr('File uploaded successfully.');
-                                } else {
-                                    $_SESSION['message'] .= ' ' . tr('File upload failed, please try again.');
-                                }
-                            } else {
-                                $_SESSION['message'] .= ' ' . tr('Sorry, there was an error uploading your file.');
-                            }
-                        } else {
-                            $_SESSION['message'] .= ' ' . tr('Sorry, file already exists.');
-                        }
-                    }
-                }
+                $_SESSION['message'] = trim(($_SESSION['message'] ?? '') . ' ' . store_cage_file($con, $cage_id, $_FILES['fileUpload']));
             }
 
             // Initialize arrays for litter data
@@ -342,7 +292,7 @@ if (isset($_GET['id'])) {
                         continue;
                     }
                     if (!empty($litter_id_i)) {
-                        $st = $con->query("SELECT status FROM litters WHERE id = " . (int) $litter_id_i)->fetch_row()[0] ?? 'nursing';
+                        $st = db_value($con, "SELECT status FROM litters WHERE id = ?", 'i', [(int) $litter_id_i]) ?? 'nursing';
                         if ($st !== 'nursing') {
                             continue;
                         }
@@ -928,7 +878,7 @@ require 'header.php';
                                                     <tr>
                                                         <td><?= htmlspecialchars($file['file_name']); ?></td>
                                                         <td>
-                                                            <a href="<?= htmlspecialchars($file['file_path']); ?>" download="<?= htmlspecialchars($file['file_name']); ?>" class="btn btn-sm btn-outline-primary">
+                                                            <a href="<?= htmlspecialchars(cage_file_url((int) $file['id'])); ?>" class="btn btn-sm btn-outline-primary">
                                                                 <i class="fas fa-cloud-download-alt fa-sm"></i>
                                                             </a>
                                                             <button type="submit" formaction="delete_file.php?url=bc_edit&amp;id=<?= intval($file['id']); ?>" form="deleteFileForm" class="btn btn-sm btn-link p-0" onclick="return confirm(<?= htmlspecialchars(trj('Are you sure you want to delete this file?')) ?>);" aria-label="<?= trh('Delete {file}', ['file' => $file['file_name']]); ?>">

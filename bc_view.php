@@ -15,6 +15,7 @@ require_once 'session_config.php';
 // Include the database connection file
 require 'dbcon.php';
 require 'animal_lib.php';
+require_once 'cage_files_lib.php';
 require 'cage_view_parts.php';
 
 // Check if the user is not logged in, redirect them to index.php with the current URL for redirection after login
@@ -170,9 +171,6 @@ $breedersStmt->bind_param("s", $id);
 $breedersStmt->execute();
 $breeders = $breedersStmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $breedersStmt->close();
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 
 // Include the header file
 require 'header.php';
@@ -456,7 +454,7 @@ require 'header.php';
                                 <?php while ($file = $files->fetch_assoc()) : ?>
                                     <tr>
                                         <td><?= htmlspecialchars($file['file_name']); ?></td>
-                                        <td><a href="<?= htmlspecialchars($file['file_path']); ?>" download="<?= htmlspecialchars($file['file_name']); ?>" class="btn btn-sm btn-outline-primary"><i class="fas fa-cloud-download-alt"></i></a></td>
+                                        <td><a href="<?= htmlspecialchars(cage_file_url((int) $file['id'])); ?>" class="btn btn-sm btn-outline-primary"><i class="fas fa-cloud-download-alt"></i></a></td>
                                     </tr>
                                 <?php endwhile; ?>
                             </tbody>

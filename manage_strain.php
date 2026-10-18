@@ -26,9 +26,6 @@ if (($_SESSION['role'] ?? '') !== 'admin') {
 require 'header.php'; // Include the header for consistent page structure
 
 // Generate CSRF token if not already set
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 
 // Initialize variables for strain data
 $strainId = $strainName = $strainAka = $strainUrl = $strainRrid = $strainNotes = "";
@@ -36,7 +33,7 @@ $strainId = $strainName = $strainAka = $strainUrl = $strainRrid = $strainNotes =
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Validate CSRF token
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
 

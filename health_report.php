@@ -19,10 +19,6 @@ if (!isset($_SESSION['username'])) {
     exit;
 }
 
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-
 $currentUserId = $_SESSION['user_id'] ?? null;
 $currentUserName = $_SESSION['name'] ?? null;
 $animalId = (int) ($_GET['animal_id'] ?? $_POST['animal_id'] ?? 0);
@@ -31,7 +27,7 @@ $via = in_array($_GET['via'] ?? $_POST['via'] ?? '', ['round', 'qr', 'cage_page'
 $returnUrl = safe_check_return($_GET['return'] ?? $_POST['return'] ?? null);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
 

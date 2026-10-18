@@ -17,10 +17,6 @@ if (!isset($_SESSION['username'])) {
     exit;
 }
 
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-
 $currentUserId = $_SESSION['user_id'] ?? null;
 $animalId = (int) ($_GET['id'] ?? $_POST['animal_id'] ?? 0);
 // On submit, the code chosen in the form wins over the ?code= preselection.
@@ -33,7 +29,7 @@ $returnUrl = $_SERVER['REQUEST_METHOD'] === 'POST'
     : (safe_local_return($_GET['return'] ?? null, ['animal_exit.php']) ?? safe_local_return($_SERVER['HTTP_REFERER'] ?? null, ['animal_exit.php']));
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
 
@@ -49,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             . ($retiredCage ? ' ' . tr('Cage {cage} is now empty and was retired automatically.', ['cage' => $retiredCage]) : '');
     } catch (Exception $e) {
         mysqli_rollback($con);
-        $_SESSION['message'] = tr('Exit not recorded: {error}', ['error' => $e->getMessage()]);
+        $_SESSION['message'] = tr('Exit not recorded: {error}', ['error' => error_message($e)]);
         header("Location: animal_exit.php?" . http_build_query(['id' => $animalId, 'code' => $code, 'return' => $returnUrl]));
         exit;
     }
