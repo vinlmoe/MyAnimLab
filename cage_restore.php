@@ -14,7 +14,7 @@ if (!isset($_SESSION['username'])) {
 }
 
 // Restoring changes data: only by POST with the session's CSRF token.
-$csrfOk = $_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], (string) ($_POST['csrf_token'] ?? ''));
+$csrfOk = csrf_valid();
 if ($csrfOk && isset($_POST['id'], $_POST['confirm']) && $_POST['confirm'] === 'true') {
     $id = (string) $_POST['id'];
     $currentUserId = $_SESSION['user_id'] ?? null;

@@ -18,9 +18,13 @@ define('APP_ROOT', dirname(__DIR__));
 
 require APP_ROOT . '/vendor/autoload.php';
 require_once APP_ROOT . '/i18n.php';
+require_once APP_ROOT . '/db_lib.php';
 require_once APP_ROOT . '/animal_lib.php';
 require_once APP_ROOT . '/experiment_acts_lib.php';
 require_once APP_ROOT . '/training_lib.php';
+require_once APP_ROOT . '/followup_lib.php';
+require_once APP_ROOT . '/cage_files_lib.php';
+require_once APP_ROOT . '/tools/migrations_lib.php';
 
 require __DIR__ . '/TestDatabase.php';
 require __DIR__ . '/DatabaseTestCase.php';

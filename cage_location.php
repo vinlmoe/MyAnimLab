@@ -17,7 +17,7 @@ if (!isset($_SESSION['username'])) {
     header('Location: index.php');
     exit;
 }
-if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !hash_equals($_SESSION['csrf_token'] ?? '', (string) ($_POST['csrf_token'] ?? ''))) {
+if (!csrf_valid()) {
     http_response_code(400);
     exit('Requête invalide.');
 }

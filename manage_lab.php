@@ -23,9 +23,6 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
 }
 
 // CSRF token generation
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 
 // Fetch lab details from the database
 $query = "SELECT * FROM settings";
@@ -64,7 +61,7 @@ $updateMessage = '';
 // Handle form submission for lab data update
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_lab'])) {
 
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
 

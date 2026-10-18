@@ -23,10 +23,6 @@ require 'header.php';
 
 $animalId = (int) ($_GET['id'] ?? 0);
 
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-
 $stmt = $con->prepare(
     "SELECT m.*, al.code AS line_code, al.name AS line_name, al.species
      FROM mice m

@@ -7,10 +7,9 @@ if (!isset($_SESSION['username'])) {
     header('Location: index.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
     exit;
 }
-if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'] ?? '')) die(tr('CSRF token validation failed'));
+    if (!csrf_valid()) die(tr('CSRF token validation failed'));
     $animalId = (int) ($_POST['animal_id'] ?? 0);
     $label = trim($_POST['use_label'] ?? '');
     $projected = $_POST['projected_date'] ?: null;

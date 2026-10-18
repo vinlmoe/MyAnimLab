@@ -24,10 +24,6 @@ if (!isset($_SESSION['username'])) {
     exit;
 }
 
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-
 $userId = $_SESSION['user_id'] ?? null;
 $userName = $_SESSION['name'] ?? null;
 $today = date('Y-m-d');
@@ -68,7 +64,7 @@ $weaningAge = weaning_age_days($con);
 $selfUrl = $litter ? "litter_manage.php?litter_id={$litter['id']}" : "litter_manage.php?cage_id=" . rawurlencode($cageId);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
     $action = $_POST['action'] ?? '';
@@ -167,7 +163,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['message'] = tr('Litter closed without weaning.');
             } else { // wean
                 $lineId = (int) ($_POST['line_id'] ?? 0);
-                $lineOk = $con->query("SELECT COUNT(*) FROM animal_lines WHERE id = $lineId")->fetch_row()[0];
+                $lineOk = (int) db_value($con, "SELECT COUNT(*) FROM animal_lines WHERE id = ?", 'i', [$lineId]);
                 if (!$lineOk) {
                     throw new Exception(tr('Choose the line of the weaned animals.'));
                 }
@@ -224,7 +220,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $uids = [];
                     for ($k = 0; $k < $g['count']; $k++) {
                         $aid = create_animal($con, $dest, $lineId, $g['sex'], $litter['litter_dob'], $parentage, $why, $userId);
-                        $uids[] = $con->query("SELECT animal_uid FROM mice WHERE id = $aid")->fetch_row()[0];
+                        $uids[] = db_value($con, "SELECT animal_uid FROM mice WHERE id = ?", 'i', [$aid]);
                     }
                     $summary[] = tr('{n} {sex}(s) → {cage}', ['n' => $g['count'], 'sex' => tr($g['sex']), 'cage' => $dest]) . ' (' . reset($uids) . ($g['count'] > 1 ? '…' . end($uids) : '') . ")";
                     $g['sex'] === 'male' ? $males += $g['count'] : $females += $g['count'];
@@ -247,7 +243,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         mysqli_commit($con);
     } catch (Exception $e) {
         mysqli_rollback($con);
-        $_SESSION['message'] = tr('Not saved: {error}', ['error' => $e->getMessage()]);
+        $_SESSION['message'] = tr('Not saved: {error}', ['error' => error_message($e)]);
     }
     header("Location: $selfUrl");
     exit;
@@ -269,7 +265,7 @@ if ($litter) {
     $offspring->bind_param("i", $litter['id']);
     $offspring->execute();
     $offspring = $offspring->get_result()->fetch_all(MYSQLI_ASSOC);
-    $damLine = $litter['dam_id'] ? $con->query("SELECT line_id FROM mice WHERE id = " . (int) $litter['dam_id'])->fetch_row()[0] : null;
+    $damLine = $litter['dam_id'] ? db_value($con, "SELECT line_id FROM mice WHERE id = ?", 'i', [(int) $litter['dam_id']]) : null;
     $lines = $con->query("SELECT id, code, name FROM animal_lines ORDER BY code")->fetch_all(MYSQLI_ASSOC);
     $destCages = $con->query("SELECT cage_id, room FROM cages c WHERE status = 'active' AND NOT EXISTS (SELECT 1 FROM breeding b WHERE b.cage_id = c.cage_id) ORDER BY room, cage_id")->fetch_all(MYSQLI_ASSOC);
 }

@@ -20,9 +20,6 @@ if (!isset($_SESSION['username'])) {
     header('Location: index.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
     exit;
 }
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 
 $currentUserId = $_SESSION['user_id'] ?? null;
 $currentUserName = $_SESSION['name'] ?? null;
@@ -48,7 +45,7 @@ $protocolId = (int) $experiment['protocol_id'];
 $selfUrl = 'experiment_acts.php?experiment_id=' . $experimentId;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'] ?? '')) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
 
@@ -92,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         } catch (Exception $e) {
             mysqli_rollback($con);
-            $_SESSION['message'] = tr('Act not planned: {error}', ['error' => $e->getMessage()]);
+            $_SESSION['message'] = tr('Act not planned: {error}', ['error' => error_message($e)]);
         }
     } elseif (isset($_POST['cancel_act'])) {
         // Cancel what is still to do of an act, on one date or on every date.

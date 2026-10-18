@@ -102,7 +102,7 @@ function training_records(mysqli $con, array $userIds): array
         return [];
     }
     $out = array_fill_keys($ids, []);
-    foreach ($con->query('SELECT * FROM training_records WHERE user_id IN (' . implode(',', $ids) . ') ORDER BY start_date DESC, id DESC') as $r) {
+    foreach (db_rows($con, 'SELECT * FROM training_records WHERE user_id IN (' . db_placeholders(count($ids)) . ') ORDER BY start_date DESC, id DESC', str_repeat('i', count($ids)), $ids) as $r) {
         $out[(int) $r['user_id']][] = $r;
     }
     return $out;

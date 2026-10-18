@@ -17,9 +17,6 @@ if (!isset($_SESSION['username'])) {
     header('Location: index.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
     exit;
 }
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 
 $type = $cageDashType ?? ($_GET['type'] ?? 'holding');
 if ($type !== 'all' && !isset(CAGE_KINDS[$type])) {

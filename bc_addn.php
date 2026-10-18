@@ -25,9 +25,6 @@ if (!isset($_SESSION['username'])) {
 }
 
 // Generate CSRF token if not already set
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 
 // Query to retrieve users with initials and names
 $userQuery = "SELECT id, initials, name FROM users WHERE status = 'approved'";
@@ -70,7 +67,7 @@ function eligible_breeders(mysqli $con, string $sex): array
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Validate CSRF token
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
 
@@ -200,7 +197,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $_SESSION['message'] .= ' ' . tr('Litter data added successfully.');
                     } else {
                         // Append error message for litter data
-                        $_SESSION['message'] .= ' ' . tr('Failed to add litter data: {error}', ['error' => $insert_litter_query->error]);
+                        $_SESSION['message'] .= ' ' . db_error_message($insert_litter_query->error);
                     }
 
                     // Close the prepared statement for litter data
@@ -214,7 +211,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $insert_breeding_query->close();
         } catch (Exception $e) {
             mysqli_rollback($con);
-            $_SESSION['message'] = tr('Failed to add new breeding cage: {error}', ['error' => $e->getMessage()]);
+            $_SESSION['message'] = tr('Failed to add new breeding cage: {error}', ['error' => error_message($e)]);
         }
     }
 

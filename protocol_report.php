@@ -11,7 +11,7 @@ $stmt = $con->prepare('SELECT p.*,t.id AS trial_id,t.trial_number,t.title AS tri
 $stmt->bind_param('i', $protocolId); $stmt->execute(); $protocol = $stmt->get_result()->fetch_assoc(); $stmt->close();
 if (!$protocol) { require 'header.php'; echo "<main class='container mt-4'><div class='alert alert-danger'>Plan/protocole introuvable.</div></main>"; require 'footer.php'; exit; }
 $grid = $protocol['clinical_grid_id'] ? load_clinical_grid($con, (int) $protocol['clinical_grid_id']) : null;
-$thresholds = $con->query('SELECT * FROM protocol_endpoint_thresholds WHERE protocol_id=' . $protocolId . ' ORDER BY id')->fetch_all(MYSQLI_ASSOC);
+$thresholds = db_rows($con, 'SELECT * FROM protocol_endpoint_thresholds WHERE protocol_id = ? ORDER BY id', 'i', [$protocolId]);
 $experiments = $con->prepare("SELECT e.*, COUNT(ea.id) AS animal_count, SUM(ea.id IS NOT NULL AND ea.removed_at IS NULL) AS active_animal_count,
     (SELECT COUNT(*) FROM experiment_followups f JOIN experiment_animals ea2 ON ea2.id=f.experiment_animal_id WHERE ea2.experiment_id=e.id) AS followup_count
     FROM experiments e LEFT JOIN experiment_animals ea ON ea.experiment_id=e.id WHERE e.protocol_id=? GROUP BY e.id ORDER BY e.id");

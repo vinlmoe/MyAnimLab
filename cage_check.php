@@ -16,10 +16,6 @@ if (!isset($_SESSION['username'])) {
     exit;
 }
 
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-
 $cageId = trim($_GET['id'] ?? $_POST['cage_id'] ?? '');
 $via = in_array($_GET['via'] ?? $_POST['via'] ?? '', ['qr', 'cage_page'], true) ? ($_GET['via'] ?? $_POST['via']) : 'cage_page';
 
@@ -40,7 +36,7 @@ if ($cage && $cage['status'] === 'active' && cage_experimental_progress($con, $c
 }
 
 if ($cage && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
     if ($cage['status'] !== 'active') {

@@ -194,7 +194,7 @@ function animal_species(mysqli $con, array $animalIds): array
         return [];
     }
     $out = array_fill_keys($ids, '');
-    foreach ($con->query('SELECT m.id, l.species FROM mice m LEFT JOIN animal_lines l ON l.id = m.line_id WHERE m.id IN (' . implode(',', $ids) . ')') as $r) {
+    foreach (db_rows($con, 'SELECT m.id, l.species FROM mice m LEFT JOIN animal_lines l ON l.id = m.line_id WHERE m.id IN (' . db_placeholders(count($ids)) . ')', str_repeat('i', count($ids)), $ids) as $r) {
         $out[(int) $r['id']] = mb_strtolower(trim((string) $r['species']));
     }
     return $out;
@@ -303,11 +303,11 @@ function quota_send_alerts(mysqli $con, ?string $ethicsNumber): void
         if ($level <= $q['alert_level']) {
             if ($level < $q['alert_level']) {
                 // Below again (e.g. quota raised): alert again next time.
-                $con->query('UPDATE iacuc_animal_quotas SET alert_level = ' . (int) $level . ' WHERE id = ' . (int) $q['id']);
+                db_execute($con, 'UPDATE iacuc_animal_quotas SET alert_level = ? WHERE id = ?', 'ii', [(int) $level, (int) $q['id']]);
             }
             continue;
         }
-        $con->query('UPDATE iacuc_animal_quotas SET alert_level = ' . (int) $level . ' WHERE id = ' . (int) $q['id']);
+        db_execute($con, 'UPDATE iacuc_animal_quotas SET alert_level = ? WHERE id = ?', 'ii', [(int) $level, (int) $q['id']]);
         $title = $level >= 100
             ? tr('Authorization {number}: quota of {species} reached', ['number' => $ethicsNumber, 'species' => $q['species']])
             : tr('Authorization {number}: {pct} % of the {species} used', ['number' => $ethicsNumber, 'species' => $q['species'], 'pct' => $q['pct']]);

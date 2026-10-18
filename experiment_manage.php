@@ -16,10 +16,6 @@ if (!isset($_SESSION['username'])) {
     exit;
 }
 
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-
 $currentUserId = $_SESSION['user_id'] ?? null;
 $protocolId = (int) ($_GET['protocol_id'] ?? $_POST['protocol_id'] ?? 0);
 
@@ -45,7 +41,7 @@ $experimentFrame = ($protocol['start_date'] || $protocol['end_date'])
     : $trial;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
 
@@ -70,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['message'] = "Expérience $experimentNumber créée.";
             } catch (Exception $e) {
                 mysqli_rollback($con);
-                $_SESSION['message'] = 'Impossible de créer l’expérience : ' . $e->getMessage();
+                $_SESSION['message'] = 'Impossible de créer l’expérience : ' . error_message($e);
             }
         }
     } elseif (isset($_POST['enroll_animals'])) {

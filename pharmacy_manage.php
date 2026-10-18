@@ -1,7 +1,6 @@
 <?php
 require_once 'session_config.php';
 if (!isset($_SESSION['username'])) { header('Location: index.php'); exit; }
-if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 $uid=(int)($_SESSION['user_id']??0);
 /** Narcotic flag, concentration and its unit (e.g. 100 mg/mL) from a product form. */
 function product_dosage_input(array $in): array {
@@ -12,7 +11,7 @@ function product_dosage_input(array $in): array {
     return [!empty($in['is_narcotic']) ? 1 : 0, $conc, $conc !== null ? $unit : null];
 }
 if ($_SERVER['REQUEST_METHOD']==='POST') {
- if (!hash_equals($_SESSION['csrf_token'],$_POST['csrf_token']??'')) die('CSRF token validation failed');
+ if (!csrf_valid()) die('CSRF token validation failed');
  try {
   if (isset($_POST['add_product'])) { $n=trim($_POST['name']??''); $u=trim($_POST['default_unit']??'unit'); if(!$n) throw new Exception('Nom obligatoire.'); [$narc,$conc,$concUnit]=product_dosage_input($_POST); $s=$con->prepare('INSERT INTO medication_products (name,presentation,active_ingredient,default_unit,is_narcotic,concentration,concentration_unit,notes) VALUES (?,?,?,?,?,?,?,?)'); $p=trim($_POST['presentation']??'');$a=trim($_POST['active_ingredient']??'');$no=trim($_POST['notes']??'');$s->bind_param('ssssidss',$n,$p,$a,$u,$narc,$conc,$concUnit,$no);$s->execute();$s->close(); log_activity($con,'medication_product_added','medication_product',(string)$con->insert_id,$n.($narc?' (stupéfiant)':''),$uid); $_SESSION['message']='Médicament ajouté.'; }
   // Narcotic flag and concentration of an existing product (traced in the activity log).
@@ -20,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   if (isset($_POST['add_lot'])) { $pid=(int)$_POST['product_id'];$lot=trim($_POST['lot_number']??'');$exp=$_POST['expiry_date']??'';$q=(float)$_POST['quantity'];$received=$_POST['received_at']?:date('Y-m-d');$inUse=$_POST['in_use_since']?:null;if(!$pid||!$lot||!$exp||$q<=0)throw new Exception('Produit, lot, péremption et quantité positive sont obligatoires.');$s=$con->prepare('INSERT INTO medication_lots (product_id,lot_number,expiry_date,received_at,in_use_since,initial_quantity,remaining_quantity,storage_location,supplier,created_by) VALUES (?,?,?,?,?,?,?,?,?,?)');$st=trim($_POST['storage_location']??'');$sup=trim($_POST['supplier']??'');$s->bind_param('issssddssi',$pid,$lot,$exp,$received,$inUse,$q,$q,$st,$sup,$uid);$s->execute();$lid=$con->insert_id;$s->close();$m=$con->prepare("INSERT INTO medication_stock_movements (medication_lot_id,movement_type,quantity_delta,reason,performed_by) VALUES (?,'receipt',?,'Réception du lot',?)");$m->bind_param('idi',$lid,$q,$uid);$m->execute();$m->close();$_SESSION['message']='Lot ajouté au stock.'; }
   if (isset($_POST['start_use'])) { $lid=(int)$_POST['lot_id'];$inUse=$_POST['in_use_since']??'';if(!$lid||!$inUse)throw new Exception('Indiquez la date de début d’utilisation.');$s=$con->prepare('UPDATE medication_lots SET in_use_since=COALESCE(in_use_since,?) WHERE id=?');$s->bind_param('si',$inUse,$lid);$s->execute();$s->close();$_SESSION['message']='Début d’utilisation enregistré.'; }
   if (isset($_POST['adjust_stock'])) { $lid=(int)$_POST['lot_id'];$d=(float)$_POST['quantity_delta'];$reason=trim($_POST['reason']??'');if(!$lid||!$d||!$reason)throw new Exception('Indiquez l’ajustement et son motif.');mysqli_begin_transaction($con);$s=$con->prepare('SELECT remaining_quantity FROM medication_lots WHERE id=? FOR UPDATE');$s->bind_param('i',$lid);$s->execute();$r=$s->get_result()->fetch_assoc();$s->close();if(!$r||$r['remaining_quantity']+$d<0)throw new Exception('Stock insuffisant.');$u=$con->prepare('UPDATE medication_lots SET remaining_quantity=remaining_quantity+? WHERE id=?');$u->bind_param('di',$d,$lid);$u->execute();$u->close();$m=$con->prepare("INSERT INTO medication_stock_movements (medication_lot_id,movement_type,quantity_delta,reason,performed_by) VALUES (?,'adjustment',?,?,?)");$m->bind_param('idsi',$lid,$d,$reason,$uid);$m->execute();$m->close();mysqli_commit($con);$_SESSION['message']='Ajustement enregistré.'; }
- } catch(Exception $e){ if($con->errno) @mysqli_rollback($con); $_SESSION['message']='Erreur : '.$e->getMessage(); }
+ } catch(Exception $e){ if($con->errno) @mysqli_rollback($con); $_SESSION['message']='Erreur : '.error_message($e); }
  header('Location: pharmacy_manage.php'); exit;
 }
 $products=$con->query('SELECT * FROM medication_products WHERE active=1 ORDER BY name')->fetch_all(MYSQLI_ASSOC);
