@@ -1,28 +1,71 @@
 \documentclass[11pt,a4paper]{article}
 \input{guide-style}
-\lhead{MyAnimLab --- Guide de l'utilisateur}
+\lhead{\logomark\ \wordmark\ --- Guide de l'utilisateur}
 \rhead{Version du 18 octobre 2026}
 
-\title{\textbf{MyAnimLab}\\[4pt]\large Guide de l'utilisateur}
-\author{Animaliers, expérimentateurs, techniciens}
-\date{18 octobre 2026}
-
 \begin{document}
-\maketitle
-\thispagestyle{fancy}
+\pagetitre{Guide de l'utilisateur}{Animaliers, expérimentateurs, techniciens}{18 octobre 2026}
 
-\noindent Ce guide décrit les tâches quotidiennes dans MyAnimLab : tenir les
-cages, faire la tournée, suivre les animaux, la reproduction et les
-expérimentations, administrer les traitements. Les actions réservées aux
-administrateurs (comptes, paramètres, autorisations de projet, corrections du
-registre) sont décrites dans le \emph{Guide de l'administrateur}.
 
+\section*{Comment utiliser ce guide}
+Ce guide suit le travail de chaque jour dans MyAnimLab : tenir les cages,
+faire la tournée, suivre les animaux, la reproduction et les expérimentations,
+administrer les traitements, tenir son livret de formation. Les actions
+réservées aux administrateurs (comptes, paramètres, autorisations de projet,
+corrections du registre) sont dans le \emph{Guide de l'administrateur}.
+
+\begin{center}
+\rowcolors{2}{gray!8}{white}
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+\textbf{Vous êtes…} & \textbf{Lisez d'abord}\\
+\midrule
+Nouvel arrivant & Premiers pas (\ref{sec:premiers}), Formation et livret (\ref{sec:livret})\\
+Animalier, zootechnicien & Les cages (\ref{sec:cages}), La tournée (\ref{sec:tournee}), La reproduction (\ref{sec:portees}), Pharmacie (\ref{sec:pharmacie})\\
+Expérimentateur & L'expérimentation (\ref{sec:experimentation}), Pharmacie (\ref{sec:pharmacie})\\
+Responsable d'une population & Terrariums et populations (\ref{sec:terrariums})\\
+Tout le monde & Que faire si… (\ref{sec:faq}), l'aide-mémoire et le glossaire en annexe\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\noindent\textbf{Conventions.} \menu{Animaux > Tournée quotidienne} indique un
+chemin dans le menu, \btn{Enregistrer} un bouton ou un libellé de l'écran.
+Trois encadrés reviennent :
+\begin{procedure}{Procédure}
+Les étapes à suivre, dans l'ordre.
+\end{procedure}
+\begin{regle}
+Une règle appliquée par le logiciel : ce qui est refusé, ce qui est notifié.
+\end{regle}
+\begin{trace}
+Ce qui est conservé pour le registre et l'inspection, et comment corriger.
+\end{trace}
+
+\newpage
 \tableofcontents
 \newpage
 
-\section{Premiers pas}
+\section{Premiers pas}\label{sec:premiers}
 
-\subsection{Se connecter}
+\subsection{Votre première semaine}
+\begin{procedure}{Parcours d'un nouvel arrivant}
+\begin{enumerate}
+  \item Recevez votre compte de l'administrateur et connectez-vous
+    (section~\ref{sec:connexion}) ; activez la double authentification si
+    elle vous est demandée.
+  \item Ouvrez \menu{Paramètres > Mon livret de formation} et suivez
+    l'encadré \btn{Mon parcours de formation} : diplôme, formations
+    réglementaires, attestations (section~\ref{sec:livret}). Tant que votre
+    compétence n'est pas validée, vous travaillez sous encadrement.
+  \item Demandez à être affecté aux cages que vous suivez : vous recevrez
+    leurs rappels (sevrages, actes) et pourrez gérer leurs fichiers.
+  \item Faites une première tournée accompagné (section~\ref{sec:tournee}),
+    puis repérez dans l'aide-mémoire (annexe) ce qui revient chaque jour.
+\end{enumerate}
+\end{procedure}
+
+\subsection{Se connecter}\label{sec:connexion}
 Les comptes sont créés par un administrateur : il n'y a pas d'inscription
 libre. Votre identifiant est votre adresse e-mail.
 
@@ -83,7 +126,159 @@ administrateur.
 \end{itemize}
 \capture[0.85\linewidth]{u_accueil}{Accueil : action de point limite requise, portée dont le sevrage est en retard, avancement de la tournée.}
 
-\section{Les cages}
+\section{Formation et livret de compétences}\label{sec:livret}
+Toute personne qui travaille avec les animaux tient son \textbf{livret de
+formation} dans \menu{Paramètres > Mon livret de formation}. Il répond aux
+articles 23 et 24 de la directive 2010/63/UE et à l'arrêté du 1\textsuperscript{er}
+février 2013 :
+\begin{itemize}
+  \item une \textbf{fonction} (conception des procédures et des projets,
+    application des procédures expérimentales, soins aux animaux, mise à mort)
+    n'est exercée qu'après la \textbf{formation réglementaire initiale}
+    correspondante ;
+  \item la personne travaille ensuite \textbf{sous encadrement} jusqu'à la
+    \textbf{validation de sa compétence} par son tuteur ;
+  \item elle suit une \textbf{formation continue} d'au moins 3 jours sur
+    6 ans (période glissante ; minimum réglé par l'administrateur).
+\end{itemize}
+Chaque entrée porte son \textbf{attestation} (numéro et PDF) : le livret
+imprimé et ses attestations sont les preuves présentées lors d'une
+inspection.
+
+\capture[0.85\linewidth]{u_livret}{Livret de formation : diplôme, fonctions, formation continue et parcours.}
+
+\subsection{Lire son livret}
+\begin{itemize}
+  \item \textbf{Diplôme initial} : le diplôme le plus élevé enregistré, en
+    rouge s'il manque.
+  \item \textbf{Fonctions} : pour chacune, \btn{Compétent depuis le …}
+    (vert), \btn{Formé le … --- sous encadrement} (orange) ou --- (non formé).
+  \item \textbf{Formation continue} : heures validées sur la période
+    glissante, barre de progression et badge \btn{À jour},
+    \btn{À jour jusqu’au …}, \btn{À compléter avant le …} ou
+    \btn{Non conforme depuis le …}. L'obligation commence avec la première
+    formation réglementaire initiale validée : la personne dispose alors de
+    la durée de la période pour atteindre le minimum.
+  \item Les tableaux par type d'entrée : dates, durée (« comptée » ou « hors
+    période » pour la formation continue), attestation et statut
+    (\btn{À valider}, \btn{Validée} avec le nom du valideur, \btn{Refusée}
+    avec son motif).
+\end{itemize}
+
+\subsection{Le parcours de formation}
+L'encadré \btn{Mon parcours de formation} guide pas à pas. Chaque étape
+indique ce qui est fait (coche verte), ce qui est à faire (flèche bleue), ce
+qui demande attention (point orange), ce qui est en retard (croix rouge) ou
+en attente (sablier). Le bouton de l'étape ouvre directement le formulaire
+\btn{Ajouter une entrée} avec le bon type et la bonne fonction.
+
+\capture[0.85\linewidth]{u_livret_parcours}{Parcours d’une personne formée, encore sous encadrement pour l’application des procédures.}
+
+\begin{enumerate}
+  \item \textbf{Diplôme initial} : \btn{Enregistrer mon diplôme}.
+  \item \textbf{Formation réglementaire initiale} : une par fonction
+    exercée ; \btn{Ajouter une autre fonction} pour une nouvelle fonction.
+  \item \textbf{Période encadrée et compétence} : tant qu'une fonction n'est
+    pas validée, \btn{Enregistrer une compétence validée}.
+  \item \textbf{Formation continue} : \btn{Enregistrer une formation
+    continue} avant l'échéance affichée.
+  \item \textbf{Attestations} : les entrées sans PDF, à compléter avec
+    \btn{Joindre}.
+  \item \textbf{Validation des entrées} : les entrées en attente, et celles
+    refusées à corriger.
+\end{enumerate}
+
+\subsection{Enregistrer une entrée}
+\begin{procedure}{Ajouter une entrée au livret}
+\begin{enumerate}
+  \item Bouton de l'étape du parcours, ou \btn{Ajouter une entrée}.
+  \item \btn{Type} :
+    \begin{itemize}
+      \item \btn{Diplôme initial} : \btn{Niveau} (de CAP/BEP à doctorat,
+        docteur vétérinaire…), \btn{Intitulé et spécialité},
+        \btn{Établissement} et \btn{Date d’obtention} ;
+      \item \btn{Formation réglementaire initiale} : la \btn{Fonction}, le
+        titre de la formation agréée, l'\btn{Organisme}, les dates, la
+        \btn{Durée} (heures ou jours) et l'\btn{Espèce} ;
+      \item \btn{Compétence validée (fin d’encadrement / tutorat)} : la
+        \btn{Fonction}, la date de validation et l'\btn{Encadrant / tuteur}
+        qui a validé la compétence ;
+      \item \btn{Formation continue} : titre, organisme, dates et
+        \btn{Durée} (obligatoire, en heures ou en jours de 7~h) --- formation,
+        congrès, atelier, e-learning ;
+      \item \btn{Autre formation} : toute formation utile non réglementaire.
+    \end{itemize}
+  \item \btn{N° d’attestation} et \btn{Attestation (PDF)} : joignez le
+    scan de l'attestation signée (PDF, 20~Mo au plus).
+  \item \btn{Enregistrer l’entrée}. Elle apparaît \btn{À valider} (sur fond
+    jaune) et ne compte qu'une fois validée.
+\end{enumerate}
+\end{procedure}
+\capture[0.85\linewidth]{u_livret_ajout}{Formulaire ouvert par « Enregistrer une compétence validée » : type et fonction déjà choisis.}
+
+\begin{regle}
+\begin{itemize}
+  \item Seules les formations déjà suivies s'enregistrent (pas de date
+    future).
+  \item Une entrée saisie par un administrateur ou un responsable BEA est
+    validée aussitôt.
+  \item Vous pouvez supprimer vos entrées non encore validées ; une entrée
+    validée ne peut être supprimée que par un administrateur ou un
+    responsable BEA (la suppression est journalisée).
+\end{itemize}
+\end{regle}
+
+\subsection{Les attestations (certification)}
+\begin{procedure}{Joindre une attestation manquante}
+\begin{enumerate}
+  \item Dans le tableau de l'entrée, colonne \btn{Attestation}, choisissez
+    le fichier PDF.
+  \item \btn{Joindre}. L'ajout est inscrit au journal d'activité ; le lien
+    \btn{PDF} remplace le champ.
+\end{enumerate}
+\end{procedure}
+\capture[0.85\linewidth]{u_livret_continue}{Formation continue : une entrée à valider, une entrée validée sans attestation (« Joindre »).}
+Une attestation ne se remplace pas : en cas d'erreur, demandez à un
+administrateur ou à un responsable BEA de supprimer l'entrée, puis
+enregistrez-la de nouveau. Les attestations sont conservées dans un dossier
+privé : seuls leur titulaire, les administrateurs et les responsables BEA
+peuvent les ouvrir.
+
+\begin{procedure}{Produire son livret pour une inspection}
+\begin{enumerate}
+  \item \btn{Imprimer / PDF} : le livret s'imprime sans les boutons ni le
+    parcours, avec la date d'édition, l'établissement et la base
+    réglementaire appliquée.
+  \item Joignez les attestations utiles (liens \btn{PDF}).
+\end{enumerate}
+\end{procedure}
+
+\subsection{Travailler sous encadrement}
+\begin{itemize}
+  \item Tant que la compétence « application des procédures » n'est pas
+    validée, un bandeau \btn{Votre livret de formation :} le rappelle sur les
+    pages expérimentales, avec le lien \btn{Ouvrir mon livret de formation}.
+  \item Pour confirmer un acte expérimental réalisé, choisissez
+    l'\btn{Encadrant présent} parmi les personnes compétentes de
+    l'établissement, ou \btn{Autre personne (nom)}. Son nom est conservé avec
+    l'acte.
+  \item Quand votre tuteur vous juge compétent, enregistrez la
+    \btn{Compétence validée} avec son nom et l'attestation signée. Une fois
+    l'entrée validée, le bandeau disparaît et vous confirmez seul.
+\end{itemize}
+
+\subsection{Validation et rappels}
+\begin{itemize}
+  \item Les entrées déclarées sont validées ou refusées par un
+    administrateur ou un responsable BEA (guide administrateur). Vous recevez
+    une notification ; un refus porte son motif : corrigez puis
+    enregistrez de nouveau l'entrée.
+  \item Une notification vous prévient quand votre formation continue doit
+    être renouvelée dans les 6 mois, ou qu'elle est en retard (au plus une
+    fois tous les 30 jours).
+\end{itemize}
+
+\section{Les cages}\label{sec:cages}
 
 \subsection{Tableaux de bord et fiche de cage}
 Chaque catégorie de cages a son tableau de bord : salle, rack, animaux
@@ -97,14 +292,18 @@ expérimentation. Un clic sur une cage ouvre sa \textbf{fiche}, qui présente :
     (section~\ref{sec:portees}) ;
   \item les \textbf{fichiers} joints et le journal de maintenance.
 \end{itemize}
+\capture[0.85\linewidth]{u_tableau_bord}{Tableau de bord des cages d’hébergement : sélection, salle, rack, animaux.}
+\capture[0.65\linewidth]{u_fiche_cage}{Fiche d’une cage : contrôle du jour, emplacement, animaux vivants et actions.}
 
 \subsection{Créer des cages et des animaux}
 \begin{procedure}{Cage d'hébergement avec ses animaux}
 \begin{enumerate}
-  \item \menu{Tableaux de bord > Cages d'hébergement}, puis \btn{Ajouter une
-    cage d'hébergement}.
-  \item Choisissez la lignée, le nombre de mâles et de femelles et la date
-    de naissance.
+  \item \menu{Tableaux de bord > Cages d'hébergement}, puis \btn{Nouvelle
+    cage}.
+  \item \btn{Responsable}, \btn{Utilisateur}, \btn{Numéro éthique} s'il y a
+    lieu, \btn{Salle} et \btn{Rack}.
+  \item \btn{Lignée}, \btn{Nombre de mâles}, \btn{Nombre de femelles} et
+    \btn{Date de naissance} (et, au besoin, souche et génotype).
   \item Renseignez l'\textbf{entrée dans l'établissement} : provenance
     (fournisseur ou éleveur agréé, autre établissement utilisateur, autre),
     fournisseur, référence du bon de livraison et date d'entrée. Ces
@@ -117,19 +316,8 @@ Pour un arrivage important, \menu{Animaux > Créer des animaux et cages en
 lot} répartit automatiquement les animaux sur le nombre minimal de cages,
 selon la capacité par cage indiquée.
 
-\begin{procedure}{Cage d'accouplement}
-\begin{enumerate}
-  \item \menu{Tableaux de bord > Cages d'accouplement}, puis \btn{Ajouter une
-    cage d'accouplement}.
-  \item Indiquez le croisement, le responsable, l'autorisation de projet, la
-    salle et le rack, ainsi que les utilisateurs de la cage.
-  \item Choisissez les \textbf{reproducteurs existants} : au moins un mâle et
-    une femelle. Ils sont transférés dans la nouvelle cage, et le mouvement est
-    conservé dans leur historique.
-  \item Les naissances s'enregistrent ensuite depuis la fiche de la cage
-    (section~\ref{sec:portees}).
-\end{enumerate}
-\end{procedure}
+Une cage d'accouplement se crée avec des reproducteurs déjà présents :
+voir la section~\ref{sec:accouplement}.
 
 \subsection{Entretien, notes et capteurs}
 \begin{itemize}
@@ -297,7 +485,7 @@ ligne par suivi.
 
 \section{La reproduction}\label{sec:portees}
 
-\subsection{Mettre des animaux en accouplement}
+\subsection{Mettre des animaux en accouplement}\label{sec:accouplement}
 \menu{Tableaux de bord > Cages d'accouplement}, puis \btn{Nouvelle cage
 d'accouplement}. Les reproducteurs sont des animaux déjà présents dans
 l'établissement : ils sont transférés dans la nouvelle cage avec tout leur
@@ -400,7 +588,7 @@ retard est aussi signalé aux administrateurs et aux responsables BEA. Une
 portée sevrée ou clôturée ne peut plus être modifiée.
 \end{regle}
 
-\section{L'expérimentation}
+\section{L'expérimentation}\label{sec:experimentation}
 
 \subsection{Organisation}
 \menu{Animaux > Essais / protocoles / expériences}. Un \textbf{essai} est
@@ -487,8 +675,10 @@ La page d'un protocole regroupe ses expériences.
 \subsection{Le suivi journalier}
 \begin{procedure}{Saisir le suivi d'un animal}
 \begin{enumerate}
-  \item Depuis l'expérience, ouvrez le suivi de l'animal. Pour une cage
-    entière, utilisez le suivi groupé de la cage.
+  \item Depuis l'expérience, bouton \btn{Suivi quotidien} de l'animal. Pour
+    toute une cage, depuis la tournée : bouton \btn{Suivi expérimental
+    (x/y)} de la cage (animaux déjà suivis / à suivre) ; le bouton
+    \btn{n acte(s)} mène directement aux actes du jour.
   \item Notez chaque item de la grille clinique (le total devient le score
     clinique), le poids et les observations.
   \item Confirmez les \textbf{actes expérimentaux} du jour : réalisé, ou non
@@ -607,8 +797,8 @@ Le tableau \btn{Stock par lot} donne pour chaque lot sa péremption (en jaune
   \item La dose et son unité, la voie, la fréquence (par exemple « 1 fois
     par jour ») et les \btn{Consignes}.
   \item \btn{Enregistrer l’ordonnance}. Elle apparaît dans
-    l'\btn{Historique}, et les animaux traités sont signalés par une
-    seringue sur la fiche de leur cage et dans la tournée.
+    l'\btn{Historique}. Dans la tournée, les cages qui ont des animaux à
+    traiter portent un bouton seringue avec leur nombre.
 \end{enumerate}
 \end{procedure}
 \capture[0.85\linewidth]{u_ordonnances}{Ordonnances : saisie et historique.}
@@ -616,8 +806,9 @@ Le tableau \btn{Stock par lot} donne pour chaque lot sa péremption (en jaune
 \subsection{Les administrations}
 \begin{procedure}{Administrer à toute une cage}
 \begin{enumerate}
-  \item Depuis la fiche de la cage ou la tournée, cliquez sur l'icône
-    seringue : la page \btn{Administrations} s'ouvre pour cette cage.
+  \item Depuis la tournée (bouton seringue de la cage) ou la fiche de la
+    cage (icône seringue de l'en-tête) : la page \btn{Administrations}
+    s'ouvre pour cette cage.
   \item Pour chaque ordonnance en cours, les animaux encore à traiter sont
     affichés avec le nombre d'administrations déjà faites (par exemple
     « 2/3 »).
@@ -781,162 +972,29 @@ possible. Une capture hors expérimentation reste possible en cochant
 \btn{Capturer pendant le délai d’attente (hors expérimentation)}.
 \end{regle}
 
-\section{Formation et livret de compétences}\label{sec:livret}
-Toute personne qui travaille avec les animaux tient son \textbf{livret de
-formation} dans \menu{Paramètres > Mon livret de formation}. Il répond aux
-articles 23 et 24 de la directive 2010/63/UE et à l'arrêté du 1\textsuperscript{er}
-février 2013 :
-\begin{itemize}
-  \item une \textbf{fonction} (conception des procédures et des projets,
-    application des procédures expérimentales, soins aux animaux, mise à mort)
-    n'est exercée qu'après la \textbf{formation réglementaire initiale}
-    correspondante ;
-  \item la personne travaille ensuite \textbf{sous encadrement} jusqu'à la
-    \textbf{validation de sa compétence} par son tuteur ;
-  \item elle suit une \textbf{formation continue} d'au moins 3 jours sur
-    6 ans (période glissante ; minimum réglé par l'administrateur).
-\end{itemize}
-Chaque entrée porte son \textbf{attestation} (numéro et PDF) : le livret
-imprimé et ses attestations sont les preuves présentées lors d'une
-inspection.
-
-\capture[0.85\linewidth]{u_livret}{Livret de formation : diplôme, fonctions, formation continue et parcours.}
-
-\subsection{Lire son livret}
-\begin{itemize}
-  \item \textbf{Diplôme initial} : le diplôme le plus élevé enregistré, en
-    rouge s'il manque.
-  \item \textbf{Fonctions} : pour chacune, \btn{Compétent depuis le …}
-    (vert), \btn{Formé le … --- sous encadrement} (orange) ou --- (non formé).
-  \item \textbf{Formation continue} : heures validées sur la période
-    glissante, barre de progression et badge \btn{À jour},
-    \btn{À jour jusqu’au …}, \btn{À compléter avant le …} ou
-    \btn{Non conforme depuis le …}. L'obligation commence avec la première
-    formation réglementaire initiale validée : la personne dispose alors de
-    la durée de la période pour atteindre le minimum.
-  \item Les tableaux par type d'entrée : dates, durée (« comptée » ou « hors
-    période » pour la formation continue), attestation et statut
-    (\btn{À valider}, \btn{Validée} avec le nom du valideur, \btn{Refusée}
-    avec son motif).
-\end{itemize}
-
-\subsection{Le parcours de formation}
-L'encadré \btn{Mon parcours de formation} guide pas à pas. Chaque étape
-indique ce qui est fait (coche verte), ce qui est à faire (flèche bleue), ce
-qui demande attention (point orange), ce qui est en retard (croix rouge) ou
-en attente (sablier). Le bouton de l'étape ouvre directement le formulaire
-\btn{Ajouter une entrée} avec le bon type et la bonne fonction.
-
-\capture[0.85\linewidth]{u_livret_parcours}{Parcours d’une personne formée, encore sous encadrement pour l’application des procédures.}
-
-\begin{enumerate}
-  \item \textbf{Diplôme initial} : \btn{Enregistrer mon diplôme}.
-  \item \textbf{Formation réglementaire initiale} : une par fonction
-    exercée ; \btn{Ajouter une autre fonction} pour une nouvelle fonction.
-  \item \textbf{Période encadrée et compétence} : tant qu'une fonction n'est
-    pas validée, \btn{Enregistrer une compétence validée}.
-  \item \textbf{Formation continue} : \btn{Enregistrer une formation
-    continue} avant l'échéance affichée.
-  \item \textbf{Attestations} : les entrées sans PDF, à compléter avec
-    \btn{Joindre}.
-  \item \textbf{Validation des entrées} : les entrées en attente, et celles
-    refusées à corriger.
-\end{enumerate}
-
-\subsection{Enregistrer une entrée}
-\begin{procedure}{Ajouter une entrée au livret}
-\begin{enumerate}
-  \item Bouton de l'étape du parcours, ou \btn{Ajouter une entrée}.
-  \item \btn{Type} :
-    \begin{itemize}
-      \item \btn{Diplôme initial} : \btn{Niveau} (de CAP/BEP à doctorat,
-        docteur vétérinaire…), \btn{Intitulé et spécialité},
-        \btn{Établissement} et \btn{Date d’obtention} ;
-      \item \btn{Formation réglementaire initiale} : la \btn{Fonction}, le
-        titre de la formation agréée, l'\btn{Organisme}, les dates, la
-        \btn{Durée} (heures ou jours) et l'\btn{Espèce} ;
-      \item \btn{Compétence validée (fin d’encadrement / tutorat)} : la
-        \btn{Fonction}, la date de validation et l'\btn{Encadrant / tuteur}
-        qui a validé la compétence ;
-      \item \btn{Formation continue} : titre, organisme, dates et
-        \btn{Durée} (obligatoire, en heures ou en jours de 7~h) --- formation,
-        congrès, atelier, e-learning ;
-      \item \btn{Autre formation} : toute formation utile non réglementaire.
-    \end{itemize}
-  \item \btn{N° d’attestation} et \btn{Attestation (PDF)} : joignez le
-    scan de l'attestation signée (PDF, 20~Mo au plus).
-  \item \btn{Enregistrer l’entrée}. Elle apparaît \btn{À valider} (sur fond
-    jaune) et ne compte qu'une fois validée.
-\end{enumerate}
-\end{procedure}
-\capture[0.85\linewidth]{u_livret_ajout}{Formulaire ouvert par « Enregistrer une compétence validée » : type et fonction déjà choisis.}
-
-\begin{regle}
-\begin{itemize}
-  \item Seules les formations déjà suivies s'enregistrent (pas de date
-    future).
-  \item Une entrée saisie par un administrateur ou un responsable BEA est
-    validée aussitôt.
-  \item Vous pouvez supprimer vos entrées non encore validées ; une entrée
-    validée ne peut être supprimée que par un administrateur ou un
-    responsable BEA (la suppression est journalisée).
-\end{itemize}
-\end{regle}
-
-\subsection{Les attestations (certification)}
-\begin{procedure}{Joindre une attestation manquante}
-\begin{enumerate}
-  \item Dans le tableau de l'entrée, colonne \btn{Attestation}, choisissez
-    le fichier PDF.
-  \item \btn{Joindre}. L'ajout est inscrit au journal d'activité ; le lien
-    \btn{PDF} remplace le champ.
-\end{enumerate}
-\end{procedure}
-\capture[0.85\linewidth]{u_livret_continue}{Formation continue : une entrée à valider, une entrée validée sans attestation (« Joindre »).}
-Une attestation ne se remplace pas : en cas d'erreur, demandez à un
-administrateur ou à un responsable BEA de supprimer l'entrée, puis
-enregistrez-la de nouveau. Les attestations sont conservées dans un dossier
-privé : seuls leur titulaire, les administrateurs et les responsables BEA
-peuvent les ouvrir.
-
-\begin{procedure}{Produire son livret pour une inspection}
-\begin{enumerate}
-  \item \btn{Imprimer / PDF} : le livret s'imprime sans les boutons ni le
-    parcours, avec la date d'édition, l'établissement et la base
-    réglementaire appliquée.
-  \item Joignez les attestations utiles (liens \btn{PDF}).
-\end{enumerate}
-\end{procedure}
-
-\subsection{Travailler sous encadrement}
-\begin{itemize}
-  \item Tant que la compétence « application des procédures » n'est pas
-    validée, un bandeau \btn{Votre livret de formation :} le rappelle sur les
-    pages expérimentales, avec le lien \btn{Ouvrir mon livret de formation}.
-  \item Pour confirmer un acte expérimental réalisé, choisissez
-    l'\btn{Encadrant présent} parmi les personnes compétentes de
-    l'établissement, ou \btn{Autre personne (nom)}. Son nom est conservé avec
-    l'acte.
-  \item Quand votre tuteur vous juge compétent, enregistrez la
-    \btn{Compétence validée} avec son nom et l'attestation signée. Une fois
-    l'entrée validée, le bandeau disparaît et vous confirmez seul.
-\end{itemize}
-
-\subsection{Validation et rappels}
-\begin{itemize}
-  \item Les entrées déclarées sont validées ou refusées par un
-    administrateur ou un responsable BEA (guide administrateur). Vous recevez
-    une notification ; un refus porte son motif : corrigez puis
-    enregistrez de nouveau l'entrée.
-  \item Une notification vous prévient quand votre formation continue doit
-    être renouvelée dans les 6 mois, ou qu'elle est en retard (au plus une
-    fois tous les 30 jours).
-\end{itemize}
-
-\section{Tâches et rappels}
-\menu{Paramètres > Tâches et rappels} : tâches assignées, et rappels
-récurrents (quotidiens, hebdomadaires, mensuels) qui créent des tâches et
-envoient un e-mail.
+\section{Que faire si…}\label{sec:faq}
+\begin{center}
+\small
+\rowcolors{2}{gray!8}{white}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{5.2cm}X@{}}
+\toprule
+\textbf{Situation} & \textbf{Cause et solution}\\
+\midrule
+Le compte est verrouillé. & Trop de mots de passe ou de codes erronés : attendez 15 minutes, ou utilisez \btn{Mot de passe oublié}.\\
+J'ai perdu mon téléphone de double authentification. & Utilisez un code de secours ; sinon, un administrateur réinitialise la double authentification.\\
+Je ne reçois pas les rappels d'une cage. & Vous n'êtes pas parmi ses utilisateurs : demandez à un administrateur de vous y ajouter (changement de propriété).\\
+Une cage d'expérimentation ne peut pas être validée \btn{RAS}. & Normal : saisissez le suivi du jour de ses animaux en expérience et confirmez ses actes ; la cage passe alors « vue ».\\
+L'inclusion d'un animal est refusée. & Autorisation de projet expirée ou pas encore valide, espèce non autorisée, animal sans lignée ou quota atteint : prévenez l'administrateur.\\
+Le sevrage est refusé. & Les petits sevrés ne correspondent pas aux vivants : corrigez les nombres, ou expliquez les petits non sevrés.\\
+L'acte demande un \btn{Encadrant présent}. & Votre compétence n'est pas encore validée : indiquez la personne compétente qui vous encadre (section~\ref{sec:livret}).\\
+Le lot voulu n'apparaît pas. & Il est périmé, vide, ou ce n'est pas un lot du médicament prescrit : choisissez un autre lot ou faites recevoir un nouveau lot.\\
+Un animal n'apparaît plus dans les administrations. & Toutes ses administrations prévues sont faites, l'ordonnance est terminée ou l'animal est sorti. Une administration annulée le remet à traiter.\\
+La capture pour une expérience est refusée. & Le terrarium est en délai d'attente après un traitement : attendez la date indiquée.\\
+Une entrée de mon livret ne compte pas. & Elle attend la validation d'un administrateur ou d'un responsable BEA ; une entrée refusée porte son motif.\\
+J'ai fait une erreur de saisie. & Voir le tableau suivant : chaque donnée a sa façon d'être corrigée, avec un motif.\\
+\bottomrule
+\end{tabularx}
+\end{center}
 
 \section{Les règles de traçabilité en bref}
 \begin{trace}
@@ -944,11 +1002,97 @@ envoient un e-mail.
   \item Rien n'est effacé : registres sanitaire, des entrées et sorties, des
     stupéfiants, mouvements, journaux d'activité.
   \item Toute correction d'une donnée réglementaire demande un motif et
-    conserve la valeur d'origine : suivis journaliers, confirmations d'actes,
-    entrées et sorties du registre, administrations.
+    conserve la valeur d'origine.
   \item Chaque saisie porte son auteur, sa date et son heure : travaillez
     avec votre propre compte, ne partagez jamais vos identifiants.
 \end{itemize}
 \end{trace}
+\begin{center}
+\small
+\rowcolors{2}{gray!8}{white}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{4.2cm}>{\raggedright\arraybackslash}p{3.3cm}X@{}}
+\toprule
+\textbf{Donnée erronée} & \textbf{Qui corrige} & \textbf{Comment}\\
+\midrule
+Suivi journalier & Toute personne habilitée & Enregistrer de nouveau le jour, avec le motif.\\
+Confirmation d'un acte & Son auteur, un administrateur & Corriger l'acte avec un motif : il redevient à faire, le médicament est recrédité.\\
+Administration sur ordonnance & Son auteur, un administrateur & \btn{Annuler} avec un motif : le lot est recrédité.\\
+Entrée ou sortie d'un animal & Un administrateur & \btn{Corriger l'entrée} ou \btn{Corriger la sortie}, avec un motif.\\
+Signalement sanitaire & Toute personne habilitée & Ajouter un suivi qui précise ou corrige.\\
+Entrée du livret & Vous (non validée), un administrateur ou responsable BEA & Supprimer puis enregistrer de nouveau.\\
+Ordonnance & --- & Jamais modifiée : en enregistrer une nouvelle.\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Tâches et rappels}
+\menu{Paramètres > Tâches et rappels} : tâches assignées, et rappels
+récurrents (quotidiens, hebdomadaires, mensuels) qui créent des tâches et
+envoient un e-mail.
+
+\appendix
+\section{Aide-mémoire}
+\begin{center}
+\small
+\rowcolors{2}{gray!8}{white}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{5.4cm}X@{}}
+\toprule
+\textbf{Quand} & \textbf{Quoi} & \textbf{Où}\\
+\midrule
+Chaque matin & Lire les notifications : actes du jour, sevrages, alertes & Cloche, \menu{Accueil}\\
+Chaque jour & Voir chaque cage (\btn{RAS} ou signalement) & \menu{Animaux > Tournée quotidienne}, QR code\\
+Chaque jour & Suivi des animaux en expérience, actes du jour & Tournée : \btn{Suivi expérimental}, \btn{n acte(s)}\\
+Chaque jour & Administrations prévues & Tournée : bouton seringue\\
+À chaque naissance & Noter au crayon puis enregistrer & QR code de la cage : \btn{Enregistrer une naissance}\\
+Au sevrage & Sevrer et étiqueter les nouvelles cages & \btn{Portées en cours} : \btn{Sevrer / mettre à jour}\\
+À chaque problème & Signaler, puis suivre & \menu{Animaux > Signaler un problème sanitaire}\\
+À chaque sortie & Code de sortie et circonstances & Fiche de l'animal\\
+Selon le terrarium & Recensement, contrôle sanitaire & \menu{Animaux > Terrariums et populations}\\
+Après une formation & Entrée et attestation & \menu{Paramètres > Mon livret de formation}\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Glossaire}
+\begin{description}[style=nextline,leftmargin=0pt,itemsep=2pt]
+\small
+  \item[Acte expérimental] Geste planifié sur des animaux en expérience
+    (injection, gavage, prélèvement…), confirmé le jour prévu.
+  \item[Action requise] Conduite à tenir ouverte quand un point limite est
+    atteint (euthanasie, appel du vétérinaire…) ; elle reste ouverte jusqu'à
+    sa résolution.
+  \item[Attestation] Document qui prouve une formation ou une compétence ;
+    joint en PDF au livret.
+  \item[BEA] Structure chargée du bien-être des animaux ; ses responsables
+    valident les livrets et revoient les procédures.
+  \item[Cage d'hébergement, d'accouplement, d'expérimentation] Les trois
+    catégories de cages ; une cage passe en expérimentation dès qu'un de ses
+    animaux est inclus dans une expérience.
+  \item[Délai d'attente] Période après un traitement pendant laquelle les
+    animaux d'un terrarium ne peuvent pas être utilisés en expérimentation.
+  \item[Encadrant, tuteur] Personne compétente qui supervise une personne
+    formée dont la compétence n'est pas encore validée.
+  \item[Essai, plan / protocole, expérience] Les trois niveaux d'un projet :
+    l'essai relève d'une autorisation de projet, le protocole fixe la grille
+    et les points limites, l'expérience regroupe les animaux inclus.
+  \item[Grille d'évaluation clinique] Items notés chaque jour (posture,
+    pelage…) dont le total forme le score clinique.
+  \item[Lignée] Code (par exemple RSD) qui forme le numéro des animaux.
+  \item[Lot] Réception d'un médicament, avec son numéro et sa péremption ;
+    le stock est suivi par lot.
+  \item[Point limite] Seuil (perte de poids, score…) au-delà duquel une
+    action est requise pour limiter la souffrance.
+  \item[RAS] « Rien à signaler » : la cage a été vue et tout va bien.
+  \item[Registre des entrées et sorties] Registre réglementaire de la
+    provenance et du devenir de chaque animal.
+  \item[Responsable (PI)] Chercheur responsable d'une cage ou d'un projet.
+  \item[Sévérité] Classe de contrainte d'une procédure (sans réveil,
+    légère, modérée, sévère) : attendue dans le protocole, réelle à la fin.
+  \item[Sevrage] Séparation des petits de leur mère ; ils deviennent alors
+    des animaux identifiés.
+  \item[Stupéfiant] Médicament soumis au registre spécial et aux inventaires.
+  \item[Terrarium] Population d'animaux non identifiés individuellement,
+    suivie par recensements.
+\end{description}
 
 \end{document}

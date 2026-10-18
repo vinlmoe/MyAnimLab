@@ -14,6 +14,9 @@
  * fa6@npm:@fortawesome/fontawesome-free@6.0.0-beta3, s2@npm:select2@4.1.0-rc.0,
  * s213@npm:select2@4.0.13, jq@npm:jquery@3.6.0, qrcode), so that the
  * screenshots work without access to those hosts.
+ *
+ * Pages are saved as JPEG below the banner and menu, elements as PNG, at
+ * 1.4 times their size (1792 px wide for a full page).
  */
 const fs = require('fs');
 const path = require('path');
@@ -57,8 +60,11 @@ async function route(r) {
   return r.fulfill({ status: 204, body: '' }); // other external resources (captcha, QR reader...)
 }
 
+// 1280 px wide pages rendered at 1.4: 1792 px images, sharp once printed.
+const scale = 1.4;
+
 async function session(browser, email, viewport = { width: 1280, height: 860 }) {
-  const context = await browser.newContext({ viewport, deviceScaleFactor: 2, locale: 'fr-FR' });
+  const context = await browser.newContext({ viewport, deviceScaleFactor: scale, locale: 'fr-FR' });
   await context.route('**/*', route);
   const page = await context.newPage();
   await page.goto(base + '/index.php');
@@ -68,17 +74,28 @@ async function session(browser, email, viewport = { width: 1280, height: 860 }) 
   return page;
 }
 
+/**
+ * Screenshot of a page (JPEG, below the banner and menu unless opts.banner)
+ * or of an element (PNG: opts.element is a CSS selector, opts.locator a
+ * Playwright locator). opts.clipX = [left, right] keeps a band of the page,
+ * opts.height its top part.
+ */
 async function shot(page, name, url, opts = {}) {
   if (url) await page.goto(base + '/' + url, { waitUntil: 'networkidle' });
   if (opts.before) await opts.before(page);
   await page.waitForTimeout(150);
-  const file = path.join(out, name + '.png');
-  if (opts.locator) {
-    await page.locator(opts.locator).first().screenshot({ path: file });
-  } else if (opts.element) {
-    await (await page.$(opts.element)).screenshot({ path: file });
+  if (opts.locator || opts.element) {
+    const target = opts.locator ? page.locator(opts.locator).first() : await page.$(opts.element);
+    await target.screenshot({ path: path.join(out, name + '.png') });
   } else {
-    await page.screenshot({ path: file, fullPage: false, clip: opts.clip });
+    const vp = page.viewportSize();
+    const top = opts.banner ? 0 : await page.evaluate(() => {
+      const bar = document.querySelector('.nav-container') || document.querySelector('.brand-banner');
+      return bar ? Math.ceil(bar.getBoundingClientRect().bottom) : 0;
+    });
+    const [left, right] = opts.clipX || [0, vp.width];
+    const height = Math.min(vp.height - top, opts.height || vp.height);
+    await page.screenshot({ path: path.join(out, name + '.jpg'), type: 'jpeg', quality: 85, clip: { x: left, y: top, width: right - left, height } });
   }
   console.log('  ' + name);
 }
@@ -88,15 +105,17 @@ async function shot(page, name, url, opts = {}) {
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
 
   // Sign-in page, signed out.
-  const anon = await browser.newContext({ viewport: { width: 1280, height: 760 }, deviceScaleFactor: 2 });
+  const anon = await browser.newContext({ viewport: { width: 1280, height: 760 }, deviceScaleFactor: scale });
   await anon.route('**/*', route);
   const login = await anon.newPage();
-  await shot(login, 'u_connexion', 'index.php');
+  await shot(login, 'u_connexion', 'index.php', { banner: true });
 
   // User: Julien Bernard (animal care technician, user of the breeding cage).
   const u = await session(browser, 'julien.bernard@demo.fr');
-  await shot(u, 'u_accueil', 'home.php');
+  await shot(u, 'u_accueil', 'home.php', { banner: true });
   await shot(u, 'u_tournee', 'daily_round.php');
+  await shot(u, 'u_tableau_bord', 'hc_dash.php', { height: 500 });
+  await shot(u, 'u_fiche_cage', 'hc_view.php?id=' + ids.holding[0], { clipX: [230, 1050] });
   await shot(u, 'u_portees_en_cours', 'bc_view.php?id=' + ids.breeding, { element: '#currentLitters' });
   await shot(u, 'u_portee', 'litter_manage.php?litter_id=' + ids.overdueLitter);
   await shot(u, 'u_fichiers', 'hc_view.php?id=' + ids.holding[0], { element: '#files' });
@@ -133,7 +152,7 @@ async function shot(page, name, url, opts = {}) {
   await shot(s, 'u_suivi', 'experiment_followup.php?experiment_animal_id=' + ids.enrollmentAlert);
   await shot(s, 'u_suivi_correction', 'experiment_followup_view.php?id=' + ids.correctedFollowup, { element: '#followupRevisions' });
   await shot(s, 'u_experience', 'experiment_manage.php?protocol_id=' + ids.protocol);
-  await shot(s, 'u_protocole', 'protocol_manage.php?trial_id=' + ids.trial);
+  await shot(s, 'u_protocole', 'protocol_manage.php?trial_id=' + ids.trial, { element: '.protocol-card' });
   await shot(s, 'u_actes', 'experiment_acts.php?experiment_id=' + ids.experiment, { element: '#act' + ids.act });
   await shot(s, 'u_planifier_acte', 'experiment_acts.php?experiment_id=' + ids.experiment, {
     before: async p => { await p.evaluate(() => document.getElementById('planAct').classList.add('show')); },
@@ -142,9 +161,7 @@ async function shot(page, name, url, opts = {}) {
 
   // Phone: the page opened by the QR code of the breeding cage.
   const phone = await session(browser, 'julien.bernard@demo.fr', { width: 390, height: 844 });
-  await shot(phone, 'u_qr_accouplement', 'cage_check.php?via=qr&id=' + ids.breeding, {
-    before: async p => { await p.evaluate(() => document.querySelector('h4, h3, h2')?.scrollIntoView()); },
-  });
+  await shot(phone, 'u_qr_accouplement', 'cage_check.php?via=qr&id=' + ids.breeding);
 
   // Breeding cage label (printed card).
   await shot(u, 'u_etiquette', 'cage_labels.php?id=' + ids.breeding, { element: 'article.label' });
@@ -169,7 +186,7 @@ async function shot(page, name, url, opts = {}) {
   await shot(a, 'a_pharmacie', 'pharmacy_manage.php');
   await shot(a, 'a_livrets', 'training_overview.php');
   await shot(a, 'a_livret_validation', 'training_book.php?user_id=' + ids.julien, { locator: 'h5:has-text("Formation continue") + div' });
-  await shot(a, 'a_accouplement', 'bc_addn.php');
+  await shot(a, 'a_accouplement', 'bc_addn.php', { clipX: [230, 1050] });
   await shot(a, 'a_terrariums', 'terrarium_dash.php');
 
   await browser.close();
