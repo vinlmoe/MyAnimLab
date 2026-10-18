@@ -371,7 +371,18 @@ require 'header.php';
                     <?= $cageLife['retired_at'] ? trh('since {date}', ['date' => substr($cageLife['retired_at'], 0, 10)]) : ''; ?>
                     — <?= trh('no daily check expected.') ?>
                 </span>
-                <span class="text-muted small"><?= trh('A retired cage is not put back in service; its animals were moved or left the facility.') ?></span>
+                <?php if (($_SESSION['role'] ?? '') === 'admin' && cage_active_animal_count($con, $holdingcage['cage_id']) > 0) : ?>
+                    <form method="POST" action="cage_restore.php" class="d-flex gap-2 align-items-center" id="restoreCage">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()); ?>">
+                        <input type="hidden" name="id" value="<?= htmlspecialchars($holdingcage['cage_id']); ?>">
+                        <input type="hidden" name="return" value="hc_view.php">
+                        <input type="hidden" name="confirm" value="true">
+                        <input class="form-control form-control-sm" name="reason" required maxlength="255" placeholder="<?= trh('Reason (e.g. exit recorded by mistake)') ?>">
+                        <button class="btn btn-sm btn-outline-primary text-nowrap"><?= trh('Put back in service') ?></button>
+                    </form>
+                <?php else : ?>
+                    <span class="text-muted small"><?= trh('A retired cage is not put back in service; its animals were moved or left the facility.') ?></span>
+                <?php endif; ?>
             </div>
         <?php else : ?>
             <div class="alert <?= $cageTodayChecks ? 'alert-success' : 'alert-warning'; ?> d-flex justify-content-between align-items-center flex-wrap mb-3" id="dailyCheckBanner">
