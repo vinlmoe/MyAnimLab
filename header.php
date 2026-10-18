@@ -225,6 +225,7 @@ if (isset($settings['r2_pres'])) {
                     <li><hr class="dropdown-divider"></li>
                     <li><a class="dropdown-item" href="health_report.php"><i class="fas fa-notes-medical me-1"></i> <?= htmlspecialchars(t('nav.report_health')) ?></a></li>
                     <li><a class="dropdown-item" href="health_registry.php"><i class="fas fa-book-medical me-1"></i> <?= htmlspecialchars(t('nav.health_registry')) ?></a></li>
+                    <li><a class="dropdown-item" href="terrarium_dash.php"><i class="fas fa-frog me-1"></i> <?= trh('Terrariums and populations') ?></a></li>
                     <li><a class="dropdown-item" href="animal_register.php"><i class="fas fa-book me-1"></i> <?= trh('Entry / exit register') ?></a></li>
                     <li><a class="dropdown-item" href="pharmacy_manage.php"><i class="fas fa-pills me-1"></i> <?= trh('Pharmacy, prescriptions and administrations') ?></a></li>
                 </ul>

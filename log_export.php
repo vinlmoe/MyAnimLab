@@ -41,6 +41,9 @@ const RAW_LOGS = [
     'experiment_act_corrections' => ['Corrections of experimental act confirmations', 'experiment_act_corrections', 't.corrected_at'],
     'experiment_act_values' => ['Information entered when confirming the experimental acts', 'experiment_act_values', 'aa.planned_date', 'JOIN experiment_act_animals aa ON aa.id = t.act_animal_id'],
     'training_records' => ['Training records (initial, competences, continuing training)', 'training_records', 't.created_at'],
+    'terrarium_events' => ['Terrarium journals (censuses, introductions, deaths, captures)', 'terrarium_events', 'event_date'],
+    'terrarium_treatments' => ['Treatments of terrarium populations', 'terrarium_treatments', 'treated_at'],
+    'terrarium_health_checks' => ['Health monitoring of terrarium populations', 'terrarium_health_checks', 'checked_on'],
     'notifications' => ['In-app notifications', 'notifications', 'created_at'],
     'outbox' => ['Email queue', 'outbox', 'created_at'],
 ];
