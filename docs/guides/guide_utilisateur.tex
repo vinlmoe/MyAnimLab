@@ -66,9 +66,9 @@ administrateur.
 
 \subsection{Se repérer}
 \begin{itemize}
-  \item \menu{Accueil} : statistiques des cages, notes générales et alertes
-    du jour, dont les portées à sevrer (en rouge si le sevrage est en
-    retard).
+  \item \menu{Accueil} : statistiques des cages, alertes du jour (actions
+    de point limite, portées à sevrer, en rouge si le sevrage est en retard,
+    avancement de la tournée) et \textbf{notes} (pense-bêtes partagés).
   \item \menu{Tableaux de bord} : cages d'hébergement, d'accouplement,
     d'expérimentation, toutes les cages par salle.
   \item \menu{Animaux} : tournée quotidienne, scan QR, recherche, transferts,
@@ -101,7 +101,8 @@ expérimentation. Un clic sur une cage ouvre sa \textbf{fiche}, qui présente :
 \subsection{Créer des cages et des animaux}
 \begin{procedure}{Cage d'hébergement avec ses animaux}
 \begin{enumerate}
-  \item \menu{Tableaux de bord > Cages d'hébergement}, puis \btn{Ajouter}.
+  \item \menu{Tableaux de bord > Cages d'hébergement}, puis \btn{Ajouter une
+    cage d'hébergement}.
   \item Choisissez la lignée, le nombre de mâles et de femelles et la date
     de naissance.
   \item Renseignez l'\textbf{entrée dans l'établissement} : provenance
@@ -115,6 +116,35 @@ expérimentation. Un clic sur une cage ouvre sa \textbf{fiche}, qui présente :
 Pour un arrivage important, \menu{Animaux > Créer des animaux et cages en
 lot} répartit automatiquement les animaux sur le nombre minimal de cages,
 selon la capacité par cage indiquée.
+
+\begin{procedure}{Cage d'accouplement}
+\begin{enumerate}
+  \item \menu{Tableaux de bord > Cages d'accouplement}, puis \btn{Ajouter une
+    cage d'accouplement}.
+  \item Indiquez le croisement, le responsable, l'autorisation de projet, la
+    salle et le rack, ainsi que les utilisateurs de la cage.
+  \item Choisissez les \textbf{reproducteurs existants} : au moins un mâle et
+    une femelle. Ils sont transférés dans la nouvelle cage, et le mouvement est
+    conservé dans leur historique.
+  \item Les naissances s'enregistrent ensuite depuis la fiche de la cage
+    (section~\ref{sec:portees}).
+\end{enumerate}
+\end{procedure}
+
+\subsection{Entretien, notes et capteurs}
+\begin{itemize}
+  \item \textbf{Entretien} : depuis la fiche d'une cage (icône clé du journal
+    de maintenance), \btn{Ajouter une entrée de maintenance}. Choisissez une ou
+    plusieurs cages et ajoutez un commentaire facultatif (changement de
+    litière, de biberon\ldots). Le journal de maintenance de chaque cage
+    conserve la date et l'auteur.
+  \item \textbf{Notes} : pense-bêtes affichés sur l'accueil (notes générales)
+    ou sur la fiche d'une cage (notes de la cage). Une note ne peut être
+    modifiée ou supprimée que par son auteur ou par un administrateur.
+  \item \textbf{Capteurs} : \menu{Tableaux de bord > Capteurs IoT} affiche la
+    température, l'humidité, l'éclairage et la pression des salles, quand
+    l'administrateur a configuré les capteurs.
+\end{itemize}
 
 \subsection{Étiquettes et QR codes}
 \menu{Tableaux de bord} : sélectionnez des cages puis imprimez leurs
@@ -217,6 +247,12 @@ registre} sur la fiche et dans le dossier BEA.
 \end{trace}
 \capture[0.8\linewidth]{u_registre_animal}{Cadre « Registre des entrées et sorties » d’un animal, avec une correction de sortie.}
 
+\subsection{Planifier les utilisations}
+\menu{Animaux > Planification des utilisations} : pour un animal, notez
+l'utilisation prévue (par exemple « prélèvement J28 »), la date prévue, puis la
+date de réalisation, et cochez \btn{Déjà réalisée}. La page liste les utilisations
+prévues et réalisées.
+
 \subsection{Transférer un animal}
 \menu{Animaux > Transférer des animaux}, ou bouton \btn{Changer de cage} sur
 la fiche de la cage. Chaque mouvement est conservé avec sa date, son auteur
@@ -253,7 +289,8 @@ motif.
 \end{procedure}
 \begin{trace}
 Le \menu{Registre sanitaire} conserve tous les signalements et leurs suivis.
-Aucune entrée ne peut être modifiée ni supprimée.
+Aucune entrée ne peut être modifiée ni supprimée. Il s'exporte en CSV, une
+ligne par suivi.
 \end{trace}
 \capture[0.85\linewidth]{u_sanitaire}{Un signalement sanitaire et son suivi.}
 
@@ -341,6 +378,26 @@ valide, si l'espèce n'est pas autorisée, si l'animal n'a pas de lignée, ou si
 le nombre d'animaux autorisés serait dépassé. Un animal compte une seule fois
 par projet.
 \end{regle}
+
+\subsection{La page des expériences}
+La page d'un protocole regroupe ses expériences.
+\begin{itemize}
+  \item \textbf{Gestion des points limites} (en tête) : les actions requises
+    à traiter, avec une note de résolution ou l'enregistrement de
+    l'euthanasie, puis les alertes sans action des 7 derniers jours et les
+    actions déjà traitées.
+  \item \textbf{Animaux inclus} : état de chaque participation, bouton
+    \btn{Suivi quotidien} et bouton \btn{Clôturer} pour mettre fin à la
+    participation d'un animal qui reste dans l'établissement.
+  \item \textbf{Évaluations cliniques journalières} : tableau animaux × jours
+    (score, poids ou variation de poids, code couleur, jours non saisis). Un
+    clic sur une case ouvre la consultation du suivi, et sur un jour non
+    saisi, la saisie.
+  \item \textbf{Rapports} : rapport d'essai, rapport de plan / protocole
+    (méthodologie, grille, critères de point limite) et rapport d'expérience
+    (suivis, points limites, actes). Ce dernier s'exporte en CSV (données et
+    actes). Tous sont imprimables.
+\end{itemize}
 
 \subsection{Le suivi journalier}
 \begin{procedure}{Saisir le suivi d'un animal}
@@ -434,6 +491,9 @@ identifiées individuellement.
     identifiés (numéros affichés avant validation), répartis par cage, avec
     leur poids individuel. Ils peuvent être inclus aussitôt dans une
     expérience.
+  \item \textbf{Rappels} : au plus une fois par semaine, le responsable du
+    terrarium est prévenu d'un recensement ou d'un contrôle sanitaire en
+    retard, selon les fréquences fixées pour le terrarium.
 \end{itemize}
 
 \section{Formation, tâches et rappels}
