@@ -2329,4 +2329,7 @@ return [
     'No weaned or closed litter yet.' => 'Aucune portée sevrée ou clôturée pour l’instant.',
     '{n} litter(s) weaned or closed' => '{n} portée(s) sevrée(s) ou clôturée(s)',
     'Weaned' => 'Sevrage',
+    'Litters — record what is noted on the cage card' => 'Portées — reportez ce qui est noté sur la fiche de cage',
+    'Born {dob}: {n} alive' => 'Née le {dob} : {n} vivant(s)',
+    'Deaths / weaning' => 'Décès / sevrage',
 ];

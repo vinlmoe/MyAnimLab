@@ -536,4 +536,31 @@ final class PagesTest extends TestCase
         $this->assertStringNotContainsString('2025-01-10', $box, 'weaned litters are in the history only');
         @unlink($jar);
     }
+
+    public function testBreedingCageCardInvitesPencilEntriesReportedInTheSoftware(): void
+    {
+        $con = TestDatabase::connection();
+        $cage = TestDatabase::cage($con, false);
+        $con->query("INSERT INTO breeding (cage_id, `cross`) VALUES ('$cage', 'A x B')");
+        $con->query("INSERT INTO litters (cage_id, litter_dob, pups_alive, pups_dead, status, expected_weaning_date) VALUES ('$cage', '2026-10-01', 8, 0, 'nursing', '2026-10-22')");
+        $litter = (int) $con->insert_id;
+        $con->query("INSERT INTO litter_events (litter_id, event, event_date, count) VALUES ($litter, 'death', '2026-10-05', 1)");
+        $jar = $this->login('user');
+
+        [$status, $card] = $this->request('cage_labels.php?id=' . rawurlencode($cage), $jar);
+        $this->assertSame(200, $status);
+        $this->assertStringContainsString('à compléter au crayon', $card);
+        $this->assertStringContainsString('01/10/26', $card, 'litter being nursed printed');
+        $this->assertStringContainsString('1 saisi(s)', $card, 'deaths already recorded printed');
+        $this->assertSame(4, substr_count($card, '<span class="box"></span>'), 'empty rows to fill by hand');
+        $this->assertStringContainsString('puis enregistrez-le aussi dans MyAnimLab', $card);
+
+        // The QR code page offers to record what was noted.
+        [$status, $check] = $this->request('cage_check.php?id=' . rawurlencode($cage) . '&via=qr', $jar);
+        $this->assertSame(200, $status);
+        $this->assertStringContainsString('id="checkLitters"', $check);
+        $this->assertStringContainsString("litter_manage.php?litter_id=$litter", $check);
+        $this->assertStringContainsString('litter_manage.php?cage_id=' . rawurlencode($cage) . '#birth', $check);
+        @unlink($jar);
+    }
 }

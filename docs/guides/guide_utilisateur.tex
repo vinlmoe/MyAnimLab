@@ -117,9 +117,26 @@ selon la capacité par cage indiquée.
 \subsection{Étiquettes et QR codes}
 \menu{Tableaux de bord} : sélectionnez des cages puis imprimez leurs
 étiquettes (A6, quatre par feuille A4, même mise en page pour toutes les
-catégories). L'étiquette d'une cage d'accouplement indique les reproducteurs
-et les portées en allaitement avec leur date de sevrage prévue. Le QR code de
-l'étiquette ouvre le contrôle de la cage (section~\ref{sec:tournee}).
+catégories). Le QR code de l'étiquette ouvre le contrôle de la cage
+(section~\ref{sec:tournee}).
+
+L'étiquette d'une cage d'accouplement porte les reproducteurs et un tableau
+\textbf{Portées --- à compléter au crayon}. Les portées en allaitement y sont
+imprimées : date de naissance, nés vivants, morts déjà saisies, sevrage
+prévu. Les lignes vides servent aux événements qui surviennent après
+l'impression.
+\begin{procedure}{Garder la fiche de cage à jour sans la réimprimer}
+\begin{enumerate}
+  \item Notez au crayon sur la fiche chaque naissance, mort (date et nombre)
+    et sevrage. Le sevrage prévu est égal à la date de naissance plus l'âge
+    au sevrage imprimé sur la fiche.
+  \item Scannez le QR code : la page de la cage propose \btn{Enregistrer une
+    naissance} et, pour chaque portée, \btn{Décès / sevrage}. Enregistrez ce
+    que vous venez de noter.
+  \item Cochez la case \btn{Saisi} de la ligne. Une ligne non cochée signale
+    une donnée encore absente du logiciel.
+\end{enumerate}
+\end{procedure}
 
 \subsection{Fichiers joints à une cage}
 \begin{procedure}{Ajouter un fichier}
@@ -246,7 +263,8 @@ dans \btn{Portées précédentes}.
 
 \begin{procedure}{De la naissance au sevrage}
 \begin{enumerate}
-  \item Sur la fiche de la cage : \btn{Portées : naissance → sevrage}, puis
+  \item Sur la fiche de la cage, ou après le scan de son QR code :
+    \btn{Portées : naissance → sevrage}, puis
     \btn{Enregistrer une naissance}. Indiquez la date de naissance, la date
     d'accouplement si elle est connue, la mère et le père parmi les
     reproducteurs, et le nombre de petits nés vivants et morts. La date de
