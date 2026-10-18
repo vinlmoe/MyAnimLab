@@ -1,0 +1,290 @@
+\documentclass[11pt,a4paper]{article}
+\input{guide-style}
+\lhead{MyAnimLab --- Guide de l'administrateur}
+\rhead{Version du 18 octobre 2026}
+
+\title{\textbf{MyAnimLab}\\[4pt]\large Guide de l'administrateur}
+\author{Administrateurs, responsables du bien-être animal (BEA)}
+\date{18 octobre 2026}
+
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+
+\noindent Ce guide complète le \emph{Guide de l'utilisateur}. Il décrit
+l'installation et la mise à jour, le paramétrage, les comptes, les
+référentiels, la supervision quotidienne, les corrections réglementaires, le
+volet BEA et la préparation d'une inspection.
+
+\tableofcontents
+\newpage
+
+\section{Rôles}
+\begin{center}
+\rowcolors{2}{gray!8}{white}
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+\textbf{Rôle} & \textbf{Droits propres}\\
+\midrule
+Utilisateur & Toutes les tâches du guide utilisateur. Gestion des fichiers et retrait des cages auxquelles il est affecté.\\
+Responsable BEA & En plus : analyse rétrospective BEA, bilan annuel, synthèse et validation des livrets de formation. Il reçoit les rappels de sevrage et d'actes en retard.\\
+Administrateur & Tout, dont : comptes, paramètres du laboratoire, autorisations de projet, souches et lignées, corrections du registre, inventaires des stupéfiants, suppression définitive d'un animal, exports. Un administrateur est responsable BEA par défaut.\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Installation et mises à jour}
+
+\subsection{Installation}
+\begin{procedure}{Installation sur un serveur Ubuntu}
+\begin{enumerate}
+  \item Exécutez \f{setup/setup.sh}. Le script clone le dépôt, installe les
+    dépendances, crée la base et importe le schéma avec le compte
+    administrateur de MySQL. Il configure Apache (\texttt{AllowOverride
+    All}) et donne au compte de l'application les seuls droits sur les
+    données.
+  \item Vérifiez que \f{https://votre-domaine/.env} répond \textbf{403 ou
+    404}. Si la réponse est 200, le fichier \f{.htaccess} n'est pas pris en
+    compte et vos identifiants sont exposés.
+  \item Programmez les tâches cron (toutes les 5 minutes) :
+    \f{process_reminders.php}, \f{send_email.php} et
+    \f{daily_round_alert.php}, lancées par \texttt{php} en ligne de commande
+    (elles refusent les requêtes web).
+  \item Connectez-vous avec le compte administrateur initial, puis
+    \textbf{changez son mot de passe} et configurez la double
+    authentification.
+\end{enumerate}
+\end{procedure}
+
+\subsection{Mettre à jour l'application}
+\begin{procedure}{Mise à jour}
+\begin{enumerate}
+  \item Sauvegardez la base, \f{storage/} (documents d'éthique et de
+    formation) et \f{uploads/} (fichiers des cages).
+  \item Récupérez la nouvelle version, puis lancez \texttt{composer
+    install}.
+  \item Appliquez les migrations : \texttt{php tools/migrate.php}. Utilisez
+    un compte administrateur de la base, indiqué par
+    \texttt{MIGRATION\_DB\_USERNAME} et \texttt{MIGRATION\_DB\_PASSWORD} dans
+    \f{.env}. \texttt{-{}-status} liste les migrations appliquées et en
+    attente.
+\end{enumerate}
+\end{procedure}
+\begin{regle}
+Une base installée avant l'outil de migrations doit être initialisée une
+seule fois en indiquant la dernière migration déjà appliquée, par exemple
+\texttt{php tools/migrate.php -{}-baseline=034}. Lancez ensuite
+\texttt{php tools/migrate.php}.
+\end{regle}
+
+\subsection{Sauvegardes}
+Sauvegardez chaque jour la base de données, \f{storage/} et \f{uploads/}, et
+conservez les copies hors du serveur. Testez une restauration au moins une
+fois par an : les registres réglementaires dépendent de ces sauvegardes.
+
+\section{Paramétrer le laboratoire}
+\menu{Paramètres > Gérer le laboratoire}.
+\begin{center}
+\rowcolors{2}{gray!8}{white}
+\begin{tabularx}{\textwidth}{@{}lp{2.5cm}X@{}}
+\toprule
+\textbf{Réglage} & \textbf{Défaut} & \textbf{Effet}\\
+\midrule
+Nom, URL & --- & Affichés sur les pages, les étiquettes et dans les e-mails.\\
+Fuseau horaire & Europe/Paris & Définit le « jour » de la tournée, des suivis et des rappels.\\
+Alerte de la tournée & 18:00 & Heure après laquelle les administrateurs reçoivent la liste des cages non vues.\\
+Âge au sevrage & 21 jours & Sert au calcul de la date de sevrage prévue de chaque portée.\\
+Rappels du matin & 07:30 & Heure des rappels d'actes expérimentaux et de sevrage.\\
+Déconnexion & 30 min & Inactivité tolérée avant fermeture de la session (5 à 720 minutes).\\
+Double authentification & obligatoire & Exigée des administrateurs et responsables BEA.\\
+Capteurs IoT & --- & Liens des capteurs des salles.\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Comptes utilisateurs}
+\menu{Paramètres > Gérer les utilisateurs}.
+\begin{procedure}{Créer un compte}
+\begin{enumerate}
+  \item \btn{Créer un utilisateur} : nom complet, e-mail (identifiant),
+    fonction, rôle, responsable BEA (oui ou non) et mot de passe initial.
+  \item Transmettez le mot de passe initial par un canal distinct de
+    l'e-mail, et demandez à la personne de le changer.
+  \item Les utilisateurs d'une cage sont choisis \textbf{à la création de la
+    cage} (formulaire d'ajout). Ils reçoivent les rappels de la cage et gèrent
+    ses fichiers. L'application ne permet pas encore de modifier cette liste
+    après la création.
+\end{enumerate}
+\end{procedure}
+\begin{itemize}
+  \item \btn{Désactiver} un compte plutôt que le supprimer quand une personne
+    part : ses saisies restent attribuées à son nom.
+  \item Un compte verrouillé (3 mots de passe ou 5 codes erronés) se
+    débloque seul au bout de 15 minutes.
+  \item Double authentification perdue :
+    \menu{Paramètres > Double authentification}, section administrateur,
+    réinitialisation pour l'utilisateur concerné.
+\end{itemize}
+
+\section{Référentiels}
+
+\subsection{Lignées et souches}
+\menu{Paramètres > Gérer les lignées animales} : code et espèce de chaque
+lignée. Le code forme le numéro des animaux (\texttt{RSD-0002}). Une espèce
+sans lignée ne peut pas être incluse en expérimentation.
+\menu{Paramètres > Gérer les souches} : souches et références (RRID).
+
+\subsection{Autorisations de projet}
+\menu{Paramètres > Autorisations de projet (n° éthique)}.
+\begin{procedure}{Enregistrer une autorisation}
+\begin{enumerate}
+  \item Saisissez le numéro éthique, le numéro d'autorisation et les dates
+    de validité.
+  \item Déposez en PDF la demande d'autorisation, l'avis du comité
+    d'éthique et la décision d'autorisation. Ils sont stockés hors du web et
+    téléchargeables par les seuls utilisateurs connectés.
+  \item Indiquez le \textbf{nombre d'animaux autorisés par espèce}.
+\end{enumerate}
+\end{procedure}
+\begin{regle}
+La période d'un essai doit être comprise dans la validité de son
+autorisation. Aucune inclusion n'est possible si l'autorisation est expirée
+ou pas encore valide, ni au-delà des quotas. Les administrateurs et
+responsables BEA sont prévenus à 80~\% puis à 100~\% d'un quota.
+\end{regle}
+
+\subsection{Grilles d'évaluation clinique}
+\menu{Animaux > Grilles d'évaluation clinique} : items et niveaux notés.
+Faites valider les grilles par la structure chargée du bien-être animal avant
+leur première utilisation. Une grille utilisée devient non modifiable :
+dupliquez-la pour la faire évoluer.
+
+\section{Supervision quotidienne}
+\begin{procedure}{Routine de l'administrateur}
+\begin{enumerate}
+  \item Lisez les \textbf{notifications} (cloche) :
+    \begin{itemize}
+      \item points limites atteints et actions requises ;
+      \item signalements sanitaires ;
+      \item quotas d'animaux ;
+      \item actes expérimentaux et sevrages en retard ;
+      \item cages non vues lors de la tournée ;
+      \item entrées de formation à valider.
+    \end{itemize}
+  \item Sur l'\menu{Accueil}, vérifiez les portées à sevrer : celles en
+    rouge ont dépassé leur date.
+  \item Dans la \menu{Tournée quotidienne}, contrôlez les jours passés pour
+    repérer les cages oubliées.
+  \item Dans le \menu{Registre des entrées et sorties}, complétez les
+    provenances signalées \btn{À compléter}.
+\end{enumerate}
+\end{procedure}
+Les rappels sont produits par \f{process_reminders.php} : la tâche cron doit
+tourner. Les e-mails partent par \f{send_email.php}.
+
+\section{Corrections réglementaires}
+\begin{trace}
+Toutes les corrections ci-dessous demandent un \textbf{motif}. Elles
+conservent la valeur d'origine et apparaissent dans les journaux exportés.
+Les tables d'audit refusent toute modification ou suppression au niveau de la
+base de données.
+\end{trace}
+
+\begin{procedure}{Corriger l'entrée ou la sortie d'un animal}
+\begin{enumerate}
+  \item Ouvrez la fiche de l'animal, cadre \btn{Registre des entrées et
+    sorties}.
+  \item \btn{Corriger l'entrée (administrateur)} ou \btn{Corriger la sortie
+    (administrateur)}. Modifiez les valeurs et saisissez le \btn{Motif de la
+    correction}.
+  \item Corriger le code de sortie change aussi le statut de l'animal. Les
+    inclusions clôturées par la sortie suivent la nouvelle date.
+\end{enumerate}
+\end{procedure}
+Les corrections apparaissent sur la fiche et dans le dossier BEA. L'animal
+est marqué « corrigé » dans le registre.
+
+\begin{itemize}
+  \item \textbf{Suivis journaliers} et \textbf{confirmations d'actes} : se
+    corrigent depuis le suivi, avec un motif. Les valeurs remplacées sont
+    conservées. Pour un acte, le médicament est recrédité.
+  \item \textbf{Administrations de médicaments} : annulation unique avec
+    motif. Une ordonnance ne se modifie jamais ; il faut en créer une
+    nouvelle.
+  \item \textbf{Suppression définitive d'un animal} : réservée aux erreurs de
+    saisie manifestes (animal créé par erreur). Elle demande de retaper le
+    numéro de l'animal. Elle est journalisée avant la suppression. Préférez
+    toujours une sortie avec son code.
+\end{itemize}
+
+\section{Volet BEA}
+\begin{itemize}
+  \item \menu{Paramètres > Analyse rétrospective BEA} : parcours par essai,
+    plan, puis expérience. Les sévérités réelles (sans réveil, légère,
+    modérée, sévère) sont classées en regard de la sévérité attendue du
+    plan. Le dossier complet de chaque animal est imprimable.
+  \item \menu{Paramètres > Bilan annuel d'utilisation des animaux} :
+    effectifs, procédures terminées par sévérité réelle, utilisation par
+    autorisation, sorties, animaux non utilisés. Export CSV ou ZIP.
+  \item \menu{Paramètres > Livrets de formation du personnel} : validez ou
+    refusez, avec un motif, les entrées déclarées. Réglez l'obligation de
+    formation continue (3 jours sur 6 ans par défaut). Suivez les personnes
+    à traiter en priorité. Une personne non encore compétente ne peut
+    confirmer un acte qu'en indiquant son encadrant.
+\end{itemize}
+
+\section{Pharmacie et stupéfiants}
+\begin{itemize}
+  \item \btn{Nouveau médicament} : cochez \btn{Stupéfiant} pour un produit
+    soumis au registre spécial, et indiquez sa concentration (par exemple
+    100~mg/mL) pour le calcul des doses selon le poids.
+  \item \btn{Réception d'un lot} : numéro, péremption, quantité,
+    emplacement. \btn{Ajuster} un stock exige un motif.
+  \item \btn{Registre des stupéfiants} : tous les mouvements par lot et leur
+    solde. Les administrateurs y enregistrent les \textbf{inventaires} :
+    quantité comptée, écart justifié, appliqué au stock. Un écart entre le
+    registre et le stock est signalé.
+\end{itemize}
+
+\section{Exports, audit et inspection}
+\begin{itemize}
+  \item \menu{Paramètres > Export brut des journaux} : journal d'activité,
+    événements et mouvements des animaux, contrôles et cycle de vie des
+    cages, portées, suivi sanitaire, actions de point limite, actes et leurs
+    corrections, corrections des suivis et du registre, formations,
+    terrariums, notifications, e-mails. Export CSV par journal ou ZIP, avec
+    filtre de dates. Chaque export est tracé.
+  \item \menu{Paramètres > Exporter en CSV} : toutes les tables (sans les
+    mots de passe).
+  \item \menu{Paramètres > Export pour la V2} : export JSON sans secrets
+    (mots de passe, jetons, double authentification, corps des e-mails).
+\end{itemize}
+
+\begin{procedure}{Préparer une inspection}
+\begin{enumerate}
+  \item \menu{Registre des entrées et sorties} de la période : export PDF ou
+    CSV, provenances complètes, corrections justifiées.
+  \item \menu{Registre sanitaire} et \btn{Registre des stupéfiants} avec le
+    dernier inventaire.
+  \item Pour chaque projet : autorisation et documents PDF, quotas
+    consommés, rapports d'expérience, dossiers animaux.
+  \item Bilan annuel et analyse rétrospective BEA.
+  \item Livrets de formation à jour (synthèse du personnel).
+\end{enumerate}
+\end{procedure}
+
+\section{Sécurité et exploitation}
+\begin{itemize}
+  \item Ne désactivez pas la double authentification des comptes
+    privilégiés.
+  \item Ne partagez jamais un compte : la traçabilité repose sur l'auteur de
+    chaque saisie.
+  \item Après toute intervention sur le serveur, vérifiez que \f{/.env}
+    répond 403 ou 404.
+  \item La CI du dépôt (audit des dépendances, PHPStan, tests) doit être
+    verte avant chaque mise en production.
+  \item En cas de besoin, le journal d'activité permet de retrouver qui a
+    fait quoi et quand.
+\end{itemize}
+
+\end{document}

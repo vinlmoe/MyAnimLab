@@ -1,0 +1,40 @@
+% Mise en page commune aux guides MyAnimLab (utilisateur, administrateur).
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{enumitem,tabularx,booktabs}
+\usepackage[table]{xcolor}
+\usepackage{xurl}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[most]{tcolorbox}
+\sloppy
+
+\definecolor{accent}{HTML}{1F5F8B}
+\definecolor{ok}{HTML}{2E7D32}
+\definecolor{warn}{HTML}{C76A00}
+
+% Chemin de menu : \menu{Animaux > Tournée quotidienne}
+\newcommand{\menu}[1]{\textsf{\textbf{\color{accent}#1}}}
+% Bouton ou libellé de l'interface
+\newcommand{\btn}[1]{\textsf{«~#1~»}}
+% Page ou fichier technique
+\newcommand{\f}[1]{\nolinkurl{#1}}
+
+% Procédure pas à pas
+\newtcolorbox{procedure}[1]{colback=accent!4,colframe=accent,fonttitle=\bfseries\sffamily,
+  title={#1},left=2mm,right=2mm,top=1mm,bottom=1mm,breakable}
+% Règle à connaître
+\newtcolorbox{regle}{colback=warn!6,colframe=warn,fonttitle=\bfseries\sffamily,
+  title={À savoir},left=2mm,right=2mm,top=1mm,bottom=1mm,breakable}
+% Traçabilité réglementaire
+\newtcolorbox{trace}{colback=ok!6,colframe=ok,fonttitle=\bfseries\sffamily,
+  title={Traçabilité},left=2mm,right=2mm,top=1mm,bottom=1mm,breakable}
+
+\setlist[enumerate]{nosep,leftmargin=*}
+\setlist[itemize]{nosep,leftmargin=*}
+
+\pagestyle{fancy}
+\fancyhf{}
+\cfoot{\thepage}

@@ -12,6 +12,7 @@ MyVivarium est une plateforme en ligne pour gérer efficacement votre animalerie
 
 ## Sommaire
 - [Fonctionnalités](#fonctionnalités)
+- [Guides](#guides)
 - [Langue de l’interface](#langue-de-linterface)
 - [Capture d’écran](#capture-décran)
 - [Installation](#installation)
@@ -29,6 +30,13 @@ MyVivarium est une plateforme en ligne pour gérer efficacement votre animalerie
 - Gestion des données sécurisée et conforme.
 
 ![image](https://myvivarium.online/images/illustration.jpg)
+
+## Guides
+
+- [Guide de l’utilisateur](docs/guides/guide_utilisateur.pdf) : connexion, cages, tournée quotidienne, animaux, reproduction et sevrage, expérimentation, pharmacie, terrariums, formation, règles de traçabilité.
+- [Guide de l’administrateur](docs/guides/guide_administrateur.pdf) : rôles, installation et mises à jour, paramètres du laboratoire, comptes, référentiels, supervision quotidienne, corrections réglementaires, volet BEA, stupéfiants, exports et préparation d’une inspection.
+
+Les sources LaTeX sont dans `docs/guides/` (`pdflatex guide_utilisateur.tex`).
 
 ## Langue de l’interface
 

@@ -1,0 +1,433 @@
+\documentclass[11pt,a4paper]{article}
+\input{guide-style}
+\lhead{MyAnimLab --- Guide de l'utilisateur}
+\rhead{Version du 18 octobre 2026}
+
+\title{\textbf{MyAnimLab}\\[4pt]\large Guide de l'utilisateur}
+\author{Animaliers, expérimentateurs, techniciens}
+\date{18 octobre 2026}
+
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+
+\noindent Ce guide décrit les tâches quotidiennes dans MyAnimLab : tenir les
+cages, faire la tournée, suivre les animaux, la reproduction et les
+expérimentations, administrer les traitements. Les actions réservées aux
+administrateurs (comptes, paramètres, autorisations de projet, corrections du
+registre) sont décrites dans le \emph{Guide de l'administrateur}.
+
+\tableofcontents
+\newpage
+
+\section{Premiers pas}
+
+\subsection{Se connecter}
+Les comptes sont créés par un administrateur : il n'y a pas d'inscription
+libre. Votre identifiant est votre adresse e-mail.
+
+\begin{procedure}{Première connexion}
+\begin{enumerate}
+  \item Ouvrez l'adresse de l'application et saisissez l'e-mail et le mot de
+    passe initial transmis par l'administrateur.
+  \item Si l'établissement l'exige pour votre rôle, configurez la double
+    authentification (section~\ref{sec:2fa}) : aucune autre page n'est
+    accessible avant.
+  \item Changez votre mot de passe dans \menu{Paramètres > Profil utilisateur}.
+\end{enumerate}
+\end{procedure}
+
+\begin{regle}
+\begin{itemize}
+  \item Après 3 mots de passe erronés, le compte est verrouillé 15 minutes.
+  \item Mot de passe oublié : lien \btn{Mot de passe oublié} de la page de
+    connexion. Un e-mail de réinitialisation est envoyé.
+  \item Sans activité pendant la durée fixée par l'administrateur (30 minutes
+    par défaut), la session se ferme. Il faut alors se reconnecter.
+\end{itemize}
+\end{regle}
+
+\subsection{Double authentification}\label{sec:2fa}
+\begin{procedure}{Activer la double authentification}
+\begin{enumerate}
+  \item \menu{Paramètres > Double authentification}.
+  \item Scannez le QR code avec une application d'authentification
+    (Google Authenticator, Microsoft Authenticator, FreeOTP…).
+  \item Saisissez le code à 6 chiffres affiché par l'application.
+  \item \textbf{Conservez les dix codes de secours} affichés : chacun sert
+    une seule fois si vous perdez votre téléphone.
+\end{enumerate}
+\end{procedure}
+À chaque connexion, le code à 6 chiffres est demandé après le mot de passe.
+Après 5 codes erronés, le compte est verrouillé 15 minutes. En cas de perte du
+téléphone et des codes de secours, demandez une réinitialisation à un
+administrateur.
+
+\subsection{Se repérer}
+\begin{itemize}
+  \item \menu{Accueil} : statistiques des cages, notes générales et alertes
+    du jour, dont les portées à sevrer (en rouge si le sevrage est en
+    retard).
+  \item \menu{Tableaux de bord} : cages d'hébergement, d'accouplement,
+    d'expérimentation, toutes les cages par salle.
+  \item \menu{Animaux} : tournée quotidienne, scan QR, recherche, transferts,
+    créations en lot, essais et expériences, grilles cliniques, sanitaire,
+    terrariums, registre des entrées et sorties, pharmacie.
+  \item La \textbf{cloche} affiche vos notifications : rappels d'actes,
+    portées à sevrer, alertes de point limite, validations de formation…
+  \item Le champ de recherche de l'en-tête trouve un animal par son numéro ou
+    sa cage.
+  \item La langue (français ou anglais) se choisit dans l'en-tête ou dans le
+    profil.
+\end{itemize}
+
+\section{Les cages}
+
+\subsection{Tableaux de bord et fiche de cage}
+Chaque catégorie de cages a son tableau de bord : salle, rack, animaux
+vivants, recherche, filtre par salle. Une sélection groupée permet de changer
+de salle ou de rack, ou de passer une cage entre hébergement et
+expérimentation. Un clic sur une cage ouvre sa \textbf{fiche}, qui présente :
+\begin{itemize}
+  \item l'emplacement (salle, rack) et le statut ;
+  \item les animaux vivants, avec leurs notes de santé ;
+  \item pour une cage d'accouplement, l'encadré \btn{Portées en cours}
+    (section~\ref{sec:portees}) ;
+  \item les \textbf{fichiers} joints et le journal de maintenance.
+\end{itemize}
+
+\subsection{Créer des cages et des animaux}
+\begin{procedure}{Cage d'hébergement avec ses animaux}
+\begin{enumerate}
+  \item \menu{Tableaux de bord > Cages d'hébergement}, puis \btn{Ajouter}.
+  \item Choisissez la lignée, le nombre de mâles et de femelles et la date
+    de naissance.
+  \item Renseignez l'\textbf{entrée dans l'établissement} : provenance
+    (fournisseur ou éleveur agréé, autre établissement utilisateur, autre),
+    fournisseur, référence du bon de livraison et date d'entrée. Ces
+    informations sont \textbf{obligatoires} pour le registre.
+  \item Validez. Le numéro de cage et les numéros des animaux (par exemple
+    \texttt{RSD-0002}) sont attribués automatiquement.
+\end{enumerate}
+\end{procedure}
+Pour un arrivage important, \menu{Animaux > Créer des animaux et cages en
+lot} répartit automatiquement les animaux sur le nombre minimal de cages,
+selon la capacité par cage indiquée.
+
+\subsection{Étiquettes et QR codes}
+\menu{Tableaux de bord} : sélectionnez des cages puis imprimez leurs
+étiquettes (A6, quatre par feuille A4, même mise en page pour toutes les
+catégories). L'étiquette d'une cage d'accouplement indique les reproducteurs
+et les portées en allaitement avec leur date de sevrage prévue. Le QR code de
+l'étiquette ouvre le contrôle de la cage (section~\ref{sec:tournee}).
+
+\subsection{Fichiers joints à une cage}
+\begin{procedure}{Ajouter un fichier}
+\begin{enumerate}
+  \item Ouvrez la fiche de la cage, section \btn{Gérer les fichiers}.
+  \item \btn{Ajouter un fichier} : PDF, document Office, texte ou image,
+    10~Mo au plus. Validez avec \btn{Envoyer}.
+\end{enumerate}
+\end{procedure}
+Seuls les utilisateurs affectés à la cage et les administrateurs ajoutent ou
+suppriment des fichiers. Tout utilisateur connecté peut les télécharger. Un
+fichier dont le contenu ne correspond pas à son extension est refusé. Chaque
+ajout et chaque suppression sont enregistrés dans le journal d'activité.
+
+\subsection{Retirer une cage}
+Une cage ne peut être retirée qu'une fois que chacun de ses animaux vivants a
+reçu un devenir : transfert dans une autre cage, ou sortie avec son code. La
+page \btn{Retirer la cage} demande ce devenir animal par animal. L'opération
+est réalisée en entier ou pas du tout. Une cage qui a encore des portées en
+allaitement ne peut pas être retirée. Une cage vidée de son dernier animal
+est retirée automatiquement.
+
+\section{La tournée quotidienne}\label{sec:tournee}
+Chaque cage en service doit être vue au moins une fois par jour.
+
+\begin{procedure}{Faire la tournée}
+\begin{enumerate}
+  \item \menu{Animaux > Tournée quotidienne} : les cages sont classées par
+    salle.
+  \item Pour chaque cage : \btn{RAS} (une à une ou en groupe), ou
+    signalement d'un problème sanitaire sur l'un de ses animaux.
+  \item Sur téléphone : \menu{Animaux > Scanner le QR de cage}, scannez
+    l'étiquette, puis validez la cage en un geste ou signalez un problème.
+\end{enumerate}
+\end{procedure}
+
+\begin{regle}
+\begin{itemize}
+  \item Une cage déjà vue dans la journée (suivi expérimental, signalement
+    sanitaire, scan QR) apparaît comme vue.
+  \item Une \textbf{cage en expérimentation} ne peut pas être validée
+    \btn{RAS}. Elle n'est validée qu'une fois saisi le suivi du jour de
+    chacun de ses animaux en expérience, et confirmés ses actes du jour.
+  \item En fin de journée, à l'heure fixée par l'administrateur (18:00 par
+    défaut), les administrateurs reçoivent la liste des cages non vues.
+  \item Les jours passés se consultent en lecture seule.
+\end{itemize}
+\end{regle}
+
+\section{Les animaux}
+
+\subsection{Trouver un animal}
+Utilisez \menu{Animaux > Rechercher un animal} ou la recherche de l'en-tête :
+par numéro, cage, lignée, sexe ou statut. Un numéro exact ouvre directement la
+fiche.
+
+\subsection{La fiche animal}
+La fiche présente l'identité de l'animal (lignée, sexe, date de naissance,
+\textbf{signe distinctif} : boucle, tatouage, puce, pelage…), sa cage, sa
+filiation, ses expériences et sa santé. Elle comporte aussi le cadre
+\btn{Registre des entrées et sorties}.
+
+\begin{procedure}{Compléter l'entrée d'un animal}
+Si la provenance est marquée \btn{À compléter} : dépliez \btn{Compléter
+l'entrée dans l'établissement}, renseignez la provenance, le fournisseur, la
+référence et la date d'entrée, puis enregistrez.
+\end{procedure}
+
+\begin{trace}
+Une fois l'entrée enregistrée, seul un administrateur peut la corriger, avec
+un motif. Les valeurs remplacées restent visibles dans \btn{Corrections du
+registre} sur la fiche et dans le dossier BEA.
+\end{trace}
+
+\subsection{Transférer un animal}
+\menu{Animaux > Transférer des animaux}, ou bouton \btn{Changer de cage} sur
+la fiche de la cage. Chaque mouvement est conservé avec sa date, son auteur
+et son motif. Inclure un animal dans une expérience, ou le transférer dans
+une cage en expérimentation, fait passer cette cage en expérimentation.
+
+\subsection{Enregistrer une sortie}
+\begin{procedure}{Sortie d'un animal}
+\begin{enumerate}
+  \item Depuis la fiche : \btn{Sortie (mise à mort / mort / export)}.
+  \item Choisissez le \textbf{code de sortie} : mis à mort (gestion de
+    population, en expérimentation), euthanasie, atteinte de point limite,
+    retrouvé mort (en expérimentation ou non), export vers une autre
+    animalerie (l'établissement de destination est alors obligatoire).
+  \item Indiquez la date et les circonstances, puis confirmez.
+\end{enumerate}
+\end{procedure}
+La fiche de l'animal reste consultable indéfiniment. Ses inclusions en cours
+sont clôturées et ses actions de point limite en attente sont soldées. Une
+sortie erronée ne peut être corrigée que par un administrateur, avec un
+motif.
+
+\subsection{Signaler un problème sanitaire}
+\begin{procedure}{Signalement et suivi}
+\begin{enumerate}
+  \item \menu{Animaux > Signaler un problème sanitaire}, ou depuis la fiche
+    de cage ou la tournée.
+  \item Choisissez la catégorie (blessure, perte de poids, comportement,
+    signes respiratoires ou digestifs, peau, tumeur, etc.), la gravité et la
+    description. Les administrateurs sont prévenus.
+  \item Les suivis s'ajoutent depuis le signalement : chaque suivi indique le
+    nouveau statut (ouvert, en surveillance, résolu) et la gravité.
+\end{enumerate}
+\end{procedure}
+\begin{trace}
+Le \menu{Registre sanitaire} conserve tous les signalements et leurs suivis.
+Aucune entrée ne peut être modifiée ni supprimée.
+\end{trace}
+
+\section{La reproduction}\label{sec:portees}
+
+\subsection{Portées en cours}
+En tête de la fiche d'une cage d'accouplement, l'encadré \btn{Portées en
+cours} liste les portées non sevrées. Pour chacune, il indique la date de
+naissance, l'âge en jours, les petits vivants (morts enregistrées déduites) et
+la date de sevrage prévue, en rouge si elle est dépassée. Les petits non
+sevrés ne sont pas encore identifiés et ne sont pas comptés parmi les animaux
+vivants de la cage. Les portées sevrées ou clôturées sont regroupées plus bas
+dans \btn{Portées précédentes}.
+
+\begin{procedure}{De la naissance au sevrage}
+\begin{enumerate}
+  \item Sur la fiche de la cage : \btn{Portées : naissance → sevrage}, puis
+    \btn{Enregistrer une naissance}. Indiquez la date de naissance, la date
+    d'accouplement si elle est connue, la mère et le père parmi les
+    reproducteurs, et le nombre de petits nés vivants et morts. La date de
+    sevrage prévue est calculée automatiquement (âge réglé par
+    l'administrateur, 21 jours par défaut).
+  \item Pendant l'allaitement, depuis la portée : enregistrez les
+    \textbf{morts} et le \textbf{sexage}.
+  \item Au sevrage : depuis l'encadré, \btn{Sevrer / mettre à jour}, puis
+    \btn{Sevrer la portée}. Indiquez les mâles et
+    femelles sevrés et leurs cages de destination (nouvelles cages
+    d'hébergement ou cages existantes). Chaque petit devient un animal
+    identifié : numéro de lignée, sexe, date de naissance, filiation, et
+    entrée au registre « né dans l'établissement ». Tous les petits doivent
+    être comptés.
+  \item Une portée peut aussi être \textbf{clôturée sans sevrage}, avec un
+    motif.
+\end{enumerate}
+\end{procedure}
+
+\begin{regle}
+Chaque matin, un rappel (notification et e-mail) signale aux utilisateurs de
+la cage les portées à sevrer le jour même ou le lendemain. Un sevrage en
+retard est aussi signalé aux administrateurs et aux responsables BEA. Une
+portée sevrée ou clôturée ne peut plus être modifiée.
+\end{regle}
+
+\section{L'expérimentation}
+
+\subsection{Organisation}
+\menu{Animaux > Essais / protocoles / expériences}. Un \textbf{essai} est
+rattaché à une autorisation de projet (numéro éthique) : sa période doit être
+comprise dans la validité de l'autorisation. Un essai contient des
+\textbf{plans / protocoles}, qui contiennent des \textbf{expériences}.
+
+\begin{procedure}{Préparer un protocole}
+\begin{enumerate}
+  \item Créez le protocole dans l'essai : dates (comprises dans celles de
+    l'essai) et sévérité attendue.
+  \item Choisissez une \textbf{grille d'évaluation clinique}
+    (\menu{Animaux > Grilles d'évaluation clinique}). Une grille déjà
+    utilisée ne peut plus être modifiée : dupliquez-la pour la faire
+    évoluer.
+  \item Ajoutez si besoin des \textbf{observations} à saisir chaque jour (par
+    exemple température, consommation).
+  \item Définissez les \textbf{points limites}. Chaque critère porte sur la
+    perte de poids (\%), le score clinique total, le score d'un item ou une
+    observation, avec un seuil. Il est associé à une action requise : alerte
+    seule, euthanasie, appel du vétérinaire, surveillance renforcée ou autre
+    action.
+\end{enumerate}
+\end{procedure}
+
+\begin{procedure}{Inclure des animaux dans une expérience}
+\begin{enumerate}
+  \item Dans le protocole, créez l'expérience (dates comprises dans celles
+    du protocole).
+  \item Incluez les animaux avec leur \textbf{poids de référence}, qui sert
+    au calcul de la perte de poids.
+\end{enumerate}
+\end{procedure}
+\begin{regle}
+L'inclusion est refusée si l'autorisation de projet est expirée ou pas encore
+valide, si l'espèce n'est pas autorisée, si l'animal n'a pas de lignée, ou si
+le nombre d'animaux autorisés serait dépassé. Un animal compte une seule fois
+par projet.
+\end{regle}
+
+\subsection{Le suivi journalier}
+\begin{procedure}{Saisir le suivi d'un animal}
+\begin{enumerate}
+  \item Depuis l'expérience, ouvrez le suivi de l'animal. Pour une cage
+    entière, utilisez le suivi groupé de la cage.
+  \item Notez chaque item de la grille clinique (le total devient le score
+    clinique), le poids et les observations.
+  \item Confirmez les \textbf{actes expérimentaux} du jour : réalisé, ou non
+    réalisé avec son motif.
+  \item Enregistrez. Les points limites sont évalués aussitôt. Si un critère
+    est atteint, une \textbf{action requise} est ouverte et les
+    administrateurs sont prévenus.
+\end{enumerate}
+\end{procedure}
+
+\begin{trace}
+\begin{itemize}
+  \item Un seul suivi par animal et par jour. Enregistrer à nouveau un jour
+    déjà saisi est une \textbf{correction} : le \textbf{motif est
+    obligatoire}, les valeurs remplacées sont conservées et affichées dans la
+    consultation du suivi, et le jour est marqué « corrigé ».
+  \item Une action d'euthanasie se solde en enregistrant la sortie de
+    l'animal. Les autres actions se soldent par une note décrivant ce qui a
+    été fait.
+\end{itemize}
+\end{trace}
+
+\subsection{Les actes expérimentaux}
+Depuis une expérience, bouton \btn{Actes} : injection, gavage, anesthésie,
+analgésie, prélèvement, chirurgie, pesée de l'alimentation, etc.
+
+\begin{procedure}{Planifier et confirmer un acte}
+\begin{enumerate}
+  \item Décrivez l'acte : substance, dose, voie et consignes. Indiquez
+    éventuellement un médicament du stock avec la quantité par animal, ou
+    une dose selon le poids (par exemple 75~mg/kg).
+  \item Choisissez les dates (période et fréquence) et cochez les animaux,
+    tous, par cage ou un par un.
+  \item Le jour prévu, confirmez l'acte dans le suivi de l'animal ou de sa
+    cage. Le volume selon le poids est proposé, et le médicament est débité
+    du lot choisi.
+\end{enumerate}
+\end{procedure}
+\begin{regle}
+\begin{itemize}
+  \item Chaque matin, les personnes concernées reçoivent les actes du jour et
+    les actes en retard.
+  \item Une personne dont la compétence n'est pas encore validée doit
+    indiquer l'\textbf{encadrant présent} pour confirmer un acte réalisé.
+  \item Une confirmation erronée se corrige avec un motif : ce qui avait été
+    saisi est conservé, le médicament est recrédité et l'acte redevient à
+    faire.
+\end{itemize}
+\end{regle}
+
+\section{Pharmacie et traitements}
+\menu{Animaux > Pharmacie, ordonnances et administrations}.
+
+\begin{procedure}{Traiter des animaux sur ordonnance}
+\begin{enumerate}
+  \item \btn{Ordonnances} : choisissez le médicament, le prescripteur, la
+    date, la dose, la voie, la fréquence, les dates de début et de fin et les
+    consignes. Sélectionnez les animaux (une salle entière peut être ajoutée)
+    et le nombre d'administrations prévues.
+  \item \btn{Administrer} : choisissez le lot et la quantité, pour un animal
+    ou pour toute une cage. Le stock du lot est débité.
+\end{enumerate}
+\end{procedure}
+\begin{trace}
+Une ordonnance enregistrée ne peut plus être modifiée ni supprimée. Une
+administration ne peut qu'être annulée, une seule fois et avec un motif : la
+quantité est alors recréditée sur le lot. Les mouvements des stupéfiants
+figurent dans le \btn{Registre des stupéfiants}.
+\end{trace}
+
+\section{Terrariums et populations}
+\menu{Animaux > Terrariums et populations} : suivi des populations non
+identifiées individuellement.
+\begin{itemize}
+  \item \textbf{Recensements} approximatifs (avec fourchette et méthode),
+    complétés par les introductions, mortalités, transferts et captures.
+  \item \textbf{Traitements de population}, avec un délai d'attente pendant
+    lequel aucune capture pour une expérimentation n'est possible.
+  \item \textbf{Suivi sanitaire} : observations, ambiance, dépistages. Un
+    résultat anormal ou positif est notifié.
+  \item \textbf{Captures} : les animaux capturés deviennent des animaux
+    identifiés (numéros affichés avant validation), répartis par cage, avec
+    leur poids individuel. Ils peuvent être inclus aussitôt dans une
+    expérience.
+\end{itemize}
+
+\section{Formation, tâches et rappels}
+\begin{itemize}
+  \item \menu{Paramètres > Mon livret de formation} : déclarez votre diplôme,
+    vos formations réglementaires par fonction, vos compétences validées et
+    votre formation continue, avec l'attestation PDF. Une entrée compte une
+    fois validée par un administrateur ou un responsable BEA. Un bandeau vous
+    prévient si votre formation continue arrive à échéance.
+  \item \menu{Paramètres > Tâches et rappels} : tâches assignées, et rappels
+    récurrents (quotidiens, hebdomadaires, mensuels) qui créent des tâches
+    et envoient un e-mail.
+\end{itemize}
+
+\section{Les règles de traçabilité en bref}
+\begin{trace}
+\begin{itemize}
+  \item Rien n'est effacé : registres sanitaire, des entrées et sorties, des
+    stupéfiants, mouvements, journaux d'activité.
+  \item Toute correction d'une donnée réglementaire demande un motif et
+    conserve la valeur d'origine : suivis journaliers, confirmations d'actes,
+    entrées et sorties du registre, administrations.
+  \item Chaque saisie porte son auteur, sa date et son heure : travaillez
+    avec votre propre compte, ne partagez jamais vos identifiants.
+\end{itemize}
+\end{trace}
+
+\end{document}
