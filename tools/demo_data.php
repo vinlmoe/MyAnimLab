@@ -6,7 +6,8 @@
  * database/schema.sql, then fills it with a small fictitious animal
  * facility: users, project authorization, cages, breeding with litters,
  * an experiment with follow-ups, planned acts and a correction, health
- * reports, pharmacy with a prescription, a terrarium population.
+ * reports, pharmacy with a prescription, a terrarium population, training
+ * records (certificates in storage/training).
  *
  *   php tools/demo_data.php --db=myanimlab_demo --user=root --password=...
  *   (--ids=file.json writes the ids of the records shown in the screenshots)
@@ -30,6 +31,7 @@ require_once $root . '/followup_lib.php';
 require_once $root . '/corrections_lib.php';
 require_once $root . '/terrarium_lib.php';
 require_once $root . '/experiment_acts_lib.php';
+require_once $root . '/training_lib.php';
 require_once __DIR__ . '/migrations_lib.php';
 
 $opt = getopt('', ['db:', 'user:', 'password::', 'host::', 'today::', 'ids::']);
@@ -73,6 +75,47 @@ $julien = $user('Julien Bernard', 'julien.bernard@demo.fr', 'Animal Care Technic
 $sophie = $user('Sophie Leroy', 'sophie.leroy@demo.fr', 'Research Scientist', 'SL', 1);
 $marc = $user('Marc Dubois', 'marc.dubois@demo.fr', 'Principal Investigator', 'MD');
 $names = [$admin => 'Claire Martin', $julien => 'Julien Bernard', $sophie => 'Sophie Leroy', $marc => 'Marc Dubois'];
+
+// ----- training records -----
+// A small PDF stands for each certificate.
+$certDir = training_storage_dir();
+if (!is_dir($certDir)) {
+    mkdir($certDir, 0750, true);
+}
+$pdf = "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n";
+$training = function (int $userId, string $category, ?string $function, string $title, string $organisation, int $offset, ?float $hours, string $status = 'validated', bool $certificate = true, array $extra = []) use ($con, $day, $names, $admin, $certDir, $pdf): int {
+    $file = null;
+    if ($certificate) {
+        $file = bin2hex(random_bytes(16)) . '.pdf';
+        file_put_contents("$certDir/$file", $pdf);
+    }
+    $validated = $status === 'validated';
+    db_execute($con, 'INSERT INTO training_records (user_id, category, function_code, diploma_level, title, organisation, start_date, duration_hours, species, supervisor_name, certificate_ref, certificate_file, status, validated_by, validated_by_name, validated_at, created_by, created_by_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', 'sssssssdsssssissis',
+        [$userId, $category, $function, $extra['level'] ?? null, $title, $organisation, $day($offset), $hours, $extra['species'] ?? null, $extra['supervisor'] ?? null,
+            $certificate ? 'ATT-' . substr($day($offset), 0, 4) . '-' . random_int(100, 999) : null, $file, $status, $validated ? $admin : null, $validated ? $names[$admin] : null,
+            $validated ? $day($offset + 10) . ' 10:00:00' : null, $userId, $names[$userId]]);
+    return (int) $con->insert_id;
+};
+// Julien: competent for the care of animals, trained to apply procedures and still under supervision.
+$training($julien, 'diploma', null, 'BTSA Productions animales', 'Lycée agricole de Melle', -2600, null, 'validated', true, ['level' => 'bac2']);
+$training($julien, 'initial', 'care', 'Formation réglementaire — soins aux animaux', 'Centre de formation zootechnique', -2500, 35, 'validated', true, ['species' => 'rongeurs']);
+$training($julien, 'competence', 'care', 'Compétence validée — soins aux animaux', 'Animalerie de démonstration', -2300, null, 'validated', true, ['supervisor' => 'Claire Martin']);
+$training($julien, 'initial', 'procedures', 'Formation réglementaire — application des procédures', 'Centre de formation zootechnique', -150, 70, 'validated', true, ['species' => 'rat, souris']);
+$training($julien, 'continuing', null, 'Anesthésie et analgésie des rongeurs', 'AFSTAL', -1400, 14, 'validated', true);
+$training($julien, 'continuing', null, 'Congrès AFSTAL', 'AFSTAL', -700, 7, 'validated', false);
+$training($julien, 'continuing', null, 'Atelier enrichissement du milieu', 'GIRCOR', -20, 7, 'pending', true);
+// Sophie: designer and experimenter, everything validated.
+$training($sophie, 'diploma', null, 'Doctorat en pharmacologie', 'Université de Poitiers', -4000, null, 'validated', true, ['level' => 'phd']);
+foreach (['design' => 'conception des procédures et projets', 'procedures' => 'application des procédures'] as $code => $label) {
+    $training($sophie, 'initial', $code, "Formation réglementaire — $label", 'Institut Pasteur', -3600, 70, 'validated', true, ['species' => 'rongeurs']);
+    $training($sophie, 'competence', $code, "Compétence validée — $label", 'Animalerie de démonstration', -3300, null, 'validated', true, ['supervisor' => 'Claire Martin']);
+}
+$training($sophie, 'continuing', null, 'Chirurgie aseptique des rongeurs', 'Institut Pasteur', -900, 14, 'validated', true);
+$training($sophie, 'continuing', null, 'Points limites et grilles de douleur', 'GIRCOR', -300, 7, 'validated', true);
+// Marc: continuing training below the minimum.
+$training($marc, 'initial', 'design', 'Formation réglementaire — conception des procédures et projets', 'Université de Bordeaux', -3500, 70, 'validated', true);
+$training($marc, 'continuing', null, 'Éthique de l’expérimentation animale', 'GIRCOR', -1500, 7, 'validated', true);
 
 // ----- project authorization -----
 $ethics = 'APAFIS#41234-2026011512345678 v2';
@@ -265,7 +308,7 @@ if (!empty($opt['ids'])) {
         'overdueLitter' => $overdue, 'exitedAnimal' => $exited, 'sickAnimal' => $sick, 'healthReport' => $report,
         'enrollmentAlert' => $enrollments[2], 'enrollmentCorrected' => $enrollments[0], 'correctedFollowup' => $correctedFollowup,
         'experiment' => $experiment, 'protocol' => $protocol, 'trial' => $trial, 'act' => $act,
-        'terrarium' => $terrarium, 'recentLitter' => $recent, 'narcotic' => $ketamine,
+        'terrarium' => $terrarium, 'recentLitter' => $recent, 'narcotic' => $ketamine, 'julien' => $julien, 'sophie' => $sophie,
     ], JSON_PRETTY_PRINT));
 }
 

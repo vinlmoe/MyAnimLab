@@ -38,7 +38,7 @@ MyVivarium est une plateforme en ligne pour gérer efficacement votre animalerie
 
 Les sources LaTeX sont dans `docs/guides/` (`pdflatex guide_utilisateur.tex`). Les captures d’écran (`docs/guides/img/`) sont prises sur une base de démonstration fictive :
 
-- `php tools/demo_data.php --db=myanimlab_demo --user=root --password=… --ids=/tmp/demo_ids.json` crée cette base (nom contenant « demo », effacée puis recréée) : utilisateurs, autorisation de projet, cages, portées, expérience avec suivis, actes planifiés et correction, signalement sanitaire, pharmacie avec ordonnance et administrations, terrarium (journal, traitement, contrôles). Tous les comptes ont le mot de passe `Demo-2026!` ; elle sert aussi aux formations ;
+- `php tools/demo_data.php --db=myanimlab_demo --user=root --password=… --ids=/tmp/demo_ids.json` crée cette base (nom contenant « demo », effacée puis recréée) : utilisateurs, autorisation de projet, cages, portées, expérience avec suivis, actes planifiés et correction, signalement sanitaire, pharmacie avec ordonnance et administrations, terrarium (journal, traitement, contrôles), livrets de formation avec attestations. Tous les comptes ont le mot de passe `Demo-2026!` ; elle sert aussi aux formations ;
 - `node tools/guide_screenshots.js docs/guides/img`, avec Playwright, sur un serveur de test dont le `.env` pointe vers cette base, prend les captures (voir l’en-tête du script pour les variables `BASE`, `IDS` et `ASSETS`).
 
 ## Langue de l’interface
