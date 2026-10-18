@@ -1,6 +1,7 @@
 % Mise en page commune aux guides MyAnimLab (utilisateur, administrateur).
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
+\usepackage{lmodern}
 \usepackage[french]{babel}
 \usepackage[margin=2.2cm]{geometry}
 \usepackage{enumitem,tabularx,booktabs}
@@ -16,6 +17,8 @@
 \definecolor{accent}{HTML}{1F5F8B}
 \definecolor{ok}{HTML}{2E7D32}
 \definecolor{warn}{HTML}{C76A00}
+\definecolor{brandnavy}{HTML}{123B57}
+\definecolor{brandteal}{HTML}{17A398}
 
 % Chemin de menu : \menu{Animaux > Tournée quotidienne}
 \newcommand{\menu}[1]{\textsf{\textbf{\color{accent}#1}}}
@@ -39,6 +42,9 @@
 
 \pagestyle{fancy}
 \fancyhf{}
+% Logo MyAnimLab (images/logo-mark.svg converti en PDF).
+\newcommand{\logomark}[1][1em]{\raisebox{-0.2\height}{\includegraphics[height=#1]{logo-mark}}}
+\newcommand{\wordmark}{\textsf{\color{brandnavy}My\textbf{Anim}\textbf{\color{brandteal}Lab}}}
 \setlength{\headheight}{14pt}
 \cfoot{\thepage}
 
@@ -55,3 +61,25 @@
   \end{center}}
 % Les captures proviennent de la base de démonstration (tools/demo_data.php,
 % tools/guide_screenshots.js).
+
+% Page de titre : \pagetitre{Guide de …}{public}{date}
+\newcommand{\pagetitre}[3]{%
+  \begin{titlepage}
+  \thispagestyle{empty}
+  \noindent\begin{tcolorbox}[enhanced,colback=brandnavy,colframe=brandnavy,arc=0mm,
+    left=8mm,right=8mm,top=10mm,bottom=10mm,
+    interior style={left color=brandnavy,right color=brandteal!85!brandnavy}]
+    \raisebox{-0.3\height}{\includegraphics[height=17mm]{logo-mark}}\hspace{5mm}%
+    {\fontsize{30}{34}\selectfont\textsf{\color{white}My\textbf{Anim}\textbf{\color{brandteal!55!white}Lab}}}\\[8mm]
+    {\Large\sffamily\color{white} Gestion d'animalerie et traçabilité réglementaire}
+  \end{tcolorbox}
+  \vspace*{30mm}
+  \begin{center}
+    {\fontsize{28}{32}\selectfont\sffamily\bfseries\color{brandnavy} #1}\\[8mm]
+    {\large\sffamily #2}\\[25mm]
+    {\sffamily\color{gray} Version du #3}
+  \end{center}
+  \vfill
+  \noindent{\small\color{gray} Les captures d'écran proviennent de la base de
+  démonstration : les personnes, animaux et numéros sont fictifs.}
+  \end{titlepage}}

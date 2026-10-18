@@ -1,6 +1,8 @@
-![Logo](https://myvivarium.online/images/logo1.jpg)
+<img src="images/logo.svg" alt="MyAnimLab" width="320">
 
-# MyVivarium
+# MyAnimLab
+
+*Application dérivée de [MyVivarium](https://github.com/myvivarium/MyVivarium).*
 
 ![Statut du projet](https://img.shields.io/badge/status-active-brightgreen) [![Licence LGPL](https://img.shields.io/badge/License-LGPL--3.0-blue.svg)](https://choosealicense.com/licenses/lgpl-3.0/)
 
@@ -33,10 +35,10 @@ MyVivarium est une plateforme en ligne pour gérer efficacement votre animalerie
 
 ## Guides
 
-- [Guide de l’utilisateur](docs/guides/guide_utilisateur.pdf) : connexion, cages, tournée quotidienne, animaux, reproduction et sevrage, expérimentation, pharmacie, terrariums, formation, règles de traçabilité.
+- [Guide de l’utilisateur](docs/guides/guide_utilisateur.pdf) : parcours d’un nouvel arrivant, livret de formation, cages, tournée quotidienne, animaux, reproduction et sevrage, expérimentation, pharmacie, terrariums, « Que faire si… », règles de traçabilité, aide-mémoire et glossaire.
 - [Guide de l’administrateur](docs/guides/guide_administrateur.pdf) : rôles, installation et mises à jour, paramètres du laboratoire, comptes, référentiels, supervision quotidienne, corrections réglementaires, volet BEA, stupéfiants, exports et préparation d’une inspection.
 
-Les sources LaTeX sont dans `docs/guides/` (`pdflatex guide_utilisateur.tex`). Les captures d’écran (`docs/guides/img/`) sont prises sur une base de démonstration fictive :
+Les sources LaTeX sont dans `docs/guides/` (`pdflatex guide_utilisateur.tex`, deux passes ; paquets TeX Live courants et `lmodern`). Le logo est `images/logo.svg` (icône seule : `images/logo-mark.svg`, convertie en `docs/guides/img/logo-mark.pdf` pour les guides). Les captures d’écran (`docs/guides/img/`) sont prises sur une base de démonstration fictive :
 
 - `php tools/demo_data.php --db=myanimlab_demo --user=root --password=… --ids=/tmp/demo_ids.json` crée cette base (nom contenant « demo », effacée puis recréée) : utilisateurs, autorisation de projet, cages, portées, expérience avec suivis, actes planifiés et correction, signalement sanitaire, pharmacie avec ordonnance et administrations, terrarium (journal, traitement, contrôles), livrets de formation avec attestations. Tous les comptes ont le mot de passe `Demo-2026!` ; elle sert aussi aux formations ;
 - `node tools/guide_screenshots.js docs/guides/img`, avec Playwright, sur un serveur de test dont le `.env` pointe vers cette base, prend les captures (voir l’en-tête du script pour les variables `BASE`, `IDS` et `ASSETS`).
@@ -214,7 +216,7 @@ DB_DATABASE=myvivarium
 
 ## Capture d’écran
 
-![image](https://myvivarium.online/images/myvivarium.gif)
+![Accueil de MyAnimLab](docs/guides/img/u_accueil.jpg)
 
 ## Utilisation
 1. Ouvrez l’application dans votre navigateur :
