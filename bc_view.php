@@ -55,12 +55,6 @@ if (isset($_GET['id'])) {
     $result = $stmt->get_result();
 
 
-    // Fetch the breeding cage litter records with the specified ID
-    $query3 = "SELECT * FROM litters WHERE `cage_id` = ?";
-    $stmt3 = $con->prepare($query3);
-    $stmt3->bind_param("s", $id);
-    $stmt3->execute();
-    $litters = $stmt3->get_result();
 
     // Check if the breeding cage record exists
     if (mysqli_num_rows($result) === 1) {
@@ -356,6 +350,7 @@ require 'header.php';
             </div>
         <?php endif; ?>
         <?php render_cage_location($con, $breedingcage['cage_id'], 'bc_view.php?id=' . rawurlencode($breedingcage['cage_id'])); ?>
+        <?php render_current_litters($con, $breedingcage['cage_id']); ?>
         <div class="card">
             <div class="card-header">
                 <h4>Cage d’accouplement <?= htmlspecialchars($breedingcage['cage_id']); ?></h4>
@@ -431,54 +426,7 @@ require 'header.php';
 
                 <?php render_cage_files($con, $breedingcage['cage_id'], 'bc_view'); ?>
 
-                <!-- Litter Details Section -->
-                <div class="card mt-4">
-
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h4 class="mb-0"><?= trh('Litter Details') ?> - <?= htmlspecialchars($id) ?>
-                        </h4>
-                        <a href="litter_manage.php?cage_id=<?= rawurlencode($id); ?>" class="btn btn-success btn-sm" id="manageLitters"><i class="fas fa-baby"></i> <?= trh('Litters: birth → weaning') ?></a>
-                    </div>
-
-                    <?php while ($litter = mysqli_fetch_assoc($litters)) : ?>
-                        <div class="table-wrapper">
-                            <table class="table table-bordered">
-                                <tbody>
-                                    <tr>
-                                        <th><?= trh('DOM') ?></th>
-                                        <td><?= htmlspecialchars($litter['dom'] ?? ''); ?></td>
-                                    </tr>
-                                    <tr>
-                                        <th><?= trh('Litter DOB') ?></th>
-                                        <td><?= htmlspecialchars($litter['litter_dob'] ?? ''); ?>
-                                            <a href="litter_manage.php?litter_id=<?= (int) $litter['id']; ?>" class="ms-2 small"><?= trh((string) ($litter['status'] ?? '')); ?><?= ($litter['status'] ?? '') === 'nursing' ? ' — ' . trh('weaning expected {date}', ['date' => $litter['expected_weaning_date'] ?? '?']) : ''; ?></a></td>
-                                    </tr>
-                                    <tr>
-                                        <th><?= trh('Pups Alive') ?></th>
-                                        <td><?= htmlspecialchars($litter['pups_alive'] ?? ''); ?></td>
-                                    </tr>
-                                    <tr>
-                                        <th><?= trh('Pups Dead') ?></th>
-                                        <td><?= htmlspecialchars($litter['pups_dead'] ?? ''); ?></td>
-                                    </tr>
-                                    <tr>
-                                        <th><?= trh('Pups Male') ?></th>
-                                        <td><?= htmlspecialchars($litter['pups_male'] ?? ''); ?></td>
-                                    </tr>
-                                    <tr>
-                                        <th><?= trh('Pups Female') ?></th>
-                                        <td><?= htmlspecialchars($litter['pups_female'] ?? ''); ?></td>
-                                    </tr>
-                                    <tr>
-                                        <th><?= trh('Remarks') ?></th>
-                                        <td class="remarks-column"><?= htmlspecialchars($litter['remarks'] ?? ''); ?></td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    <?php endwhile; ?>
-
-                </div>
+                <?php render_litter_history($con, $breedingcage['cage_id']); ?>
 
 
                 <div class="card mt-4">

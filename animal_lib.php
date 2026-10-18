@@ -1016,6 +1016,96 @@ function cage_nursing_litters(mysqli $con, string $cageId): int
     return (int) $n;
 }
 
+/**
+ * Weaning reminders (called by process_reminders.php, once a day after the
+ * morning reminder time of Manage Lab, 07:30 by default):
+ *  - litters to wean today or tomorrow: to the users of their cage (to the
+ *    administrators when the cage has none);
+ *  - litters whose weaning is overdue: to the users of their cage and to
+ *    the administrators and BEA responsibles.
+ * One notification and one e-mail per person. Returns the number of people
+ * notified.
+ */
+function litters_send_weaning_reminders(mysqli $con, ?string $now = null): int
+{
+    $now ??= date('Y-m-d H:i');
+    $today = substr($now, 0, 10);
+    $time = (string) (db_value($con, "SELECT value FROM settings WHERE name = 'acts_reminder_time'") ?? '07:30');
+    if (!preg_match('/^\d{2}:\d{2}$/', $time)) {
+        $time = '07:30';
+    }
+    $last = (string) (db_value($con, "SELECT value FROM settings WHERE name = 'weaning_reminders_last'") ?? '');
+    if ($last === $today || substr($now, 11, 5) < $time) {
+        return 0;
+    }
+    db_execute($con, "INSERT INTO settings (name, value) VALUES ('weaning_reminders_last', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)", 's', [$today]);
+
+    $tomorrow = date('Y-m-d', strtotime($today . ' +1 day'));
+    $litters = db_rows(
+        $con,
+        "SELECT l.id, l.cage_id, l.litter_dob, l.expected_weaning_date FROM litters l JOIN cages c ON c.cage_id = l.cage_id
+         WHERE l.status = 'nursing' AND l.expected_weaning_date IS NOT NULL AND l.expected_weaning_date <= ? AND c.status = 'active'
+         ORDER BY l.expected_weaning_date, l.cage_id",
+        's',
+        [$tomorrow]
+    );
+    if (!$litters) {
+        return 0;
+    }
+    $cageUsers = [];
+    foreach (db_rows($con, 'SELECT cu.cage_id, cu.user_id FROM cage_users cu JOIN users u ON u.id = cu.user_id WHERE u.status = ?', 's', ['approved']) as $cu) {
+        $cageUsers[$cu['cage_id']][] = (int) $cu['user_id'];
+    }
+    $admins = array_map('intval', array_column(db_rows($con, "SELECT id FROM users WHERE status = 'approved' AND role = 'admin'"), 'id'));
+    $privileged = array_map('intval', array_column(db_rows($con, "SELECT id FROM users WHERE status = 'approved' AND (role = 'admin' OR is_bea_responsible = 1)"), 'id'));
+
+    // [user id => ['due' => [lines], 'overdue' => [lines], 'cages' => [cage ids]]]
+    $byUser = [];
+    foreach ($litters as $l) {
+        $kind = $l['expected_weaning_date'] < $today ? 'overdue' : 'due';
+        $line = tr('cage {cage}, born {dob}, weaning expected {date}', ['cage' => $l['cage_id'], 'dob' => $l['litter_dob'] ?? '?', 'date' => $l['expected_weaning_date']]);
+        $recipients = $cageUsers[$l['cage_id']] ?? [];
+        if ($kind === 'overdue') {
+            $recipients = array_merge($recipients, $privileged);
+        } elseif (!$recipients) {
+            $recipients = $admins;
+        }
+        foreach (array_unique($recipients) as $userId) {
+            $byUser[$userId][$kind][] = $line;
+            $byUser[$userId]['cages'][$l['cage_id']] = true;
+        }
+    }
+
+    $emails = array_column(db_rows($con, "SELECT id, username FROM users WHERE status = 'approved'"), 'username', 'id');
+    $notified = 0;
+    foreach ($byUser as $userId => $kinds) {
+        if (!isset($emails[$userId])) {
+            continue;
+        }
+        $nDue = count($kinds['due'] ?? []);
+        $nOverdue = count($kinds['overdue'] ?? []);
+        $title = $nOverdue
+            ? tr('{n} litter(s): weaning overdue', ['n' => $nOverdue]) . ($nDue ? ' · ' . tr('{n} to wean today or tomorrow', ['n' => $nDue]) : '')
+            : tr('{n} litter(s) to wean today or tomorrow', ['n' => $nDue]);
+        $lines = [];
+        foreach (['overdue' => tr('Weaning overdue'), 'due' => tr('To wean today or tomorrow')] as $kind => $heading) {
+            if (!empty($kinds[$kind])) {
+                $lines[] = $heading . ' :';
+                foreach ($kinds[$kind] as $line) {
+                    $lines[] = '• ' . $line;
+                }
+            }
+        }
+        $cages = array_keys($kinds['cages']);
+        $link = count($cages) === 1 ? 'litter_manage.php?cage_id=' . rawurlencode((string) $cages[0]) : 'home.php#littersToWean';
+        create_notification($con, (int) $userId, $title, implode("\n", array_slice($lines, 0, 12)), $link, 'reminder');
+        $body = nl2br(htmlspecialchars(implode("\n", $lines))) . '<br><br>' . htmlspecialchars(tr('Record the weaning on the litter page (breeding cage → Litters: birth → weaning).'));
+        db_execute($con, 'INSERT INTO outbox (recipient, subject, body, scheduled_at) VALUES (?, ?, ?, NOW())', 'sss', [$emails[$userId], $title, $body]);
+        $notified++;
+    }
+    return $notified;
+}
+
 // Create an active holding cage (auto cage_id) with its lifecycle, users and
 // creation check. Returns the new cage_id. Caller handles the transaction.
 function create_holding_cage(mysqli $con, ?int $piId, ?string $room, ?string $rack, ?string $dob, array $userIds, string $why, ?int $userId, ?string $userName): string

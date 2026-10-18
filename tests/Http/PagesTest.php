@@ -511,4 +511,29 @@ final class PagesTest extends TestCase
             @unlink($jar);
         }
     }
+
+    public function testBreedingCagePageShowsTheLittersBeingNursed(): void
+    {
+        $con = TestDatabase::connection();
+        $cage = TestDatabase::cage($con, false);
+        $con->query("INSERT INTO breeding (cage_id, `cross`) VALUES ('$cage', 'A x B')");
+        $con->query("INSERT INTO litters (cage_id, litter_dob, pups_alive, pups_dead, status, expected_weaning_date) VALUES
+            ('$cage', CURDATE() - INTERVAL 25 DAY, 7, 0, 'nursing', CURDATE() - INTERVAL 4 DAY),
+            ('$cage', '2025-01-10', 5, 1, 'weaned', '2025-01-31')");
+        $overdueLitter = (int) TestDatabase::value($con, "SELECT id FROM litters WHERE cage_id = '$cage' AND status = 'nursing'");
+        // Two pups died since birth: 5 alive now.
+        $con->query("INSERT INTO litter_events (litter_id, event, event_date, count) VALUES ($overdueLitter, 'death', CURDATE(), 2)");
+        $jar = $this->login('user');
+        [$status, $body] = $this->request('bc_view.php?id=' . rawurlencode($cage), $jar);
+        $this->assertSame(200, $status);
+        $box = substr($body, strpos($body, 'id="currentLitters"'), 4000);
+        $this->assertStringContainsString('table-danger', $box, 'overdue weaning in red');
+        $this->assertStringContainsString("litter_id=$overdueLitter", $box);
+        $this->assertMatchesRegularExpression('/<td>5<\/td>|<td>5 /', $box, 'pups alive now, deaths deducted');
+        $this->assertStringContainsString('25', $box, 'age in days');
+        $this->assertStringContainsString('id="litterHistory"', $body);
+        $this->assertStringContainsString('2025-01-10', substr($body, strpos($body, 'id="litterHistory"')));
+        $this->assertStringNotContainsString('2025-01-10', $box, 'weaned litters are in the history only');
+        @unlink($jar);
+    }
 }
