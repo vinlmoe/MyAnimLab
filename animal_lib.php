@@ -559,6 +559,8 @@ const ANIMAL_ORIGINS = [
     'supplier' => 'Supplier / authorised breeder',
     'other_facility' => 'Other user establishment',
     'other' => 'Other origin',
+    // Set only by a capture in a population (terrarium_view.php).
+    'population_capture' => 'Captured from a facility population',
 ];
 
 // ANIMAL_ORIGINS in the interface language.
@@ -581,7 +583,7 @@ function origin_from_input(array $in, ?string $dob): array
         'origin_reference' => trim((string) ($in['origin_reference'] ?? '')) ?: null,
         'entry_date' => trim((string) ($in['entry_date'] ?? '')) ?: ($type === 'internal_birth' && $dob ? $dob : date('Y-m-d')),
     ];
-    if (!isset(ANIMAL_ORIGINS[$type])) {
+    if (!isset(ANIMAL_ORIGINS[$type]) || $type === 'population_capture') {
         return [tr('Choose the origin of the animal(s).'), $origin];
     }
     if ($type !== 'internal_birth' && $origin['origin_detail'] === null) {
@@ -626,7 +628,7 @@ function animal_origin_fields(array $values = [], bool $allowInternal = false): 
     $type = $values['origin_type'] ?? '';
     $options = '<option value="" ' . ($type === '' ? 'selected' : '') . ' disabled>' . trh('Choose…') . '</option>';
     foreach (animal_origins() as $key => $label) {
-        if ($key === 'internal_birth' && !$allowInternal) {
+        if (($key === 'internal_birth' && !$allowInternal) || $key === 'population_capture') {
             continue;
         }
         $options .= '<option value="' . $key . '"' . ($type === $key ? ' selected' : '') . '>' . htmlspecialchars($label) . '</option>';

@@ -122,7 +122,7 @@ if ($product) {
     $stmt = $con->prepare(
         "SELECT mv.*, l.lot_number, u.name AS performed_by_name,
                 ma.animal_id, ma.prescription_id, ma.experiment_act_animal_id, ma.cancelled_at, ma.administered_at, ma.administered_by_name,
-                m.animal_uid, m.mouse_id, e.experiment_number, xa.label AS act_label
+                m.animal_uid, m.mouse_id, e.experiment_number, xa.label AS act_label, tt.code AS terrarium_code, tt.name AS terrarium_name
          FROM medication_stock_movements mv
          JOIN medication_lots l ON l.id = mv.medication_lot_id
          LEFT JOIN users u ON u.id = mv.performed_by
@@ -131,6 +131,8 @@ if ($product) {
          LEFT JOIN experiment_act_animals aa ON aa.id = ma.experiment_act_animal_id
          LEFT JOIN experiment_acts xa ON xa.id = aa.act_id
          LEFT JOIN experiments e ON e.id = xa.experiment_id
+         LEFT JOIN terrarium_treatments trt ON trt.id = mv.terrarium_treatment_id
+         LEFT JOIN terrariums tt ON tt.id = trt.terrarium_id
          WHERE l.product_id = ? ORDER BY mv.performed_at, mv.id"
     );
     $stmt->bind_param('i', $productId);
@@ -177,6 +179,9 @@ $typeLabels = [
     'inventory' => tr('Inventory'), 'correction' => tr('Correction'),
 ];
 $purpose = function (array $mv): string {
+    if ($mv['terrarium_code']) {
+        return tr('population treatment, terrarium {code} ({name})', ['code' => $mv['terrarium_code'], 'name' => $mv['terrarium_name']]);
+    }
     if (!$mv['animal_id']) {
         return '';
     }
