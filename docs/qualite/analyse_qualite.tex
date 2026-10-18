@@ -31,7 +31,7 @@
 \cfoot{\thepage}
 
 \title{\textbf{MyAnimLab}\\[4pt]\large Analyse d'assurance qualité du logiciel}
-\author{Revue réalisée sur la branche \f{ccr-e82b7497-x6tqzs} (commit \f{a2b130b})}
+\author{Revue initiale : commit \f{a2b130b} --- Suivi après fusion : \f{main} au commit \f{4bcdec1}}
 \date{18 octobre 2026}
 
 \begin{document}
@@ -84,7 +84,56 @@ Internationalisation & 1\,495 entrées ; tous les libellés \f{tr()} sont tradui
 critiques sont des failles de sécurité exploitables dès le déploiement par
 \f{setup/setup.sh}. Ils doivent être corrigés avant toute mise en production.
 
-\section{Constats détaillés}
+\section{\texorpdfstring{Suivi après fusion (\f{main}, commit \f{4bcdec1})}{Suivi après fusion (main, commit 4bcdec1)}}
+
+Ce suivi porte sur les commits fusionnés depuis la revue initiale, en
+particulier \f{25a28f6} (corrections de contrôle d'accès, de CSRF, de SQL et de
+XSS) et \f{fb5877e} (tests automatisés et généralisation de
+\f{session_config.php}). Chaque constat a été vérifié de nouveau dans le code.
+Les 149 tests unitaires passent en local. Les 45 tests d'intégration et HTTP
+nécessitent une base de données : ils ont été ignorés en local mais s'exécutent
+dans la CI, qui est verte sur \f{main}.
+
+\begin{center}
+\rowcolors{2}{gray!8}{white}
+\begin{tabularx}{\textwidth}{@{}lp{2.1cm}X@{}}
+\toprule
+\textbf{Constat} & \textbf{Statut} & \textbf{Constat de vérification}\\
+\midrule
+QA-01 & \textcolor{crit}{Ouvert} & Toujours aucun \f{.htaccess} ; \f{DocumentRoot} reste la racine du dépôt, donc \f{.env} reste servi.\\
+QA-02 & \textcolor{ok}{Corrigé} & \f{notes_lib.php} exige une session, une requête POST, le jeton CSRF et l'auteur de la note ou un administrateur. \f{get_task.php} et \f{get_reminder.php} exigent une session ; une tâche n'est renvoyée qu'aux personnes concernées. \f{manage_strain.php} et \f{manage_animal_lines.php}, qui étaient eux aussi ouverts, sont désormais réservés aux administrateurs.\\
+QA-03 & \textcolor{maj}{Partiel} & Le SVG est refusé. En revanche, les fichiers restent servis depuis \f{uploads/} sous leur nom d'origine, sans contrôle d'accès, avec les droits \f{0777} et sans contrôle du type MIME.\\
+QA-04 & \textcolor{maj}{Partiel} & Les corrections d'actes expérimentaux conservent la valeur initiale et exigent un motif (bonne pratique). Le suivi quotidien est en revanche toujours écrasé (\f{experiment_followup.php}, l.~247--274).\\
+QA-05 & \textcolor{crit}{Ouvert} & Aucun changement ; \f{setup.sh} accorde toujours \texttt{GRANT ALL} au compte de l'application.\\
+QA-06 & \textcolor{ok}{Largement corrigé} & PHPUnit 11 : 194 tests unitaires, d'intégration et HTTP, avec une CI GitHub Actions sur MariaDB. Il reste à ajouter l'analyse statique et \texttt{composer audit}.\\
+QA-07 & \textcolor{maj}{Partiel} & Un test vérifie que les migrations (désormais 34) sont numérotées sans trou. Il n'y a toujours pas d'outil pour les appliquer, et \f{REPO_URL} pointe toujours vers le dépôt amont.\\
+QA-08 & \textcolor{crit}{Ouvert} & \f{process_reminders.php} n'a toujours pas de garde CLI.\\
+QA-09 & \textcolor{crit}{Ouvert} & \f{export_for_v2.php} exporte toujours la table \f{users} entière.\\
+QA-10 & \textcolor{maj}{Partiel} & Les contrôles des notes sont centralisés dans \f{notes_lib.php}, mais le contrôle CSRF reste recopié dans chaque page.\\
+QA-11 & \textcolor{crit}{Ouvert} & \f{nt_add.php} et \f{nt_rmv.php} renvoient toujours le texte de l'erreur SQL au client.\\
+QA-12 & \textcolor{maj}{Stable} & Les SQL de \f{manage_tasks.php} sont désormais paramétrés, mais le nouveau code ajoute des interpolations (\f{terrarium_lib.php}, \f{terrarium_view.php}). Toutes restent converties en entiers (28 occurrences).\\
+QA-13 & \textcolor{crit}{Ouvert} & \f{America/New_York} est toujours la valeur par défaut, désormais aussi dans \f{manage_tasks.php}.\\
+QA-14 & \textcolor{maj}{Partiel} & \f{.phpunit.cache} est ignoré et \f{require-dev} est déclaré. \f{images/.DS_Store} et \f{uploads/} ne sont toujours pas traités, et la version de PHP n'est pas déclarée.\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\paragraph{Nouveaux points positifs.} Double authentification TOTP
+(\f{auth_lib.php}, \f{login_2fa.php}) avec protection contre le rejeu
+(\f{totp_last_step}), limite de 5 essais suivie d'un verrouillage de
+15 minutes, codes de secours, et obligation de configuration appliquée par
+\f{session_config.php}. Toutes les pages ouvrent désormais la session par
+\f{session_config.php}, avec une durée d'inactivité réglable, et un test
+automatique le vérifie. Le registre des stupéfiants et le livret de formation
+renforcent la traçabilité réglementaire.
+
+\paragraph{Bilan du suivi.} Sur les 3 constats critiques, 1 est corrigé
+(QA-02), 1 est partiel (QA-03) et 1 reste ouvert (QA-01, le plus grave). Le
+socle de vérification (QA-06) est désormais en place. Les priorités restantes
+sont : QA-01, la fin de QA-03, QA-08, puis le versionnement des suivis
+quotidiens (QA-04).
+
+\section{Constats détaillés (revue initiale)}
 
 \subsection{Constats critiques}
 
