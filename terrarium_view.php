@@ -132,7 +132,7 @@ $treatments = $con->query(
 )->fetch_all(MYSQLI_ASSOC);
 $checks = $con->query("SELECT * FROM terrarium_health_checks WHERE terrarium_id = $id ORDER BY checked_on DESC, id DESC")->fetch_all(MYSQLI_ASSOC);
 $captured = $con->query(
-    "SELECT ca.event_id, m.id, m.animal_uid, m.mouse_id, m.cage_id, m.status, m.sex,
+    "SELECT ca.event_id, ca.weight_g, m.id, m.animal_uid, m.mouse_id, m.cage_id, m.status, m.sex,
             (SELECT GROUP_CONCAT(e.experiment_number SEPARATOR ', ') FROM experiment_animals ea JOIN experiments e ON e.id = ea.experiment_id WHERE ea.animal_id = m.id) AS experiments
      FROM terrarium_capture_animals ca JOIN terrarium_events ev ON ev.id = ca.event_id JOIN mice m ON m.id = ca.animal_id
      WHERE ev.terrarium_id = $id ORDER BY ca.event_id DESC, m.id"
@@ -467,28 +467,28 @@ require 'header.php';
                                 <span class="small"><?= trh('animals') ?></span>
                                 <button type="button" class="btn btn-sm btn-outline-secondary" id="fillRows"><?= trh('Fill') ?></button>
                             </div>
-                            <table class="table table-sm align-middle mb-1" id="captureRows" style="max-width: 760px">
-                                <thead><tr><th><?= trh('Destination cage') ?></th><th style="width: 140px"><?= trh('Number of animals') ?> *</th><th style="width: 150px"><?= trh('Sex') ?></th><th class="small text-muted"><?= trh('Identifiers given') ?></th><th></th></tr></thead>
+                            <table class="table table-sm align-middle mb-1" id="captureRows">
+                                <thead><tr><th style="width: 190px"><?= trh('Destination cage') ?></th><th style="width: 110px"><?= trh('Number of animals') ?> *</th><th style="width: 120px"><?= trh('Sex') ?></th><th><?= trh('Identifiers given and individual weight (g)') ?></th><th></th></tr></thead>
                                 <tbody>
                                     <tr class="capture-row">
                                         <td><input class="form-control form-control-sm row-cage" name="groups[0][cage]" list="activeCages" placeholder="<?= trh('new cage') ?>"></td>
                                         <td><input class="form-control form-control-sm row-count" type="number" min="1" max="200" name="groups[0][count]" value="4" required></td>
                                         <td><select class="form-select form-select-sm" name="groups[0][sex]"><option value=""><?= trh('unknown') ?></option><option value="male"><?= trh('Male') ?></option><option value="female"><?= trh('Female') ?></option></select></td>
-                                        <td class="small text-muted row-uids"></td>
+                                        <td><div class="row-weights d-flex flex-wrap gap-1"></div></td>
                                         <td><button type="button" class="btn btn-sm btn-outline-danger row-remove" title="<?= trh('Remove') ?>">&times;</button></td>
                                     </tr>
                                 </tbody>
                             </table>
                             <button type="button" class="btn btn-sm btn-outline-primary" id="addRow"><i class="fas fa-plus"></i> <?= trh('Add a cage') ?></button>
                             <span class="small text-muted ms-2" id="captureTotal"></span>
-                            <div class="form-text"><?= trh('Leave the cage empty to create a new holding cage; the identifiers follow on automatically from the line.') ?></div>
+                            <div class="form-text"><?= trh('Leave the cage empty to create a new holding cage; the identifiers follow on automatically from the line. The individual weight is optional; it becomes the baseline weight if the animals are enrolled in an experiment.') ?></div>
                         </div>
                         <div class="col-md-3"><label class="form-label small"><?= trh('Enroll in the experiment') ?></label>
                             <select class="form-select form-select-sm" name="experiment_id">
                                 <option value=""><?= trh('— no experiment —') ?></option>
                                 <?php foreach ($experiments as $e) : ?><option value="<?= (int) $e['id'] ?>"><?= htmlspecialchars($e['experiment_number'] . ' — ' . $e['title']) ?></option><?php endforeach; ?>
                             </select></div>
-                        <div class="col-md-2"><label class="form-label small"><?= trh('Baseline weight (g)') ?></label><input class="form-control form-control-sm" name="baseline_weight" inputmode="decimal"></div>
+                        <div class="col-md-2"><label class="form-label small"><?= trh('Common baseline weight (g)') ?></label><input class="form-control form-control-sm" name="baseline_weight" inputmode="decimal" title="<?= trh('Used for the animals without individual weight') ?>"></div>
                         <div class="col-md-3"><label class="form-label small"><?= trh('Note') ?></label><input class="form-control form-control-sm" name="note"></div>
                         <?php if ($withdrawal) : ?>
                             <div class="col-12"><div class="form-check small"><input class="form-check-input" type="checkbox" name="ignore_withdrawal" value="1" id="ignoreWithdrawal"><label class="form-check-label" for="ignoreWithdrawal"><?= trh('Capture during the withdrawal period (not for an experiment)') ?></label></div></div>
@@ -499,14 +499,15 @@ require 'header.php';
                     <?php if (!$canManage) : // else printed by the edit form ?><datalist id="terrariumRooms"><?php foreach ($rooms as $r) : ?><option value="<?= htmlspecialchars($r) ?>"><?php endforeach; ?></datalist><?php endif; ?>
                 <?php endif; ?>
                 <table class="table table-sm table-striped align-middle small" id="capturedTable">
-                    <thead><tr><th><?= trh('Capture') ?></th><th><?= trh('Animal') ?></th><th><?= trh('Sex') ?></th><th><?= trh('Cage') ?></th><th><?= trh('Status') ?></th><th><?= trh('Experiments') ?></th></tr></thead>
+                    <thead><tr><th><?= trh('Capture') ?></th><th><?= trh('Animal') ?></th><th><?= trh('Sex') ?></th><th class="text-end"><?= trh('Weight at capture (g)') ?></th><th><?= trh('Cage') ?></th><th><?= trh('Status') ?></th><th><?= trh('Experiments') ?></th></tr></thead>
                     <tbody>
-                        <?php if (!$captured) : ?><tr><td colspan="6" class="text-muted"><?= trh('No animal captured yet.') ?></td></tr><?php endif; ?>
+                        <?php if (!$captured) : ?><tr><td colspan="7" class="text-muted"><?= trh('No animal captured yet.') ?></td></tr><?php endif; ?>
                         <?php foreach ($captured as $a) : ?>
                             <tr>
                                 <td>#<?= (int) $a['event_id'] ?></td>
                                 <td><a href="animal_view.php?id=<?= (int) $a['id'] ?>"><?= htmlspecialchars($a['animal_uid'] ?: $a['mouse_id'] ?: '#' . $a['id']) ?></a></td>
                                 <td><?= $a['sex'] === 'male' ? trh('Male') : ($a['sex'] === 'female' ? trh('Female') : '') ?></td>
+                                <td class="text-end"><?= $a['weight_g'] !== null ? htmlspecialchars($num($a['weight_g'])) : '' ?></td>
                                 <td><?= htmlspecialchars((string) $a['cage_id']) ?></td>
                                 <td><?= htmlspecialchars((string) $a['status']) ?></td>
                                 <td><?= htmlspecialchars((string) $a['experiments']) ?></td>
@@ -550,8 +551,27 @@ require 'header.php';
                     rows.querySelectorAll('.capture-row').forEach((tr, i) => {
                         tr.querySelectorAll('[name^="groups["]').forEach(el => el.name = el.name.replace(/groups\[\d+\]/, 'groups[' + i + ']'));
                         const n = Math.max(0, parseInt(tr.querySelector('.row-count').value, 10) || 0);
-                        const uid = k => code + '-' + String(k).padStart(4, '0');
-                        tr.querySelector('.row-uids').textContent = code && n ? (n === 1 ? uid(next) : uid(next) + ' → ' + uid(next + n - 1)) : '';
+                        const uid = k => code ? code + '-' + String(k).padStart(4, '0') : '#' + (k - next + 1);
+                        // One weight field per animal, labelled with its future identifier; typed values kept.
+                        const box = tr.querySelector('.row-weights');
+                        const kept = [...box.querySelectorAll('input')].map(el => el.value);
+                        box.innerHTML = '';
+                        for (let k = 0; k < Math.min(n, 200); k++) {
+                            const cell = document.createElement('div');
+                            const label = document.createElement('div');
+                            label.className = 'small text-muted';
+                            label.textContent = uid(next + k);
+                            const input = document.createElement('input');
+                            input.className = 'form-control form-control-sm';
+                            input.style.width = '82px';
+                            input.name = 'groups[' + i + '][weights][]';
+                            input.inputMode = 'decimal';
+                            input.placeholder = 'g';
+                            input.value = kept[k] ?? '';
+                            input.setAttribute('aria-label', label.textContent);
+                            cell.append(label, input);
+                            box.appendChild(cell);
+                        }
                         next += n;
                         total += n;
                     });
@@ -561,6 +581,7 @@ require 'header.php';
                     const tr = template.cloneNode(true);
                     tr.querySelector('.row-cage').value = '';
                     tr.querySelector('.row-count').value = count ?? '';
+                    tr.querySelector('.row-weights').innerHTML = '';
                     rows.appendChild(tr);
                     return tr;
                 };
@@ -578,7 +599,7 @@ require 'header.php';
                         renumber();
                     }
                 });
-                rows.addEventListener('input', renumber);
+                rows.addEventListener('input', e => { if (!e.target.closest('.row-weights')) renumber(); });
                 line.addEventListener('change', renumber);
                 renumber();
             }

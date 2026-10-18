@@ -1102,10 +1102,12 @@ CREATE TABLE `terrarium_events` (
   FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
 );
 
--- Animals created by a capture (identified from then on).
+-- Animals created by a capture (identified from then on), with their
+-- individual weight at capture.
 CREATE TABLE `terrarium_capture_animals` (
   `event_id` int NOT NULL,
   `animal_id` int NOT NULL,
+  `weight_g` decimal(8,2) DEFAULT NULL,
   PRIMARY KEY (`event_id`, `animal_id`),
   UNIQUE KEY `uq_capture_animal` (`animal_id`),
   FOREIGN KEY (`event_id`) REFERENCES `terrarium_events` (`id`) ON DELETE CASCADE,
