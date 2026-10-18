@@ -110,10 +110,10 @@ Capteurs IoT & --- & Liens des capteurs des salles.\\
     fonction, rôle, responsable BEA (oui ou non) et mot de passe initial.
   \item Transmettez le mot de passe initial par un canal distinct de
     l'e-mail, et demandez à la personne de le changer.
-  \item Les utilisateurs d'une cage sont choisis \textbf{à la création de la
-    cage} (formulaire d'ajout). Ils reçoivent les rappels de la cage et gèrent
-    ses fichiers. L'application ne permet pas encore de modifier cette liste
-    après la création.
+  \item Affectez la personne aux cages qu'elle suit : à la création de la
+    cage, ou ensuite par le changement de propriété en lot
+    (section~\ref{sec:propriete}). Les utilisateurs d'une cage reçoivent ses
+    rappels et gèrent ses fichiers.
 \end{enumerate}
 \end{procedure}
 \begin{itemize}
@@ -125,6 +125,25 @@ Capteurs IoT & --- & Liens des capteurs des salles.\\
     \menu{Paramètres > Double authentification}, section administrateur,
     réinitialisation pour l'utilisateur concerné.
 \end{itemize}
+
+\section{Propriété des cages}\label{sec:propriete}
+\begin{procedure}{Changer le responsable ou les utilisateurs de cages en lot}
+\begin{enumerate}
+  \item Ouvrez un tableau de bord (\menu{Tableaux de bord > \ldots}) et
+    cochez les cages concernées (une, plusieurs, ou toute la page).
+  \item Dépliez \btn{Changer la propriété des cages sélectionnées
+    (administrateur)}.
+  \item Choisissez un \textbf{responsable} (fonction Principal
+    Investigator), ou laissez-le inchangé.
+  \item Pour les \textbf{utilisateurs}, choisissez l'opération (ajouter,
+    remplacer, retirer) et les personnes concernées.
+  \item \btn{Changer la propriété}, puis confirmez.
+\end{enumerate}
+\end{procedure}
+Les cages retirées sont ignorées. Chaque cage modifiée est inscrite au
+journal d'activité avec son responsable et ses utilisateurs avant et après.
+Lors du départ d'une personne, utilisez \btn{retirer les utilisateurs
+choisis} sur toutes ses cages, puis désactivez son compte.
 
 \section{Référentiels}
 

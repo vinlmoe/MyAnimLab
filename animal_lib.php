@@ -1218,6 +1218,84 @@ function move_cages_to_room(mysqli $con, array $cageIds, string $room, ?string $
     return $changed;
 }
 
+/**
+ * Change the ownership of active cages (administrators, from the cage
+ * dashboards' group selection): their responsible (PI) and/or their users.
+ *  - $piId: new responsible, null to leave it unchanged;
+ *  - $userIds with $usersMode: 'add' (added to the current users),
+ *    'replace' (become the only users), 'remove' (taken off), 'keep'.
+ * The responsible must be an approved user with the Principal Investigator
+ * position; the users must be approved. Each changed cage is logged with
+ * its responsible and users before and after. Returns the number of cages
+ * changed. Throws on invalid input.
+ */
+function set_cages_ownership(mysqli $con, array $cageIds, ?int $piId, array $userIds, string $usersMode, ?int $byUserId): int
+{
+    if (!in_array($usersMode, ['keep', 'add', 'replace', 'remove'], true)) {
+        throw new Exception(tr('Unknown action.'));
+    }
+    $userIds = array_values(array_unique(array_filter(array_map('intval', $userIds))));
+    if ($usersMode !== 'keep' && $usersMode !== 'replace' && !$userIds) {
+        throw new Exception(tr('Choose the users to add or remove.'));
+    }
+    if ($piId === null && $usersMode === 'keep') {
+        throw new Exception(tr('Choose a new responsible or the users to change.'));
+    }
+    if ($piId !== null && !db_value($con, "SELECT 1 FROM users WHERE id = ? AND status = 'approved' AND position = 'Principal Investigator'", 'i', [$piId])) {
+        throw new Exception(tr('The responsible must be an approved user with the Principal Investigator position.'));
+    }
+    if ($userIds) {
+        $valid = array_map('intval', array_column(db_rows($con, "SELECT id FROM users WHERE status = 'approved' AND id IN (" . db_placeholders(count($userIds)) . ")", str_repeat('i', count($userIds)), $userIds), 'id'));
+        if (count($valid) !== count($userIds)) {
+            throw new Exception(tr('Only approved users can be assigned to a cage.'));
+        }
+    }
+    $names = array_column(db_rows($con, 'SELECT id, name FROM users'), 'name', 'id');
+    $describe = function (?int $pi, array $users) use ($names): string {
+        sort($users);
+        return tr('responsible: {pi}; users: {users}', [
+            'pi' => $pi ? ($names[$pi] ?? "#$pi") : '—',
+            'users' => $users ? implode(', ', array_map(fn($u) => $names[$u] ?? "#$u", $users)) : '—',
+        ]);
+    };
+
+    $changed = 0;
+    foreach (array_unique($cageIds) as $cageId) {
+        $cage = db_row($con, "SELECT pi_name FROM cages WHERE cage_id = ? AND status = 'active' FOR UPDATE", 's', [$cageId]);
+        if (!$cage) {
+            continue;
+        }
+        $oldPi = $cage['pi_name'] !== null ? (int) $cage['pi_name'] : null;
+        $oldUsers = array_map('intval', array_column(db_rows($con, 'SELECT user_id FROM cage_users WHERE cage_id = ?', 's', [$cageId]), 'user_id'));
+        $newPi = $piId ?? $oldPi;
+        $newUsers = match ($usersMode) {
+            'add' => array_values(array_unique(array_merge($oldUsers, $userIds))),
+            'replace' => $userIds,
+            'remove' => array_values(array_diff($oldUsers, $userIds)),
+            default => $oldUsers,
+        };
+        $sortedOld = $oldUsers;
+        $sortedNew = $newUsers;
+        sort($sortedOld);
+        sort($sortedNew);
+        if ($newPi === $oldPi && $sortedOld === $sortedNew) {
+            continue;
+        }
+        if ($newPi !== $oldPi) {
+            db_execute($con, 'UPDATE cages SET pi_name = ? WHERE cage_id = ?', 'is', [$newPi, $cageId]);
+        }
+        foreach (array_diff($oldUsers, $newUsers) as $u) {
+            db_execute($con, 'DELETE FROM cage_users WHERE cage_id = ? AND user_id = ?', 'si', [$cageId, $u]);
+        }
+        foreach (array_diff($newUsers, $oldUsers) as $u) {
+            db_execute($con, 'INSERT INTO cage_users (cage_id, user_id) VALUES (?, ?)', 'si', [$cageId, $u]);
+        }
+        log_activity($con, 'cage_ownership', 'cage', $cageId, $describe($oldPi, $oldUsers) . ' → ' . $describe($newPi, $newUsers), $byUserId);
+        $changed++;
+    }
+    return $changed;
+}
+
 // Switch holding cages between the holding and experimental categories.
 // Breeding cages are left untouched. Returns the number of cages changed.
 function set_cages_experimental(mysqli $con, array $cageIds, bool $experimental, ?int $userId): int
