@@ -13,6 +13,7 @@ require 'dbcon.php';
 require 'animal_lib.php';
 require 'ethics_lib.php';
 require 'experiment_acts_lib.php';
+require_once 'corrections_lib.php';
 
 if (!isset($_SESSION['username'])) {
     header('Location: index.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
@@ -116,6 +117,7 @@ $lossPct = fn($w): ?float => ($baseline > 0 && $w !== null) ? ($baseline - (floa
 $fmt = fn(?float $n, int $d = 1): string => $n === null ? '—' : number_format($n, $d, ',', ' ');
 $classes = retrospective_severities();
 $actionLabels = endpoint_required_actions();
+$registerCorrections = record_corrections($con, 'animal', (int) $animalId);
 $categories = health_categories();
 
 require 'header.php';
@@ -338,6 +340,24 @@ require 'header.php';
                             <td><?= $tm['experiment_act_animal_id'] ? trh('Experimental act (no prescription)') : htmlspecialchars($tm['prescriber_name'] ?? '') ?><?= $tm['prescription_reference'] ? ' · ' . htmlspecialchars($tm['prescription_reference']) : '' ?></td>
                             <td class="small"><?= htmlspecialchars($tm['notes'] ?? '') ?></td>
                             <td class="small"><?= htmlspecialchars($tm['administered_by_name'] ?? '') ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+
+        <?php if ($registerCorrections) : ?>
+            <h5 id="registerCorrections"><i class="fas fa-book"></i> <?= trh('Corrections of the register') ?></h5>
+            <table class="table table-sm table-bordered">
+                <thead class="table-light"><tr><th><?= trh('Date') ?></th><th><?= trh('Movement') ?></th><th><?= trh('Changes') ?></th><th><?= trh('Reason') ?></th><th><?= trh('By') ?></th></tr></thead>
+                <tbody>
+                    <?php foreach ($registerCorrections as $c) : ?>
+                        <tr>
+                            <td class="text-nowrap"><?= htmlspecialchars(substr((string) $c['corrected_at'], 0, 16)) ?></td>
+                            <td><?= htmlspecialchars(correction_records()[$c['record']] ?? $c['record']) ?></td>
+                            <td class="small"><?= htmlspecialchars(correction_changes_text($c)) ?></td>
+                            <td class="small"><?= htmlspecialchars($c['reason']) ?></td>
+                            <td class="small"><?= htmlspecialchars($c['corrected_by_name'] ?? '') ?></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>

@@ -22,7 +22,7 @@ final class PagesTest extends TestCase
     private const NOT_PAGES = [
         'animal_lib.php', 'cage_view_parts.php', 'config.php', 'daily_round_alert.php', 'dbcon.php', 'ethics_lib.php',
         'experiment_acts_lib.php', 'export_for_v2.php', 'footer.php', 'header.php', 'i18n.php', 'logout.php', 'message.php',
-        'notes_lib.php', 'auth_lib.php', 'cage_files_lib.php', 'followup_lib.php', 'db_lib.php', 'pdf_lib.php', 'process_reminders.php', 'send_email.php', 'session_config.php', 'training_lib.php', 'terrarium_lib.php', 'terrarium_form_fields.php',
+        'notes_lib.php', 'auth_lib.php', 'cage_files_lib.php', 'followup_lib.php', 'db_lib.php', 'corrections_lib.php', 'pdf_lib.php', 'process_reminders.php', 'send_email.php', 'session_config.php', 'training_lib.php', 'terrarium_lib.php', 'terrarium_form_fields.php',
     ];
     private const PUBLIC_PAGES = ['confirm_email.php', 'forgot_password.php', 'index.php', 'register.php', 'reset_password.php'];
 
@@ -304,7 +304,7 @@ final class PagesTest extends TestCase
     {
         $con = TestDatabase::connection();
         $cage = TestDatabase::cage($con, false);
-        cage_files_dir();
+        @mkdir(APP_ROOT . '/uploads', 0750);
         $stored = 'uploads/' . bin2hex(random_bytes(16)) . '.txt';
         file_put_contents(APP_ROOT . '/' . $stored, '<script>alert(1)</script>');
         try {
@@ -399,5 +399,44 @@ final class PagesTest extends TestCase
             [$status] = $this->request($script, null);
             $this->assertSame(403, $status, $script);
         }
+    }
+
+    public function testRegisterCorrectionsNeedAnAdministratorAndAReason(): void
+    {
+        $con = TestDatabase::connection();
+        $animal = TestDatabase::animal($con, TestDatabase::cage($con));
+        set_animal_origin($con, $animal, ['origin_type' => 'supplier', 'origin_detail' => 'Janvier', 'origin_reference' => null, 'entry_date' => '2026-09-01'], null);
+        exit_animal($con, $animal, 'retrouve_mort', '2026-10-01', 'found dead', null, null, null);
+        $exitCode = fn() => TestDatabase::value($con, "SELECT exit_code FROM mice WHERE id = $animal");
+        $exit = fn(string $jar, array $more) => $this->request('animal_exit.php', $jar, [
+            'csrf_token' => $this->csrfToken($jar), 'animal_id' => $animal, 'correct_exit' => '1',
+            'exit_code' => 'euthanasie', 'exit_date' => '2026-10-01', 'reason' => 'endpoint', 'destination' => '',
+        ] + $more);
+
+        $user = $this->login('user');
+        $exit($user, ['correction_reason' => 'try']);
+        $this->assertSame('retrouve_mort', $exitCode(), 'a user cannot correct an exit');
+        @unlink($user);
+
+        $admin = $this->login('admin');
+        $exit($admin, ['correction_reason' => '']);
+        $this->assertSame('retrouve_mort', $exitCode(), 'no correction without a reason');
+        $exit($admin, ['correction_reason' => 'wrong exit code']);
+        $this->assertSame('euthanasie', $exitCode());
+
+        // A recorded entry is corrected with a reason only.
+        $entry = fn(array $more) => $this->request('animal_origin.php', $admin, [
+            'csrf_token' => $this->csrfToken($admin), 'animal_id' => $animal, 'origin_type' => 'supplier',
+            'origin_detail' => 'Charles River', 'origin_reference' => '', 'entry_date' => '2026-09-01',
+        ] + $more);
+        $entry([]);
+        $this->assertSame('Janvier', TestDatabase::value($con, "SELECT origin_detail FROM mice WHERE id = $animal"));
+        $entry(['correction_reason' => 'wrong supplier']);
+        $this->assertSame('Charles River', TestDatabase::value($con, "SELECT origin_detail FROM mice WHERE id = $animal"));
+
+        [, $view] = $this->request("animal_view.php?id=$animal", $admin);
+        $this->assertStringContainsString('wrong exit code', $view);
+        $this->assertStringContainsString('wrong supplier', $view);
+        @unlink($admin);
     }
 }

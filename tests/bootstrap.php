@@ -23,6 +23,7 @@ require_once APP_ROOT . '/animal_lib.php';
 require_once APP_ROOT . '/experiment_acts_lib.php';
 require_once APP_ROOT . '/training_lib.php';
 require_once APP_ROOT . '/followup_lib.php';
+require_once APP_ROOT . '/corrections_lib.php';
 require_once APP_ROOT . '/cage_files_lib.php';
 require_once APP_ROOT . '/tools/migrations_lib.php';
 

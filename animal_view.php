@@ -12,6 +12,7 @@
 require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
+require_once 'corrections_lib.php';
 
 if (!isset($_SESSION['username'])) {
     $currentUrl = urlencode($_SERVER['REQUEST_URI']);
@@ -181,7 +182,12 @@ $statusBadge = [
             </div>
         </div>
 
-        <?php $originText = origin_label($animal); $canEditOrigin = !$animal['origin_type'] || ($_SESSION['role'] ?? '') === 'admin'; ?>
+        <?php
+        $isAdmin = ($_SESSION['role'] ?? '') === 'admin';
+        $originText = origin_label($animal);
+        $canEditOrigin = !$animal['origin_type'] || $isAdmin;
+        $registerCorrections = record_corrections($con, 'animal', (int) $animal['id']);
+        ?>
         <?php
         $capture = null;
         if ($animal['origin_type'] === 'population_capture') {
@@ -222,9 +228,64 @@ $statusBadge = [
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>">
                             <input type="hidden" name="animal_id" value="<?= (int) $animal['id']; ?>">
                             <?= animal_origin_fields($animal, true); ?>
+                            <?php if ($originText) : ?>
+                                <div class="mb-2">
+                                    <label class="form-label" for="entry_correction_reason"><?= trh('Reason for the correction') ?> *</label>
+                                    <input type="text" class="form-control" id="entry_correction_reason" name="correction_reason" maxlength="1000" required placeholder="<?= trh('e.g. wrong delivery note, date entered by mistake') ?>">
+                                </div>
+                            <?php endif; ?>
                             <button type="submit" class="btn btn-sm btn-primary"><?= trh('Save the entry') ?></button>
                         </form>
                     </details>
+                <?php endif; ?>
+                <?php if ($isAdmin && $animal['status'] !== 'active') : ?>
+                    <details class="mt-2">
+                        <summary class="small"><?= trh('Correct the exit (administrator)') ?></summary>
+                        <form method="POST" action="animal_exit.php" class="mt-2" id="exitCorrectionForm">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()); ?>">
+                            <input type="hidden" name="animal_id" value="<?= (int) $animal['id']; ?>">
+                            <input type="hidden" name="correct_exit" value="1">
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label class="form-label" for="corr_exit_code"><?= trh('Exit code') ?></label>
+                                    <select class="form-select" id="corr_exit_code" name="exit_code" required>
+                                        <?php foreach (ANIMAL_EXIT_CODES as $key => [$text]) : ?>
+                                            <option value="<?= $key; ?>" <?= $key === ($animal['exit_code'] ?? '') ? 'selected' : ''; ?>><?= htmlspecialchars($text); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="corr_exit_date"><?= trh('Exit date') ?></label>
+                                    <input type="date" class="form-control" id="corr_exit_date" name="exit_date" required max="<?= date('Y-m-d'); ?>" value="<?= htmlspecialchars($animal['exit_date'] ?? ''); ?>">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="corr_destination"><?= trh('Destination facility (for an export)') ?></label>
+                                    <input type="text" class="form-control" id="corr_destination" name="destination" value="<?= htmlspecialchars($animal['exit_destination'] ?? ''); ?>">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="corr_exit_reason"><?= trh('Reason / circumstances') ?></label>
+                                    <textarea class="form-control" id="corr_exit_reason" name="reason" required><?= htmlspecialchars($animal['exit_reason'] ?? ''); ?></textarea>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="exit_correction_reason"><?= trh('Reason for the correction') ?> *</label>
+                                    <input type="text" class="form-control" id="exit_correction_reason" name="correction_reason" maxlength="1000" required placeholder="<?= trh('e.g. wrong exit code, date entered by mistake') ?>">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-sm btn-primary mt-2"><?= trh('Save the corrected exit') ?></button>
+                        </form>
+                    </details>
+                <?php endif; ?>
+                <?php if ($registerCorrections) : ?>
+                    <h6 class="mt-3"><?= trh('Corrections of the register') ?></h6>
+                    <ul class="list-group list-group-flush small" id="registerCorrections">
+                        <?php foreach ($registerCorrections as $c) : ?>
+                            <li class="list-group-item px-0">
+                                <strong><?= htmlspecialchars(substr((string) $c['corrected_at'], 0, 16) . ' — ' . ($c['corrected_by_name'] ?? '') . ' — ' . (correction_records()[$c['record']] ?? $c['record'])) ?></strong> :
+                                <?= htmlspecialchars($c['reason']) ?>
+                                <div class="text-muted"><?= htmlspecialchars(correction_changes_text($c)) ?></div>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
                 <?php endif; ?>
             </div>
         </div>
