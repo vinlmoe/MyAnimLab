@@ -9,7 +9,7 @@
  * the row itself is never deleted).
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 
@@ -186,6 +186,16 @@ $statusBadge = [
         </div>
 
         <?php $originText = origin_label($animal); $canEditOrigin = !$animal['origin_type'] || ($_SESSION['role'] ?? '') === 'admin'; ?>
+        <?php
+        $capture = null;
+        if ($animal['origin_type'] === 'population_capture') {
+            $cs = $con->prepare('SELECT ca.weight_g, ev.event_date, ev.terrarium_id, t.code FROM terrarium_capture_animals ca JOIN terrarium_events ev ON ev.id = ca.event_id JOIN terrariums t ON t.id = ev.terrarium_id WHERE ca.animal_id = ?');
+            $cs->bind_param('i', $animal['id']);
+            $cs->execute();
+            $capture = $cs->get_result()->fetch_assoc();
+            $cs->close();
+        }
+        ?>
         <div class="card <?= $originText ? '' : 'border-warning'; ?>" id="register">
             <div class="card-body">
                 <h5 class="card-title d-flex justify-content-between flex-wrap gap-2"><span><i class="fas fa-book"></i> <?= trh('Entry / exit register') ?></span>
@@ -196,6 +206,9 @@ $statusBadge = [
                         <p class="mb-1"><strong><?= trh('Origin:') ?></strong>
                             <?php if ($originText) : ?><?= htmlspecialchars($originText); ?>
                             <?php else : ?><span class="badge bg-warning text-dark"><?= trh('To complete') ?></span><?php endif; ?></p>
+                        <?php if ($capture) : ?>
+                            <p class="mb-1"><strong><?= trh('Capture:') ?></strong> <a href="terrarium_view.php?id=<?= (int) $capture['terrarium_id'] ?>#captures"><?= htmlspecialchars($capture['code']) ?></a>, <?= htmlspecialchars($capture['event_date']) ?><?= $capture['weight_g'] !== null ? ' — ' . trh('weight at capture {w} g', ['w' => rtrim(rtrim(number_format((float) $capture['weight_g'], 2, '.', ''), '0'), '.')]) : '' ?></p>
+                        <?php endif; ?>
                     </div>
                     <div class="col-md-6">
                         <?php if ($animal['status'] !== 'active') : ?>

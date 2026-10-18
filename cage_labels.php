@@ -8,7 +8,7 @@
  * cages, ongoing experiments for any cage), then the animals' identities.
  * Accepts id[] (or cage_ids[] from the cage dashboards' selection).
  */
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 

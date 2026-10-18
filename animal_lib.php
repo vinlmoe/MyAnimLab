@@ -229,7 +229,8 @@ function record_cage_check(mysqli $con, string $cageId, string $type, string $re
 // All checks of the given day, grouped by cage_id.
 //
 // A cage holding animals under experiment (cage "en essai") is only seen once
-// every one of those animals has its experimental follow-up for the day: its
+// every one of those animals has its experimental follow-up for the day and
+// every experimental act due on them is confirmed: its
 // other checks (round, QR, health report) do not count, and the cage shows as
 // not seen until the last follow-up is entered. The rule applies from the
 // date stored in the experimental_round_since setting (migration 024), so
@@ -249,7 +250,7 @@ function cage_checks_for_date(mysqli $con, string $date): array
         return $byCage;
     }
     foreach (experimental_followup_by_cage($con, $date) as $cageId => $progress) {
-        if ($progress['done'] < $progress['total']) {
+        if (!experimental_cage_complete($progress)) {
             unset($byCage[$cageId]);
             continue;
         }
@@ -277,11 +278,12 @@ function experimental_round_since(mysqli $con): string
     return $since;
 }
 
-// Animals under experiment per cage on $date and how many have their
-// follow-up that day: [cage_id => [total, done, issues, last_at]]. Only
-// cages holding such animals are returned. Today uses the current cages and
-// ongoing experiments; a past day uses the enrollments open that day and the
-// cage each animal was in at the end of that day.
+// Animals under experiment per cage on $date, how many have their follow-up
+// that day, and how many experimental acts planned up to that day were still
+// unconfirmed at its end: [cage_id => [total, done, issues, last_at,
+// acts_pending]]. Only cages holding such animals are returned. Today uses
+// the current cages and ongoing experiments; a past day uses the enrollments
+// open that day and the cage each animal was in at the end of that day.
 function experimental_followup_by_cage(mysqli $con, string $date, ?string $onlyCage = null): array
 {
     $isToday = $date >= date('Y-m-d');
@@ -290,9 +292,13 @@ function experimental_followup_by_cage(mysqli $con, string $date, ?string $onlyC
     $openOnDate = $isToday
         ? "m.status = 'active' AND ea.removed_at IS NULL AND e.status IN ('planned', 'active')"
         : "ea.enrolled_at < ? + INTERVAL 1 DAY AND (ea.removed_at IS NULL OR ea.removed_at >= ? + INTERVAL 1 DAY)";
+    // An act counts as pending that day if it was planned up to then and not
+    // confirmed (done, not done or cancelled) before the end of the day.
+    $actsExpr = "(SELECT COUNT(*) FROM experiment_act_animals aa WHERE aa.experiment_animal_id = ea.id AND aa.planned_date <= ?
+                  AND (aa.status = 'planned' OR aa.done_at >= ? + INTERVAL 1 DAY))";
     $sql = "SELECT cage_id, COUNT(*) AS total, SUM(followup_id IS NOT NULL) AS done,
-                   SUM(COALESCE(endpoint_reached, 0)) AS issues, MAX(followup_at) AS last_at
-            FROM (SELECT $cageExpr AS cage_id, f.id AS followup_id, f.endpoint_reached, f.created_at AS followup_at
+                   SUM(COALESCE(endpoint_reached, 0)) AS issues, MAX(followup_at) AS last_at, SUM(acts_pending) AS acts_pending
+            FROM (SELECT $cageExpr AS cage_id, f.id AS followup_id, f.endpoint_reached, f.created_at AS followup_at, $actsExpr AS acts_pending
                   FROM experiment_animals ea
                   JOIN mice m ON m.id = ea.animal_id
                   JOIN experiments e ON e.id = ea.experiment_id
@@ -300,7 +306,7 @@ function experimental_followup_by_cage(mysqli $con, string $date, ?string $onlyC
                   WHERE $openOnDate) x
             WHERE cage_id IS NOT NULL" . ($onlyCage !== null ? ' AND cage_id = ?' : '') . "
             GROUP BY cage_id";
-    $params = $isToday ? [$date] : [$date, $date, $date, $date];
+    $params = $isToday ? [$date, $date, $date] : [$date, $date, $date, $date, $date, $date];
     if ($onlyCage !== null) {
         $params[] = $onlyCage;
     }
@@ -309,10 +315,17 @@ function experimental_followup_by_cage(mysqli $con, string $date, ?string $onlyC
     $stmt->execute();
     $byCage = [];
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
-        $byCage[$row['cage_id']] = ['total' => (int) $row['total'], 'done' => (int) $row['done'], 'issues' => (int) $row['issues'], 'last_at' => $row['last_at']];
+        $byCage[$row['cage_id']] = ['total' => (int) $row['total'], 'done' => (int) $row['done'], 'issues' => (int) $row['issues'], 'last_at' => $row['last_at'], 'acts_pending' => (int) $row['acts_pending']];
     }
     $stmt->close();
     return $byCage;
+}
+
+// A cage under experiment is validated for the day once every animal has its
+// follow-up and every experimental act due (overdue included) is confirmed.
+function experimental_cage_complete(array $progress): bool
+{
+    return $progress['done'] >= $progress['total'] && $progress['acts_pending'] === 0;
 }
 
 // Follow-up progress of one cage today, or null when it holds no animal under experiment.
@@ -321,12 +334,13 @@ function cage_experimental_progress(mysqli $con, string $cageId): ?array
     return experimental_followup_by_cage($con, date('Y-m-d'), $cageId)[$cageId] ?? null;
 }
 
-// Once every animal under experiment in the cage has today's follow-up,
-// record the cage's daily check (once a day, by whoever completed it).
+// Once every animal under experiment in the cage has today's follow-up and
+// every act due is confirmed, record the cage's daily check (once a day, by
+// whoever completed it).
 function record_experimental_cage_check_if_complete(mysqli $con, string $cageId, ?int $userId, ?string $userName): bool
 {
     $progress = cage_experimental_progress($con, $cageId);
-    if (!$progress || $progress['done'] < $progress['total']) {
+    if (!$progress || !experimental_cage_complete($progress)) {
         return false;
     }
     $today = date('Y-m-d');
@@ -545,6 +559,8 @@ const ANIMAL_ORIGINS = [
     'supplier' => 'Supplier / authorised breeder',
     'other_facility' => 'Other user establishment',
     'other' => 'Other origin',
+    // Set only by a capture in a population (terrarium_view.php).
+    'population_capture' => 'Captured from a facility population',
 ];
 
 // ANIMAL_ORIGINS in the interface language.
@@ -567,7 +583,7 @@ function origin_from_input(array $in, ?string $dob): array
         'origin_reference' => trim((string) ($in['origin_reference'] ?? '')) ?: null,
         'entry_date' => trim((string) ($in['entry_date'] ?? '')) ?: ($type === 'internal_birth' && $dob ? $dob : date('Y-m-d')),
     ];
-    if (!isset(ANIMAL_ORIGINS[$type])) {
+    if (!isset(ANIMAL_ORIGINS[$type]) || $type === 'population_capture') {
         return [tr('Choose the origin of the animal(s).'), $origin];
     }
     if ($type !== 'internal_birth' && $origin['origin_detail'] === null) {
@@ -612,7 +628,7 @@ function animal_origin_fields(array $values = [], bool $allowInternal = false): 
     $type = $values['origin_type'] ?? '';
     $options = '<option value="" ' . ($type === '' ? 'selected' : '') . ' disabled>' . trh('Choose…') . '</option>';
     foreach (animal_origins() as $key => $label) {
-        if ($key === 'internal_birth' && !$allowInternal) {
+        if (($key === 'internal_birth' && !$allowInternal) || $key === 'population_capture') {
             continue;
         }
         $options .= '<option value="' . $key . '"' . ($type === $key ? ' selected' : '') . '>' . htmlspecialchars($label) . '</option>';

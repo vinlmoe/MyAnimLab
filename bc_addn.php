@@ -11,7 +11,7 @@
  */
 
 // Start a new session or resume the existing session
-session_start();
+require_once 'session_config.php';
 
 // Include the database connection file
 require 'dbcon.php';
@@ -543,7 +543,7 @@ require 'header.php';
                     // Populate the dropdown with options from the database
                     while ($userRow = $userResult->fetch_assoc()) {
                         $user_id = htmlspecialchars($userRow['id']);
-                        $initials = htmlspecialchars($userRow['initials']);
+                        $initials = htmlspecialchars($userRow['initials'] ?? '');
                         $name = htmlspecialchars($userRow['name']);
                         echo "<option value='$user_id'>$initials [$name]</option>";
                     }

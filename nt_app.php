@@ -10,9 +10,7 @@
 
 
 // Start or resume the session
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+require_once __DIR__ . '/session_config.php';
 
 // Include the database connection file
 require 'dbcon.php';
@@ -24,6 +22,9 @@ if (!isset($_SESSION['username'])) {
 }
 
 $currentUserId = $_SESSION['user_id']; // Assuming 'username' is the user's identifier
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
 
 // For retrieving notes by cage_id
 if (isset($_GET['id'])) {
@@ -235,6 +236,7 @@ $result = $stmt->get_result();
         <div class="popup" id="addNotePopup">
             <span class="close-btn" onclick="togglePopup('addNotePopup')">X</span>
             <form id="addNoteForm" method="post">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
                 <?php if (isset($_GET['id'])) : ?>
                     <label for="cage_id"><?= trh('For Cage ID:') ?>
                         <?= htmlspecialchars($_GET['id']); ?>
@@ -250,6 +252,7 @@ $result = $stmt->get_result();
         <div class="popup edit-popup" id="editNotePopup">
             <span class="close-btn" onclick="togglePopup('editNotePopup')">X</span>
             <form id="editNoteForm" method="post">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
                 <input type="hidden" id="edit_note_id" name="note_id">
                 <textarea id="edit_note_text" name="note_text" placeholder="<?= trh('Edit your sticky note here...') ?>" maxlength="250" required></textarea>
                 <div class="char-count" id="editCharCount"><?= trh('{n} characters remaining', ['n' => 250]) ?></div>
@@ -264,7 +267,7 @@ $result = $stmt->get_result();
                 <div class="sticky-note" id="note-<?= $row['id']; ?>">
                     <?php if ($currentUserId == $row['user_id'] || (isset($_SESSION['role']) && $_SESSION['role'] === 'admin')) : ?>
                         <span class="close-btn" onclick="removeNote(<?php echo $row['id']; ?>)">X</span>
-                        <span class="edit-btn" onclick="editNote(<?php echo $row['id']; ?>, '<?php echo htmlspecialchars(addslashes($row['note_text'])); ?>')">✎</span>
+                        <span class="edit-btn" onclick="editNote(<?= (int) $row['id']; ?>, <?= htmlspecialchars(json_encode((string) $row['note_text'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE)); ?>)">✎</span>
                     <?php endif; ?>
                     <span class="userid">
                         <?php echo htmlspecialchars($row['user_name']); ?>
@@ -363,7 +366,8 @@ $result = $stmt->get_result();
                 type: 'POST',
                 url: 'nt_rmv.php',
                 data: {
-                    note_id: noteId
+                    note_id: noteId,
+                    csrf_token: <?= json_encode($_SESSION['csrf_token'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>
                 },
                 dataType: 'json',
                 success: function(response) {

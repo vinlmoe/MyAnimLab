@@ -1,0 +1,722 @@
+<?php
+
+/**
+ * Experimental acts (injection, gavage, bait, anaesthesia...) planned on the
+ * animals of an experiment and confirmed during the daily follow-up.
+ *
+ * experiment_acts holds what is done (substance, dose, route, optional
+ * medication of the stock and quantity per animal, information to ask),
+ * experiment_act_animals one row per animal and planned date. Confirming a
+ * row as done stores the requested values and, for a stock medication,
+ * records one administration per animal and debits the lot (no prescription
+ * within an experiment). The quantity is suggested from the animal's weight
+ * when the dose is given by weight and the product's concentration is
+ * known. A confirmation can be corrected with a reason: what was recorded is
+ * kept in experiment_act_corrections, a medication given is cancelled (kept
+ * in the registers) and re-credited, and the act is to do again.
+ * A person not competent to apply procedures (training record) confirms an
+ * act as done only with the competent person supervising them.
+ * Requires animal_lib.php.
+ */
+
+require_once __DIR__ . '/training_lib.php';
+
+function experiment_act_types(): array
+{
+    return [
+        'injection' => tr('Injection'),
+        'gavage' => tr('Gavage'),
+        'bait' => tr('Bait'),
+        'anaesthesia' => tr('Anaesthesia'),
+        'analgesia' => tr('Analgesia'),
+        'sampling' => tr('Sampling'),
+        'surgery' => tr('Surgery'),
+        'food_weighing' => tr('Food weighing'),
+        'other' => tr('Other act'),
+    ];
+}
+
+function experiment_act_statuses(): array
+{
+    return [
+        'planned' => tr('To do'),
+        'done' => tr('Act done'),
+        'not_done' => tr('Not done'),
+        'cancelled' => tr('Cancelled'),
+    ];
+}
+
+// Trimmed display of a decimal (no trailing zeros).
+function act_number(?string $n): string
+{
+    return $n === null || $n === '' ? '' : rtrim(rtrim(number_format((float) $n, 3, '.', ''), '0'), '.');
+}
+
+// One-line summary of what an act gives: substance, dose, route.
+function experiment_act_summary(array $act): string
+{
+    $parts = [];
+    if (!empty($act['substance'])) {
+        $parts[] = $act['substance'];
+    }
+    if ($act['dose_amount'] !== null && $act['dose_amount'] !== '') {
+        $parts[] = trim(act_number($act['dose_amount']) . ' ' . ($act['dose_unit'] ?? ''));
+    }
+    if (!empty($act['route'])) {
+        $parts[] = $act['route'];
+    }
+    return implode(' · ', $parts);
+}
+
+// Fields to fill at confirmation, by act id.
+function experiment_act_fields(mysqli $con, array $actIds): array
+{
+    $actIds = array_values(array_unique(array_map('intval', $actIds)));
+    if (!$actIds) {
+        return [];
+    }
+    $fields = [];
+    foreach ($con->query('SELECT * FROM experiment_act_fields WHERE act_id IN (' . implode(',', $actIds) . ') ORDER BY position, id') as $f) {
+        $fields[(int) $f['act_id']][(int) $f['id']] = $f;
+    }
+    return $fields;
+}
+
+// Values entered at confirmation, by experiment_act_animals id.
+function experiment_act_values(mysqli $con, array $actAnimalIds): array
+{
+    $actAnimalIds = array_values(array_unique(array_map('intval', $actAnimalIds)));
+    if (!$actAnimalIds) {
+        return [];
+    }
+    $values = [];
+    foreach ($con->query('SELECT * FROM experiment_act_values WHERE act_animal_id IN (' . implode(',', $actAnimalIds) . ') ORDER BY id') as $v) {
+        $values[(int) $v['act_animal_id']][] = $v;
+    }
+    return $values;
+}
+
+const EXPERIMENT_ACT_ROW_SQL = "SELECT aa.*, a.experiment_id, a.act_type, a.label, a.substance, a.dose_amount, a.dose_unit, a.route,
+        a.product_id, a.quantity_per_animal, a.instructions, mp.name AS product_name, mp.default_unit AS product_unit,
+        mp.is_narcotic, mp.concentration, mp.concentration_unit,
+        ml.lot_number, ea.animal_id, m.animal_uid, m.mouse_id, m.cage_id, m.sex, m.distinctive_mark, e.experiment_number
+    FROM experiment_act_animals aa
+    JOIN experiment_acts a ON a.id = aa.act_id
+    JOIN experiment_animals ea ON ea.id = aa.experiment_animal_id
+    JOIN experiments e ON e.id = a.experiment_id
+    JOIN mice m ON m.id = ea.animal_id
+    LEFT JOIN medication_products mp ON mp.id = a.product_id
+    LEFT JOIN medication_lots ml ON ml.id = aa.medication_lot_id";
+
+// Acts of one enrollment: those still to do up to $upTo (overdue included)
+// and every confirmed one, ordered by date.
+function enrollment_acts(mysqli $con, int $enrollmentId, string $upTo): array
+{
+    $stmt = $con->prepare(EXPERIMENT_ACT_ROW_SQL . "
+        WHERE aa.experiment_animal_id = ? AND (aa.status IN ('done', 'not_done') OR (aa.status = 'planned' AND aa.planned_date <= ?))
+        ORDER BY aa.planned_date, a.id");
+    $stmt->bind_param('is', $enrollmentId, $upTo);
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    return $rows;
+}
+
+// Acts still to do up to $date (overdue included) for the animals of a cage
+// that are under an ongoing experiment, grouped by act.
+function cage_acts_due(mysqli $con, string $cageId, string $date): array
+{
+    $stmt = $con->prepare(EXPERIMENT_ACT_ROW_SQL . "
+        WHERE m.cage_id = ? AND m.status = 'active' AND ea.removed_at IS NULL AND aa.status = 'planned' AND aa.planned_date <= ?
+        ORDER BY a.id, aa.planned_date, m.animal_uid");
+    $stmt->bind_param('ss', $cageId, $date);
+    $stmt->execute();
+    $byAct = [];
+    foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
+        $byAct[(int) $row['act_id']][] = $row;
+    }
+    $stmt->close();
+    return $byAct;
+}
+
+// Number of acts still to do up to $date per cage (for the daily round).
+function acts_due_by_cage(mysqli $con, string $date): array
+{
+    $stmt = $con->prepare(
+        "SELECT m.cage_id, COUNT(*) AS n FROM experiment_act_animals aa
+         JOIN experiment_animals ea ON ea.id = aa.experiment_animal_id
+         JOIN mice m ON m.id = ea.animal_id
+         WHERE aa.status = 'planned' AND aa.planned_date <= ? AND m.status = 'active' AND ea.removed_at IS NULL AND m.cage_id IS NOT NULL
+         GROUP BY m.cage_id"
+    );
+    $stmt->bind_param('s', $date);
+    $stmt->execute();
+    $out = [];
+    foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
+        $out[$row['cage_id']] = (int) $row['n'];
+    }
+    $stmt->close();
+    return $out;
+}
+
+// Lots that can be used today (in stock, not expired), by product id.
+function usable_lots_by_product(mysqli $con): array
+{
+    $lots = [];
+    foreach ($con->query("SELECT l.id, l.product_id, l.lot_number, l.expiry_date, l.remaining_quantity, p.default_unit
+                          FROM medication_lots l JOIN medication_products p ON p.id = l.product_id
+                          WHERE l.remaining_quantity > 0 AND l.expiry_date >= CURDATE() ORDER BY l.expiry_date, l.id") as $l) {
+        $lots[(int) $l['product_id']][] = $l;
+    }
+    return $lots;
+}
+
+// <option>s of the usable lots of a product, the soonest expiring first.
+function act_lot_options(array $lotsByProduct, ?int $productId, ?int $selected = null): string
+{
+    $html = '<option value="">' . trh('Choose the lot…') . '</option>';
+    foreach ($lotsByProduct[(int) $productId] ?? [] as $l) {
+        $html .= '<option value="' . (int) $l['id'] . '"' . ((int) $l['id'] === $selected ? ' selected' : '') . '>'
+            . htmlspecialchars(tr('lot {lot}', ['lot' => $l['lot_number']]) . ' · ' . act_number($l['remaining_quantity']) . ' ' . $l['default_unit'] . ' · exp. ' . $l['expiry_date'])
+            . '</option>';
+    }
+    return $html;
+}
+
+/**
+ * Plan an act on enrollments of an experiment for the given dates. $act holds
+ * act_type, label, substance, dose_amount, dose_unit, route, product_id,
+ * quantity_per_animal, instructions; $fields the information to ask (label,
+ * value_type, unit, required). Only ongoing enrollments of the experiment are
+ * kept. Returns [act id, rows planned]. Must run in a transaction.
+ */
+function plan_experiment_act(mysqli $con, int $experimentId, array $act, array $fields, array $dates, array $enrollmentIds, ?int $userId, ?string $userName): array
+{
+    if (!isset(experiment_act_types()[$act['act_type']])) {
+        throw new Exception(tr('Choose the type of act.'));
+    }
+    if ($act['label'] === '') {
+        throw new Exception(tr('Give the act a name.'));
+    }
+    $dates = array_values(array_unique(array_filter($dates, fn($d) => is_string($d) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) && strtotime($d))));
+    sort($dates);
+    if (!$dates) {
+        throw new Exception(tr('Choose at least one date.'));
+    }
+    if (count($dates) > 366) {
+        throw new Exception(tr('Too many dates (366 at most).'));
+    }
+    if ($act['product_id'] !== null) {
+        $p = $con->prepare('SELECT default_unit AS product_unit, concentration, concentration_unit FROM medication_products WHERE id = ? AND active = 1');
+        $p->bind_param('i', $act['product_id']);
+        $p->execute();
+        $product = $p->get_result()->fetch_assoc();
+        $p->close();
+        if (!$product) {
+            throw new Exception(tr('Unknown medication.'));
+        }
+        // A dose by weight computes the quantity at confirmation; otherwise a
+        // fixed quantity per animal is needed.
+        if (($act['quantity_per_animal'] === null || $act['quantity_per_animal'] <= 0) && !act_quantity_per_gram($act + $product)) {
+            throw new Exception(tr('Give the quantity of medication taken from the stock per animal, or a dose by weight (e.g. mg/kg) for a product whose concentration is known.'));
+        }
+        if ($act['quantity_per_animal'] !== null && $act['quantity_per_animal'] <= 0) {
+            $act['quantity_per_animal'] = null;
+        }
+    }
+
+    $enrollmentIds = array_values(array_unique(array_filter(array_map('intval', $enrollmentIds))));
+    $kept = [];
+    if ($enrollmentIds) {
+        $stmt = $con->prepare(
+            "SELECT ea.id FROM experiment_animals ea JOIN mice m ON m.id = ea.animal_id
+             WHERE ea.experiment_id = ? AND ea.removed_at IS NULL AND m.status = 'active' AND ea.id IN (" . implode(',', $enrollmentIds) . ')'
+        );
+        $stmt->bind_param('i', $experimentId);
+        $stmt->execute();
+        $kept = array_map('intval', array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'id'));
+        $stmt->close();
+    }
+    if (!$kept) {
+        throw new Exception(tr('Tick at least one animal followed in this experiment.'));
+    }
+
+    $ins = $con->prepare(
+        'INSERT INTO experiment_acts (experiment_id, act_type, label, substance, dose_amount, dose_unit, route, product_id, quantity_per_animal, instructions, created_by, created_by_name)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+    $ins->bind_param('isssdssidsis', $experimentId, $act['act_type'], $act['label'], $act['substance'], $act['dose_amount'], $act['dose_unit'], $act['route'],
+        $act['product_id'], $act['quantity_per_animal'], $act['instructions'], $userId, $userName);
+    $ins->execute();
+    $actId = (int) $con->insert_id;
+    $ins->close();
+
+    $insField = $con->prepare('INSERT INTO experiment_act_fields (act_id, position, label, value_type, unit, required) VALUES (?, ?, ?, ?, ?, ?)');
+    foreach (array_values($fields) as $i => $f) {
+        $insField->bind_param('iisssi', $actId, $i, $f['label'], $f['value_type'], $f['unit'], $f['required']);
+        $insField->execute();
+    }
+    $insField->close();
+
+    $insRow = $con->prepare('INSERT INTO experiment_act_animals (act_id, experiment_animal_id, planned_date) VALUES (?, ?, ?)');
+    $n = 0;
+    foreach ($kept as $enrollmentId) {
+        foreach ($dates as $d) {
+            $insRow->bind_param('iis', $actId, $enrollmentId, $d);
+            $insRow->execute();
+            $n++;
+        }
+    }
+    $insRow->close();
+    return [$actId, $n];
+}
+
+/**
+ * Confirm one planned act of one animal as 'done' or 'not_done'.
+ * $raw: ['status', 'values' => [field id => typed value], 'lot_id', 'quantity',
+ * 'note', 'done_at' (Y-m-d H:i:s)]. A required field must be filled when the
+ * act is done; a reason is needed when it was not. A medication of the stock
+ * is traced as an administration and debited from the lot. Must run in a
+ * transaction. Returns the animal id, for the event log.
+ */
+function confirm_experiment_act(mysqli $con, int $actAnimalId, array $raw, ?int $followupId, ?int $userId, ?string $userName, ?int $onlyEnrollment = null, ?string $onlyCage = null): int
+{
+    $lock = $con->prepare(EXPERIMENT_ACT_ROW_SQL . ' WHERE aa.id = ? FOR UPDATE');
+    $lock->bind_param('i', $actAnimalId);
+    $lock->execute();
+    $row = $lock->get_result()->fetch_assoc();
+    $lock->close();
+    $who = $row ? ($row['animal_uid'] ?: $row['mouse_id'] ?: '#' . $row['animal_id']) : '';
+    if (!$row || ($onlyEnrollment !== null && (int) $row['experiment_animal_id'] !== $onlyEnrollment) || ($onlyCage !== null && $row['cage_id'] !== $onlyCage)) {
+        throw new Exception(tr('Act not found.'));
+    }
+    if ($row['status'] !== 'planned') {
+        throw new Exception(tr('{act}: this act is no longer to do.', ['act' => $row['label'] . ' — ' . $who]));
+    }
+    $status = $raw['status'] ?? '';
+    if (!in_array($status, ['done', 'not_done'], true)) {
+        throw new Exception(tr('Unknown act status.'));
+    }
+    $doneAt = (string) ($raw['done_at'] ?? '');
+    if (!preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/', $doneAt)) {
+        throw new Exception(tr('Invalid date or time of the act.'));
+    }
+    if (substr($doneAt, 0, 10) > date('Y-m-d')) {
+        throw new Exception(tr('An act cannot be confirmed in the future.'));
+    }
+    if (substr($doneAt, 0, 10) < $row['planned_date']) {
+        throw new Exception(tr('{act}: planned on {date}, it cannot be confirmed before.', ['act' => $row['label'] . ' — ' . $who, 'date' => $row['planned_date']]));
+    }
+    $note = trim((string) ($raw['note'] ?? ''));
+    $label = $row['label'] . ' — ' . $who;
+
+    $valueRows = [];
+    $lotId = null;
+    $quantity = null;
+    $supervisorId = null;
+    $supervisorName = null;
+    if ($status === 'not_done') {
+        if ($note === '') {
+            throw new Exception(tr('{act}: give the reason why the act was not done.', ['act' => $label]));
+        }
+    } else {
+        foreach (experiment_act_fields($con, [(int) $row['act_id']])[(int) $row['act_id']] ?? [] as $fieldId => $field) {
+            $value = trim((string) ($raw['values'][$fieldId] ?? ''));
+            if ($value === '') {
+                if ($field['required']) {
+                    throw new Exception(tr('{act}: "{field}" is required.', ['act' => $label, 'field' => $field['label']]));
+                }
+                continue;
+            }
+            $number = $field['value_type'] === 'number' ? parse_number($value) : null;
+            if ($field['value_type'] === 'number' && $number === null) {
+                throw new Exception(tr('{act}: "{field}" must be a number.', ['act' => $label, 'field' => $field['label']]));
+            }
+            $valueRows[] = [$fieldId, $field['label'], $field['value_type'], $field['unit'], $number, $field['value_type'] === 'text' ? $value : null];
+        }
+        // Not competent alone: the supervisor present is required.
+        if ($userId && training_needs_supervisor($con, (int) $userId)) {
+            $choice = (string) ($raw['supervisor'] ?? '');
+            if ($choice === 'other') {
+                $supervisorName = trim((string) ($raw['supervisor_other'] ?? ''));
+            } elseif (ctype_digit($choice)) {
+                $supervisorName = training_competent_supervisors($con, (int) $userId)[(int) $choice] ?? '';
+                $supervisorId = $supervisorName !== '' ? (int) $choice : null;
+            }
+            if (($supervisorName ?? '') === '') {
+                throw new Exception(tr('{act}: give the competent person supervising you (your competence to apply procedures is not validated).', ['act' => $label]));
+            }
+        }
+        if ($row['product_id'] !== null) {
+            $lotId = (int) ($raw['lot_id'] ?? 0);
+            $quantity = parse_number((string) ($raw['quantity'] ?? ''));
+            if (!$lotId) {
+                throw new Exception(tr('{act}: choose the lot of {product} used.', ['act' => $label, 'product' => $row['product_name']]));
+            }
+            if ($quantity === null || $quantity <= 0) {
+                throw new Exception(tr('{act}: give the quantity of {product} used.', ['act' => $label, 'product' => $row['product_name']]));
+            }
+        }
+    }
+
+    $up = $con->prepare("UPDATE experiment_act_animals SET status = ?, done_at = ?, done_by = ?, done_by_name = ?, supervised_by = ?, supervised_by_name = ?, note = ?, followup_id = ?, medication_lot_id = ?, quantity_used = ? WHERE id = ?");
+    $noteValue = $note !== '' ? $note : null;
+    $up->bind_param('ssisissiidi', $status, $doneAt, $userId, $userName, $supervisorId, $supervisorName, $noteValue, $followupId, $lotId, $quantity, $actAnimalId);
+    $up->execute();
+    $up->close();
+
+    $insValue = $con->prepare('INSERT INTO experiment_act_values (act_animal_id, field_id, label, value_type, unit, value_number, value_text) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    foreach ($valueRows as [$fieldId, $fLabel, $type, $unit, $number, $text]) {
+        $insValue->bind_param('iisssds', $actAnimalId, $fieldId, $fLabel, $type, $unit, $number, $text);
+        $insValue->execute();
+    }
+    $insValue->close();
+
+    if ($lotId) {
+        record_act_medication($con, $row, $lotId, $quantity, $doneAt, $note, $userId, $userName);
+    }
+    return (int) $row['animal_id'];
+}
+
+// Trace the medication given during an act (no prescription) and debit the lot.
+function record_act_medication(mysqli $con, array $row, int $lotId, float $quantity, string $doneAt, string $note, ?int $userId, ?string $userName): void
+{
+    $lotStmt = $con->prepare('SELECT product_id, lot_number, remaining_quantity, expiry_date FROM medication_lots WHERE id = ? FOR UPDATE');
+    $lotStmt->bind_param('i', $lotId);
+    $lotStmt->execute();
+    $lot = $lotStmt->get_result()->fetch_assoc();
+    $lotStmt->close();
+    if (!$lot || (int) $lot['product_id'] !== (int) $row['product_id']) {
+        throw new Exception(tr('The lot chosen is not a lot of {product}.', ['product' => $row['product_name']]));
+    }
+    if ($lot['expiry_date'] < substr($doneAt, 0, 10)) {
+        throw new Exception(tr('Lot {lot} is expired: administration blocked.', ['lot' => $lot['lot_number']]));
+    }
+    if ((float) $lot['remaining_quantity'] < $quantity) {
+        throw new Exception(tr('Not enough stock in lot {lot} ({left} {unit} left).', ['lot' => $lot['lot_number'], 'left' => act_number($lot['remaining_quantity']), 'unit' => $row['product_unit']]));
+    }
+    $notes = trim(tr('Experimental act {number}: {act}', ['number' => $row['experiment_number'], 'act' => $row['label']]) . ($note !== '' ? ' — ' . $note : ''));
+    $add = $con->prepare('INSERT INTO medication_administrations (prescription_id, experiment_act_animal_id, animal_id, medication_lot_id, administered_at, quantity_used, unit, route, notes, administered_by, administered_by_name)
+                          VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    $actAnimalId = (int) $row['id'];
+    $animalId = (int) $row['animal_id'];
+    $add->bind_param('iiisdsssis', $actAnimalId, $animalId, $lotId, $doneAt, $quantity, $row['product_unit'], $row['route'], $notes, $userId, $userName);
+    $add->execute();
+    $administrationId = (int) $con->insert_id;
+    $add->close();
+    $useDate = substr($doneAt, 0, 10);
+    $update = $con->prepare('UPDATE medication_lots SET remaining_quantity = remaining_quantity - ?, in_use_since = COALESCE(in_use_since, ?) WHERE id = ?');
+    $update->bind_param('dsi', $quantity, $useDate, $lotId);
+    $update->execute();
+    $update->close();
+    $movement = $con->prepare("INSERT INTO medication_stock_movements (medication_lot_id, movement_type, quantity_delta, reason, administration_id, performed_by) VALUES (?, 'administration', ?, ?, ?, ?)");
+    $delta = -$quantity;
+    $movement->bind_param('idsii', $lotId, $delta, $notes, $administrationId, $userId);
+    $movement->execute();
+    $movement->close();
+}
+
+/**
+ * Read the confirmations posted by a form: act_status[id] ('' = later),
+ * act_value[id][field], act_lot[id], act_qty[id], act_note[id], act_time[id].
+ * Returns [act animal id => raw] for confirm_experiment_act(), dated $date.
+ */
+function posted_act_confirmations(array $post, string $date, ?int $sharedLot = null, ?string $sharedNote = null, ?string $sharedTime = null): array
+{
+    $out = [];
+    foreach ((array) ($post['act_status'] ?? []) as $id => $status) {
+        if ($status === '' || $status === null) {
+            continue;
+        }
+        $time = trim((string) ($post['act_time'][$id] ?? $sharedTime ?? ''));
+        if (!preg_match('/^\d{2}:\d{2}$/', $time)) {
+            $time = date('H:i');
+        }
+        $note = trim((string) ($post['act_note'][$id] ?? ''));
+        $out[(int) $id] = [
+            'status' => (string) $status,
+            'values' => (array) ($post['act_value'][$id] ?? []),
+            'lot_id' => (int) ($post['act_lot'][$id] ?? $sharedLot ?? 0),
+            'quantity' => (string) ($post['act_qty'][$id] ?? ''),
+            'note' => $note !== '' ? $note : (string) $sharedNote,
+            'done_at' => $date . ' ' . $time . ':00',
+            'supervisor' => (string) ($post['act_supervisor'] ?? ''),
+            'supervisor_other' => (string) ($post['act_supervisor_other'] ?? ''),
+        ];
+    }
+    return $out;
+}
+
+// Mass units of doses and concentrations, in mg.
+const ACT_MASS_UNITS = ['g' => 1000.0, 'mg' => 1.0, 'µg' => 0.001, 'ug' => 0.001, 'mcg' => 0.001, 'ng' => 0.000001];
+
+/**
+ * Quantity of the product (in its stock unit) to give per gram of body
+ * weight, when the dose is given by weight: "X mg/kg" (any mass unit) with a
+ * product whose stock unit is mL and whose concentration is "Y mg/mL", or
+ * "X mL/kg" with a product in mL. Returns [quantity per g, formula] or null.
+ */
+function act_quantity_per_gram(array $act): ?array
+{
+    $dose = $act['dose_amount'] ?? null;
+    $doseUnit = str_replace(' ', '', strtolower((string) ($act['dose_unit'] ?? '')));
+    $stockUnit = strtolower(trim((string) ($act['product_unit'] ?? '')));
+    if (empty($act['product_id']) || $dose === null || $dose === '' || (float) $dose <= 0 || $stockUnit !== 'ml'
+        || !preg_match('#^(g|mg|µg|ug|mcg|ng|ml)/kg$#u', $doseUnit, $m)) {
+        return null;
+    }
+    $dose = (float) $dose;
+    if ($m[1] === 'ml') {
+        return [$dose / 1000, tr('{dose} mL/kg × weight', ['dose' => act_number((string) $dose)])];
+    }
+    $conc = $act['concentration'] ?? null;
+    $concUnit = str_replace(' ', '', strtolower((string) ($act['concentration_unit'] ?? '')));
+    if ($conc === null || (float) $conc <= 0 || !preg_match('#^(g|mg|µg|ug|mcg|ng)/ml$#u', $concUnit, $c)) {
+        return null;
+    }
+    $mgPerKg = $dose * ACT_MASS_UNITS[$m[1]];
+    $mgPerMl = (float) $conc * ACT_MASS_UNITS[$c[1]];
+    return [$mgPerKg / 1000 / $mgPerMl, tr('{dose} {doseUnit} × weight ÷ {conc} {concUnit}', [
+        'dose' => act_number((string) $dose), 'doseUnit' => $act['dose_unit'], 'conc' => act_number((string) $conc), 'concUnit' => $act['concentration_unit'],
+    ])];
+}
+
+// Suggested quantity for an animal of $weightG grams (rounded to 0.001), or null.
+function act_suggested_quantity(array $act, ?float $weightG): ?float
+{
+    $perGram = act_quantity_per_gram($act);
+    return $perGram && $weightG && $weightG > 0 ? round($perGram[0] * $weightG, 3) : null;
+}
+
+// Latest known weight of enrollments: the last follow-up weight, else the
+// baseline weight. [enrollment id => ['weight' => g, 'date' => Y-m-d|null]].
+function enrollment_latest_weights(mysqli $con, array $enrollmentIds): array
+{
+    $ids = array_values(array_unique(array_filter(array_map('intval', $enrollmentIds))));
+    if (!$ids) {
+        return [];
+    }
+    $in = implode(',', $ids);
+    $out = [];
+    foreach ($con->query("SELECT id, baseline_weight_g FROM experiment_animals WHERE id IN ($in)") as $r) {
+        if ($r['baseline_weight_g'] !== null) {
+            $out[(int) $r['id']] = ['weight' => (float) $r['baseline_weight_g'], 'date' => null];
+        }
+    }
+    foreach ($con->query("SELECT f.experiment_animal_id, f.weight_g, f.observed_at FROM experiment_followups f
+                          JOIN (SELECT experiment_animal_id, MAX(observed_at) AS d FROM experiment_followups
+                                WHERE experiment_animal_id IN ($in) AND weight_g IS NOT NULL GROUP BY experiment_animal_id) last
+                            ON last.experiment_animal_id = f.experiment_animal_id AND last.d = f.observed_at") as $r) {
+        $out[(int) $r['experiment_animal_id']] = ['weight' => (float) $r['weight_g'], 'date' => $r['observed_at']];
+    }
+    return $out;
+}
+
+/**
+ * Correct a confirmed act (done or not done): keep what was recorded with the
+ * reason, cancel and re-credit the medication given, and put the act back to
+ * "to do". Allowed to an administrator or to the person who confirmed it.
+ * Must run in a transaction. Returns the animal id.
+ */
+function correct_experiment_act(mysqli $con, int $actAnimalId, string $reason, ?int $userId, ?string $userName, bool $isAdmin, ?int $onlyEnrollment = null): int
+{
+    $lock = $con->prepare(EXPERIMENT_ACT_ROW_SQL . ' WHERE aa.id = ? FOR UPDATE');
+    $lock->bind_param('i', $actAnimalId);
+    $lock->execute();
+    $row = $lock->get_result()->fetch_assoc();
+    $lock->close();
+    if (!$row || ($onlyEnrollment !== null && (int) $row['experiment_animal_id'] !== $onlyEnrollment)) {
+        throw new Exception(tr('Act not found.'));
+    }
+    if (!in_array($row['status'], ['done', 'not_done'], true)) {
+        throw new Exception(tr('Only a confirmed act can be corrected.'));
+    }
+    if (!$isAdmin && (int) $row['done_by'] !== (int) $userId) {
+        throw new Exception(tr('Only the person who confirmed the act or an administrator can correct it.'));
+    }
+    $reason = trim($reason);
+    if ($reason === '') {
+        throw new Exception(tr('Give the reason of the correction.'));
+    }
+
+    $values = implode('; ', array_map(fn($v) => $v['label'] . ': ' . observation_value($v), experiment_act_values($con, [$actAnimalId])[$actAnimalId] ?? []));
+    $ins = $con->prepare(
+        'INSERT INTO experiment_act_corrections (act_animal_id, previous_status, previous_done_at, previous_done_by_name, previous_lot_id, previous_quantity, previous_values, previous_note, reason, corrected_by, corrected_by_name)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+    $valuesText = $values !== '' ? $values : null;
+    $lotId = $row['medication_lot_id'] !== null ? (int) $row['medication_lot_id'] : null;
+    $qty = $row['quantity_used'] !== null ? (float) $row['quantity_used'] : null;
+    $previousBy = act_done_by_text($row);
+    $ins->bind_param('isssidsssis', $actAnimalId, $row['status'], $row['done_at'], $previousBy, $lotId, $qty, $valuesText, $row['note'], $reason, $userId, $userName);
+    $ins->execute();
+    $ins->close();
+
+    // Medication given: cancelled (kept in the registers) and re-credited to its lot.
+    $adm = $con->prepare('SELECT id, medication_lot_id, quantity_used FROM medication_administrations WHERE experiment_act_animal_id = ? AND cancelled_at IS NULL FOR UPDATE');
+    $adm->bind_param('i', $actAnimalId);
+    $adm->execute();
+    $administrations = $adm->get_result()->fetch_all(MYSQLI_ASSOC);
+    $adm->close();
+    foreach ($administrations as $a) {
+        $cancel = $con->prepare('UPDATE medication_administrations SET cancelled_at = NOW(), cancelled_by_name = ?, cancel_reason = ? WHERE id = ?');
+        $cancel->bind_param('ssi', $userName, $reason, $a['id']);
+        $cancel->execute();
+        $cancel->close();
+        $credit = $con->prepare('UPDATE medication_lots SET remaining_quantity = remaining_quantity + ? WHERE id = ?');
+        $credit->bind_param('di', $a['quantity_used'], $a['medication_lot_id']);
+        $credit->execute();
+        $credit->close();
+        $movement = $con->prepare("INSERT INTO medication_stock_movements (medication_lot_id, movement_type, quantity_delta, reason, administration_id, performed_by) VALUES (?, 'correction', ?, ?, ?, ?)");
+        $why = tr('Administration cancelled ({act} — {animal}): {reason}', ['act' => $row['label'], 'animal' => $row['animal_uid'] ?: $row['mouse_id'], 'reason' => $reason]);
+        $movement->bind_param('idsii', $a['medication_lot_id'], $a['quantity_used'], $why, $a['id'], $userId);
+        $movement->execute();
+        $movement->close();
+    }
+
+    $del = $con->prepare('DELETE FROM experiment_act_values WHERE act_animal_id = ?');
+    $del->bind_param('i', $actAnimalId);
+    $del->execute();
+    $del->close();
+    $reset = $con->prepare("UPDATE experiment_act_animals SET status = 'planned', done_at = NULL, done_by = NULL, done_by_name = NULL, supervised_by = NULL, supervised_by_name = NULL, note = NULL,
+                            followup_id = NULL, medication_lot_id = NULL, quantity_used = NULL WHERE id = ?");
+    $reset->bind_param('i', $actAnimalId);
+    $reset->execute();
+    $reset->close();
+    return (int) $row['animal_id'];
+}
+
+// Corrections of act rows, by experiment_act_animals id (oldest first).
+function experiment_act_corrections(mysqli $con, array $actAnimalIds): array
+{
+    $ids = array_values(array_unique(array_filter(array_map('intval', $actAnimalIds))));
+    if (!$ids) {
+        return [];
+    }
+    $out = [];
+    foreach ($con->query('SELECT c.*, l.lot_number FROM experiment_act_corrections c LEFT JOIN medication_lots l ON l.id = c.previous_lot_id
+                          WHERE c.act_animal_id IN (' . implode(',', $ids) . ') ORDER BY c.corrected_at, c.id') as $c) {
+        $out[(int) $c['act_animal_id']][] = $c;
+    }
+    return $out;
+}
+
+// One-line summary of a correction.
+function act_correction_text(array $c): string
+{
+    $was = experiment_act_statuses()[$c['previous_status']] ?? $c['previous_status'];
+    $details = array_filter([
+        $c['previous_quantity'] !== null ? tr('{qty}, lot {lot}', ['qty' => act_number($c['previous_quantity']), 'lot' => $c['lot_number'] ?? '?']) : null,
+        $c['previous_values'],
+        $c['previous_note'],
+    ]);
+    return tr('Confirmation cancelled on {date} by {user}: {reason} (was: {was} on {at} by {by}{details})', [
+        'date' => substr((string) $c['corrected_at'], 0, 16), 'user' => $c['corrected_by_name'] ?? '—', 'reason' => $c['reason'],
+        'was' => $was, 'at' => substr((string) $c['previous_done_at'], 0, 16), 'by' => $c['previous_done_by_name'] ?? '—',
+        'details' => $details ? ' — ' . implode(' · ', $details) : '',
+    ]);
+}
+
+// Who did an act, with the supervisor when there was one.
+function act_done_by_text(array $row): string
+{
+    return trim((string) ($row['done_by_name'] ?? '')) . (!empty($row['supervised_by_name']) ? ' ' . tr('(supervised by {name})', ['name' => $row['supervised_by_name']]) : '');
+}
+
+/**
+ * Morning reminders of the experimental acts (called by process_reminders.php,
+ * once a day after the "acts_reminder_time" of Manage Lab, 07:30 by default):
+ *  - acts of the day: to the person who planned each act and to the users of
+ *    the cages concerned, one notification and one e-mail each;
+ *  - acts overdue (planned before today, still to do): to the person who
+ *    planned them and to the administrators and BEA responsibles.
+ * Returns the number of people notified.
+ */
+function acts_send_reminders(mysqli $con, ?string $now = null): int
+{
+    $now ??= date('Y-m-d H:i');
+    $today = substr($now, 0, 10);
+    $time = (string) ($con->query("SELECT value FROM settings WHERE name = 'acts_reminder_time'")->fetch_row()[0] ?? '07:30');
+    if (!preg_match('/^\d{2}:\d{2}$/', $time)) {
+        $time = '07:30';
+    }
+    $last = (string) ($con->query("SELECT value FROM settings WHERE name = 'acts_reminders_last'")->fetch_row()[0] ?? '');
+    if ($last === $today || substr($now, 11, 5) < $time) {
+        return 0;
+    }
+    $set = $con->prepare("INSERT INTO settings (name, value) VALUES ('acts_reminders_last', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)");
+    $set->bind_param('s', $today);
+    $set->execute();
+    $set->close();
+
+    // Acts still to do up to today, for animals still followed.
+    $stmt = $con->prepare(
+        "SELECT aa.planned_date, a.id AS act_id, a.label, a.created_by, a.experiment_id, e.experiment_number, m.cage_id
+         FROM experiment_act_animals aa
+         JOIN experiment_acts a ON a.id = aa.act_id
+         JOIN experiments e ON e.id = a.experiment_id
+         JOIN experiment_animals ea ON ea.id = aa.experiment_animal_id
+         JOIN mice m ON m.id = ea.animal_id
+         WHERE aa.status = 'planned' AND aa.planned_date <= ? AND ea.removed_at IS NULL AND m.status = 'active'
+         ORDER BY m.cage_id, a.label"
+    );
+    $stmt->bind_param('s', $today);
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    if (!$rows) {
+        return 0;
+    }
+    $cageUsers = [];
+    foreach ($con->query('SELECT cage_id, user_id FROM cage_users') as $cu) {
+        $cageUsers[$cu['cage_id']][] = (int) $cu['user_id'];
+    }
+    $privileged = array_map('intval', array_column($con->query("SELECT id FROM users WHERE status = 'approved' AND (role = 'admin' OR is_bea_responsible = 1)")->fetch_all(MYSQLI_ASSOC), 'id'));
+
+    // [user id => ['today' => [line => count], 'overdue' => [line => count]]]
+    $byUser = [];
+    foreach ($rows as $r) {
+        $kind = $r['planned_date'] === $today ? 'today' : 'overdue';
+        $line = $r['experiment_number'] . ' — ' . $r['label'] . ' — ' . tr('cage {cage}', ['cage' => $r['cage_id'] ?? '—'])
+            . ($kind === 'overdue' ? ' (' . tr('planned on {date}', ['date' => $r['planned_date']]) . ')' : '');
+        $recipients = $r['created_by'] ? [(int) $r['created_by']] : [];
+        $recipients = array_merge($recipients, $kind === 'today' ? ($cageUsers[$r['cage_id']] ?? []) : $privileged);
+        foreach (array_unique($recipients) as $userId) {
+            $byUser[$userId][$kind][$line] = ($byUser[$userId][$kind][$line] ?? 0) + 1;
+        }
+    }
+
+    $users = [];
+    foreach ($con->query("SELECT id, username FROM users WHERE status = 'approved'") as $u) {
+        $users[(int) $u['id']] = $u['username'];
+    }
+    $mail = $con->prepare("INSERT INTO outbox (recipient, subject, body, scheduled_at) VALUES (?, ?, ?, NOW())");
+    $notified = 0;
+    foreach ($byUser as $userId => $kinds) {
+        if (!isset($users[$userId])) {
+            continue;
+        }
+        $nToday = array_sum($kinds['today'] ?? []);
+        $nOverdue = array_sum($kinds['overdue'] ?? []);
+        $title = $nToday
+            ? tr('{n} experimental act(s) to do today', ['n' => $nToday]) . ($nOverdue ? ' · ' . tr('{n} overdue', ['n' => $nOverdue]) : '')
+            : tr('{n} experimental act(s) overdue', ['n' => $nOverdue]);
+        $lines = [];
+        foreach (['today' => tr('Today'), 'overdue' => tr('Overdue')] as $kind => $heading) {
+            if (!empty($kinds[$kind])) {
+                $lines[] = $heading . ' :';
+                foreach ($kinds[$kind] as $line => $n) {
+                    $lines[] = '• ' . $line . ' : ' . tr('{n} animal(s)', ['n' => $n]);
+                }
+            }
+        }
+        create_notification($con, $userId, $title, implode("\n", array_slice($lines, 0, 12)), 'daily_round.php', 'reminder');
+        $subject = $title;
+        $body = nl2br(htmlspecialchars(implode("\n", $lines))) . '<br><br>' . htmlspecialchars(tr('Confirm them during the daily follow-up (daily round).'));
+        $mail->bind_param('sss', $users[$userId], $subject, $body);
+        $mail->execute();
+        $notified++;
+    }
+    $mail->close();
+    return $notified;
+}

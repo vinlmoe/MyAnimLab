@@ -10,7 +10,7 @@
  */
 
 // Start a new session or resume the existing session
-session_start();
+require_once 'session_config.php';
 
 // Include the database connection file
 require 'dbcon.php';
@@ -189,7 +189,7 @@ require 'header.php';
         function showQrCodePopup(cageId) {
             var qrTitle = <?= trj('QR Code for Cage {cage}') ?>.replace('{cage}', decodeURIComponent(cageId));
             var popup = window.open("", "qr_" + cageId, "width=400,height=400");
-            var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://' + $url + '/cage_scan_route.php?id=' + cageId;
+            var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://' + <?= json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?> + '/cage_scan_route.php?id=' + encodeURIComponent(cageId);
             var htmlContent = `
             <html>
             <head>

@@ -10,11 +10,16 @@
  * An endpoint that requires an action (euthanasia, calling the vet...) opens
  * a pending action shown to the experimenter until it is done: euthanasia is
  * completed by recording the animal's exit, other actions by a written note.
+ * The experimental acts planned for the animal up to the chosen day are
+ * confirmed here too (done / not done, with the information they ask for and,
+ * for a medication of the stock, the lot used).
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
+require 'experiment_acts_lib.php';
+require_once 'training_lib.php';
 
 if (!isset($_SESSION['username'])) {
     header("Location: index.php");
@@ -78,6 +83,26 @@ $backUrl = $returnUrl ?: $experimentUrl;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
         die(tr('CSRF token validation failed'));
+    }
+
+    // Correcting a confirmed act: what was recorded is kept with the reason,
+    // a medication given is cancelled and re-credited, the act is to do again.
+    if (isset($_POST['correct_act'])) {
+        mysqli_begin_transaction($con);
+        try {
+            $actAnimalId = (int) ($_POST['act_animal_id'] ?? 0);
+            $reason = trim((string) ($_POST['correction_reason'] ?? ''));
+            $animalId = correct_experiment_act($con, $actAnimalId, $reason, $currentUserId, $currentUserName, ($_SESSION['role'] ?? '') === 'admin', $experimentAnimalId);
+            log_animal_event($con, $animalId, 'experiment_act', ['act_animal_id' => $actAnimalId, 'status' => 'corrected', 'reason' => $reason], $currentUserId);
+            log_activity($con, 'experiment_act_corrected', 'animal', (string) $animalId, tr('Act #{id}: {reason}', ['id' => $actAnimalId, 'reason' => $reason]), $currentUserId);
+            mysqli_commit($con);
+            $_SESSION['message'] = tr('Confirmation cancelled: the act is to do again (the correction is kept in the history).');
+        } catch (Exception $e) {
+            mysqli_rollback($con);
+            $_SESSION['message'] = tr('Act not corrected: {error}', ['error' => $e->getMessage()]);
+        }
+        header("Location: $selfUrl#actsHistory");
+        exit;
     }
 
     // Completing a pending endpoint action (other than euthanasia) with a note.
@@ -207,6 +232,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $endpointReached = $breaches ? 1 : 0;
     $breachedMessages = array_column($breaches, 'text');
 
+    // Experimental acts confirmed with this entry (left empty: still to do).
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $observedAt) || $observedAt > date('Y-m-d')) {
+        $fail(tr('Invalid date.'));
+    }
+    $actConfirmations = posted_act_confirmations($_POST, $observedAt);
+    $confirmedActs = [];
+
     mysqli_begin_transaction($con);
     try {
         $stmt = $con->prepare(
@@ -272,6 +304,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $newActions[] = endpoint_required_actions()[$t['required_action']];
         }
 
+        foreach ($actConfirmations as $actAnimalId => $raw) {
+            confirm_experiment_act($con, $actAnimalId, $raw, $followupId, $currentUserId, $currentUserName, $experimentAnimalId);
+            $confirmedActs[$actAnimalId] = $raw['status'];
+        }
+
         // The cage's daily check is recorded once every animal under experiment in it has today's follow-up.
         $cageStmt = $con->prepare("SELECT cage_id FROM mice WHERE id = ?");
         $cageStmt->bind_param("i", $ea['animal_id']);
@@ -298,6 +335,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'endpoint_alert'
             );
         }
+        foreach ($confirmedActs as $actAnimalId => $status) {
+            log_animal_event($con, (int) $ea['animal_id'], 'experiment_act', ['act_animal_id' => $actAnimalId, 'status' => $status, 'experiment_animal_id' => $experimentAnimalId], $currentUserId);
+        }
         mysqli_commit($con);
     } catch (Exception $e) {
         mysqli_rollback($con);
@@ -309,6 +349,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $_SESSION['message'] = $endpointReached
         ? tr('Saved. ENDPOINT REACHED: {details}', ['details' => implode(' | ', $breachedMessages)]) . ($newActions ? ' — ' . tr('ACTION REQUIRED: {actions}', ['actions' => implode(', ', $newActions)]) : '')
         : tr('Follow-up saved.') . ($hasGrid ? ' ' . tr('Clinical score: {score} / {max}.', ['score' => $clinicalScore, 'max' => $grid['max_total']]) : '');
+    if ($confirmedActs) {
+        $_SESSION['message'] .= ' ' . tr('{n} act(s) confirmed.', ['n' => count($confirmedActs)]);
+    }
 
     header("Location: " . ($returnUrl ?? $selfUrl));
     exit();
@@ -392,6 +435,20 @@ $pendingActions = array_filter($actions, fn($a) => $a['status'] === 'pending');
 
 $isFollowed = $ea['animal_status'] === 'active' && $ea['removed_at'] === null;
 
+// Experimental acts: still to do up to today, and those already confirmed.
+$acts = enrollment_acts($con, $experimentAnimalId, date('Y-m-d'));
+$actFields = experiment_act_fields($con, array_column($acts, 'act_id'));
+$actValues = experiment_act_values($con, array_column(array_filter($acts, fn($a) => $a['status'] === 'done'), 'id'));
+$lotsByProduct = array_filter(array_column($acts, 'product_id')) ? usable_lots_by_product($con) : [];
+$plannedActs = array_filter($acts, fn($a) => $a['status'] === 'planned');
+$confirmedActList = array_reverse(array_filter($acts, fn($a) => $a['status'] !== 'planned'));
+$isAdmin = ($_SESSION['role'] ?? '') === 'admin';
+$allActRowIds = $con->query('SELECT id FROM experiment_act_animals WHERE experiment_animal_id = ' . (int) $experimentAnimalId)->fetch_all(MYSQLI_ASSOC);
+$actCorrections = experiment_act_corrections($con, array_column($allActRowIds, 'id'));
+// Weight used to suggest the volume of a dose by weight: the one typed in the
+// form, else the latest known weight.
+$latestWeight = enrollment_latest_weights($con, [$experimentAnimalId])[$experimentAnimalId] ?? null;
+
 // Render the shared header only after request handling. Including it before the
 // POST redirect sends HTML output and prevents PHP from modifying headers.
 require 'header.php';
@@ -426,6 +483,7 @@ require 'header.php';
         </div>
 
         <?php include('message.php'); ?>
+        <?= training_warning_banner($con) ?>
 
         <?php foreach ($pendingActions as $a) : ?>
             <div class="alert alert-danger" id="pendingAction<?= (int) $a['id']; ?>">
@@ -545,6 +603,80 @@ require 'header.php';
                             </div>
                         </template>
 
+                        <?php if ($plannedActs || $confirmedActList) : ?>
+                            <div id="actsSection" class="mb-3">
+                                <h6><i class="fas fa-syringe"></i> <?= trh('Experimental acts') ?> <small class="text-muted">(<?= trh('tick each act done; leave “later” if it is not done yet') ?>)</small></h6>
+                                <?php if ($plannedActs) : ?><?= training_supervisor_field($con) ?><?php endif; ?>
+                                <?php foreach ($plannedActs as $act) :
+                                    $aid = (int) $act['id'];
+                                    $fields = $actFields[(int) $act['act_id']] ?? []; ?>
+                                    <div class="border rounded p-2 mb-2 act-row" data-date="<?= htmlspecialchars($act['planned_date']) ?>" data-status="planned">
+                                        <div class="d-flex justify-content-between flex-wrap gap-2">
+                                            <div>
+                                                <span class="badge bg-primary"><?= htmlspecialchars(experiment_act_types()[$act['act_type']] ?? $act['act_type']) ?></span>
+                                                <strong><?= htmlspecialchars($act['label']) ?></strong>
+                                                <?php if ($summary = experiment_act_summary($act)) : ?><span class="text-muted">— <?= htmlspecialchars($summary) ?></span><?php endif; ?>
+                                                <span class="badge bg-warning text-dark act-overdue d-none"><?= trh('planned on {date}', ['date' => $act['planned_date']]) ?></span>
+                                                <?php if ($act['instructions']) : ?><div class="small"><i class="fas fa-info-circle"></i> <?= htmlspecialchars($act['instructions']) ?></div><?php endif; ?>
+                                            </div>
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                <input type="radio" class="btn-check act-status" name="act_status[<?= $aid ?>]" id="act<?= $aid ?>_later" value="" checked>
+                                                <label class="btn btn-outline-secondary" for="act<?= $aid ?>_later"><?= trh('Later') ?></label>
+                                                <input type="radio" class="btn-check act-status" name="act_status[<?= $aid ?>]" id="act<?= $aid ?>_done" value="done">
+                                                <label class="btn btn-outline-success" for="act<?= $aid ?>_done"><i class="fas fa-check"></i> <?= trh('Act done') ?></label>
+                                                <input type="radio" class="btn-check act-status" name="act_status[<?= $aid ?>]" id="act<?= $aid ?>_not" value="not_done">
+                                                <label class="btn btn-outline-danger" for="act<?= $aid ?>_not"><?= trh('Not done') ?></label>
+                                            </div>
+                                        </div>
+                                        <div class="row g-2 mt-1 act-details d-none">
+                                            <div class="col-md-2">
+                                                <label class="form-label small mb-0"><?= trh('Time') ?></label>
+                                                <input type="time" class="form-control form-control-sm" name="act_time[<?= $aid ?>]" value="<?= date('H:i') ?>">
+                                            </div>
+                                            <?php foreach ($fields as $fieldId => $f) : ?>
+                                                <div class="col-md-3 act-done-only">
+                                                    <label class="form-label small mb-0"><?= htmlspecialchars($f['label']) ?><?= $f['unit'] ? ' (' . htmlspecialchars($f['unit']) . ')' : '' ?><?= $f['required'] ? ' *' : '' ?></label>
+                                                    <input type="text" class="form-control form-control-sm" name="act_value[<?= $aid ?>][<?= (int) $fieldId ?>]" <?= $f['value_type'] === 'number' ? 'inputmode="decimal" pattern="-?[0-9]+([.,][0-9]+)?"' : '' ?> data-required="<?= (int) $f['required'] ?>">
+                                                </div>
+                                            <?php endforeach; ?>
+                                            <?php if ($act['product_id']) : ?>
+                                                <div class="col-md-4 act-done-only">
+                                                    <label class="form-label small mb-0"><?= trh('Lot of {product}', ['product' => $act['product_name']]) ?> *</label>
+                                                    <select class="form-select form-select-sm" name="act_lot[<?= $aid ?>]" data-required="1"><?= act_lot_options($lotsByProduct, (int) $act['product_id'], isset($lotsByProduct[(int) $act['product_id']]) ? (int) $lotsByProduct[(int) $act['product_id']][0]['id'] : null) ?></select>
+                                                </div>
+                                                <div class="col-md-2 act-done-only">
+                                                    <label class="form-label small mb-0"><?= trh('Quantity ({unit})', ['unit' => $act['product_unit']]) ?> *</label>
+                                                    <?php $perGram = act_quantity_per_gram($act);
+                                                    $suggested = $perGram ? act_suggested_quantity($act, $latestWeight['weight'] ?? null) : null; ?>
+                                                    <input type="text" class="form-control form-control-sm act-qty" name="act_qty[<?= $aid ?>]" inputmode="decimal" pattern="[0-9]+([.,][0-9]+)?" value="<?= htmlspecialchars($suggested !== null ? act_number((string) $suggested) : act_number($act['quantity_per_animal'])) ?>" data-required="1"<?= $perGram ? ' data-per-gram="' . htmlspecialchars((string) $perGram[0]) . '"' : '' ?>>
+                                                </div>
+                                                <?php if ($perGram) : ?>
+                                                    <div class="col-12 act-done-only small text-success act-weight-hint" data-formula="<?= htmlspecialchars($perGram[1]) ?>" data-latest="<?= htmlspecialchars($latestWeight ? act_number((string) $latestWeight['weight']) : '') ?>" data-latest-date="<?= htmlspecialchars($latestWeight['date'] ?? tr('baseline')) ?>"></div>
+                                                <?php endif; ?>
+                                            <?php endif; ?>
+                                            <div class="<?= $fields || $act['product_id'] ? 'col-12' : 'col' ?>">
+                                                <label class="form-label small mb-0 act-note-label" data-done="<?= trh('Note') ?>" data-not="<?= trh('Reason why it was not done') ?> *"><?= trh('Note') ?></label>
+                                                <input type="text" class="form-control form-control-sm act-note" name="act_note[<?= $aid ?>]">
+                                            </div>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                                <?php foreach ($confirmedActList as $act) : ?>
+                                    <div class="border rounded p-2 mb-2 act-row <?= $act['status'] === 'done' ? 'border-success' : 'border-danger' ?>" data-date="<?= htmlspecialchars($act['planned_date']) ?>" data-status="<?= htmlspecialchars($act['status']) ?>">
+                                        <span class="badge bg-<?= $act['status'] === 'done' ? 'success' : 'danger' ?>"><?= htmlspecialchars(experiment_act_statuses()[$act['status']]) ?></span>
+                                        <strong><?= htmlspecialchars($act['label']) ?></strong>
+                                        <?php if ($summary = experiment_act_summary($act)) : ?><span class="text-muted">— <?= htmlspecialchars($summary) ?></span><?php endif; ?>
+                                        <span class="small text-muted">· <?= htmlspecialchars(substr((string) $act['done_at'], 0, 16) . ' — ' . act_done_by_text($act)) ?></span>
+                                        <div class="small">
+                                            <?php if ($act['medication_lot_id']) : ?><?= trh('{qty} {unit}, lot {lot}', ['qty' => act_number($act['quantity_used']), 'unit' => $act['product_unit'], 'lot' => $act['lot_number']]) ?> · <?php endif; ?>
+                                            <?= implode(' · ', array_map(fn($v) => htmlspecialchars($v['label'] . ' : ' . observation_value($v)), $actValues[(int) $act['id']] ?? [])) ?>
+                                            <?= $act['note'] ? '<em>' . htmlspecialchars($act['note']) . '</em>' : '' ?>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+
                         <div class="mb-3">
                             <label class="form-label"><?= trh('General observations') ?></label>
                             <textarea class="form-control" name="observations" id="general_observations"></textarea>
@@ -596,6 +728,54 @@ require 'header.php';
                 </tbody>
             </table>
         </div>
+
+        <?php if ($confirmedActList) : ?>
+            <h5 id="actsHistory"><?= trh('Experimental acts confirmed') ?></h5>
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead>
+                        <tr><th><?= trh('Planned') ?></th><th><?= trh('Act') ?></th><th><?= trh('Status') ?></th><th><?= trh('Done on') ?></th><th><?= trh('Medication') ?></th><th><?= trh('Information') ?></th><th><?= trh('By') ?></th><th></th></tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($confirmedActList as $act) : $canCorrect = $isAdmin || (int) $act['done_by'] === (int) $currentUserId; ?>
+                            <tr class="<?= $act['status'] === 'not_done' ? 'table-danger' : '' ?>">
+                                <td class="text-nowrap"><?= htmlspecialchars($act['planned_date']) ?></td>
+                                <td><?= htmlspecialchars($act['label']) ?><?php if ($summary = experiment_act_summary($act)) : ?> <small class="text-muted">(<?= htmlspecialchars($summary) ?>)</small><?php endif; ?></td>
+                                <td><?= htmlspecialchars(experiment_act_statuses()[$act['status']]) ?></td>
+                                <td class="text-nowrap"><?= htmlspecialchars(substr((string) $act['done_at'], 0, 16)) ?></td>
+                                <td><?= $act['medication_lot_id'] ? trh('{qty} {unit}, lot {lot}', ['qty' => act_number($act['quantity_used']), 'unit' => $act['product_unit'], 'lot' => $act['lot_number']]) : '' ?></td>
+                                <td><?= implode('<br>', array_map(fn($v) => htmlspecialchars($v['label'] . ' : ' . observation_value($v)), $actValues[(int) $act['id']] ?? [])) ?><?= $act['note'] ? ' <em>' . htmlspecialchars($act['note']) . '</em>' : '' ?></td>
+                                <td><?= htmlspecialchars(act_done_by_text($act)) ?></td>
+                                <td class="text-nowrap">
+                                    <?php if ($canCorrect) : ?>
+                                        <details>
+                                            <summary class="btn btn-sm btn-outline-secondary"><i class="fas fa-undo"></i> <?= trh('Correct') ?></summary>
+                                            <form method="POST" class="mt-1" style="min-width: 18rem" onsubmit="return confirm(<?= htmlspecialchars(trj('Cancel this confirmation? The act will be to do again; a medication given is re-credited to its lot.')) ?>)">
+                                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+                                                <input type="hidden" name="experiment_animal_id" value="<?= $experimentAnimalId ?>">
+                                                <input type="hidden" name="return" value="<?= htmlspecialchars($returnUrl ?? '') ?>">
+                                                <input type="hidden" name="act_animal_id" value="<?= (int) $act['id'] ?>">
+                                                <input type="text" class="form-control form-control-sm mb-1" name="correction_reason" required placeholder="<?= trh('Reason of the correction (e.g. wrong animal, wrong volume)') ?>">
+                                                <button class="btn btn-sm btn-warning" name="correct_act"><?= trh('Cancel the confirmation') ?></button>
+                                            </form>
+                                        </details>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($actCorrections) : ?>
+            <h6><?= trh('Corrections of act confirmations') ?></h6>
+            <ul class="small">
+                <?php foreach ($actCorrections as $actAnimalId => $list) : foreach ($list as $c) : ?>
+                    <li><?= trh('Act #{id}', ['id' => $actAnimalId]) ?> — <?= htmlspecialchars(act_correction_text($c)) ?></li>
+                <?php endforeach; endforeach; ?>
+            </ul>
+        <?php endif; ?>
 
         <?php if ($actions) : ?>
             <h5><?= trh('Endpoint actions') ?></h5>
@@ -667,6 +847,84 @@ require 'header.php';
             document.querySelectorAll('.grid-score').forEach(i => i.addEventListener('change', update));
             update();
             window.updateGridTotal = update;
+        })();
+
+        // Dose by weight: the quantity follows the weight typed in the form (or
+        // the latest known weight) until it is changed by hand.
+        (function() {
+            const weightInput = document.getElementById('weight_g');
+            const qtys = [...document.querySelectorAll('.act-qty[data-per-gram]')];
+            if (!qtys.length) return;
+            const texts = {
+                typed: <?= trj('{formula} = {qty} {unit} for {weight} g (weight entered)') ?>,
+                latest: <?= trj('{formula} = {qty} {unit} for {weight} g (weight of {date})') ?>,
+                none: <?= trj('{formula}: enter the weight to calculate the volume.') ?>
+            };
+            const unit = 'mL';
+            qtys.forEach(q => q.addEventListener('input', () => q.dataset.manual = '1'));
+            const sync = () => {
+                const typed = parseFloat((weightInput && weightInput.value || '').replace(',', '.'));
+                qtys.forEach(q => {
+                    const row = q.closest('.act-details');
+                    const hint = row.querySelector('.act-weight-hint');
+                    const latest = parseFloat(hint.dataset.latest);
+                    const weight = typed > 0 ? typed : (latest > 0 ? latest : null);
+                    if (!weight) { hint.textContent = texts.none.replace('{formula}', hint.dataset.formula); return; }
+                    const qty = Math.round(parseFloat(q.dataset.perGram) * weight * 1000) / 1000;
+                    if (!q.dataset.manual) q.value = qty;
+                    hint.textContent = (typed > 0 ? texts.typed : texts.latest.replace('{date}', hint.dataset.latestDate))
+                        .replace('{formula}', hint.dataset.formula).replace('{qty}', qty).replace('{unit}', unit).replace('{weight}', weight);
+                });
+            };
+            if (weightInput) weightInput.addEventListener('input', sync);
+            document.getElementById('observed_at')?.addEventListener('change', () => setTimeout(sync));
+            document.querySelectorAll('[data-edit-date]').forEach(a => a.addEventListener('click', () => setTimeout(sync)));
+            setTimeout(sync);
+        })();
+
+        // Experimental acts: the ones still to do up to the chosen day (overdue
+        // flagged) and the ones confirmed for that day; details once ticked.
+        (function() {
+            const section = document.getElementById('actsSection');
+            const dateInput = document.getElementById('observed_at');
+            if (!section || !dateInput) return;
+            const rows = [...section.querySelectorAll('.act-row')];
+            const syncRow = row => {
+                const visible = !row.hidden;
+                const checked = row.querySelector('.act-status:checked');
+                const status = checked ? checked.value : '';
+                const details = row.querySelector('.act-details');
+                if (!details) return;
+                details.classList.toggle('d-none', !visible || status === '');
+                details.querySelectorAll('.act-done-only').forEach(el => el.classList.toggle('d-none', status !== 'done'));
+                details.querySelectorAll('input, select').forEach(el => {
+                    const inDone = el.closest('.act-done-only');
+                    el.disabled = !visible || status === '' || (inDone && status !== 'done');
+                    el.required = !el.disabled && el.dataset.required === '1';
+                });
+                const note = row.querySelector('.act-note');
+                const label = row.querySelector('.act-note-label');
+                note.required = visible && status === 'not_done';
+                label.textContent = status === 'not_done' ? label.dataset.not : label.dataset.done;
+                row.querySelectorAll('.act-status').forEach(r => r.disabled = !visible);
+            };
+            const sync = () => {
+                const date = dateInput.value;
+                let shown = 0;
+                rows.forEach(row => {
+                    const planned = row.dataset.status === 'planned';
+                    row.hidden = planned ? row.dataset.date > date : row.dataset.date !== date;
+                    const overdue = row.querySelector('.act-overdue');
+                    if (overdue) overdue.classList.toggle('d-none', row.dataset.date >= date);
+                    if (!row.hidden) shown++;
+                    syncRow(row);
+                });
+                section.hidden = shown === 0;
+            };
+            section.querySelectorAll('.act-status').forEach(r => r.addEventListener('change', () => syncRow(r.closest('.act-row'))));
+            dateInput.addEventListener('change', sync);
+            document.querySelectorAll('[data-edit-date]').forEach(a => a.addEventListener('click', () => setTimeout(sync)));
+            sync();
         })();
 
         // Choosing a date already entered loads that day's current values (the

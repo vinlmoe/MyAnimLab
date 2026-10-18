@@ -9,7 +9,7 @@
  * room/rack as a group or to switch holding <-> experimental category.
  * hc_dash.php, bc_dash.php and ec_dash.php open this page on their category.
  */
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 

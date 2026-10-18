@@ -4,7 +4,7 @@
  * Restore an archived cage back to active status.
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 
@@ -13,8 +13,10 @@ if (!isset($_SESSION['username'])) {
     exit;
 }
 
-if (isset($_GET['id'], $_GET['confirm']) && $_GET['confirm'] === 'true') {
-    $id = $_GET['id'];
+// Restoring changes data: only by POST with the session's CSRF token.
+$csrfOk = $_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], (string) ($_POST['csrf_token'] ?? ''));
+if ($csrfOk && isset($_POST['id'], $_POST['confirm']) && $_POST['confirm'] === 'true') {
+    $id = (string) $_POST['id'];
     $currentUserId = $_SESSION['user_id'] ?? null;
 
     // A cage without animals is never in service (it is retired automatically),
@@ -38,7 +40,7 @@ if (isset($_GET['id'], $_GET['confirm']) && $_GET['confirm'] === 'true') {
     $_SESSION['message'] = tr('Restore was not confirmed or ID parameter is missing.');
 }
 
-$redirectTo = $_GET['return'] ?? 'hc_dash.php';
+$redirectTo = $_POST['return'] ?? $_GET['return'] ?? 'hc_dash.php';
 $allowed = ['hc_dash.php', 'bc_dash.php'];
 header("Location: " . (in_array($redirectTo, $allowed, true) ? $redirectTo : 'hc_dash.php'));
 exit();

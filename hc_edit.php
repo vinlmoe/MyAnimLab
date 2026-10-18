@@ -8,7 +8,7 @@
  */
 
 // Start a new session or resume the existing session
-session_start();
+require_once 'session_config.php';
 
 // Include the database connection file
 require 'dbcon.php';
@@ -339,7 +339,7 @@ if (isset($_GET['id'])) {
             if (isset($_FILES['fileUpload']) && $_FILES['fileUpload']['error'] == UPLOAD_ERR_OK) {
                 // Define allowed file types and maximum size
                 $allowedExtensions = ['pdf', 'doc', 'docx', 'txt', 'xls', 'xlsx', 'ppt', 'pptx',
-                                      'jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'];
+                                      'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp']; // no SVG: it could carry a script served from uploads/
                 $maxFileSize = 10 * 1024 * 1024; // 10MB in bytes
 
                 // Validate file size
@@ -350,7 +350,7 @@ if (isset($_GET['id'])) {
                     $fileExtension = strtolower(pathinfo($_FILES['fileUpload']['name'], PATHINFO_EXTENSION));
 
                     if (!in_array($fileExtension, $allowedExtensions)) {
-                        $_SESSION['message'] .= ' ' . tr('Invalid file type. Allowed: {types}', ['types' => 'pdf, doc, docx, txt, xls, xlsx, ppt, pptx, jpg, jpeg, png, gif, bmp, svg, webp']);
+                        $_SESSION['message'] .= ' ' . tr('Invalid file type. Allowed: {types}', ['types' => 'pdf, doc, docx, txt, xls, xlsx, ppt, pptx, jpg, jpeg, png, gif, bmp, webp']);
                     } else {
                         // Sanitize filename to prevent directory traversal
                         $originalFileName = preg_replace("/[^a-zA-Z0-9._-]/", "_", basename($_FILES['fileUpload']['name']));
@@ -789,7 +789,8 @@ require 'header.php';
                     </div>
 
                     <div class="card-body">
-                    <form id="editForm" method="POST" action="hc_edit.php?id=<?= $id; ?>&<?= getCurrentUrlParams(); ?>" enctype="multipart/form-data">
+                    <form id="deleteFileForm" method="POST" action="delete_file.php"><input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>"></form>
+                    <form id="editForm" method="POST" action="hc_edit.php?id=<?= rawurlencode($id); ?>&<?= getCurrentUrlParams(); ?>" enctype="multipart/form-data">
                             <p class="warning-text"><?= tr('Fields marked with {asterisk} are required.', ['asterisk' => '<span class="required-asterisk">*</span>']) ?></p>
                             <input type="hidden" id="mice_to_delete" name="mice_to_delete" value="">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
@@ -986,7 +987,7 @@ require 'header.php';
                                                     echo "<td>$file_name</td>";
                                                     echo "<td>
                                                     <a href='$file_path' download='$file_name' class='btn btn-sm btn-outline-primary'><i class='fas fa-cloud-download-alt fa-sm'></i></a>
-                                                    <a href='delete_file.php?url=hc_edit&id=$file_id' class='btn-sm' onclick='return confirm(" . htmlspecialchars(trj('Are you sure you want to delete this file?'), ENT_QUOTES) . ");' aria-label='" . trh('Delete {file}', ['file' => $file_name]) . "'><i class='fas fa-trash fa-sm' style='color:red'></i></a>
+                                                    <button type='submit' formaction='delete_file.php?url=hc_edit&amp;id=$file_id' form='deleteFileForm' class='btn btn-sm btn-link p-0' onclick='return confirm(" . htmlspecialchars(trj('Are you sure you want to delete this file?'), ENT_QUOTES) . ");' aria-label='" . trh('Delete {file}', ['file' => $file_name]) . "'><i class='fas fa-trash fa-sm' style='color:red'></i></button>
                                                     </td>";
                                                     echo "</tr>";
                                                 }

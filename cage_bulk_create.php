@@ -1,7 +1,7 @@
 <?php
 // Create a batch of identified animals and distribute it over the minimum
 // number of holding cages required by the requested capacity.
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 

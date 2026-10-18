@@ -10,7 +10,7 @@
  */
 
 // Start the session to use session variables
-session_start();
+require_once 'session_config.php';
 
 // Include the database connection file
 include 'dbcon.php';
@@ -92,7 +92,7 @@ header('Content-Disposition: attachment;filename="exported_data.zip"');
 // Create a new ZIP archive
 $zip = new ZipArchive();
 $zipFilename = tempnam(sys_get_temp_dir(), 'zip');
-$zip->open($zipFilename, ZipArchive::CREATE);
+$zip->open($zipFilename, ZipArchive::OVERWRITE);
 
 // Loop through each table and add the corresponding CSV to the ZIP archive
 while ($tableRow = $tableResult->fetch_row()) {

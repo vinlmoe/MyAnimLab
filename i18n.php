@@ -13,8 +13,9 @@
  *    lang/<locale>_text.php maps it to the translation (English needs no
  *    catalogue: an untranslated text is shown as written).
  *
- * This file does not start the session itself: pages start it (through
- * session_config.php) before it is loaded by dbcon.php, and CLI scripts
+ * This file does not start the session itself: pages start it through
+ * session_config.php (which loads dbcon.php, hence this file, first: the
+ * locale is only read when a text is translated), and CLI scripts
  * (reminders, alerts) simply use the default locale.
  */
 

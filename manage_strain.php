@@ -10,8 +10,19 @@
  * 
  */
 
-session_start(); // Start the session to use session variables
+require_once 'session_config.php';
 require 'dbcon.php'; // Include database connection
+
+if (!isset($_SESSION['username'])) {
+    header('Location: index.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
+    exit;
+}
+// Reference data shared by the whole facility: administrators only (as in the menu).
+if (($_SESSION['role'] ?? '') !== 'admin') {
+    $_SESSION['message'] = tr('Admin only.');
+    header('Location: home.php');
+    exit;
+}
 require 'header.php'; // Include the header for consistent page structure
 
 // Generate CSRF token if not already set
@@ -227,7 +238,7 @@ $strainResult = $con->query($strainQuery);
         <h2><?= trh('Manage Strains') ?></h2>
         <?php if (isset($_SESSION['message'])) : ?>
             <div class="alert alert-info">
-                <?= $_SESSION['message']; ?>
+                <?= htmlspecialchars($_SESSION['message']); ?>
                 <?php unset($_SESSION['message']); ?>
             </div>
         <?php endif; ?>
@@ -321,19 +332,25 @@ $strainResult = $con->query($strainQuery);
                 </tr>
             </thead>
             <tbody>
-                <?php while ($row = $strainResult->fetch_assoc()) : ?>
+                <?php
+                // Arguments of the view / edit buttons as JavaScript literals (safe in the onclick attribute).
+                $jsArgs = fn(array $r): string => htmlspecialchars(implode(', ', array_map(
+                    fn($k) => json_encode((string) ($r[$k] ?? ''), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE),
+                    ['str_id', 'str_name', 'str_aka', 'str_url', 'str_rrid', 'str_notes']
+                )));
+                while ($row = $strainResult->fetch_assoc()) : ?>
                     <tr>
                         <td data-label="<?= trh('ID') ?>"><?= htmlspecialchars($row['str_id']); ?></td>
-                        <td data-label="<?= trh('Name') ?>"><?= htmlspecialchars($row['str_name']); ?></td>
-                        <td data-label="<?= trh('URL') ?>"><a href="<?= htmlspecialchars($row['str_url']); ?>" target="_blank"><?= htmlspecialchars($row['str_url']); ?></a></td>
-                        <td data-label="<?= trh('RRID') ?>"><?= htmlspecialchars($row['str_rrid']); ?></td>
+                        <td data-label="<?= trh('Name') ?>"><?= htmlspecialchars((string) $row['str_name']); ?></td>
+                        <td data-label="<?= trh('URL') ?>"><?php if (preg_match('#^https?://#i', (string) $row['str_url'])) : ?><a href="<?= htmlspecialchars($row['str_url']); ?>" target="_blank" rel="noopener"><?= htmlspecialchars($row['str_url']); ?></a><?php else : ?><?= htmlspecialchars((string) $row['str_url']); ?><?php endif; ?></td>
+                        <td data-label="<?= trh('RRID') ?>"><?= htmlspecialchars((string) $row['str_rrid']); ?></td>
                         <td data-label="<?= trh('Actions') ?>" class="table-actions">
                             <div class="action-buttons">
-                                <button class="btn btn-info btn-sm" title="<?= trh('View') ?>" onclick="viewStrain('<?= $row['str_id']; ?>', '<?= htmlspecialchars($row['str_name']); ?>', '<?= htmlspecialchars($row['str_aka']); ?>', '<?= htmlspecialchars($row['str_url']); ?>', '<?= htmlspecialchars($row['str_rrid']); ?>', `<?= htmlspecialchars($row['str_notes']); ?>`)"><i class="fas fa-eye"></i></button>
-                                <button class="btn btn-warning btn-sm" title="<?= trh('Edit') ?>" onclick="editStrain('<?= $row['str_id']; ?>', '<?= htmlspecialchars($row['str_name']); ?>', '<?= htmlspecialchars($row['str_aka']); ?>', '<?= htmlspecialchars($row['str_url']); ?>', '<?= htmlspecialchars($row['str_rrid']); ?>', `<?= htmlspecialchars($row['str_notes']); ?>`)"><i class="fas fa-edit"></i></button>
+                                <button class="btn btn-info btn-sm" title="<?= trh('View') ?>" onclick="viewStrain(<?= $jsArgs($row) ?>)"><i class="fas fa-eye"></i></button>
+                                <button class="btn btn-warning btn-sm" title="<?= trh('Edit') ?>" onclick="editStrain(<?= $jsArgs($row) ?>)"><i class="fas fa-edit"></i></button>
                                 <form action="manage_strain.php" method="post" style="display:inline-block;">
                                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                                    <input type="hidden" name="strain_id" value="<?= $row['str_id']; ?>">
+                                    <input type="hidden" name="strain_id" value="<?= htmlspecialchars($row['str_id']); ?>">
                                     <button type="submit" name="delete" class="btn btn-danger btn-sm" title="<?= trh('Delete') ?>" onclick="return confirm(<?= htmlspecialchars(trj('Are you sure you want to delete this strain?')) ?>);"><i class="fas fa-trash-alt"></i></button>
                                 </form>
                             </div>

@@ -10,7 +10,7 @@
  */
 
 // Start a new session or resume the existing session
-session_start();
+require_once 'session_config.php';
 
 // Include the database connection file
 require 'dbcon.php';
@@ -182,7 +182,7 @@ require 'header.php';
             <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
                 <h2><?= trh('Welcome, {name}', ['name' => $_SESSION['name']]); ?>
                     <span style="font-size: smaller; color: #555; border-bottom: 2px solid #ccc; padding: 0 5px;">
-                        [<?php echo htmlspecialchars(tr($_SESSION['position'])); ?>]
+                        [<?php echo htmlspecialchars(tr((string) ($_SESSION['position'] ?? ''))); ?>]
                     </span>
                 </h2>
             </div>

@@ -3,7 +3,7 @@
  * Select cages for label printing (cage_labels.php), for every category.
  * Filters by category and room; "select all" adds every listed cage.
  */
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 
