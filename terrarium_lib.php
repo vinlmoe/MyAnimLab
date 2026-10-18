@@ -298,8 +298,9 @@ function record_terrarium_treatment(mysqli $con, array $t, array $d, ?int $userI
  * or more cages, and are enrolled in the experiment given, if any.
  * $c: date, line_id, dob, room, experiment_id, baseline_weight, life_stage,
  * note, ignore_withdrawal, and groups: a list of ['cage' => '' or 'new' for
- * a new holding cage, or an active cage id; 'count'; 'sex'] (or count, cage
- * and sex directly for a single cage). Must run in a transaction.
+ * a new holding cage, or an active cage id; 'count'; 'sex'; 'weights' (g,
+ * one per animal, optional)] (or count, cage and sex directly for a single
+ * cage). The weight at capture is the baseline weight of an enrollment. Must run in a transaction.
  * Returns ['event_id', 'animal_ids', 'cage_id' (first), 'cage_ids'].
  */
 function capture_from_terrarium(mysqli $con, array $t, array $c, ?int $userId, ?string $userName): array
@@ -317,7 +318,19 @@ function capture_from_terrarium(mysqli $con, array $t, array $c, ?int $userId, ?
         if ($n < 1) {
             throw new Exception(tr('Give the number of animals for each cage.'));
         }
-        $groups[] = ['cage' => $cage === '' ? 'new' : $cage, 'count' => $n,
+        $weights = [];
+        foreach (array_slice(array_values((array) ($g['weights'] ?? [])), 0, $n) as $raw) {
+            if (trim((string) $raw) === '') {
+                $weights[] = null;
+                continue;
+            }
+            $w = parse_number((string) $raw);
+            if ($w === null || $w <= 0 || $w >= 1000000) {
+                throw new Exception(tr('Weight not valid: {value}.', ['value' => $raw]));
+            }
+            $weights[] = $w;
+        }
+        $groups[] = ['cage' => $cage === '' ? 'new' : $cage, 'count' => $n, 'weights' => $weights,
             'sex' => in_array($g['sex'] ?? '', ['male', 'female'], true) ? $g['sex'] : null];
     }
     $count = array_sum(array_column($groups, 'count'));
@@ -395,13 +408,16 @@ function capture_from_terrarium(mysqli $con, array $t, array $c, ?int $userId, ?
         'entry_date' => $date,
     ];
     $animalIds = [];
-    $link = $con->prepare('INSERT INTO terrarium_capture_animals (event_id, animal_id) VALUES (?, ?)');
+    $weightOf = [];
+    $link = $con->prepare('INSERT INTO terrarium_capture_animals (event_id, animal_id, weight_g) VALUES (?, ?, ?)');
     foreach ($groups as $g) {
         for ($i = 0; $i < $g['count']; $i++) {
             $animalId = create_animal($con, $g['cage_id'], $lineId, $g['sex'], $dob, null, $why, $userId, $origin);
-            $link->bind_param('ii', $eventId, $animalId);
+            $weight = $g['weights'][$i] ?? null;
+            $link->bind_param('iid', $eventId, $animalId, $weight);
             $link->execute();
             $animalIds[] = $animalId;
+            $weightOf[$animalId] = $weight;
         }
     }
     $link->close();
@@ -414,7 +430,9 @@ function capture_from_terrarium(mysqli $con, array $t, array $c, ?int $userId, ?
         $baseline = parse_number((string) ($c['baseline_weight'] ?? ''));
         $ins = $con->prepare('INSERT INTO experiment_animals (experiment_id, animal_id, baseline_weight_g) VALUES (?, ?, ?)');
         foreach ($animalIds as $animalId) {
-            $ins->bind_param('iid', $experimentId, $animalId, $baseline);
+            // The weight at capture is the baseline; else the common baseline given.
+            $animalBaseline = $weightOf[$animalId] ?? $baseline;
+            $ins->bind_param('iid', $experimentId, $animalId, $animalBaseline);
             $ins->execute();
             log_animal_event($con, $animalId, 'experiment_start', ['experiment_id' => $experimentId, 'capture_event_id' => $eventId], $userId);
         }

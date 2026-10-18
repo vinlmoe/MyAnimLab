@@ -141,6 +141,23 @@ final class TerrariumTest extends DatabaseTestCase
         capture_from_terrarium($this->con, $t, ['groups' => [['cage' => 'P-NOPE', 'count' => 1]]], null, null);
     }
 
+    public function testIndividualWeightsAtCapture(): void
+    {
+        $t = $this->terrarium();
+        $experimentId = TestDatabase::experiment($this->con);
+        $r = capture_from_terrarium($this->con, $t, ['date' => date('Y-m-d'), 'experiment_id' => $experimentId, 'baseline_weight' => '20', 'groups' => [
+            ['cage' => '', 'count' => 3, 'weights' => ['31,5', '', '28']],
+            ['cage' => '', 'count' => 1, 'weights' => ['40', '99']], // extra value ignored
+        ]], null, null);
+        $weights = array_map(fn($id) => TestDatabase::value($this->con, "SELECT weight_g FROM terrarium_capture_animals WHERE animal_id = $id"), $r['animal_ids']);
+        $this->assertSame(['31.50', null, '28.00', '40.00'], $weights);
+        $baselines = array_map(fn($id) => TestDatabase::value($this->con, "SELECT baseline_weight_g FROM experiment_animals WHERE animal_id = $id"), $r['animal_ids']);
+        $this->assertSame(['31.50', '20.00', '28.00', '40.00'], $baselines, 'Weight at capture, else the common baseline');
+
+        $this->expectExceptionMessage('abc');
+        capture_from_terrarium($this->con, $t, ['groups' => [['cage' => '', 'count' => 1, 'weights' => ['abc']]]], null, null);
+    }
+
     public function testWithdrawalBlocksCaptureForAnExperiment(): void
     {
         $t = $this->terrarium();
