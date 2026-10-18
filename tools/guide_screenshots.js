@@ -101,12 +101,34 @@ async function shot(page, name, url, opts = {}) {
   await shot(u, 'u_sanitaire', 'health_report_view.php?id=' + ids.healthReport);
   await shot(u, 'u_registre_animal', 'animal_view.php?id=' + ids.exitedAnimal, { element: '#register' });
   await shot(u, 'u_ordonnances', 'prescription_manage.php');
+  await shot(u, 'u_administration_cage', 'medication_administration.php?cage_id=' + ids.holding[1]);
+  await shot(u, 'u_naissance', 'litter_manage.php?cage_id=' + ids.breeding, { element: '#birthForm' });
+  await shot(u, 'u_sevrage', 'litter_manage.php?litter_id=' + ids.overdueLitter, { element: '#weanForm' });
+  await shot(u, 'u_terrarium', 'terrarium_view.php?id=' + ids.terrarium);
+  await shot(u, 'u_terrarium_traitements', null, {
+    before: async p => { await p.click('[data-bs-target="#treatments"]'); await p.waitForTimeout(300); },
+    element: '#treatments',
+  });
+  await shot(u, 'u_terrarium_sanitaire', null, {
+    before: async p => { await p.click('[data-bs-target="#health"]'); await p.waitForTimeout(300); },
+    element: '#health',
+  });
+  await shot(u, 'u_terrarium_captures', null, {
+    before: async p => { await p.click('[data-bs-target="#captures"]'); await p.waitForTimeout(300); },
+    element: '#captures',
+  });
 
   // Sophie Leroy (researcher, BEA): experimental follow-up.
   const s = await session(browser, 'sophie.leroy@demo.fr');
   await shot(s, 'u_suivi', 'experiment_followup.php?experiment_animal_id=' + ids.enrollmentAlert);
   await shot(s, 'u_suivi_correction', 'experiment_followup_view.php?id=' + ids.correctedFollowup, { element: '#followupRevisions' });
   await shot(s, 'u_experience', 'experiment_manage.php?protocol_id=' + ids.protocol);
+  await shot(s, 'u_protocole', 'protocol_manage.php?trial_id=' + ids.trial);
+  await shot(s, 'u_actes', 'experiment_acts.php?experiment_id=' + ids.experiment, { element: '#act' + ids.act });
+  await shot(s, 'u_planifier_acte', 'experiment_acts.php?experiment_id=' + ids.experiment, {
+    before: async p => { await p.evaluate(() => document.getElementById('planAct').classList.add('show')); },
+    element: '#planActForm',
+  });
 
   // Phone: the page opened by the QR code of the breeding cage.
   const phone = await session(browser, 'julien.bernard@demo.fr', { width: 390, height: 844 });
@@ -134,6 +156,9 @@ async function shot(page, name, url, opts = {}) {
   await shot(a, 'a_retrospective', 'experiment_retrospective.php?experiment_id=' + ids.experiment);
   await shot(a, 'a_journaux', 'log_export.php');
   await shot(a, 'a_stupefiants', 'narcotics_register.php');
+  await shot(a, 'a_pharmacie', 'pharmacy_manage.php');
+  await shot(a, 'a_accouplement', 'bc_addn.php');
+  await shot(a, 'a_terrariums', 'terrarium_dash.php');
 
   await browser.close();
 })().catch(e => { console.error(e); process.exit(1); });

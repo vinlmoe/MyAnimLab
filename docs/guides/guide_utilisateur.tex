@@ -146,7 +146,7 @@ selon la capacité par cage indiquée.
     l'administrateur a configuré les capteurs.
 \end{itemize}
 
-\subsection{Étiquettes et QR codes}
+\subsection{Étiquettes et QR codes}\label{sec:etiquettes}
 \menu{Tableaux de bord} : sélectionnez des cages puis imprimez leurs
 étiquettes (A6, quatre par feuille A4, même mise en page pour toutes les
 catégories). Le QR code de l'étiquette ouvre le contrôle de la cage
@@ -296,6 +296,33 @@ ligne par suivi.
 
 \section{La reproduction}\label{sec:portees}
 
+\subsection{Mettre des animaux en accouplement}
+\menu{Tableaux de bord > Cages d'accouplement}, puis \btn{Nouvelle cage
+d'accouplement}. Les reproducteurs sont des animaux déjà présents dans
+l'établissement : ils sont transférés dans la nouvelle cage avec tout leur
+historique.
+
+\begin{procedure}{Créer une cage d'accouplement}
+\begin{enumerate}
+  \item \btn{Responsable} : le chercheur responsable (PI) de la cage.
+  \item \btn{Croisement} : par exemple « RSD × RSD » ou
+    « C57BL/6 × Cre+ ». Il figure sur l'étiquette.
+  \item \btn{Numéro éthique} : l'autorisation de projet dont relèvent les
+    animaux, s'il y a lieu.
+  \item \btn{Utilisateur} : les personnes qui s'occupent de la cage ; elles
+    reçoivent les rappels de sevrage.
+  \item \btn{Reproducteurs mâles existants} et \btn{Reproductrices
+    existantes} : tapez le numéro ou la lignée, puis choisissez parmi les
+    animaux actifs des autres cages.
+  \item \btn{Salle} et \btn{Rack} : la salle sert à organiser la tournée
+    quotidienne.
+  \item Enregistrez. Le numéro de cage est attribué automatiquement.
+    Imprimez l'étiquette : elle comporte le tableau des portées à compléter
+    au crayon et le QR code (section~\ref{sec:etiquettes}).
+\end{enumerate}
+\end{procedure}
+\capture[0.55\linewidth]{a_accouplement}{Formulaire « Nouvelle cage d’accouplement ».}
+
 \subsection{Portées en cours}
 En tête de la fiche d'une cage d'accouplement, l'encadré \btn{Portées en
 cours} liste les portées non sevrées. Pour chacune, il indique la date de
@@ -306,29 +333,64 @@ vivants de la cage. Les portées sevrées ou clôturées sont regroupées plus b
 dans \btn{Portées précédentes}.
 
 \capture[0.8\linewidth]{u_portees_en_cours}{Encadré « Portées en cours » : le sevrage en retard est en rouge.}
-\begin{procedure}{De la naissance au sevrage}
+
+\subsection{Enregistrer une naissance}
+\begin{procedure}{Déclarer une portée}
 \begin{enumerate}
   \item Sur la fiche de la cage, ou après le scan de son QR code :
-    \btn{Portées : naissance → sevrage}, puis
-    \btn{Enregistrer une naissance}. Indiquez la date de naissance, la date
-    d'accouplement si elle est connue, la mère et le père parmi les
-    reproducteurs, et le nombre de petits nés vivants et morts. La date de
-    sevrage prévue est calculée automatiquement (âge réglé par
-    l'administrateur, 21 jours par défaut).
-  \item Pendant l'allaitement, depuis la portée : enregistrez les
-    \textbf{morts} et le \textbf{sexage}.
-  \item Au sevrage : depuis l'encadré, \btn{Sevrer / mettre à jour}, puis
-    \btn{Sevrer la portée}. Indiquez les mâles et
-    femelles sevrés et leurs cages de destination (nouvelles cages
-    d'hébergement ou cages existantes). Chaque petit devient un animal
-    identifié : numéro de lignée, sexe, date de naissance, filiation, et
-    entrée au registre « né dans l'établissement ». Tous les petits doivent
-    être comptés.
-  \item Une portée peut aussi être \textbf{clôturée sans sevrage}, avec un
-    motif.
+    \btn{Portées : naissance → sevrage}.
+  \item Section \btn{Enregistrer une naissance} : \btn{Date de naissance},
+    \btn{Date d’accouplement} si elle est connue, \btn{Mère} et \btn{Père}
+    parmi les reproducteurs de la cage, \btn{Petits nés vivants},
+    \btn{Petits nés morts} et \btn{Remarques}.
+  \item \btn{Enregistrer la naissance}. La date de sevrage prévue est
+    calculée automatiquement (âge réglé par l'administrateur, 21 jours par
+    défaut), et la portée apparaît dans l'encadré \btn{Portées en cours}.
+  \item Reportez aussi la portée au crayon sur l'étiquette de la cage.
 \end{enumerate}
 \end{procedure}
-\capture[0.85\linewidth]{u_portee}{Page d’une portée : journal et actions (décès, sexage, sevrage, clôture).}
+\capture[0.85\linewidth]{u_naissance}{Section « Enregistrer une naissance ».}
+
+\subsection{Pendant l'allaitement}
+Depuis la page de la portée (bouton \btn{Ouvrir} dans la liste des portées,
+ou lien de l'encadré) :
+\begin{itemize}
+  \item \btn{Enregistrer des décès de petits} : date, nombre et détails
+    (« Retrouvé mort, euthanasié… »), puis \btn{Enregistrer les décès}. Le
+    nombre de \btn{Petits vivants actuellement} diminue d'autant.
+  \item \btn{Sexage} : nombre de mâles et de femelles, dont la somme doit
+    égaler le nombre de petits vivants, puis \btn{Enregistrer le sexage}.
+    Ces nombres pré-remplissent le formulaire de sevrage.
+  \item Le \btn{Journal} de la portée garde chaque événement avec sa date et
+    son auteur.
+\end{itemize}
+\capture[0.85\linewidth]{u_portee}{Page d’une portée : résumé, actions et journal.}
+
+\subsection{Sevrer une portée}
+\begin{procedure}{Sevrer et identifier les petits}
+\begin{enumerate}
+  \item Depuis l'encadré \btn{Portées en cours} : \btn{Sevrer / mettre à
+    jour}, puis la section \btn{Sevrer la portée}.
+  \item \btn{Date de sevrage} et \btn{Lignée} des petits.
+  \item Une ligne par groupe : \btn{Sexe}, \btn{Nombre} et
+    \btn{Destination}, soit \btn{Nouvelle cage d’hébergement} (avec
+    \btn{Salle} et \btn{Rack}), soit une cage existante. \btn{Ajouter un
+    groupe (répartition dans plusieurs cages)} sert à répartir un même sexe
+    dans plusieurs cages.
+  \item Le compteur \btn{Sevrés : x / y vivants} vérifie que tous les petits
+    sont comptés. S'il en manque, expliquez ce qui s'est passé dans
+    \btn{Petits non sevrés : ce qui s’est passé}.
+  \item \btn{Sevrer la portée}. Chaque petit devient un animal identifié :
+    numéro de lignée, sexe, date de naissance, mère et père, et entrée au
+    registre « né dans l'établissement ». Imprimez les étiquettes des
+    nouvelles cages.
+\end{enumerate}
+\end{procedure}
+\capture[0.85\linewidth]{u_sevrage}{Formulaire de sevrage : deux groupes vers de nouvelles cages d’hébergement.}
+
+Une portée perdue se clôture sans sevrage : \btn{Clôturer la portée sans
+sevrage}, avec la raison (« portée perdue, euthanasiée… »), puis
+\btn{Clôturer la portée}.
 
 \begin{regle}
 Chaque matin, un rappel (notification et e-mail) signale aux utilisateurs de
@@ -343,32 +405,54 @@ portée sevrée ou clôturée ne peut plus être modifiée.
 \menu{Animaux > Essais / protocoles / expériences}. Un \textbf{essai} est
 rattaché à une autorisation de projet (numéro éthique) : sa période doit être
 comprise dans la validité de l'autorisation. Un essai contient des
-\textbf{plans / protocoles}, qui contiennent des \textbf{expériences}.
+\textbf{plans / protocoles}, qui contiennent des \textbf{expériences}, qui
+contiennent les \textbf{animaux inclus}.
 
-\begin{procedure}{Préparer un protocole}
+\begin{procedure}{Créer un essai}
 \begin{enumerate}
-  \item Créez le protocole dans l'essai : dates (comprises dans celles de
-    l'essai) et sévérité attendue.
-  \item Choisissez une \textbf{grille d'évaluation clinique}
-    (\menu{Animaux > Grilles d'évaluation clinique}). Une grille déjà
-    utilisée ne peut plus être modifiée : dupliquez-la pour la faire
-    évoluer.
-  \item Ajoutez si besoin des \textbf{observations} à saisir chaque jour (par
-    exemple température, consommation).
-  \item Définissez les \textbf{points limites}. Chaque critère porte sur la
-    perte de poids (\%), le score clinique total, le score d'un item ou une
-    observation, avec un seuil. Il est associé à une action requise : alerte
-    seule, euthanasie, appel du vétérinaire, surveillance renforcée ou autre
-    action.
+  \item \btn{Nouvel essai} : numéro, titre, \btn{Numéro éthique} (parmi les
+    autorisations de projet enregistrées par l'administrateur), dates de
+    début et de fin, statut et description.
+  \item \btn{Créer l'essai}. La carte de l'essai rappelle l'autorisation,
+    son numéro et sa validité (badge \btn{Valide} ou \btn{Expirée}).
+  \item \btn{Modifier l’essai} corrige ces informations ; \btn{Rapport}
+    imprime le rapport d'essai.
 \end{enumerate}
 \end{procedure}
 
-\begin{procedure}{Inclure des animaux dans une expérience}
+\begin{procedure}{Préparer un plan / protocole}
 \begin{enumerate}
-  \item Dans le protocole, créez l'expérience (dates comprises dans celles
-    du protocole).
-  \item Incluez les animaux avec leur \textbf{poids de référence}, qui sert
-    au calcul de la perte de poids.
+  \item Dans l'essai, \btn{Nouveau plan / protocole} : numéro, titre, dates
+    (comprises dans celles de l'essai), \btn{Sévérité attendue},
+    \btn{Méthodologie} et \btn{Critères de point limite — description}
+    (texte repris dans le rapport).
+  \item Onglet \btn{Grille clinique} : choisissez la \textbf{grille
+    d'évaluation clinique} du suivi quotidien, puis \btn{Enregistrer la
+    grille}. Les grilles se créent dans \menu{Animaux > Grilles
+    d'évaluation clinique} ; une grille déjà utilisée ne peut plus être
+    modifiée : dupliquez-la pour la faire évoluer.
+  \item Onglet \btn{Observations} : les mesures à saisir chaque jour en plus
+    du poids (nombre ou texte, unité, obligatoire ou non), par exemple
+    température ou consommation, puis \btn{Ajouter l'observation}.
+  \item Onglet \btn{Points limites} : pour chaque critère, la condition
+    (perte de poids en \%, score clinique total, score d'un item ou
+    observation numérique), l'opérateur et le seuil, l'\btn{Action requise}
+    (alerte seule, euthanasie, appel du vétérinaire, surveillance renforcée
+    ou autre action) et le \btn{Message à l’expérimentateur}, puis
+    \btn{Ajouter le point limite}.
+\end{enumerate}
+\end{procedure}
+\capture[0.85\linewidth]{u_protocole}{Un plan / protocole : sévérité attendue et onglets grille, observations, points limites.}
+
+\begin{procedure}{Créer une expérience et inclure des animaux}
+\begin{enumerate}
+  \item Dans le protocole, \btn{Expériences}, puis \btn{Nouvelle
+    expérience} : numéro, titre et dates (comprises dans celles du
+    protocole).
+  \item \btn{Ajouter des animaux} : cherchez les animaux par numéro (choix
+    multiple), ou \btn{Ajouter toute la cage}.
+  \item Indiquez le \btn{Poids de référence (g)}, qui sert au calcul de la
+    perte de poids, puis \btn{Ajouter à l'expérience}.
 \end{enumerate}
 \end{procedure}
 \capture[0.85\linewidth]{u_experience}{Une expérience et ses animaux inclus.}
@@ -386,17 +470,17 @@ La page d'un protocole regroupe ses expériences.
     à traiter, avec une note de résolution ou l'enregistrement de
     l'euthanasie, puis les alertes sans action des 7 derniers jours et les
     actions déjà traitées.
-  \item \textbf{Animaux inclus} : état de chaque participation, bouton
+  \item \btn{Animaux inclus} : état de chaque participation, bouton
     \btn{Suivi quotidien} et bouton \btn{Clôturer} pour mettre fin à la
     participation d'un animal qui reste dans l'établissement.
-  \item \textbf{Évaluations cliniques journalières} : tableau animaux × jours
+  \item \btn{Évaluations cliniques journalières} : tableau animaux × jours
     (score, poids ou variation de poids, code couleur, jours non saisis). Un
     clic sur une case ouvre la consultation du suivi, et sur un jour non
     saisi, la saisie.
   \item \textbf{Rapports} : rapport d'essai, rapport de plan / protocole
-    (méthodologie, grille, critères de point limite) et rapport d'expérience
-    (suivis, points limites, actes). Ce dernier s'exporte en CSV (données et
-    actes). Tous sont imprimables.
+    (méthodologie, grille, critères de point limite) et \btn{Rapport (avec
+    grilles)} de l'expérience (suivis, points limites, actes). Ce dernier
+    s'exporte en CSV (données et actes). Tous sont imprimables.
 \end{itemize}
 
 \subsection{Le suivi journalier}
@@ -429,21 +513,44 @@ La page d'un protocole regroupe ses expériences.
 \capture[0.85\linewidth]{u_suivi_correction}{Consultation d’un suivi corrigé : motif et valeurs remplacées.}
 
 \subsection{Les actes expérimentaux}
-Depuis une expérience, bouton \btn{Actes} : injection, gavage, anesthésie,
-analgésie, prélèvement, chirurgie, pesée de l'alimentation, etc.
+Depuis une expérience, bouton \btn{Actes}, puis \btn{Planifier un acte}.
 
-\begin{procedure}{Planifier et confirmer un acte}
+\begin{procedure}{Planifier un acte}
 \begin{enumerate}
-  \item Décrivez l'acte : substance, dose, voie et consignes. Indiquez
-    éventuellement un médicament du stock avec la quantité par animal, ou
-    une dose selon le poids (par exemple 75~mg/kg).
-  \item Choisissez les dates (période et fréquence) et cochez les animaux,
-    tous, par cage ou un par un.
-  \item Le jour prévu, confirmez l'acte dans le suivi de l'animal ou de sa
-    cage. Le volume selon le poids est proposé, et le médicament est débité
-    du lot choisi.
+  \item \textbf{1. Acte} : \btn{Type d’acte} (injection, gavage, appât,
+    anesthésie, analgésie, prélèvement, chirurgie, pesée de l'alimentation,
+    autre), \btn{Nom de l’acte}, \btn{Voie d’administration},
+    \btn{Substance / molécule}, \btn{Dose} et \btn{Unité de dose},
+    \btn{Consignes}.
+  \item Pour prélever le produit sur le stock, choisissez le
+    \btn{Médicament du stock} et la quantité par animal. Avec une dose selon
+    le poids (par exemple 75~mg/kg) et un médicament dont la concentration
+    est connue, le volume est calculé pour chaque animal d'après son dernier
+    poids.
+  \item \textbf{2. Informations à demander lors de la réalisation}
+    (facultatif) : par exemple \btn{+ Volume administré (mL)} ou
+    \btn{+ Aliment restant (g)}, ou \btn{Ajouter une information} (nombre ou
+    texte, unité, obligatoire ou non).
+  \item \textbf{3. Dates} : \btn{Du}, \btn{Au} et \btn{tous les (jours)},
+    puis \btn{Ajouter ces dates}. Recommencez pour d'autres périodes ;
+    \btn{Effacer les dates} repart de zéro.
+  \item \textbf{4. Animaux} : cochez tous les animaux, une cage entière ou
+    les animaux un par un.
+  \item \btn{Planifier l’acte}.
 \end{enumerate}
 \end{procedure}
+\capture[0.85\linewidth]{u_planifier_acte}{Formulaire « Planifier un acte ».}
+
+Chaque acte planifié s'affiche sous forme de grille animaux × dates :
+$\checkmark$ réalisé, $\times$ non réalisé, $\circ$ à faire (sur fond jaune
+s'il est en retard), --- annulé. Le survol d'une case donne l'heure, la
+personne, le lot et les valeurs saisies. \btn{Annuler} retire les dates
+restant à faire.
+\capture[0.85\linewidth]{u_actes}{Un acte planifié : réalisé la veille, à faire aujourd’hui et demain.}
+
+Le jour prévu, l'acte se confirme dans le suivi de l'animal ou de sa cage :
+réalisé (avec les informations demandées, le lot et la quantité, le volume
+selon le poids étant proposé), ou non réalisé avec son motif.
 \begin{regle}
 \begin{itemize}
   \item Chaque matin, les personnes concernées reçoivent les actes du jour et
@@ -453,48 +560,213 @@ analgésie, prélèvement, chirurgie, pesée de l'alimentation, etc.
   \item Une confirmation erronée se corrige avec un motif : ce qui avait été
     saisi est conservé, le médicament est recrédité et l'acte redevient à
     faire.
+  \item Un médicament utilisé dans un acte expérimental est tracé comme une
+    administration et débité du lot, sans ordonnance.
 \end{itemize}
 \end{regle}
 
-\section{Pharmacie et traitements}
+\section{Pharmacie et traitements}\label{sec:pharmacie}
 \menu{Animaux > Pharmacie, ordonnances et administrations}.
 
-\begin{procedure}{Traiter des animaux sur ordonnance}
+\subsection{Le stock de médicaments}
+\begin{procedure}{Ajouter un médicament et recevoir un lot}
 \begin{enumerate}
-  \item \btn{Ordonnances} : choisissez le médicament, le prescripteur, la
-    date, la dose, la voie, la fréquence, les dates de début et de fin et les
-    consignes. Sélectionnez les animaux (une salle entière peut être ajoutée)
-    et le nombre d'administrations prévues.
-  \item \btn{Administrer} : choisissez le lot et la quantité, pour un animal
-    ou pour toute une cage. Le stock du lot est débité.
+  \item \btn{Nouveau médicament} : \btn{Nom}, \btn{Présentation},
+    \btn{Principe actif}, \btn{Unité de stock} (mL, comprimé…),
+    \btn{Concentration} (par exemple 100~mg/mL, nécessaire au calcul d'une
+    dose selon le poids), case \btn{Stupéfiant (registre spécial,
+    inventaires)} et notes, puis \btn{Ajouter}.
+  \item \btn{Réception d’un lot} : le médicament, \btn{N° lot},
+    \btn{Péremption}, \btn{Quantité} reçue, date de \btn{Réception},
+    \btn{Début d’utilisation} si le flacon est ouvert aussitôt,
+    \btn{Emplacement} et \btn{Fournisseur}, puis \btn{Enregistrer le lot}.
 \end{enumerate}
 \end{procedure}
-\capture[0.85\linewidth]{u_ordonnances}{Ordonnances et administrations.}
+\capture[0.85\linewidth]{a_pharmacie}{Page Pharmacie : nouveau médicament et réception d’un lot.}
+
+Le tableau \btn{Stock par lot} donne pour chaque lot sa péremption (en jaune
+à moins de 30 jours, en rouge une fois expiré) et la quantité restante.
+\begin{itemize}
+  \item \btn{Ouvrir} : enregistrez la date d'ouverture du flacon (début
+    d'utilisation). Une administration l'enregistre aussi automatiquement.
+  \item \btn{Ajuster} : une quantité positive ou négative (\btn{+ / -}) et
+    son \btn{Motif} (casse, inventaire, retour…), puis \btn{OK}.
+\end{itemize}
+
+\subsection{Les ordonnances}
+\begin{procedure}{Enregistrer une ordonnance}
+\begin{enumerate}
+  \item \btn{Ordonnances} : sélectionnez les animaux (recherche à choix
+    multiple, \btn{Ajouter la salle} pour tous les animaux d'une salle,
+    \btn{Vider la sélection} pour recommencer).
+  \item Le médicament et le nombre d'\btn{Administrations prévues par
+    animal}.
+  \item Le prescripteur, la référence de l'ordonnance, sa date, les dates de
+    début et de fin du traitement.
+  \item La dose et son unité, la voie, la fréquence (par exemple « 1 fois
+    par jour ») et les \btn{Consignes}.
+  \item \btn{Enregistrer l’ordonnance}. Elle apparaît dans
+    l'\btn{Historique}, et les animaux traités sont signalés par une
+    seringue sur la fiche de leur cage et dans la tournée.
+\end{enumerate}
+\end{procedure}
+\capture[0.85\linewidth]{u_ordonnances}{Ordonnances : saisie et historique.}
+
+\subsection{Les administrations}
+\begin{procedure}{Administrer à toute une cage}
+\begin{enumerate}
+  \item Depuis la fiche de la cage ou la tournée, cliquez sur l'icône
+    seringue : la page \btn{Administrations} s'ouvre pour cette cage.
+  \item Pour chaque ordonnance en cours, les animaux encore à traiter sont
+    affichés avec le nombre d'administrations déjà faites (par exemple
+    « 2/3 »).
+  \item Choisissez le \btn{Lot non périmé}, la \btn{Date / heure}, la
+    \btn{Quantité / animal}, vérifiez la \btn{Voie} et ajoutez une note si
+    besoin.
+  \item \btn{Valider} : une administration est enregistrée pour chaque
+    animal, et le lot est débité de la quantité totale.
+\end{enumerate}
+\end{procedure}
+\begin{procedure}{Administrer à un seul animal}
+\begin{enumerate}
+  \item Section \btn{Administration individuelle} : le \btn{Traitement
+    actif} (animal et médicament), puis le \btn{Lot non périmé}.
+  \item \btn{Date / heure}, \btn{Quantité}, \btn{Voie} et \btn{Note}, puis
+    \btn{Enregistrer l’administration}.
+\end{enumerate}
+\end{procedure}
+\capture[0.85\linewidth]{u_administration_cage}{Administrations d’une cage : validation groupée et administration individuelle.}
+\begin{regle}
+\begin{itemize}
+  \item Le lot doit être un lot du médicament prescrit ; un lot périmé est
+    refusé, comme un lot dont le stock est insuffisant.
+  \item Un animal ne reçoit pas plus d'administrations que le nombre prévu
+    sur l'ordonnance.
+  \item Les dernières administrations sont listées en bas de la page,
+    celles des actes expérimentaux étant marquées \btn{Acte expérimental}.
+\end{itemize}
+\end{regle}
 \begin{trace}
 Une ordonnance enregistrée ne peut plus être modifiée ni supprimée. Une
-administration ne peut qu'être annulée, une seule fois et avec un motif : la
-quantité est alors recréditée sur le lot. Les mouvements des stupéfiants
-figurent dans le \btn{Registre des stupéfiants}.
+administration enregistrée non plus : seule la correction d'un acte
+expérimental annule l'administration correspondante, avec un motif, et
+recrédite le lot. En cas d'erreur sur une administration d'ordonnance,
+prévenez un administrateur ; l'écart de stock se corrige par un ajustement
+motivé. Les mouvements des stupéfiants figurent dans le \btn{Registre des
+stupéfiants}.
 \end{trace}
 
-\section{Terrariums et populations}
+\section{Terrariums et populations}\label{sec:terrariums}
 \menu{Animaux > Terrariums et populations} : suivi des populations non
-identifiées individuellement.
-\begin{itemize}
-  \item \textbf{Recensements} approximatifs (avec fourchette et méthode),
-    complétés par les introductions, mortalités, transferts et captures.
-  \item \textbf{Traitements de population}, avec un délai d'attente pendant
-    lequel aucune capture pour une expérimentation n'est possible.
-  \item \textbf{Suivi sanitaire} : observations, ambiance, dépistages. Un
-    résultat anormal ou positif est notifié.
-  \item \textbf{Captures} : les animaux capturés deviennent des animaux
-    identifiés (numéros affichés avant validation), répartis par cage, avec
-    leur poids individuel. Ils peuvent être inclus aussitôt dans une
-    expérience.
-  \item \textbf{Rappels} : au plus une fois par semaine, le responsable du
-    terrarium est prévenu d'un recensement ou d'un contrôle sanitaire en
-    retard, selon les fréquences fixées pour le terrarium.
-\end{itemize}
+identifiées individuellement (rongeurs sauvages, amphibiens, insectes…). Le
+tableau de bord donne pour chaque terrarium l'espèce ou la lignée, la salle,
+l'estimation actuelle, le dernier recensement, la santé et le responsable.
+La création, la modification et l'archivage d'un terrarium sont réservés aux
+responsables BEA et aux administrateurs (voir le guide administrateur) ; toute personne habilitée enregistre le journal,
+les traitements, les contrôles et les captures.
+
+\capture[0.85\linewidth]{u_terrarium}{Page d’un terrarium : estimation, santé, délai d’attente et journal.}
+
+La page d'un terrarium affiche trois encadrés : l'\textbf{estimation
+actuelle} (dernier recensement corrigé des entrées et sorties depuis, et date
+du prochain recensement, en jaune s'il est dû), la \textbf{santé} (dernier
+contrôle, prochain contrôle, résultats en attente) et, le cas échéant, le
+\textbf{délai d'attente} en cours. La courbe de population apparaît après
+deux recensements.
+
+\subsection{Recensements et journal}
+\begin{procedure}{Ajouter une entrée au journal}
+\begin{enumerate}
+  \item Onglet \btn{Recensements et journal}, champ \btn{Entrée} :
+    \begin{itemize}
+      \item \btn{Recensement} : \btn{Estimation}, valeurs \btn{Bas} et
+        \btn{Haut} de la fourchette et \btn{Méthode} (comptage visuel,
+        comptage sur une zone échantillon, capture-recapture, estimation par
+        volume ou poids) ;
+      \item \btn{Introduction}, \btn{Mortalité constatée}, \btn{Capture} ou
+        \btn{Transfert sortant} : le nombre d'animaux et le \btn{Stade}
+        (œufs, larves, juvéniles, adultes, mixte) ;
+      \item \btn{Note} : un texte libre (entretien, changement de litière…).
+    \end{itemize}
+  \item \btn{Date} (pas dans le futur), puis \btn{Ajouter au journal}.
+\end{enumerate}
+\end{procedure}
+L'estimation affichée part du dernier recensement, ajoute les introductions
+et retire les mortalités, captures et transferts enregistrés depuis.
+
+\subsection{Traitements de la population}
+\begin{procedure}{Enregistrer un traitement}
+\begin{enumerate}
+  \item Onglet \btn{Traitements} : \btn{Type} (antiparasitaire,
+    antibiotique, antifongique, vitamines, désinfection du terrarium, autre)
+    et \btn{Date / heure}.
+  \item Soit un \btn{Médicament du stock (lot)} avec la \btn{Quantité}
+    utilisée, débitée du lot ; soit une \btn{Substance (si hors stock)}.
+  \item \btn{Dose}, \btn{Méthode} (bain, aliment, eau, pulvérisation…),
+    \btn{Raison}, \btn{Prescripteur} et \btn{Ordonnance}.
+  \item \btn{Délai d’attente jusqu’au} : la date jusqu'à laquelle les
+    animaux ne doivent pas être utilisés en expérimentation.
+  \item \btn{Enregistrer le traitement}.
+\end{enumerate}
+\end{procedure}
+\capture[0.85\linewidth]{u_terrarium_traitements}{Onglet « Traitements » : un antiparasitaire avec délai d’attente.}
+
+\subsection{Suivi sanitaire}
+\begin{procedure}{Enregistrer un contrôle sanitaire}
+\begin{enumerate}
+  \item Onglet \btn{Suivi sanitaire}, champ \btn{Contrôle} :
+    \begin{itemize}
+      \item \btn{Observation sanitaire} : \btn{État général} normal ou
+        anormal, \btn{Signes observés} (obligatoires si anormal) et
+        \btn{Animaux malades vus} ;
+      \item \btn{Paramètres d’ambiance} : \btn{Température (°C)},
+        \btn{Humidité (\%)} et \btn{Autres paramètres} ;
+      \item \btn{Dépistage sur prélèvements} : prélèvement, nombre
+        d'animaux prélevés, agents recherchés, laboratoire et référence.
+    \end{itemize}
+  \item \btn{Mesures prises} (isolement, nettoyage, traitement, appel du
+    vétérinaire…), puis \btn{Enregistrer le contrôle}.
+  \item Pour un dépistage, le résultat est \btn{En attente}. À réception,
+    choisissez \btn{Négatif} ou \btn{Positif}, la date et le détail, puis
+    \btn{Enregistrer le résultat} (une seule fois).
+\end{enumerate}
+\end{procedure}
+\capture[0.85\linewidth]{u_terrarium_sanitaire}{Onglet « Suivi sanitaire » : paramètres d’ambiance et dépistage en attente de résultat.}
+\begin{regle}
+Une observation anormale ou un dépistage positif est notifié aussitôt au
+responsable du terrarium (à défaut, aux administrateurs). Au plus une fois
+par semaine, le responsable est prévenu d'un recensement ou d'un contrôle
+sanitaire en retard, selon les fréquences fixées pour le terrarium.
+\end{regle}
+
+\subsection{Captures}
+Les animaux capturés deviennent des animaux identifiés : origine « capturé
+dans une population de l'établissement » au registre des entrées, et ils
+sortent de l'estimation de la population.
+\begin{procedure}{Capturer des animaux}
+\begin{enumerate}
+  \item Onglet \btn{Captures} : \btn{Date}, \btn{Lignée},
+    \btn{Date de naissance (estimée)}, \btn{Stade} et \btn{Salle des
+    nouvelles cages}.
+  \item \btn{Répartition par cage} : une ligne par cage de destination, avec
+    le \btn{Nombre d’animaux} et le \btn{Sexe}. Laissez la cage vide pour
+    créer une nouvelle cage d'hébergement, ou choisissez une cage existante.
+    \btn{Remplissage rapide} crée d'un coup plusieurs cages d'un même
+    nombre d'animaux ; \btn{Ajouter une cage} ajoute une ligne.
+  \item Les numéros attribués s'affichent avant validation. Saisissez si
+    possible le \textbf{poids individuel} de chacun.
+  \item Pour une expérience : \btn{Inclure dans l’expérimentation} et, à
+    défaut de poids individuels, un \btn{Poids de référence commun (g)}.
+  \item \btn{Enregistrer la capture}. Les animaux capturés sont listés sous
+    le formulaire avec leur cage, leur statut et leurs expériences.
+\end{enumerate}
+\end{procedure}
+\capture[0.85\linewidth]{u_terrarium_captures}{Onglet « Captures » : répartition par cage et numéros attribués.}
+\begin{regle}
+Pendant un délai d'attente, aucune capture pour une expérimentation n'est
+possible. Une capture hors expérimentation reste possible en cochant
+\btn{Capturer pendant le délai d’attente (hors expérimentation)}.
+\end{regle}
 
 \section{Formation, tâches et rappels}
 \begin{itemize}

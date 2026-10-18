@@ -5,7 +5,8 @@
  * guides (tools/guide_screenshots.js). Creates the database from
  * database/schema.sql, then fills it with a small fictitious animal
  * facility: users, project authorization, cages, breeding with litters,
- * an experiment with follow-ups and a correction, health reports, pharmacy.
+ * an experiment with follow-ups, planned acts and a correction, health
+ * reports, pharmacy with a prescription, a terrarium population.
  *
  *   php tools/demo_data.php --db=myanimlab_demo --user=root --password=...
  *   (--ids=file.json writes the ids of the records shown in the screenshots)
@@ -27,6 +28,8 @@ require_once $root . '/db_lib.php';
 require_once $root . '/animal_lib.php';
 require_once $root . '/followup_lib.php';
 require_once $root . '/corrections_lib.php';
+require_once $root . '/terrarium_lib.php';
+require_once $root . '/experiment_acts_lib.php';
 require_once __DIR__ . '/migrations_lib.php';
 
 $opt = getopt('', ['db:', 'user:', 'password::', 'host::', 'today::', 'ids::']);
@@ -183,6 +186,15 @@ foreach ($enrollments as $i => $enrollment) {
     }
 }
 
+// Act planned on the 4 rats: an analgesic injection yesterday (done), today and tomorrow.
+$con->begin_transaction();
+[$act] = plan_experiment_act($con, $experiment, [
+    'act_type' => 'analgesia', 'label' => 'Méloxicam post-opératoire', 'substance' => 'Méloxicam', 'dose_amount' => 1.0, 'dose_unit' => 'mg/kg',
+    'route' => 'SC', 'product_id' => null, 'quantity_per_animal' => null, 'instructions' => 'Injecter avant 10 h, puis contrôler la plaie',
+], [['label' => 'Volume injecté', 'value_type' => 'number', 'unit' => 'mL', 'required' => 1]], [$day(-1), $day(0), $day(1)], $enrollments, $sophie, $names[$sophie]);
+$con->commit();
+db_execute($con, "UPDATE experiment_act_animals SET status = 'done', done_at = ?, done_by = ?, done_by_name = ? WHERE act_id = ? AND planned_date = ?", 'sisis', [$at(-1, '09:10'), $sophie, $names[$sophie], $act, $day(-1)]);
+
 // ----- health report on a holding animal -----
 $sick = (int) db_value($con, 'SELECT id FROM mice WHERE cage_id = ? ORDER BY id DESC LIMIT 1', 's', [$holding[1]]);
 db_execute($con, "INSERT INTO health_reports (animal_id, animal_uid, cage_id, line_code, observed_at, category, severity, description, reported_by, reported_by_name) VALUES (?, ?, ?, 'RSD', ?, 'skin_fur', 'moderate', 'Alopécie et croûtes sur le dos, grattage fréquent.', ?, ?)",
@@ -216,6 +228,33 @@ db_execute($con, "INSERT INTO prescriptions (animal_id, product_id, prescription
 $prescription = (int) $con->insert_id;
 db_execute($con, 'INSERT INTO prescription_animals (prescription_id, animal_id, planned_administrations) VALUES (?, ?, 3)', 'ii', [$prescription, $sick]);
 
+$lotMx = (int) db_value($con, "SELECT id FROM medication_lots WHERE lot_number = 'MX2611'");
+foreach ([-2, -1] as $offset) {
+    db_execute($con, "INSERT INTO medication_administrations (prescription_id, animal_id, medication_lot_id, administered_at, quantity_used, unit, route, administered_by, administered_by_name) VALUES (?, ?, ?, ?, 0.1, 'mL', 'SC', ?, ?)",
+        'iiisis', [$prescription, $sick, $lotMx, $at($offset, '08:45'), $julien, $names[$julien]]);
+    db_execute($con, "INSERT INTO medication_stock_movements (medication_lot_id, movement_type, quantity_delta, reason, administration_id, performed_by) VALUES (?, 'administration', -0.1, 'Administration', ?, ?)", 'iii', [$lotMx, (int) $con->insert_id, $julien]);
+}
+db_execute($con, 'UPDATE medication_lots SET remaining_quantity = remaining_quantity - 0.2, in_use_since = ? WHERE id = ?', 'si', [$day(-2), $lotMx]);
+
+// ----- terrarium: a population of wild voles -----
+$voles = (int) db_value($con, "SELECT id FROM animal_lines WHERE code = 'CGN'");
+$terrarium = terrarium_save($con, null, [
+    'code' => 'T-01', 'name' => 'Campagnols des champs', 'line_id' => $voles, 'room' => 'C1', 'location' => 'Étagère nord',
+    'origin' => 'Capture sur le terrain (station de Lusignan)', 'reference' => 'Arrêté préfectoral 2026-17', 'established_on' => $day(-180),
+    'census_every_days' => 30, 'health_every_days' => 90, 'responsible_user_id' => $julien, 'description' => 'Population fondatrice pour l’élevage de campagnols',
+], $admin);
+$t = db_row($con, 'SELECT * FROM terrariums WHERE id = ?', 'i', [$terrarium]);
+terrarium_add_event($con, $terrarium, 'introduction', $day(-180), ['quantity' => 24, 'life_stage' => 'adultes', 'reference' => 'Capture 2026-04'], $julien, $names[$julien]);
+terrarium_add_event($con, $terrarium, 'census', $day(-40), ['estimate' => 55, 'estimate_min' => 50, 'estimate_max' => 62, 'method' => 'Capture-recapture'], $julien, $names[$julien]);
+terrarium_add_event($con, $terrarium, 'death', $day(-21), ['quantity' => 2, 'life_stage' => 'juvéniles', 'note' => 'Trouvés au fond du terrarium'], $julien, $names[$julien]);
+terrarium_add_event($con, $terrarium, 'capture', $day(-12), ['quantity' => 6, 'life_stage' => 'adultes', 'note' => 'Pour l’essai ESS-2026-03'], $sophie, $names[$sophie]);
+terrarium_add_event($con, $terrarium, 'note', $day(-3), ['note' => 'Litière changée, ajout de foin'], $julien, $names[$julien]);
+record_terrarium_treatment($con, $t, ['kind' => 'antiparasitic', 'treated_at' => $day(-6) . ' 10:00', 'substance' => 'Ivermectine', 'dose' => '0,2 mg/kg dans l’eau de boisson',
+    'method' => 'Eau de boisson', 'reason' => 'Acariens observés', 'prescriber_name' => 'Dr Anne Petit', 'prescription_reference' => 'ORD-2026-121', 'withdrawal_until' => $day(8)], $julien, $names[$julien]);
+record_terrarium_health_check($con, $t, ['check_type' => 'environment', 'checked_on' => $day(-5), 'temperature_c' => '21,5', 'humidity_pct' => 55], $julien, $names[$julien]);
+record_terrarium_health_check($con, $t, ['check_type' => 'screening', 'checked_on' => $day(-9), 'sample_type' => 'Fèces (mélange)', 'animals_sampled' => 10,
+    'laboratory' => 'Laboratoire vétérinaire départemental', 'sample_reference' => 'LVD-26-5512', 'agents_screened' => 'Hantavirus, leptospires, parasites intestinaux'], $julien, $names[$julien]);
+
 // ----- notifications for the screenshots of the bell -----
 create_notification($con, $julien, '1 portée(s) : sevrage en retard', "Sevrage en retard :\n• cage $breedCage", "litter_manage.php?cage_id=$breedCage", 'reminder');
 
@@ -225,7 +264,8 @@ if (!empty($opt['ids'])) {
         'holding' => $holding, 'experimental' => $expCage, 'breeding' => $breedCage,
         'overdueLitter' => $overdue, 'exitedAnimal' => $exited, 'sickAnimal' => $sick, 'healthReport' => $report,
         'enrollmentAlert' => $enrollments[2], 'enrollmentCorrected' => $enrollments[0], 'correctedFollowup' => $correctedFollowup,
-        'experiment' => $experiment, 'protocol' => $protocol, 'trial' => $trial,
+        'experiment' => $experiment, 'protocol' => $protocol, 'trial' => $trial, 'act' => $act,
+        'terrarium' => $terrarium, 'recentLitter' => $recent, 'narcotic' => $ketamine,
     ], JSON_PRETTY_PRINT));
 }
 
