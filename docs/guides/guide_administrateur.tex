@@ -77,6 +77,20 @@ seule fois en indiquant la dernière migration déjà appliquée, par exemple
 \texttt{php tools/migrate.php}.
 \end{regle}
 
+\subsection{Reprise de données et base de démonstration}
+\begin{itemize}
+  \item \textbf{Import JCMS} : les données d'une base JCMS (Access) se
+    reprennent en deux temps, export en CSV par \f{tools/jcms_export.sh}
+    puis chargement par \f{tools/import_jcms.php --apply}. Le chargement se
+    fait en une seule transaction : une erreur annule tout. Le génotypage est
+    exclu. La marche à suivre est dans \f{docs/JCMS_IMPORT.md}.
+  \item \textbf{Base de démonstration} : \f{tools/demo_data.php} crée une
+    animalerie fictive complète, pour les formations et les captures des
+    guides. Les comptes ont le mot de passe \texttt{Demo-2026!}. N'utilisez
+    jamais la base de production : le nom de la base doit contenir « demo »,
+    car elle est effacée puis recréée.
+\end{itemize}
+
 \subsection{Sauvegardes}
 Sauvegardez chaque jour la base de données, \f{storage/} et \f{uploads/}, et
 conservez les copies hors du serveur. Testez une restauration au moins une
@@ -98,6 +112,7 @@ Rappels du matin & 07:30 & Heure des rappels d'actes expérimentaux et de sevrag
 Déconnexion & 30 min & Inactivité tolérée avant fermeture de la session (5 à 720 minutes).\\
 Double authentification & obligatoire & Exigée des administrateurs et responsables BEA.\\
 Capteurs IoT & --- & Liens des capteurs des salles.\\
+Clés Turnstile & --- & Clés Cloudflare Turnstile : vérification anti-robot sur la page de connexion, active quand elles sont renseignées.\\
 \bottomrule
 \end{tabularx}
 \end{center}
