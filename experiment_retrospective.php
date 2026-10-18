@@ -210,7 +210,7 @@ if ($level === 'root') {
                 (SELECT MAX(GREATEST(FIELD(r.severity, $severityRank),
                         COALESCE((SELECT MAX(FIELD(u.severity, $severityRank)) FROM health_report_updates u WHERE u.report_id = r.id), 0)))
                    FROM health_reports r WHERE r.animal_id = ea.animal_id AND r.observed_at $window) AS worst_health,
-                (SELECT COUNT(*) FROM medication_administrations ma WHERE ma.animal_id = ea.animal_id AND ma.prescription_id IS NOT NULL AND DATE(ma.administered_at) $window) AS n_treatments,
+                (SELECT COUNT(*) FROM medication_administrations ma WHERE ma.animal_id = ea.animal_id AND ma.prescription_id IS NOT NULL AND ma.cancelled_at IS NULL AND DATE(ma.administered_at) $window) AS n_treatments,
                 (SELECT COUNT(*) FROM experiment_act_animals aa WHERE aa.experiment_animal_id = ea.id AND aa.status = 'done') AS n_acts
          FROM experiment_animals ea
          JOIN mice m ON m.id = ea.animal_id

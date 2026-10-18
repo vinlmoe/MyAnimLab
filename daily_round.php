@@ -80,7 +80,7 @@ $treatmentRows = $con->query(
      FROM prescription_animals pa
      JOIN prescriptions pr ON pr.id=pa.prescription_id AND pr.status='active'
      JOIN mice m ON m.id=pa.animal_id AND m.status='active'
-     WHERE pa.planned_administrations > (SELECT COUNT(*) FROM medication_administrations ma WHERE ma.prescription_id=pa.prescription_id AND ma.animal_id=pa.animal_id)
+     WHERE pa.planned_administrations > (SELECT COUNT(*) FROM medication_administrations ma WHERE ma.prescription_id=pa.prescription_id AND ma.animal_id=pa.animal_id AND ma.cancelled_at IS NULL)
      GROUP BY m.cage_id"
 )->fetch_all(MYSQLI_ASSOC);
 foreach ($treatmentRows as $treatment) $treatmentsByCage[$treatment['cage_id']] = (int) $treatment['pending_count'];
