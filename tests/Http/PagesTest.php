@@ -563,4 +563,29 @@ final class PagesTest extends TestCase
         $this->assertStringContainsString('litter_manage.php?cage_id=' . rawurlencode($cage) . '#birth', $check);
         @unlink($jar);
     }
+
+    public function testOnlyAdministratorsChangeCageOwnershipInBulk(): void
+    {
+        $con = TestDatabase::connection();
+        $cage = TestDatabase::cage($con, false);
+        $pi = TestDatabase::user($con, ['position' => 'Principal Investigator']);
+        $post = fn(string $jar) => $this->request('cage_location.php', $jar, [
+            'csrf_token' => $this->csrfToken($jar), 'return' => 'hc_dash.php', 'cage_ids' => [$cage],
+            'location_action' => 'ownership', 'owner_pi' => $pi, 'owner_users_mode' => 'add', 'owner_users' => [self::$users['user']],
+        ]);
+        $user = $this->login('user');
+        [, $dash] = $this->request('hc_dash.php', $user);
+        $this->assertStringNotContainsString('id="ownershipPanel"', $dash);
+        $post($user);
+        $this->assertNull(TestDatabase::value($con, "SELECT pi_name FROM cages WHERE cage_id = '$cage'"));
+        @unlink($user);
+
+        $admin = $this->login('admin');
+        [, $dash] = $this->request('hc_dash.php', $admin);
+        $this->assertStringContainsString('id="ownershipPanel"', $dash);
+        $post($admin);
+        $this->assertSame($pi, (int) TestDatabase::value($con, "SELECT pi_name FROM cages WHERE cage_id = '$cage'"));
+        $this->assertSame(self::$users['user'], (int) TestDatabase::value($con, "SELECT user_id FROM cage_users WHERE cage_id = '$cage'"));
+        @unlink($admin);
+    }
 }
