@@ -26,9 +26,6 @@ if (($_SESSION['role'] ?? '') !== 'admin') {
     header('Location: home.php');
     exit;
 }
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 $currentUserId = $_SESSION['user_id'] ?? null;
 
 // Trials linked to an authorization.
@@ -43,7 +40,7 @@ function authorization_trials(mysqli $con, string $ethicsNumber): array
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!hash_equals($_SESSION['csrf_token'], (string) ($_POST['csrf_token'] ?? ''))) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
     $ethicsNumber = trim((string) ($_POST['iacuc_id'] ?? ''));
@@ -146,7 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $back = 'manage_iacuc.php';
         }
     } catch (Exception $e) {
-        $_SESSION['message'] = $e->getMessage();
+        $_SESSION['message'] = error_message($e);
     }
     header('Location: ' . $back);
     exit;

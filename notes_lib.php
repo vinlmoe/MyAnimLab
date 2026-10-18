@@ -25,7 +25,7 @@ function note_request_user(): int
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         note_fail(tr('Invalid request.'), 405);
     }
-    if (empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], (string) ($_POST['csrf_token'] ?? ''))) {
+    if (!csrf_valid()) {
         note_fail(tr('CSRF token validation failed'), 403);
     }
     return (int) $_SESSION['user_id'];

@@ -76,7 +76,7 @@ function experiment_act_fields(mysqli $con, array $actIds): array
         return [];
     }
     $fields = [];
-    foreach ($con->query('SELECT * FROM experiment_act_fields WHERE act_id IN (' . implode(',', $actIds) . ') ORDER BY position, id') as $f) {
+    foreach (db_rows($con, 'SELECT * FROM experiment_act_fields WHERE act_id IN (' . db_placeholders(count($actIds)) . ') ORDER BY position, id', str_repeat('i', count($actIds)), $actIds) as $f) {
         $fields[(int) $f['act_id']][(int) $f['id']] = $f;
     }
     return $fields;
@@ -90,7 +90,7 @@ function experiment_act_values(mysqli $con, array $actAnimalIds): array
         return [];
     }
     $values = [];
-    foreach ($con->query('SELECT * FROM experiment_act_values WHERE act_animal_id IN (' . implode(',', $actAnimalIds) . ') ORDER BY id') as $v) {
+    foreach (db_rows($con, 'SELECT * FROM experiment_act_values WHERE act_animal_id IN (' . db_placeholders(count($actAnimalIds)) . ') ORDER BY id', str_repeat('i', count($actAnimalIds)), $actAnimalIds) as $v) {
         $values[(int) $v['act_animal_id']][] = $v;
     }
     return $values;
@@ -496,17 +496,16 @@ function enrollment_latest_weights(mysqli $con, array $enrollmentIds): array
     if (!$ids) {
         return [];
     }
-    $in = implode(',', $ids);
     $out = [];
-    foreach ($con->query("SELECT id, baseline_weight_g FROM experiment_animals WHERE id IN ($in)") as $r) {
+    foreach (db_rows($con, "SELECT id, baseline_weight_g FROM experiment_animals WHERE id IN (" . db_placeholders(count($ids)) . ")", str_repeat('i', count($ids)), $ids) as $r) {
         if ($r['baseline_weight_g'] !== null) {
             $out[(int) $r['id']] = ['weight' => (float) $r['baseline_weight_g'], 'date' => null];
         }
     }
-    foreach ($con->query("SELECT f.experiment_animal_id, f.weight_g, f.observed_at FROM experiment_followups f
+    foreach (db_rows($con, "SELECT f.experiment_animal_id, f.weight_g, f.observed_at FROM experiment_followups f
                           JOIN (SELECT experiment_animal_id, MAX(observed_at) AS d FROM experiment_followups
-                                WHERE experiment_animal_id IN ($in) AND weight_g IS NOT NULL GROUP BY experiment_animal_id) last
-                            ON last.experiment_animal_id = f.experiment_animal_id AND last.d = f.observed_at") as $r) {
+                                WHERE experiment_animal_id IN (" . db_placeholders(count($ids)) . ") AND weight_g IS NOT NULL GROUP BY experiment_animal_id) last
+                            ON last.experiment_animal_id = f.experiment_animal_id AND last.d = f.observed_at", str_repeat('i', count($ids)), $ids) as $r) {
         $out[(int) $r['experiment_animal_id']] = ['weight' => (float) $r['weight_g'], 'date' => $r['observed_at']];
     }
     return $out;
@@ -594,8 +593,8 @@ function experiment_act_corrections(mysqli $con, array $actAnimalIds): array
         return [];
     }
     $out = [];
-    foreach ($con->query('SELECT c.*, l.lot_number FROM experiment_act_corrections c LEFT JOIN medication_lots l ON l.id = c.previous_lot_id
-                          WHERE c.act_animal_id IN (' . implode(',', $ids) . ') ORDER BY c.corrected_at, c.id') as $c) {
+    foreach (db_rows($con, 'SELECT c.*, l.lot_number FROM experiment_act_corrections c LEFT JOIN medication_lots l ON l.id = c.previous_lot_id
+                          WHERE c.act_animal_id IN (' . db_placeholders(count($ids)) . ') ORDER BY c.corrected_at, c.id', str_repeat('i', count($ids)), $ids) as $c) {
         $out[(int) $c['act_animal_id']][] = $c;
     }
     return $out;

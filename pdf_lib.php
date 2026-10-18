@@ -166,7 +166,7 @@ class SimplePdf
         $objects[2] = '<< /Type /Pages /Kids [' . implode(' ', $kids) . '] /Count ' . $count . ' >>';
         $objects[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
         $objects[4] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>';
-        $objects[5] = '<< /Title ' . $this->pdfString($this->title) . ' /Producer (MyVivarium) /CreationDate (D:' . date('YmdHis') . ') >>';
+        $objects[5] = '<< /Title ' . $this->pdfString($this->title) . ' /Producer (MyAnimLab) /CreationDate (D:' . date('YmdHis') . ') >>';
         $objects += $pageObjects;
         ksort($objects);
 

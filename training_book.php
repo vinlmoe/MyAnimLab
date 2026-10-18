@@ -19,9 +19,6 @@ if (!isset($_SESSION['username'])) {
     header('Location: index.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
     exit;
 }
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 
 $currentUserId = (int) ($_SESSION['user_id'] ?? 0);
 $currentUserName = $_SESSION['name'] ?? null;
@@ -44,7 +41,7 @@ $selfUrl = 'training_book.php' . ($userId !== $currentUserId ? '?user_id=' . $us
 [$reqDays, $reqYears, $hoursPerDay] = training_requirement($con);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'] ?? '')) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
     try {
@@ -132,6 +129,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 create_notification($con, $userId, $decision === 'validated' ? tr('Training entry validated') : tr('Training entry rejected'), $note, 'training_book.php', 'system');
             }
             $_SESSION['message'] = $decision === 'validated' ? tr('Entry validated.') : tr('Entry rejected.');
+        } elseif (isset($_POST['attach_certificate'])) {
+            $stored = store_training_pdf($_FILES['certificate'] ?? ['error' => UPLOAD_ERR_NO_FILE]);
+            if ($stored === null) {
+                throw new Exception(tr('Choose the certificate (PDF).'));
+            }
+            try {
+                training_attach_certificate($con, (int) ($_POST['entry_id'] ?? 0), $userId, $stored, $_POST['certificate_ref'] ?? null, $isManager, $currentUserId);
+            } catch (Exception $e) {
+                @unlink(training_storage_dir() . '/' . $stored);
+                throw $e;
+            }
+            $_SESSION['message'] = tr('Certificate attached.');
         } elseif (isset($_POST['delete_entry'])) {
             $entryId = (int) ($_POST['entry_id'] ?? 0);
             $stmt = $con->prepare('SELECT * FROM training_records WHERE id = ? AND user_id = ?');
@@ -154,7 +163,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['message'] = tr('Entry deleted.');
         }
     } catch (Exception $e) {
-        $_SESSION['message'] = tr('Not saved: {error}', ['error' => $e->getMessage()]);
+        $_SESSION['message'] = tr('Not saved: {error}', ['error' => error_message($e)]);
     }
     header("Location: $selfUrl");
     exit;
@@ -170,6 +179,12 @@ foreach ($records as $r) {
 $statusLabels = training_entry_statuses();
 $pct = $cpd['required_hours'] > 0 ? min(100, (int) round($cpd['hours'] * 100 / $cpd['required_hours'])) : 0;
 $fileUrl = fn(array $r): string => 'training_file.php?id=' . (int) $r['id'];
+$path = training_path($records, $status);
+$pathStyle = [
+    'done' => ['success', 'fa-check-circle'], 'todo' => ['primary', 'fa-arrow-circle-right'], 'warning' => ['warning', 'fa-exclamation-circle'],
+    'late' => ['danger', 'fa-times-circle'], 'waiting' => ['secondary', 'fa-hourglass-half'],
+];
+$isOwnBook = $userId === $currentUserId;
 
 require 'header.php';
 ?>
@@ -246,6 +261,25 @@ require 'header.php';
                 </div>
             </div>
 
+            <div class="card mb-3 no-print" id="trainingPath">
+                <div class="card-header"><strong><i class="fas fa-route"></i> <?= $isOwnBook ? trh('My training path') : trh('Training path') ?></strong>
+                    <small class="text-muted"> — <?= trh('what is done, and what to do next') ?></small></div>
+                <ol class="list-group list-group-flush list-group-numbered">
+                    <?php foreach ($path as $step) : [$color, $icon] = $pathStyle[$step['state']]; ?>
+                        <li class="list-group-item d-flex justify-content-between align-items-start gap-2 path-<?= $step['state'] ?>">
+                            <div class="ms-2 me-auto">
+                                <div class="fw-bold"><i class="fas <?= $icon ?> text-<?= $color ?>"></i> <?= htmlspecialchars($step['title']) ?></div>
+                                <span class="small"><?= htmlspecialchars($step['text']) ?></span>
+                            </div>
+                            <?php if ($step['action']) : ?>
+                                <button type="button" class="btn btn-sm btn-outline-<?= $step['state'] === 'done' ? 'secondary' : 'primary' ?> text-nowrap path-add"
+                                    data-category="<?= htmlspecialchars($step['action']['category']) ?>" data-function="<?= htmlspecialchars($step['action']['function']) ?>">
+                                    <i class="fas fa-plus"></i> <?= htmlspecialchars($step['action']['label']) ?></button>
+                            <?php endif; ?>
+                        </li>
+                    <?php endforeach; ?>
+                </ol>
+            </div>
             <div class="collapse no-print <?= !$records ? 'show' : '' ?>" id="addEntry">
                 <form method="POST" enctype="multipart/form-data" class="card card-body mb-3 border-primary">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
@@ -318,7 +352,7 @@ require 'header.php';
                             <input class="form-control form-control-sm" name="notes" id="notes">
                         </div>
                     </div>
-                    <div class="mt-2"><button class="btn btn-primary btn-sm" name="add_entry"><i class="fas fa-save"></i> <?= trh('Record') ?></button></div>
+                    <div class="mt-2"><button class="btn btn-primary btn-sm" name="add_entry"><i class="fas fa-save"></i> <?= trh('Record the entry') ?></button></div>
                 </form>
             </div>
 
@@ -356,7 +390,16 @@ require 'header.php';
                                         <td><?= htmlspecialchars($r['species'] ?? '') ?></td>
                                     <?php endif; ?>
                                     <?php if ($category === 'competence') : ?><td><?= htmlspecialchars($r['supervisor_name'] ?? '') ?></td><?php endif; ?>
-                                    <td><?= htmlspecialchars($r['certificate_ref'] ?? '') ?><?php if ($r['certificate_file']) : ?> <a href="<?= htmlspecialchars($fileUrl($r)) ?>" target="_blank" class="no-print"><i class="fas fa-file-pdf"></i> PDF</a><?php endif; ?></td>
+                                    <td><?= htmlspecialchars($r['certificate_ref'] ?? '') ?><?php if ($r['certificate_file']) : ?> <a href="<?= htmlspecialchars($fileUrl($r)) ?>" target="_blank" class="no-print"><i class="fas fa-file-pdf"></i> PDF</a><?php endif; ?>
+                                        <?php if (!$r['certificate_file'] && ($isManager || ($isOwnBook && $r['status'] !== 'rejected'))) : ?>
+                                            <form method="POST" enctype="multipart/form-data" class="d-flex flex-column gap-1 mt-1 no-print attach-form">
+                                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+                                                <input type="hidden" name="user_id" value="<?= $userId ?>">
+                                                <input type="hidden" name="entry_id" value="<?= (int) $r['id'] ?>">
+                                                <input type="file" class="form-control form-control-sm" name="certificate" accept="application/pdf" required style="max-width: 14rem">
+                                                <button class="btn btn-sm btn-outline-primary" name="attach_certificate" value="1"><i class="fas fa-paperclip"></i> <?= trh('Attach') ?></button>
+                                            </form>
+                                        <?php endif; ?></td>
                                     <td>
                                         <span class="badge bg-<?= $r['status'] === 'validated' ? 'success' : ($r['status'] === 'pending' ? 'warning text-dark' : 'secondary') ?>"><?= htmlspecialchars($statusLabels[$r['status']]) ?></span>
                                         <?php if ($r['status'] !== 'pending') : ?><br><small class="text-muted"><?= htmlspecialchars(trim(($r['validated_by_name'] ?? '') . ' ' . substr((string) $r['validated_at'], 0, 10))) ?></small><?php endif; ?>
@@ -415,6 +458,15 @@ require 'header.php';
             };
             category.addEventListener('change', sync);
             sync();
+            // Buttons of the training path: open the form for that kind of entry.
+            document.querySelectorAll('.path-add').forEach(btn => btn.addEventListener('click', () => {
+                category.value = btn.dataset.category;
+                if (btn.dataset.function) document.getElementById('function_code').value = btn.dataset.function;
+                sync();
+                const box = document.getElementById('addEntry');
+                bootstrap.Collapse.getOrCreateInstance(box, { toggle: false }).show();
+                box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }));
         })();
     </script>
     <?php require 'footer.php'; ?>

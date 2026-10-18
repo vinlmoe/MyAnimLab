@@ -20,9 +20,6 @@ if (!isset($_SESSION['username'])) {
     exit;
 }
 
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 $cageId = trim($_GET['cage_id'] ?? $_POST['cage_id'] ?? '');
 $today = date('Y-m-d');
 $cageStmt = $con->prepare('SELECT cage_id, room, rack, status FROM cages WHERE cage_id = ?');
@@ -42,7 +39,7 @@ $selfUrl = 'experiment_cage_followup.php?' . http_build_query(['cage_id' => $cag
 // Acts of the cage confirmed together: one status per animal, the lot, time
 // and note shared.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_acts'])) {
-    if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'] ?? '')) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
     $userId = $_SESSION['user_id'] ?? null;
@@ -66,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_acts'])) {
         $_SESSION['message'] = tr('{n} act(s) confirmed.', ['n' => count($confirmations)]);
     } catch (Exception $e) {
         mysqli_rollback($con);
-        $_SESSION['message'] = tr('Acts not confirmed: {error}', ['error' => $e->getMessage()]);
+        $_SESSION['message'] = tr('Acts not confirmed: {error}', ['error' => error_message($e)]);
     }
     header("Location: $selfUrl#cageActs");
     exit;

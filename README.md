@@ -1,6 +1,8 @@
-![Logo](https://myvivarium.online/images/logo1.jpg)
+<img src="images/logo.svg" alt="MyAnimLab" width="320">
 
-# MyVivarium
+# MyAnimLab
+
+*Application dérivée de [MyVivarium](https://github.com/myvivarium/MyVivarium).*
 
 ![Statut du projet](https://img.shields.io/badge/status-active-brightgreen) [![Licence LGPL](https://img.shields.io/badge/License-LGPL--3.0-blue.svg)](https://choosealicense.com/licenses/lgpl-3.0/)
 
@@ -12,6 +14,7 @@ MyVivarium est une plateforme en ligne pour gérer efficacement votre animalerie
 
 ## Sommaire
 - [Fonctionnalités](#fonctionnalités)
+- [Guides](#guides)
 - [Langue de l’interface](#langue-de-linterface)
 - [Capture d’écran](#capture-décran)
 - [Installation](#installation)
@@ -29,6 +32,16 @@ MyVivarium est une plateforme en ligne pour gérer efficacement votre animalerie
 - Gestion des données sécurisée et conforme.
 
 ![image](https://myvivarium.online/images/illustration.jpg)
+
+## Guides
+
+- [Guide de l’utilisateur](docs/guides/guide_utilisateur.pdf) : parcours d’un nouvel arrivant, livret de formation, cages, tournée quotidienne, animaux, reproduction et sevrage, expérimentation, pharmacie, terrariums, « Que faire si… », règles de traçabilité, aide-mémoire et glossaire.
+- [Guide de l’administrateur](docs/guides/guide_administrateur.pdf) : rôles, installation et mises à jour, paramètres du laboratoire, comptes, référentiels, supervision quotidienne, corrections réglementaires, volet BEA, stupéfiants, exports et préparation d’une inspection.
+
+Les sources LaTeX sont dans `docs/guides/` (`pdflatex guide_utilisateur.tex`, deux passes ; paquets TeX Live courants et `lmodern`). Le logo est `images/logo.svg` (icône seule : `images/logo-mark.svg`, convertie en `docs/guides/img/logo-mark.pdf` pour les guides). Les captures d’écran (`docs/guides/img/`) sont prises sur une base de démonstration fictive :
+
+- `php tools/demo_data.php --db=myanimlab_demo --user=root --password=… --ids=/tmp/demo_ids.json` crée cette base (nom contenant « demo », effacée puis recréée) : utilisateurs, autorisation de projet, cages, portées, expérience avec suivis, actes planifiés et correction, signalement sanitaire, pharmacie avec ordonnance et administrations, terrarium (journal, traitement, contrôles), livrets de formation avec attestations. Tous les comptes ont le mot de passe `Demo-2026!` ; elle sert aussi aux formations ;
+- `node tools/guide_screenshots.js docs/guides/img`, avec Playwright, sur un serveur de test dont le `.env` pointe vers cette base, prend les captures (voir l’en-tête du script pour les variables `BASE`, `IDS` et `ASSETS`).
 
 ## Langue de l’interface
 
@@ -86,7 +99,7 @@ Arrêtez la session avec `docker compose down`. Pour effacer toutes les données
    Une fois connecté à la console de votre serveur Linux, téléchargez le script d’installation avec la commande suivante :
 
    ```bash
-   curl -O https://raw.githubusercontent.com/myvivarium/MyVivarium/main/setup/setup.sh
+   curl -O https://raw.githubusercontent.com/vinlmoe/MyAnimLab/main/setup/setup.sh
    ```
 5. **Rendez le script exécutable** :
    ```bash
@@ -116,14 +129,14 @@ Arrêtez la session avec `docker compose down`. Pour effacer toutes les données
 
 1. **Clonez le dépôt :**
     ```bash
-    git clone https://github.com/myvivarium/MyVivarium.git
+    git clone https://github.com/vinlmoe/MyAnimLab.git
     ```
     ou
     ```bash
-    git clone git@github.com:myvivarium/MyVivarium.git
+    git clone git@github.com:vinlmoe/MyAnimLab.git
     ```
     ```bash
-    cd MyVivarium
+    cd MyAnimLab
     ```
 
 2. **Configurez l’environnement :**
@@ -134,11 +147,11 @@ Arrêtez la session avec `docker compose down`. Pour effacer toutes les données
     - Renseignez dans `.env` les paramètres de la base de données et du SMTP. Voir [Configuration](#configuration).
 
 3. **Placez les fichiers du projet dans le dossier du serveur web :**
-    - Déplacez tout le contenu du dossier MyVivarium dans le dossier public de votre serveur web (par ex. `public_html`, `www`) :
+    - Copiez tout le contenu du dossier, fichiers cachés compris (`.htaccess`, `.env`), dans le dossier public de votre serveur web (par ex. `public_html`, `www`) :
         ```bash
-        mv * /chemin/vers/votre/public_html/
-        cp .env /chemin/vers/votre/public_html/
+        cp -a . /chemin/vers/votre/public_html/
         ```
+    - Le fichier `.htaccess` empêche Apache de servir `.env`, les dépendances, les scripts de base de données, les outils, les tests et les fichiers envoyés : il exige `AllowOverride All` sur ce dossier. Vérifiez après l’installation que `https://votre-domaine/.env` répond 403 ou 404.
 
 4. **Installez les dépendances avec Composer :**
     ```bash
@@ -150,19 +163,28 @@ Arrêtez la session avec `docker compose down`. Pour effacer toutes les données
         ```bash
         mysql -u votre_utilisateur -p
         ```
-    - Créez la base et importez le schéma :
+    - Créez la base et importez le schéma avec un compte administrateur de MySQL (le schéma crée des déclencheurs) :
         ```sql
         CREATE DATABASE myvivarium;
         USE myvivarium;
         SOURCE /chemin/vers/votre/public_html/database/schema.sql;
+        ```
+    - Donnez au compte de l’application les seuls droits sur les données (il ne peut ni modifier le schéma ni supprimer les déclencheurs qui protègent les journaux) :
+        ```sql
+        GRANT SELECT, INSERT, UPDATE, DELETE, CREATE TEMPORARY TABLES ON myvivarium.* TO 'votre_utilisateur'@'localhost';
         ```
     - Vous pouvez aussi utiliser une base de données existante :
         ```sql
         SOURCE /chemin/vers/votre/public_html/database/schema.sql;
         ```
 
-6. **Programmez des tâches cron pour `send_email.php` et `process_reminders.php` :**
-    Suivez les instructions du [blog Cloudways](https://www.cloudways.com/blog/schedule-cron-jobs-in-php/#run-a-cron-job-in-php) pour programmer une tâche cron exécutant `send_email.php`.
+6. **Programmez des tâches cron pour `send_email.php`, `process_reminders.php` et `daily_round_alert.php` :**
+    Ces scripts ne s’exécutent qu’en ligne de commande (ils refusent les requêtes web), par exemple :
+    ```
+    */5 * * * * php /chemin/vers/votre/public_html/process_reminders.php
+    */5 * * * * php /chemin/vers/votre/public_html/send_email.php
+    */5 * * * * php /chemin/vers/votre/public_html/daily_round_alert.php
+    ```
 
 7. **Réglez le propriétaire et les permissions (si nécessaire) :**
     ```bash
@@ -194,7 +216,7 @@ DB_DATABASE=myvivarium
 
 ## Capture d’écran
 
-![image](https://myvivarium.online/images/myvivarium.gif)
+![Accueil de MyAnimLab](docs/guides/img/u_accueil.jpg)
 
 ## Utilisation
 1. Ouvrez l’application dans votre navigateur :
@@ -222,7 +244,9 @@ Pour la configuration initiale, utilisez les identifiants administrateur par dé
 - `lang/fr.php` / `lang/en.php` : libellés de navigation et du profil, par clé.
 - `set_locale.php` : enregistre la langue choisie dans le menu de l’en-tête.
 - `config.php` : contient la configuration SMTP.
-- `session_config.php` : paramètre des sessions sécurisées (cookies HttpOnly, transmission HTTPS uniquement, protection CSRF, expiration après 30 minutes). Voir les commentaires du fichier pour le déploiement.
+- `session_config.php` : paramètre des sessions sécurisées (cookies HttpOnly, transmission HTTPS uniquement, expiration après inactivité) et protection CSRF : `csrf_token()` donne le jeton de la session, `csrf_valid()` vérifie qu’une requête POST le porte.
+- `db_lib.php` : requêtes préparées en un appel (`db_rows()`, `db_row()`, `db_value()`, `db_execute()`, `db_placeholders()` pour les listes `IN`) et messages d’erreur (`db_error_message()`, `error_message()`) : une erreur de base de données est écrite dans le journal du serveur, l’utilisateur ne voit qu’un message générique.
+- `.htaccess` : n’expose par Apache que les pages et ressources de l’application (voir « Sécurité du déploiement »).
 - `index.php` : point d’entrée de l’application, gère la connexion des utilisateurs.
 - `register.php` : l’auto-inscription est désactivée ; redirige vers la page de connexion (les comptes sont créés par les administrateurs dans `manage_users.php`).
 - `home.php` : page d’accueil avec message de bienvenue, statistiques des cages et notes générales.
@@ -245,18 +269,18 @@ Pour la configuration initiale, utilisez les identifiants administrateur par dé
 - `iot_sensors.php` : affiche les données des capteurs IoT de chaque salle dans des iframes.
 - `annual_report.php` : bilan annuel d’utilisation des animaux (administrateurs et responsables BEA) : effectifs, procédures terminées dans l’année par sévérité réelle, utilisation par autorisation de projet, sorties, animaux non utilisés ; export CSV par tableau ou ZIP.
 - `cage_dash.php` : tableau de bord commun à toutes les catégories de cages (hébergement, accouplement, expérimentation, toutes) : salle, rack, animaux vivants, recherche, filtre par salle et sélection groupée pour changer de salle / rack ou basculer entre hébergement et expérimentation. `hc_dash.php`, `bc_dash.php` et `ec_dash.php` l’ouvrent sur leur catégorie.
-- `cage_label_select.php` / `cage_labels.php` : étiquettes de cages (A6, quatre par feuille A4) avec la même mise en page pour toutes les catégories ; sélection par catégorie et salle, ou impression d’une sélection depuis un tableau de bord. Les anciennes adresses `hc_/bc_slct_crd.php` et `hc_/bc_prnt_crd.php` redirigent ici.
-- `cage_location.php` : applique un changement de salle / rack ou de catégorie à une ou plusieurs cages. Une cage d’hébergement devient aussi automatiquement une cage d’expérimentation (même numéro) lorsqu’un de ses animaux est inclus dans une expérience ou qu’un animal inclus y est déplacé.
+- `cage_label_select.php` / `cage_labels.php` : étiquettes de cages (A6, quatre par feuille A4) avec la même mise en page pour toutes les catégories ; sélection par catégorie et salle, ou impression d’une sélection depuis un tableau de bord. Les anciennes adresses `hc_/bc_slct_crd.php` et `hc_/bc_prnt_crd.php` redirigent ici. L’étiquette d’une cage d’accouplement porte un tableau « Portées — à compléter au crayon » : les portées en allaitement y sont imprimées, et des lignes vides reçoivent au crayon les naissances, morts et sevrages survenus depuis. La consigne imprimée demande de reporter chaque note dans le logiciel (QR code → portées) puis de cocher « Saisi » ; la page ouverte par le QR code d’une cage d’accouplement donne accès à l’enregistrement d’une naissance et aux décès et sevrage de chaque portée.
+- `cage_location.php` : applique un changement de salle / rack ou de catégorie à une ou plusieurs cages. Les administrateurs y changent aussi en lot la propriété des cages sélectionnées sur un tableau de bord : le responsable (fonction Principal Investigator) et les utilisateurs (ajouter, remplacer ou retirer des utilisateurs) ; chaque cage modifiée est inscrite au journal d’activité avec le responsable et les utilisateurs avant et après. Une cage d’hébergement devient aussi automatiquement une cage d’expérimentation (même numéro) lorsqu’un de ses animaux est inclus dans une expérience ou qu’un animal inclus y est déplacé.
 - `cage_view_parts.php` : sections Emplacement et Animaux communes à toutes les pages de cage.
 - `bc_dash.php` : tableau de bord des cages d’accouplement, avec recherche et pagination.
 - `bc_addn.php` : création des cages d’accouplement et des données de portée associées.
-- `bc_view.php` : affichage du détail d’une cage d’accouplement.
-- `bc_edit.php` : modification d’une cage d’accouplement, y compris les portées et l’envoi de fichiers.
+- `bc_view.php` : fiche d’une cage d’accouplement. En tête, l’encadré « Portées en cours » liste les portées non sevrées : date de naissance, âge en jours, petits vivants (morts enregistrées déduites), date de sevrage prévue (en rouge si elle est dépassée) et lien vers le sevrage. Les portées sevrées ou clôturées sont regroupées plus bas dans « Portées précédentes », des plus récentes aux plus anciennes.
+- `bc_edit.php` : ancienne page de modification, retirée ; l’adresse redirige vers la fiche de la cage.
 - `bc_drop.php` : suppression des cages d’accouplement et de leurs données.
 - `hc_dash.php` : tableau de bord des cages d’hébergement.
 - `hc_addn.php` : ajout de cages d’hébergement.
 - `hc_view.php` : affichage du détail d’une cage d’hébergement.
-- `hc_edit.php` : modification d’une cage d’hébergement.
+- `hc_edit.php` : ancienne page de modification, retirée ; l’adresse redirige vers la fiche de la cage.
 - `hc_drop.php` : suppression des cages d’hébergement.
 - `nt_app.php` : script principal de l’application de notes.
 - `nt_add.php` : ajout de notes.
@@ -266,7 +290,9 @@ Pour la configuration initiale, utilisez les identifiants administrateur par dé
 - `footer.php` : pied de page avec le nom du laboratoire et l’année en cours.
 - `message.php` : affiche les messages de session sous forme d’alertes Bootstrap.
 - `logout.php` : déconnecte l’utilisateur en détruisant la session et redirige vers la page de connexion.
-- `delete_file.php` : supprime les fichiers envoyés, sur le serveur et dans la base de données.
+- `cage_files_lib.php` / `file_upload.php` / `file_download.php` : fichiers joints aux cages, dans la section « Fichiers » de leur fiche (`hc_view.php`, `bc_view.php`). Les utilisateurs de la cage et les administrateurs ajoutent et suppriment les fichiers ; tout utilisateur connecté les télécharge. Un fichier (PDF, documents Office, texte, images, 10 Mo au plus) est contrôlé sur son contenu réel : un SVG, ou une page HTML renommée en `.png` ou `.pdf`, est refusé. Il est enregistré dans `uploads/` sous un nom aléatoire. `uploads/` n’est jamais servi par Apache : `file_download.php` envoie le fichier toujours en pièce jointe. Chaque ajout et chaque suppression sont tracés dans le journal d’activité. La limite de 10 Mo est réglée par `.htaccess` (`mod_php`), `.user.ini` (PHP-FPM) et l’image Docker.
+- `delete_file.php` : supprime un fichier de cage, sur le serveur et dans la base (POST avec jeton CSRF, utilisateur de la cage ou administrateur), et trace la suppression.
+- `export_for_v2.php` : export JSON des données pour la version 2 (administrateurs) ; les secrets (mots de passe hachés, jetons, secrets de double authentification, corps des e-mails) en sont exclus et chaque export est tracé.
 - `export_data.php` : permet aux administrateurs d’exporter toutes les tables de la base en fichiers CSV.
 - `log_export.php` : export des journaux bruts (activité, événements et mouvements des animaux, contrôles et cycle de vie des cages, portées, suivi sanitaire, actions de point limite, actes expérimentaux (définitions, informations demandées, statut par animal et par date, valeurs saisies), notifications, e-mails) tels qu’enregistrés, par journal en CSV ou tous en ZIP, avec filtre de dates ; réservé aux administrateurs et tracé dans le journal d’activité.
 - `manage_tasks.php` : gestion des tâches (ajout, modification, suppression).
@@ -278,7 +304,7 @@ Pour la configuration initiale, utilisez les identifiants administrateur par dé
 - `maintenance.php` : ajoute des entrées de maintenance aux cages, avec commentaire facultatif.
 - `get_reminder.php` : renvoie les rappels programmés enregistrés dans la base de données.
 - `manage_reminder.php` : gestion des rappels (ajout, modification, suppression).
-- `process_reminders.php` : traite les rappels programmés et crée les tâches correspondantes ; à exécuter en tâche cron.
+- `process_reminders.php` : traite les rappels programmés et crée les tâches correspondantes ; à exécuter en tâche cron. Chaque matin (heure des rappels de Gérer le laboratoire, 07:30 par défaut), il envoie aussi les rappels de sevrage : les portées à sevrer le jour même ou le lendemain sont signalées aux utilisateurs de la cage (aux administrateurs si la cage n’en a pas) ; les sevrages en retard le sont aussi aux administrateurs et responsables BEA, par notification et e-mail.
 - `daily_round_alert.php` : alerte de fin de journée envoyée aux administrateurs avec les cages non vues lors de la tournée quotidienne ; à lancer par cron toutes les quelques minutes (par ex. `*/5 * * * * php /chemin/vers/daily_round_alert.php`). Elle n’est envoyée qu’une fois par jour, après l’heure définie dans Gérer le laboratoire.
 
 ## Site de démonstration
@@ -346,13 +372,13 @@ Ce projet est distribué sous licence LGPL — voir le fichier [LICENSE](LICENSE
 
 ## Tests automatisés
 
-Les tests sont écrits avec PHPUnit (`composer install`, puis `vendor/bin/phpunit` ou `composer test`) :
+L’analyse statique utilise PHPStan (`composer analyse`, configuration `phpstan.neon`, niveau 0 sans erreur). Les tests sont écrits avec PHPUnit (`composer install`, puis `vendor/bin/phpunit` ou `composer test`) :
 
-- `tests/Unit` : fonctions sans base de données (nombres, doses selon le poids, redirections, traductions), compilation de tous les fichiers PHP, traduction française de chaque texte de l’interface, démarrage des sessions par `session_config.php`, numérotation des migrations ;
-- `tests/Integration` : actes expérimentaux (planification, confirmation, débit du stock, refus, correction et recrédit, encadrant exigé), validation des cages en essai, livrets de formation (fonctions, formation continue, échéances, diplôme) ;
-- `tests/Http` : serveur PHP intégré sur la base de test, connexion réelle par la page de login, ouverture de toutes les pages par un administrateur et un utilisateur sans erreur PHP, pages refusées aux visiteurs non connectés et aux non-administrateurs, jetons CSRF, notes modifiables par leur seul auteur, expiration de session.
+- `tests/Unit` : fonctions sans base de données (nombres, doses selon le poids, redirections, traductions), compilation de tous les fichiers PHP, traduction française de chaque texte de l’interface, démarrage des sessions par `session_config.php`, numérotation des migrations et leur enregistrement dans `schema.sql`, valeurs SQL toujours liées (aucune requête construite avec une valeur), jetons CSRF vérifiés par `csrf_valid()`, scripts cron refusant le web, règles du `.htaccess` ;
+- `tests/Integration` : actes expérimentaux (planification, confirmation, débit du stock, refus, correction et recrédit, encadrant exigé), validation des cages en essai, livrets de formation (fonctions, formation continue, échéances, diplôme), journaux en ajout seul et corrections des suivis, corrections du registre des entrées et sorties, protection des prescriptions et administrations, outil de migrations ;
+- `tests/Http` : serveur PHP intégré sur la base de test, connexion réelle par la page de login, ouverture de toutes les pages par un administrateur et un utilisateur sans erreur PHP, pages refusées aux visiteurs non connectés et aux non-administrateurs, jetons CSRF, notes modifiables par leur seul auteur, expiration de session, téléchargement des fichiers de cage, correction d’un suivi avec motif, export V2 sans secrets, scripts cron refusés par HTTP, corrections du registre réservées aux administrateurs avec motif, ajout (contenu contrôlé), téléchargement et suppression des fichiers de cage.
 
-Les tests d’intégration et HTTP utilisent un serveur MySQL / MariaDB où ils créent une base jetable à partir de `database/schema.sql` (jamais la base du `.env`) : `TEST_DB_HOST` (127.0.0.1), `TEST_DB_PORT` (3306), `TEST_DB_USER` (root), `TEST_DB_PASSWORD` (vide) et `TEST_DB_NAME` (`myanimlab_test`, qui doit contenir « test »). Sans serveur joignable, ils sont ignorés et seuls les tests unitaires s’exécutent. Le workflow `.github/workflows/tests.yml` les lance tous sur GitHub à chaque push.
+Les tests d’intégration et HTTP utilisent un serveur MySQL / MariaDB où ils créent une base jetable à partir de `database/schema.sql` (jamais la base du `.env`) : `TEST_DB_HOST` (127.0.0.1), `TEST_DB_PORT` (3306), `TEST_DB_USER` (root), `TEST_DB_PASSWORD` (vide) et `TEST_DB_NAME` (`myanimlab_test`, qui doit contenir « test »). Sans serveur joignable, ils sont ignorés et seuls les tests unitaires s’exécutent. Le workflow `.github/workflows/tests.yml` lance sur GitHub, à chaque push, l’audit des dépendances (`composer audit`), PHPStan puis tous les tests.
 
 ## Sessions
 
@@ -374,3 +400,12 @@ Toutes les pages démarrent leur session par `session_config.php` : cookie HttpO
 - **Captures** : les animaux capturés deviennent des animaux identifiés de la lignée, numérotés automatiquement à la suite (identifiants affichés avant validation ; origine « capturé dans une population de l’établissement » au registre des entrées). Une capture se répartit par cage : une ligne par cage (nouvelle cage d’hébergement ou cage existante, nombre d’animaux, sexe), avec un remplissage rapide (ex. 3 cages de 4 animaux) et le poids individuel de chaque animal (facultatif, repris comme poids de référence en cas d’inclusion et affiché sur la fiche de l’animal ; migration `034_terrarium_capture_weight.sql`), et peuvent être inclus aussitôt dans une expérimentation (contrôles de l’autorisation de projet et des animaux autorisés, poids de référence).
 - **Rappels** : `process_reminders.php` signale une fois par semaine au plus les recensements et contrôles sanitaires en retard selon les fréquences du terrarium (30 et 90 jours par défaut, 0 = pas de rappel).
 - Les journaux, traitements et contrôles sanitaires figurent dans l’export brut des journaux (`log_export.php`).
+
+## Sécurité du déploiement et mises à jour de la base
+
+- **Fichiers servis** : le dossier de l’application est la racine du site. Le `.htaccess` refuse `.env` et les fichiers cachés, `composer.*`, les fichiers `.sql`, `.sh`, `.md`, les bibliothèques (`*_lib.php`, `dbcon.php`, `config.php`…) et les scripts cron, et répond 404 pour `vendor/`, `database/`, `tools/`, `setup/`, `tests/`, `docker/`, `docs/`, `lang/`, `storage/` et `uploads/`. `setup/setup.sh` et l’image Docker locale activent `AllowOverride All`. L’installation donne au compte MySQL de l’application les seuls droits sur les données, rend `.env` lisible par Apache seul et crée `uploads/` en 750.
+- **Journaux en ajout seul** : le journal d’activité, les événements et mouvements des animaux, les événements de portées et de terrariums, les mouvements de stock, les corrections d’actes et de suivis refusent toute modification ou suppression au niveau de la base (déclencheurs, comme le registre sanitaire, les contrôles et le cycle de vie des cages). Seule la suppression d’un animal ou d’un utilisateur par un administrateur retire, par cascade, les lignes qui lui sont rattachées.
+- **Correction d’un suivi expérimental** : enregistrer de nouveau un jour déjà saisi est une correction. Le motif est obligatoire ; les valeurs remplacées (poids, scores de la grille, observations, auteur et date de saisie) sont conservées et affichées dans la consultation du suivi (« Corrections de ce suivi »), le jour est marqué « corrigé » dans l’historique, et la correction est tracée dans le journal d’activité et l’export brut des journaux (migration `035_followup_revisions_append_only_logs.sql`).
+- **Mises à jour de la base** : `php tools/migrate.php` applique, dans l’ordre, les migrations de `database/migrations` qui ne le sont pas encore et les enregistre dans la table `schema_migrations` (`--status` les liste). `database/schema.sql` crée une base à jour. Pour une base créée avant cet outil, indiquez une fois la dernière migration déjà appliquée : `php tools/migrate.php --baseline=034`. Les migrations créent des tables et des déclencheurs : renseignez `MIGRATION_DB_USERNAME` et `MIGRATION_DB_PASSWORD` (dans `.env` ou l’environnement) avec un compte administrateur de la base.
+- **Corrections du registre des entrées et sorties** : un administrateur corrige l’entrée d’un animal (provenance, fournisseur, référence, date) ou sa sortie (code et donc statut, date, circonstances, destination) depuis sa fiche, avec un motif obligatoire. Les valeurs remplacées et les nouvelles sont conservées dans `record_corrections` (ajout seul) et affichées sur la fiche et le dossier BEA de l’animal. L’animal porte la mention « corrigé » dans le registre, et les corrections figurent dans l’export brut des journaux. Les inclusions en expérience clôturées par la sortie suivent sa date et son code (`corrections_lib.php`, migration `036_register_corrections_prescriptions_protected.sql`).
+- **Prescriptions et administrations** : une prescription et ses animaux ne peuvent plus être modifiés ni supprimés au niveau de la base (seul le statut peut évoluer). Une administration de médicament ne peut pas être supprimée et ne peut être qu’annulée une fois, avec un motif ; l’administration d’origine reste telle qu’enregistrée.

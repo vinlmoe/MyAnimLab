@@ -527,6 +527,31 @@ function retire_cage(mysqli $con, string $cageId, string $reason, ?int $userId =
     return true;
 }
 
+// Put an archived cage back in service (administrators). Only a cage that
+// still houses active animals can be restored, e.g. after an exit recorded
+// by mistake was corrected; the reason is kept in the cage lifecycle and the
+// activity log.
+function restore_cage(mysqli $con, string $cageId, string $reason, ?int $userId = null, ?string $userName = null): void
+{
+    $reason = trim($reason);
+    if ($reason === '') {
+        throw new Exception(tr('Give the reason for putting the cage back in service.'));
+    }
+    if (cage_active_animal_count($con, $cageId) === 0) {
+        throw new Exception(tr('Cage {id} has no active animal: an empty cage cannot be put back in service.', ['id' => $cageId]));
+    }
+    $stmt = $con->prepare("UPDATE cages SET status = 'active' WHERE cage_id = ? AND status = 'archived'");
+    $stmt->bind_param("s", $cageId);
+    $stmt->execute();
+    $restored = $stmt->affected_rows === 1;
+    $stmt->close();
+    if (!$restored) {
+        throw new Exception(tr('Cage {id} is not archived; nothing to restore.', ['id' => $cageId]));
+    }
+    log_cage_lifecycle($con, $cageId, 'restored', $reason, $userId, $userName);
+    log_activity($con, 'restore', 'cage', $cageId, tr('Cage restored from archive.') . ' ' . $reason, $userId);
+}
+
 // Cages due on $date that have not been seen, grouped by room ('' = no room).
 function unseen_cages_by_room(mysqli $con, string $date): array
 {
@@ -1016,6 +1041,96 @@ function cage_nursing_litters(mysqli $con, string $cageId): int
     return (int) $n;
 }
 
+/**
+ * Weaning reminders (called by process_reminders.php, once a day after the
+ * morning reminder time of Manage Lab, 07:30 by default):
+ *  - litters to wean today or tomorrow: to the users of their cage (to the
+ *    administrators when the cage has none);
+ *  - litters whose weaning is overdue: to the users of their cage and to
+ *    the administrators and BEA responsibles.
+ * One notification and one e-mail per person. Returns the number of people
+ * notified.
+ */
+function litters_send_weaning_reminders(mysqli $con, ?string $now = null): int
+{
+    $now ??= date('Y-m-d H:i');
+    $today = substr($now, 0, 10);
+    $time = (string) (db_value($con, "SELECT value FROM settings WHERE name = 'acts_reminder_time'") ?? '07:30');
+    if (!preg_match('/^\d{2}:\d{2}$/', $time)) {
+        $time = '07:30';
+    }
+    $last = (string) (db_value($con, "SELECT value FROM settings WHERE name = 'weaning_reminders_last'") ?? '');
+    if ($last === $today || substr($now, 11, 5) < $time) {
+        return 0;
+    }
+    db_execute($con, "INSERT INTO settings (name, value) VALUES ('weaning_reminders_last', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)", 's', [$today]);
+
+    $tomorrow = date('Y-m-d', strtotime($today . ' +1 day'));
+    $litters = db_rows(
+        $con,
+        "SELECT l.id, l.cage_id, l.litter_dob, l.expected_weaning_date FROM litters l JOIN cages c ON c.cage_id = l.cage_id
+         WHERE l.status = 'nursing' AND l.expected_weaning_date IS NOT NULL AND l.expected_weaning_date <= ? AND c.status = 'active'
+         ORDER BY l.expected_weaning_date, l.cage_id",
+        's',
+        [$tomorrow]
+    );
+    if (!$litters) {
+        return 0;
+    }
+    $cageUsers = [];
+    foreach (db_rows($con, 'SELECT cu.cage_id, cu.user_id FROM cage_users cu JOIN users u ON u.id = cu.user_id WHERE u.status = ?', 's', ['approved']) as $cu) {
+        $cageUsers[$cu['cage_id']][] = (int) $cu['user_id'];
+    }
+    $admins = array_map('intval', array_column(db_rows($con, "SELECT id FROM users WHERE status = 'approved' AND role = 'admin'"), 'id'));
+    $privileged = array_map('intval', array_column(db_rows($con, "SELECT id FROM users WHERE status = 'approved' AND (role = 'admin' OR is_bea_responsible = 1)"), 'id'));
+
+    // [user id => ['due' => [lines], 'overdue' => [lines], 'cages' => [cage ids]]]
+    $byUser = [];
+    foreach ($litters as $l) {
+        $kind = $l['expected_weaning_date'] < $today ? 'overdue' : 'due';
+        $line = tr('cage {cage}, born {dob}, weaning expected {date}', ['cage' => $l['cage_id'], 'dob' => $l['litter_dob'] ?? '?', 'date' => $l['expected_weaning_date']]);
+        $recipients = $cageUsers[$l['cage_id']] ?? [];
+        if ($kind === 'overdue') {
+            $recipients = array_merge($recipients, $privileged);
+        } elseif (!$recipients) {
+            $recipients = $admins;
+        }
+        foreach (array_unique($recipients) as $userId) {
+            $byUser[$userId][$kind][] = $line;
+            $byUser[$userId]['cages'][$l['cage_id']] = true;
+        }
+    }
+
+    $emails = array_column(db_rows($con, "SELECT id, username FROM users WHERE status = 'approved'"), 'username', 'id');
+    $notified = 0;
+    foreach ($byUser as $userId => $kinds) {
+        if (!isset($emails[$userId])) {
+            continue;
+        }
+        $nDue = count($kinds['due'] ?? []);
+        $nOverdue = count($kinds['overdue'] ?? []);
+        $title = $nOverdue
+            ? tr('{n} litter(s): weaning overdue', ['n' => $nOverdue]) . ($nDue ? ' · ' . tr('{n} to wean today or tomorrow', ['n' => $nDue]) : '')
+            : tr('{n} litter(s) to wean today or tomorrow', ['n' => $nDue]);
+        $lines = [];
+        foreach (['overdue' => tr('Weaning overdue'), 'due' => tr('To wean today or tomorrow')] as $kind => $heading) {
+            if (!empty($kinds[$kind])) {
+                $lines[] = $heading . ' :';
+                foreach ($kinds[$kind] as $line) {
+                    $lines[] = '• ' . $line;
+                }
+            }
+        }
+        $cages = array_keys($kinds['cages']);
+        $link = count($cages) === 1 ? 'litter_manage.php?cage_id=' . rawurlencode((string) $cages[0]) : 'home.php#littersToWean';
+        create_notification($con, (int) $userId, $title, implode("\n", array_slice($lines, 0, 12)), $link, 'reminder');
+        $body = nl2br(htmlspecialchars(implode("\n", $lines))) . '<br><br>' . htmlspecialchars(tr('Record the weaning on the litter page (breeding cage → Litters: birth → weaning).'));
+        db_execute($con, 'INSERT INTO outbox (recipient, subject, body, scheduled_at) VALUES (?, ?, ?, NOW())', 'sss', [$emails[$userId], $title, $body]);
+        $notified++;
+    }
+    return $notified;
+}
+
 // Create an active holding cage (auto cage_id) with its lifecycle, users and
 // creation check. Returns the new cage_id. Caller handles the transaction.
 function create_holding_cage(mysqli $con, ?int $piId, ?string $room, ?string $rack, ?string $dob, array $userIds, string $why, ?int $userId, ?string $userName): string
@@ -1125,6 +1240,84 @@ function move_cages_to_room(mysqli $con, array $cageIds, string $room, ?string $
     }
     $select->close();
     $update->close();
+    return $changed;
+}
+
+/**
+ * Change the ownership of active cages (administrators, from the cage
+ * dashboards' group selection): their responsible (PI) and/or their users.
+ *  - $piId: new responsible, null to leave it unchanged;
+ *  - $userIds with $usersMode: 'add' (added to the current users),
+ *    'replace' (become the only users), 'remove' (taken off), 'keep'.
+ * The responsible must be an approved user with the Principal Investigator
+ * position; the users must be approved. Each changed cage is logged with
+ * its responsible and users before and after. Returns the number of cages
+ * changed. Throws on invalid input.
+ */
+function set_cages_ownership(mysqli $con, array $cageIds, ?int $piId, array $userIds, string $usersMode, ?int $byUserId): int
+{
+    if (!in_array($usersMode, ['keep', 'add', 'replace', 'remove'], true)) {
+        throw new Exception(tr('Unknown action.'));
+    }
+    $userIds = array_values(array_unique(array_filter(array_map('intval', $userIds))));
+    if ($usersMode !== 'keep' && $usersMode !== 'replace' && !$userIds) {
+        throw new Exception(tr('Choose the users to add or remove.'));
+    }
+    if ($piId === null && $usersMode === 'keep') {
+        throw new Exception(tr('Choose a new responsible or the users to change.'));
+    }
+    if ($piId !== null && !db_value($con, "SELECT 1 FROM users WHERE id = ? AND status = 'approved' AND position = 'Principal Investigator'", 'i', [$piId])) {
+        throw new Exception(tr('The responsible must be an approved user with the Principal Investigator position.'));
+    }
+    if ($userIds) {
+        $valid = array_map('intval', array_column(db_rows($con, "SELECT id FROM users WHERE status = 'approved' AND id IN (" . db_placeholders(count($userIds)) . ")", str_repeat('i', count($userIds)), $userIds), 'id'));
+        if (count($valid) !== count($userIds)) {
+            throw new Exception(tr('Only approved users can be assigned to a cage.'));
+        }
+    }
+    $names = array_column(db_rows($con, 'SELECT id, name FROM users'), 'name', 'id');
+    $describe = function (?int $pi, array $users) use ($names): string {
+        sort($users);
+        return tr('responsible: {pi}; users: {users}', [
+            'pi' => $pi ? ($names[$pi] ?? "#$pi") : '—',
+            'users' => $users ? implode(', ', array_map(fn($u) => $names[$u] ?? "#$u", $users)) : '—',
+        ]);
+    };
+
+    $changed = 0;
+    foreach (array_unique($cageIds) as $cageId) {
+        $cage = db_row($con, "SELECT pi_name FROM cages WHERE cage_id = ? AND status = 'active' FOR UPDATE", 's', [$cageId]);
+        if (!$cage) {
+            continue;
+        }
+        $oldPi = $cage['pi_name'] !== null ? (int) $cage['pi_name'] : null;
+        $oldUsers = array_map('intval', array_column(db_rows($con, 'SELECT user_id FROM cage_users WHERE cage_id = ?', 's', [$cageId]), 'user_id'));
+        $newPi = $piId ?? $oldPi;
+        $newUsers = match ($usersMode) {
+            'add' => array_values(array_unique(array_merge($oldUsers, $userIds))),
+            'replace' => $userIds,
+            'remove' => array_values(array_diff($oldUsers, $userIds)),
+            default => $oldUsers,
+        };
+        $sortedOld = $oldUsers;
+        $sortedNew = $newUsers;
+        sort($sortedOld);
+        sort($sortedNew);
+        if ($newPi === $oldPi && $sortedOld === $sortedNew) {
+            continue;
+        }
+        if ($newPi !== $oldPi) {
+            db_execute($con, 'UPDATE cages SET pi_name = ? WHERE cage_id = ?', 'is', [$newPi, $cageId]);
+        }
+        foreach (array_diff($oldUsers, $newUsers) as $u) {
+            db_execute($con, 'DELETE FROM cage_users WHERE cage_id = ? AND user_id = ?', 'si', [$cageId, $u]);
+        }
+        foreach (array_diff($newUsers, $oldUsers) as $u) {
+            db_execute($con, 'INSERT INTO cage_users (cage_id, user_id) VALUES (?, ?)', 'si', [$cageId, $u]);
+        }
+        log_activity($con, 'cage_ownership', 'cage', $cageId, $describe($oldPi, $oldUsers) . ' → ' . $describe($newPi, $newUsers), $byUserId);
+        $changed++;
+    }
     return $changed;
 }
 

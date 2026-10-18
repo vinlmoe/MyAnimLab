@@ -22,9 +22,6 @@ if (!isset($_SESSION['name'])) {
 }
 
 // Generate CSRF token if not already set
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 
 // Get the current user ID and name from the session
 $currentUserId = $_SESSION['user_id'] ?? null;
@@ -83,7 +80,7 @@ $users = $userResult ? array_column($userResult->fetch_all(MYSQLI_ASSOC), 'name'
 // Handle form submission for adding, editing, or deleting tasks
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Validate CSRF token
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
 
@@ -106,7 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $task_id = $stmt->insert_id; // Get the last inserted task ID
             $taskAction = 'added';
         } else {
-            redirectToPage(tr('Error: {error}', ['error' => $stmt->error]));
+            redirectToPage(db_error_message($stmt->error));
         }
     } elseif (isset($_POST['edit'])) {
         $id = htmlspecialchars($_POST['id']);
@@ -116,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $task_id = $id; // Use the ID of the task being updated
             $taskAction = 'updated';
         } else {
-            redirectToPage(tr('Error: {error}', ['error' => $stmt->error]));
+            redirectToPage(db_error_message($stmt->error));
         }
     } elseif (isset($_POST['delete'])) {
         $id = htmlspecialchars($_POST['id']);
@@ -136,7 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $task_id = NULL; // Set task_id to NULL for deletion case
             $taskAction = 'deleted';
         } else {
-            redirectToPage(tr('Error: {error}', ['error' => $stmt->error]));
+            redirectToPage(db_error_message($stmt->error));
         }
     }
 
@@ -168,7 +165,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $timezoneQuery = "SELECT value FROM settings WHERE name = 'timezone'";
     $timezoneResult = mysqli_query($con, $timezoneQuery);
     $timezoneRow = mysqli_fetch_assoc($timezoneResult);
-    $timezone = $timezoneRow['value'] ?? 'America/New_York';
+    $timezone = $timezoneRow['value'] ?? 'Europe/Paris';
 
     // Set the default timezone
     date_default_timezone_set($timezone);

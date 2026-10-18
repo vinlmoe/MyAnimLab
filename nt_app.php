@@ -22,9 +22,6 @@ if (!isset($_SESSION['username'])) {
 }
 
 $currentUserId = $_SESSION['user_id']; // Assuming 'username' is the user's identifier
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 
 // For retrieving notes by cage_id
 if (isset($_GET['id'])) {

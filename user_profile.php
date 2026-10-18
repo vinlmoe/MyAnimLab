@@ -27,9 +27,6 @@ if (!isset($_SESSION['username'])) {
 require 'header.php'; // Include the header file (also sets $url from the settings)
 
 // Generate CSRF token if not already set
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 
 // Fetch user details from the database
 $username = $_SESSION['username'];
@@ -101,7 +98,7 @@ function ensureUniqueInitials($con, $initials, $currentUsername)
 // Handle form submission for profile update
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_profile'])) {
     // Validate CSRF token
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
 
@@ -166,7 +163,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_profile'])) {
 $resultMessage = ''; // Initialize message for password reset
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
     // Validate CSRF token
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
 

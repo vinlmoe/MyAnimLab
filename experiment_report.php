@@ -45,7 +45,7 @@ if (!$exp) {
 }
 
 $grid = $exp['clinical_grid_id'] ? load_clinical_grid($con, (int) $exp['clinical_grid_id']) : null;
-$thresholds = $con->query("SELECT * FROM protocol_endpoint_thresholds WHERE protocol_id = " . (int) $exp['protocol_id'])->fetch_all(MYSQLI_ASSOC);
+$thresholds = db_rows($con, "SELECT * FROM protocol_endpoint_thresholds WHERE protocol_id = ?", 'i', [(int) $exp['protocol_id']]);
 $obsFields = protocol_observation_fields($con, (int) $exp['protocol_id'], true);
 
 $animals = $con->prepare(
@@ -62,17 +62,19 @@ $animals = $animals->get_result()->fetch_all(MYSQLI_ASSOC);
 $followups = $scores = $actions = [];
 $itemLabels = $grid ? array_column($grid['items'], 'label') : [];
 if ($animals) {
-    $eaIds = implode(',', array_map('intval', array_column($animals, 'id')));
-    foreach ($con->query("SELECT f.*, u.name AS recorded_by_name FROM experiment_followups f LEFT JOIN users u ON u.id = f.recorded_by WHERE f.experiment_animal_id IN ($eaIds) ORDER BY f.observed_at") as $f) {
+    $eaIds = array_map('intval', array_column($animals, 'id'));
+    $eaIn = db_placeholders(count($eaIds));
+    $eaTypes = str_repeat('i', count($eaIds));
+    foreach (db_rows($con, "SELECT f.*, u.name AS recorded_by_name FROM experiment_followups f LEFT JOIN users u ON u.id = f.recorded_by WHERE f.experiment_animal_id IN ($eaIn) ORDER BY f.observed_at", $eaTypes, $eaIds) as $f) {
         $followups[$f['experiment_animal_id']][] = $f;
     }
-    foreach ($con->query("SELECT s.* FROM experiment_followup_scores s JOIN experiment_followups f ON f.id = s.followup_id WHERE f.experiment_animal_id IN ($eaIds) ORDER BY s.id") as $s) {
+    foreach (db_rows($con, "SELECT s.* FROM experiment_followup_scores s JOIN experiment_followups f ON f.id = s.followup_id WHERE f.experiment_animal_id IN ($eaIn) ORDER BY s.id", $eaTypes, $eaIds) as $s) {
         $scores[$s['followup_id']][$s['item_label']] = $s;
         if (!in_array($s['item_label'], $itemLabels, true)) {
             $itemLabels[] = $s['item_label']; // item of an earlier grid version
         }
     }
-    foreach ($con->query("SELECT * FROM endpoint_actions WHERE experiment_animal_id IN ($eaIds) ORDER BY created_at") as $a) {
+    foreach (db_rows($con, "SELECT * FROM endpoint_actions WHERE experiment_animal_id IN ($eaIn) ORDER BY created_at", $eaTypes, $eaIds) as $a) {
         $actions[$a['experiment_animal_id']][] = $a;
     }
 }
@@ -82,7 +84,7 @@ if ($animals) {
 $obsColumns = array_map(fn($f) => $f['label'] . ($f['unit'] ? " ({$f['unit']})" : ''), array_filter($obsFields, fn($f) => $f['active']));
 $obsByFollowup = [];
 if ($animals) {
-    foreach ($con->query("SELECT o.* FROM experiment_followup_observations o JOIN experiment_followups f ON f.id = o.followup_id WHERE f.experiment_animal_id IN ($eaIds) ORDER BY o.id") as $o) {
+    foreach (db_rows($con, "SELECT o.* FROM experiment_followup_observations o JOIN experiment_followups f ON f.id = o.followup_id WHERE f.experiment_animal_id IN ($eaIn) ORDER BY o.id", $eaTypes, $eaIds) as $o) {
         if ($o['field_id'] !== null) {
             $col = $o['label'] . ($o['unit'] ? " ({$o['unit']})" : '');
             $obsByFollowup[$o['followup_id']]['fields'][$col] = $o;

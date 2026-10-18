@@ -1,0 +1,29 @@
+# Apache: only the application's pages and assets are served.
+#
+# The application's folder is the web root (setup/setup.sh), so the
+# configuration (.env), the dependencies, the database scripts, the tools,
+# the tests and the uploaded cage files must not be reachable by URL. Cage
+# files are downloaded through file_download.php, which checks the user.
+# Requires AllowOverride All (setup/setup.sh, Dockerfile.local).
+
+Options -Indexes
+
+# Cage files up to 10 MB (cage_files_lib.php). PHP-FPM reads .user.ini.
+<IfModule mod_php.c>
+    php_value upload_max_filesize 10M
+    php_value post_max_size 12M
+</IfModule>
+
+# Folders: answered as if they did not exist.
+RedirectMatch 404 "/(\.git|\.github|vendor|database|docker|docs|lang|setup|storage|tests|tools|uploads)(/|$)"
+
+# Hidden files (.env, .htaccess, .gitignore...), configuration, scripts,
+# documentation and dependency files.
+<FilesMatch "(^\.|\.(sql|sh|md|lock|log|ini|xml|dist|cache)$|^composer\.json$|^Dockerfile|^compose\.yaml$|^LICENSE$)">
+    Require all denied
+</FilesMatch>
+
+# Included files and command-line (cron) scripts: never opened directly.
+<FilesMatch "^((config|dbcon|session_config|i18n|header|footer|brand_banner|message|cage_view_parts|terrarium_form_fields)\.php|.+_lib\.php|(process_reminders|send_email|daily_round_alert)\.php)$">
+    Require all denied
+</FilesMatch>

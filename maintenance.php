@@ -24,9 +24,6 @@ if (!isset($_SESSION['username'])) {
 }
 
 // Generate a CSRF token if it doesn't exist
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 
 // Capture the 'from' query parameter for redirection purposes
 $redirectFrom = isset($_GET['from']) ? $_GET['from'] : 'hc_dash';
@@ -46,7 +43,7 @@ while ($cageRow = $cageResult->fetch_assoc()) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Validate CSRF token
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
 

@@ -21,8 +21,8 @@ final class PagesTest extends TestCase
     // sign out.
     private const NOT_PAGES = [
         'animal_lib.php', 'cage_view_parts.php', 'config.php', 'daily_round_alert.php', 'dbcon.php', 'ethics_lib.php',
-        'experiment_acts_lib.php', 'export_for_v2.php', 'footer.php', 'header.php', 'i18n.php', 'logout.php', 'message.php',
-        'notes_lib.php', 'auth_lib.php', 'pdf_lib.php', 'process_reminders.php', 'send_email.php', 'session_config.php', 'training_lib.php', 'terrarium_lib.php', 'terrarium_form_fields.php',
+        'experiment_acts_lib.php', 'export_for_v2.php', 'footer.php', 'header.php', 'brand_banner.php', 'i18n.php', 'logout.php', 'message.php',
+        'notes_lib.php', 'auth_lib.php', 'cage_files_lib.php', 'followup_lib.php', 'db_lib.php', 'corrections_lib.php', 'pdf_lib.php', 'process_reminders.php', 'send_email.php', 'session_config.php', 'training_lib.php', 'terrarium_lib.php', 'terrarium_form_fields.php', 'medication_lib.php',
     ];
     private const PUBLIC_PAGES = ['confirm_email.php', 'forgot_password.php', 'index.php', 'register.php', 'reset_password.php'];
 
@@ -79,7 +79,7 @@ final class PagesTest extends TestCase
         }
     }
 
-    /** GET or POST; returns [status, body, location]. */
+    /** GET or POST; returns [status, body, location, headers]. */
     private function request(string $path, ?string $jar, array $post = null): array
     {
         $ch = curl_init('http://127.0.0.1:' . self::$port . '/' . $path);
@@ -95,7 +95,7 @@ final class PagesTest extends TestCase
         $headerSize = (int) curl_getinfo($ch, CURLINFO_HEADER_SIZE);
         curl_close($ch);
         preg_match('/^Location:\s*(.+)$/mi', substr($raw, 0, $headerSize), $m);
-        return [$status, substr($raw, $headerSize), trim($m[1] ?? '')];
+        return [$status, substr($raw, $headerSize), trim($m[1] ?? ''), substr($raw, 0, $headerSize)];
     }
 
     /** Sign in through the login form; returns the cookie jar. */
@@ -298,5 +298,294 @@ final class PagesTest extends TestCase
             $con->query("UPDATE settings SET value = '0' WHERE name = 'require_2fa_privileged'");
             @unlink($jar);
         }
+    }
+
+    public function testCageFilesAreDownloadedBySignedInUsersOnly(): void
+    {
+        $con = TestDatabase::connection();
+        $cage = TestDatabase::cage($con, false);
+        @mkdir(APP_ROOT . '/uploads', 0750);
+        $stored = 'uploads/' . bin2hex(random_bytes(16)) . '.txt';
+        file_put_contents(APP_ROOT . '/' . $stored, '<script>alert(1)</script>');
+        try {
+            $s = $con->prepare("INSERT INTO files (file_name, file_path, cage_id) VALUES ('notes.txt', ?, ?)");
+            $s->bind_param('ss', $stored, $cage);
+            $s->execute();
+            $fileId = (int) $con->insert_id;
+            // A recorded path is never followed outside uploads/.
+            $s = $con->prepare("INSERT INTO files (file_name, file_path, cage_id) VALUES ('env', '.env', ?)");
+            $s->bind_param('s', $cage);
+            $s->execute();
+            $outsideId = (int) $con->insert_id;
+
+            [$status, , $location] = $this->request("file_download.php?id=$fileId", null);
+            $this->assertSame(302, $status);
+            $this->assertStringContainsString('index.php', $location);
+
+            $jar = $this->login('user');
+            [$status, $body, , $headers] = $this->request("file_download.php?id=$fileId", $jar);
+            $this->assertSame(200, $status);
+            $this->assertSame('<script>alert(1)</script>', $body);
+            $this->assertMatchesRegularExpression('/^Content-Disposition: attachment; filename="notes\.txt"/mi', $headers);
+            $this->assertMatchesRegularExpression('/^Content-Type: text\/plain/mi', $headers);
+            $this->assertMatchesRegularExpression('/^X-Content-Type-Options: nosniff/mi', $headers);
+            [$status] = $this->request("file_download.php?id=$outsideId", $jar);
+            $this->assertSame(404, $status);
+            @unlink($jar);
+        } finally {
+            @unlink(APP_ROOT . '/' . $stored);
+        }
+    }
+
+    public function testCorrectingAFollowupRequiresAReasonAndKeepsTheReplacedValues(): void
+    {
+        $con = TestDatabase::connection();
+        $animal = TestDatabase::animal($con, TestDatabase::cage($con));
+        $enrollment = TestDatabase::enroll($con, TestDatabase::experiment($con), $animal);
+        $page = "experiment_followup.php?experiment_animal_id=$enrollment";
+        $jar = $this->login('admin');
+        [, $body] = $this->request($page, $jar);
+        $entry = fn(string $weight, array $more = []): array => [
+            'csrf_token' => $this->pageToken($body), 'experiment_animal_id' => $enrollment,
+            'observed_at' => date('Y-m-d'), 'weight_g' => $weight, 'clinical_score' => '1', 'observations' => '',
+        ] + $more;
+        $weight = fn() => TestDatabase::value($con, "SELECT weight_g FROM experiment_followups WHERE experiment_animal_id = $enrollment");
+        $revisions = fn() => (int) TestDatabase::value($con, "SELECT COUNT(*) FROM experiment_followup_revisions r JOIN experiment_followups f ON f.id = r.followup_id WHERE f.experiment_animal_id = $enrollment");
+
+        $this->request($page, $jar, $entry('24'));
+        $this->assertSame('24.00', $weight());
+
+        // Same day again without a reason: refused, nothing changed.
+        $this->request($page, $jar, $entry('22'));
+        $this->assertSame('24.00', $weight());
+        $this->assertSame(0, $revisions());
+
+        // With a reason: corrected, the replaced weight is kept.
+        $this->request($page, $jar, $entry('22', ['revision_reason' => 'wrong animal weighed']));
+        $this->assertSame('22.00', $weight());
+        $this->assertSame(1, $revisions());
+        $followupId = (int) TestDatabase::value($con, "SELECT id FROM experiment_followups WHERE experiment_animal_id = $enrollment");
+        [, $view] = $this->request("experiment_followup_view.php?id=$followupId", $jar);
+        $this->assertStringContainsString('wrong animal weighed', $view);
+        $this->assertStringContainsString('24', $view);
+        $this->assertSame(1, (int) TestDatabase::value($con, "SELECT COUNT(*) FROM activity_log WHERE action = 'followup_corrected' AND entity_id = '$animal'"));
+        @unlink($jar);
+    }
+
+    public function testExportForV2LeavesSecretsOutAndIsLogged(): void
+    {
+        $con = TestDatabase::connection();
+        $before = (int) TestDatabase::value($con, "SELECT COUNT(*) FROM activity_log WHERE action = 'export'");
+        $jar = $this->login('admin');
+        [$status, $body] = $this->request('export_for_v2.php', $jar);
+        $this->assertSame(200, $status);
+        $data = json_decode($body, true);
+        $this->assertNotEmpty($data['tables']['users']);
+        foreach ($data['tables']['users'] as $user) {
+            foreach (['password', 'reset_token', 'email_token', 'totp_secret', 'totp_recovery_codes'] as $secret) {
+                $this->assertArrayNotHasKey($secret, $user);
+            }
+            $this->assertArrayHasKey('username', $user);
+        }
+        $this->assertSame($before + 1, (int) TestDatabase::value($con, "SELECT COUNT(*) FROM activity_log WHERE action = 'export'"));
+        [$status] = $this->request('export_for_v2.php', $this->login('user'));
+        $this->assertSame(302, $status);
+        @unlink($jar);
+    }
+
+    public function testCommandLineScriptsAreRefusedOverHttp(): void
+    {
+        foreach (['process_reminders.php', 'send_email.php', 'daily_round_alert.php'] as $script) {
+            [$status] = $this->request($script, null);
+            $this->assertSame(403, $status, $script);
+        }
+    }
+
+    public function testRegisterCorrectionsNeedAnAdministratorAndAReason(): void
+    {
+        $con = TestDatabase::connection();
+        $animal = TestDatabase::animal($con, TestDatabase::cage($con));
+        set_animal_origin($con, $animal, ['origin_type' => 'supplier', 'origin_detail' => 'Janvier', 'origin_reference' => null, 'entry_date' => '2026-09-01'], null);
+        exit_animal($con, $animal, 'retrouve_mort', '2026-10-01', 'found dead', null, null, null);
+        $exitCode = fn() => TestDatabase::value($con, "SELECT exit_code FROM mice WHERE id = $animal");
+        $exit = fn(string $jar, array $more) => $this->request('animal_exit.php', $jar, [
+            'csrf_token' => $this->csrfToken($jar), 'animal_id' => $animal, 'correct_exit' => '1',
+            'exit_code' => 'euthanasie', 'exit_date' => '2026-10-01', 'reason' => 'endpoint', 'destination' => '',
+        ] + $more);
+
+        $user = $this->login('user');
+        $exit($user, ['correction_reason' => 'try']);
+        $this->assertSame('retrouve_mort', $exitCode(), 'a user cannot correct an exit');
+        @unlink($user);
+
+        $admin = $this->login('admin');
+        $exit($admin, ['correction_reason' => '']);
+        $this->assertSame('retrouve_mort', $exitCode(), 'no correction without a reason');
+        $exit($admin, ['correction_reason' => 'wrong exit code']);
+        $this->assertSame('euthanasie', $exitCode());
+
+        // A recorded entry is corrected with a reason only.
+        $entry = fn(array $more) => $this->request('animal_origin.php', $admin, [
+            'csrf_token' => $this->csrfToken($admin), 'animal_id' => $animal, 'origin_type' => 'supplier',
+            'origin_detail' => 'Charles River', 'origin_reference' => '', 'entry_date' => '2026-09-01',
+        ] + $more);
+        $entry([]);
+        $this->assertSame('Janvier', TestDatabase::value($con, "SELECT origin_detail FROM mice WHERE id = $animal"));
+        $entry(['correction_reason' => 'wrong supplier']);
+        $this->assertSame('Charles River', TestDatabase::value($con, "SELECT origin_detail FROM mice WHERE id = $animal"));
+
+        [, $view] = $this->request("animal_view.php?id=$animal", $admin);
+        $this->assertStringContainsString('wrong exit code', $view);
+        $this->assertStringContainsString('wrong supplier', $view);
+        @unlink($admin);
+    }
+
+    /** Multipart POST of a file; returns [status, location]. */
+    private function upload(string $path, string $jar, array $fields, string $file, string $name): array
+    {
+        $ch = curl_init('http://127.0.0.1:' . self::$port . '/' . $path);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true, CURLOPT_HEADER => true, CURLOPT_TIMEOUT => 30,
+            CURLOPT_COOKIEJAR => $jar, CURLOPT_COOKIEFILE => $jar, CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $fields + ['fileUpload' => new CURLFile($file, '', $name)],
+        ]);
+        $raw = (string) curl_exec($ch);
+        $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        curl_close($ch);
+        preg_match('/^Location:\s*(.+)$/mi', $raw, $m);
+        return [$status, trim($m[1] ?? '')];
+    }
+
+    public function testCageFilesAreAddedAndDeletedByTheCageUsers(): void
+    {
+        $con = TestDatabase::connection();
+        $cage = TestDatabase::cage($con, false);
+        $con->query("INSERT INTO holding (cage_id, dob) VALUES ('$cage', CURDATE())");
+        $count = fn() => (int) TestDatabase::value($con, "SELECT COUNT(*) FROM files WHERE cage_id = '$cage'");
+        $dir = sys_get_temp_dir() . '/cagefiles-' . getmypid();
+        @mkdir($dir);
+        file_put_contents("$dir/protocol.pdf", "%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n");
+        file_put_contents("$dir/fake.png", '<html><script>alert(1)</script></html>');
+        file_put_contents("$dir/image.svg", '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
+        $jar = $this->login('user');
+        $fields = fn() => ['csrf_token' => $this->csrfToken($jar), 'cage_id' => $cage, 'page' => 'hc_view'];
+        try {
+            // Not a user of the cage: no form, upload refused.
+            [, $page] = $this->request('hc_view.php?id=' . rawurlencode($cage), $jar);
+            $this->assertStringNotContainsString('id="cageFileUpload"', $page);
+            $this->upload('file_upload.php', $jar, $fields(), "$dir/protocol.pdf", 'protocol.pdf');
+            $this->assertSame(0, $count());
+
+            $con->query("INSERT INTO cage_users (cage_id, user_id) VALUES ('$cage', " . self::$users['user'] . ")");
+            [, $page] = $this->request('hc_view.php?id=' . rawurlencode($cage), $jar);
+            $this->assertStringContainsString('id="cageFileUpload"', $page);
+
+            // Disguised or scriptable files are refused.
+            $this->upload('file_upload.php', $jar, $fields(), "$dir/fake.png", 'fake.png');
+            $this->upload('file_upload.php', $jar, $fields(), "$dir/image.svg", 'image.svg');
+            $this->assertSame(0, $count());
+
+            [$status, $location] = $this->upload('file_upload.php', $jar, $fields(), "$dir/protocol.pdf", 'protocol.pdf');
+            $this->assertSame(302, $status);
+            $this->assertStringContainsString('hc_view.php?id=', $location);
+            $this->assertSame(1, $count());
+            $file = TestDatabase::value($con, "SELECT id FROM files WHERE cage_id = '$cage'");
+            $stored = TestDatabase::value($con, "SELECT file_path FROM files WHERE id = $file");
+            $this->assertMatchesRegularExpression('#^uploads/[0-9a-f]{32}\.pdf$#', $stored);
+            [$status, $body] = $this->request("file_download.php?id=$file", $jar);
+            $this->assertSame(200, $status);
+            $this->assertSame(file_get_contents("$dir/protocol.pdf"), $body);
+            $this->assertSame(1, (int) TestDatabase::value($con, "SELECT COUNT(*) FROM activity_log WHERE action = 'cage_file_added' AND entity_id = '$cage'"));
+
+            // Deleted by POST with the token: record and stored file removed.
+            $this->request("delete_file.php?url=hc_view&id=$file", $jar, ['csrf_token' => $this->csrfToken($jar)]);
+            $this->assertSame(0, $count());
+            $this->assertFileDoesNotExist(APP_ROOT . '/' . $stored);
+            $this->assertSame(1, (int) TestDatabase::value($con, "SELECT COUNT(*) FROM activity_log WHERE action = 'cage_file_deleted' AND entity_id = '$cage'"));
+        } finally {
+            foreach (TestDatabase::connection()->query("SELECT file_path FROM files WHERE cage_id = '$cage'") as $f) {
+                @unlink(APP_ROOT . '/' . $f['file_path']);
+            }
+            array_map('unlink', glob("$dir/*"));
+            @rmdir($dir);
+            @unlink($jar);
+        }
+    }
+
+    public function testBreedingCagePageShowsTheLittersBeingNursed(): void
+    {
+        $con = TestDatabase::connection();
+        $cage = TestDatabase::cage($con, false);
+        $con->query("INSERT INTO breeding (cage_id, `cross`) VALUES ('$cage', 'A x B')");
+        $con->query("INSERT INTO litters (cage_id, litter_dob, pups_alive, pups_dead, status, expected_weaning_date) VALUES
+            ('$cage', CURDATE() - INTERVAL 25 DAY, 7, 0, 'nursing', CURDATE() - INTERVAL 4 DAY),
+            ('$cage', '2025-01-10', 5, 1, 'weaned', '2025-01-31')");
+        $overdueLitter = (int) TestDatabase::value($con, "SELECT id FROM litters WHERE cage_id = '$cage' AND status = 'nursing'");
+        // Two pups died since birth: 5 alive now.
+        $con->query("INSERT INTO litter_events (litter_id, event, event_date, count) VALUES ($overdueLitter, 'death', CURDATE(), 2)");
+        $jar = $this->login('user');
+        [$status, $body] = $this->request('bc_view.php?id=' . rawurlencode($cage), $jar);
+        $this->assertSame(200, $status);
+        $box = substr($body, strpos($body, 'id="currentLitters"'), 4000);
+        $this->assertStringContainsString('table-danger', $box, 'overdue weaning in red');
+        $this->assertStringContainsString("litter_id=$overdueLitter", $box);
+        $this->assertMatchesRegularExpression('/<td>5<\/td>|<td>5 /', $box, 'pups alive now, deaths deducted');
+        $this->assertStringContainsString('25', $box, 'age in days');
+        $this->assertStringContainsString('id="litterHistory"', $body);
+        $this->assertStringContainsString('2025-01-10', substr($body, strpos($body, 'id="litterHistory"')));
+        $this->assertStringNotContainsString('2025-01-10', $box, 'weaned litters are in the history only');
+        @unlink($jar);
+    }
+
+    public function testBreedingCageCardInvitesPencilEntriesReportedInTheSoftware(): void
+    {
+        $con = TestDatabase::connection();
+        $cage = TestDatabase::cage($con, false);
+        $con->query("INSERT INTO breeding (cage_id, `cross`) VALUES ('$cage', 'A x B')");
+        $con->query("INSERT INTO litters (cage_id, litter_dob, pups_alive, pups_dead, status, expected_weaning_date) VALUES ('$cage', '2026-10-01', 8, 0, 'nursing', '2026-10-22')");
+        $litter = (int) $con->insert_id;
+        $con->query("INSERT INTO litter_events (litter_id, event, event_date, count) VALUES ($litter, 'death', '2026-10-05', 1)");
+        $jar = $this->login('user');
+
+        [$status, $card] = $this->request('cage_labels.php?id=' . rawurlencode($cage), $jar);
+        $this->assertSame(200, $status);
+        $this->assertStringContainsString('à compléter au crayon', $card);
+        $this->assertStringContainsString('01/10/26', $card, 'litter being nursed printed');
+        $this->assertStringContainsString('1 saisi(s)', $card, 'deaths already recorded printed');
+        $this->assertSame(4, substr_count($card, '<span class="box"></span>'), 'empty rows to fill by hand');
+        $this->assertStringContainsString('puis enregistrez-le aussi dans MyAnimLab', $card);
+
+        // The QR code page offers to record what was noted.
+        [$status, $check] = $this->request('cage_check.php?id=' . rawurlencode($cage) . '&via=qr', $jar);
+        $this->assertSame(200, $status);
+        $this->assertStringContainsString('id="checkLitters"', $check);
+        $this->assertStringContainsString("litter_manage.php?litter_id=$litter", $check);
+        $this->assertStringContainsString('litter_manage.php?cage_id=' . rawurlencode($cage) . '#birth', $check);
+        @unlink($jar);
+    }
+
+    public function testOnlyAdministratorsChangeCageOwnershipInBulk(): void
+    {
+        $con = TestDatabase::connection();
+        $cage = TestDatabase::cage($con, false);
+        $pi = TestDatabase::user($con, ['position' => 'Principal Investigator']);
+        $post = fn(string $jar) => $this->request('cage_location.php', $jar, [
+            'csrf_token' => $this->csrfToken($jar), 'return' => 'hc_dash.php', 'cage_ids' => [$cage],
+            'location_action' => 'ownership', 'owner_pi' => $pi, 'owner_users_mode' => 'add', 'owner_users' => [self::$users['user']],
+        ]);
+        $user = $this->login('user');
+        [, $dash] = $this->request('hc_dash.php', $user);
+        $this->assertStringNotContainsString('id="ownershipPanel"', $dash);
+        $post($user);
+        $this->assertNull(TestDatabase::value($con, "SELECT pi_name FROM cages WHERE cage_id = '$cage'"));
+        @unlink($user);
+
+        $admin = $this->login('admin');
+        [, $dash] = $this->request('hc_dash.php', $admin);
+        $this->assertStringContainsString('id="ownershipPanel"', $dash);
+        $post($admin);
+        $this->assertSame($pi, (int) TestDatabase::value($con, "SELECT pi_name FROM cages WHERE cage_id = '$cage'"));
+        $this->assertSame(self::$users['user'], (int) TestDatabase::value($con, "SELECT user_id FROM cage_users WHERE cage_id = '$cage'"));
+        @unlink($admin);
     }
 }

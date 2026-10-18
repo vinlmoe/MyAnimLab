@@ -71,7 +71,7 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
         $stmt->close();
     } else {
         // Set error response if the query execution fails
-        $response = ['error' => tr('Error executing query: {error}', ['error' => $stmt->error])];
+        $response = ['error' => db_error_message($stmt->error)];
     }
 } else {
     // Set error response if the task ID is invalid

@@ -17,14 +17,11 @@ if (!isset($_SESSION['username'])) {
     header('Location: index.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
     exit;
 }
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 $userId = $_SESSION['user_id'] ?? null;
 $canManage = is_bea_user($con);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_terrarium'])) {
-    if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'] ?? '')) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
     if (!$canManage) {
@@ -38,18 +35,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_terrarium'])) 
         header('Location: terrarium_view.php?id=' . $id);
         exit;
     } catch (Exception $e) {
-        $_SESSION['message'] = $e->getMessage();
+        $_SESSION['message'] = error_message($e);
         header('Location: terrarium_dash.php');
         exit;
     }
 }
 
 $showArchived = ($_GET['status'] ?? '') === 'archived';
-$terrariums = $con->query(
+$terrariums = db_rows(
+    $con,
     "SELECT t.*, l.code AS line_code, l.name AS line_name, l.species AS line_species, u.name AS responsible_name
      FROM terrariums t LEFT JOIN animal_lines l ON l.id = t.line_id LEFT JOIN users u ON u.id = t.responsible_user_id
-     WHERE t.status = '" . ($showArchived ? 'archived' : 'active') . "' ORDER BY t.room, t.code"
-)->fetch_all(MYSQLI_ASSOC);
+     WHERE t.status = ? ORDER BY t.room, t.code",
+    's',
+    [$showArchived ? 'archived' : 'active']
+);
 $total = 0;
 foreach ($terrariums as &$t) {
     $t['pop'] = terrarium_population($con, $t);

@@ -4,21 +4,19 @@
  * Record an animal leaving the facility: sacrificed, died / found dead, or
  * exported to another facility (destination required). The record stays
  * permanently accessible; the animal's cage is retired automatically if it
- * is left without animals.
+ * is left without animals. An administrator corrects a recorded exit from
+ * the animal's record (correct_exit, corrections_lib.php).
  */
 
 require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
+require_once 'corrections_lib.php';
 
 if (!isset($_SESSION['username'])) {
     $currentUrl = urlencode($_SERVER['REQUEST_URI']);
     header("Location: index.php?redirect=$currentUrl");
     exit;
-}
-
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
 $currentUserId = $_SESSION['user_id'] ?? null;
@@ -33,8 +31,28 @@ $returnUrl = $_SERVER['REQUEST_METHOD'] === 'POST'
     : (safe_local_return($_GET['return'] ?? null, ['animal_exit.php']) ?? safe_local_return($_SERVER['HTTP_REFERER'] ?? null, ['animal_exit.php']));
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
+    }
+
+    // Correction of a recorded exit (administrator, from the animal's
+    // record): reason required, the values replaced are kept.
+    if (isset($_POST['correct_exit'])) {
+        if (($_SESSION['role'] ?? '') !== 'admin') {
+            $_SESSION['message'] = tr('Only an administrator can correct an exit.');
+        } else {
+            mysqli_begin_transaction($con);
+            try {
+                correct_animal_exit($con, $animalId, (string) ($_POST['exit_code'] ?? ''), (string) ($_POST['exit_date'] ?? ''), (string) ($_POST['reason'] ?? ''), $_POST['destination'] ?? null, (string) ($_POST['correction_reason'] ?? ''), $currentUserId, $_SESSION['name'] ?? null);
+                mysqli_commit($con);
+                $_SESSION['message'] = tr('Exit corrected; the values replaced are kept.');
+            } catch (Exception $e) {
+                mysqli_rollback($con);
+                $_SESSION['message'] = tr('Exit not corrected: {error}', ['error' => error_message($e)]);
+            }
+        }
+        header("Location: animal_view.php?id=$animalId#register");
+        exit;
     }
 
     $date = $_POST['exit_date'] ?: date('Y-m-d');
@@ -49,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             . ($retiredCage ? ' ' . tr('Cage {cage} is now empty and was retired automatically.', ['cage' => $retiredCage]) : '');
     } catch (Exception $e) {
         mysqli_rollback($con);
-        $_SESSION['message'] = tr('Exit not recorded: {error}', ['error' => $e->getMessage()]);
+        $_SESSION['message'] = tr('Exit not recorded: {error}', ['error' => error_message($e)]);
         header("Location: animal_exit.php?" . http_build_query(['id' => $animalId, 'code' => $code, 'return' => $returnUrl]));
         exit;
     }

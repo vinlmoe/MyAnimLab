@@ -1,0 +1,14 @@
+# Static analysis (vendor/bin/phpstan, run by the CI). Level 0 for a start:
+# unknown functions, classes and methods, wrong number of arguments,
+# undefined variables in a scope... Raise the level once it is clean.
+parameters:
+    level: 0
+    paths:
+        - .
+    excludePaths:
+        - vendor
+        - storage (?)
+        - uploads (?)
+        - docs
+    bootstrapFiles:
+        - tests/phpstan-bootstrap.php

@@ -11,6 +11,7 @@
 require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
+require_once 'cage_files_lib.php';
 require 'cage_view_parts.php';
 
 // Check if the user is not logged in
@@ -45,12 +46,6 @@ if (isset($_GET['id'])) {
     $stmt->bind_param("s", $id);
     $stmt->execute();
     $result = $stmt->get_result();
-
-    $query2 = "SELECT * FROM files WHERE cage_id = ?";
-    $stmt2 = $con->prepare($query2);
-    $stmt2->bind_param("s", $id);
-    $stmt2->execute();
-    $files = $stmt2->get_result();
 
     if (mysqli_num_rows($result) === 1) {
         $holdingcage = mysqli_fetch_assoc($result);
@@ -212,9 +207,6 @@ $stmtMaintenance->execute();
 $maintenanceLogs = $stmtMaintenance->get_result();
 
 $cageKind = cage_kind($con, $id);
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 require 'header.php';
 ?>
 
@@ -379,7 +371,18 @@ require 'header.php';
                     <?= $cageLife['retired_at'] ? trh('since {date}', ['date' => substr($cageLife['retired_at'], 0, 10)]) : ''; ?>
                     — <?= trh('no daily check expected.') ?>
                 </span>
-                <span class="text-muted small"><?= trh('A retired cage is not put back in service; its animals were moved or left the facility.') ?></span>
+                <?php if (($_SESSION['role'] ?? '') === 'admin' && cage_active_animal_count($con, $holdingcage['cage_id']) > 0) : ?>
+                    <form method="POST" action="cage_restore.php" class="d-flex gap-2 align-items-center" id="restoreCage">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()); ?>">
+                        <input type="hidden" name="id" value="<?= htmlspecialchars($holdingcage['cage_id']); ?>">
+                        <input type="hidden" name="return" value="hc_view.php">
+                        <input type="hidden" name="confirm" value="true">
+                        <input class="form-control form-control-sm" name="reason" required maxlength="255" placeholder="<?= trh('Reason (e.g. exit recorded by mistake)') ?>">
+                        <button class="btn btn-sm btn-outline-primary text-nowrap"><?= trh('Put back in service') ?></button>
+                    </form>
+                <?php else : ?>
+                    <span class="text-muted small"><?= trh('A retired cage is not put back in service; its animals were moved or left the facility.') ?></span>
+                <?php endif; ?>
             </div>
         <?php else : ?>
             <div class="alert <?= $cageTodayChecks ? 'alert-success' : 'alert-warning'; ?> d-flex justify-content-between align-items-center flex-wrap mb-3" id="dailyCheckBanner">
@@ -482,37 +485,7 @@ require 'header.php';
 
             <hr class="mt-4 mb-4" style="border-top: 3px solid #000;">
 
-            <div class="card mt-4">
-                <div class="card-header">
-                    <h4><?= trh('Manage Files') ?></h4>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th><?= trh('File Name') ?></th>
-                                    <th><?= trh('Actions') ?></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php
-                                while ($file = $files->fetch_assoc()) {
-                                    $file_path = htmlspecialchars($file['file_path']);
-                                    $file_name = htmlspecialchars($file['file_name']);
-                                    $file_id = intval($file['id']);
-
-                                    echo "<tr>";
-                                    echo "<td>$file_name</td>";
-                                    echo "<td><a href='$file_path' download='$file_name' class='btn btn-sm btn-outline-primary'> <i class='fas fa-cloud-download-alt fa-sm'></i></a></td>";
-                                    echo "</tr>";
-                                }
-                                ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+            <?php render_cage_files($con, $holdingcage['cage_id'], 'hc_view'); ?>
 
             <br>
 
