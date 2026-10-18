@@ -38,6 +38,7 @@ if (!$protocol) {
 $trial = ['trial_number' => $protocol['trial_number'], 'start_date' => $protocol['trial_start'], 'end_date' => $protocol['trial_end']];
 $auth = load_authorization($con, $protocol['iacuc_id']);
 $enrollmentBlock = trial_enrollment_block($trial, $auth);
+$quotas = authorization_quotas($con, $protocol['iacuc_id']);
 // Experiments must fit in the protocol period, or in the trial period when the protocol has no dates.
 $experimentFrame = ($protocol['start_date'] || $protocol['end_date'])
     ? ['protocol_number' => $protocol['protocol_number'], 'start_date' => $protocol['start_date'], 'end_date' => $protocol['end_date']]
@@ -82,10 +83,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $valid = $validExperiment->get_result()->num_rows === 1;
         $validExperiment->close();
         $added = $skipped = 0;
+        $quotaError = $valid && $animalIds ? quota_enrollment_error($con, $protocol['iacuc_id'], $animalIds) : null;
         if ($enrollmentBlock) {
             $_SESSION['message'] = $enrollmentBlock;
         } elseif (!$valid || !$animalIds) {
             $_SESSION['message'] = 'Sélectionnez au moins un animal et une expérience valide.';
+        } elseif ($quotaError) {
+            // Animals authorized per species: nobody is enrolled beyond the authorization.
+            $_SESSION['message'] = tr('Not enrolled — {error}', ['error' => $quotaError]);
         } else {
             $activeCheck = $con->prepare("SELECT id FROM mice WHERE id = ? AND status = 'active'");
             $insert = $con->prepare("INSERT INTO experiment_animals (experiment_id, animal_id, baseline_weight_g) VALUES (?, ?, ?)");
@@ -107,6 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $insert->close();
             // Their cages become experimental cages (same cage number).
             $newExperimentalCages = mark_cages_experimental_for_animals($con, $animalIds, $currentUserId);
+            quota_send_alerts($con, $protocol['iacuc_id']);
             $_SESSION['message'] = "$added animal(s) ajouté(s) à l’expérience" . ($skipped ? "; $skipped déjà inclus ou inactif(s)." : '.')
                 . ($newExperimentalCages ? ' Cage(s) passée(s) en expérimentation : ' . implode(', ', $newExperimentalCages) . '.' : '');
         }
@@ -337,6 +343,12 @@ require 'header.php';
                                 <?= authorization_badge(null); ?>
                             <?php endif; ?>
                         </div>
+                        <?php if ($auth) : ?>
+                            <div class="small mt-1" id="authorizationQuotas">
+                                <strong><?= trh('Animals authorized') ?> :</strong>
+                                <?= $quotas ? quota_badges($quotas) : '<span class="text-muted">' . trh('no number recorded for this authorization') . '</span>' ?>
+                            </div>
+                        <?php endif; ?>
                     </div>
                     <div class="text-nowrap">
                         <a class="btn btn-sm btn-outline-secondary" href="protocol_manage.php?trial_id=<?= (int) $protocol['trial_id']; ?>#protocol<?= $protocolId; ?>"><i class="fas fa-cog"></i> <?= trh('Protocol settings') ?></a>

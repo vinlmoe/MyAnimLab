@@ -8,6 +8,8 @@
  * linked trial must fit in — and the three regulatory PDF documents: the
  * authorization request, the ethics committee opinion and the authorization
  * decision. The PDFs are stored privately and served by ethics_file.php.
+ * It also records the number of animals authorized per species, checked at
+ * every enrollment (alerts at 80 % and 100 %).
  */
 
 require_once 'session_config.php';
@@ -109,8 +111,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $stmt->execute();
             $stmt->close();
+
+            // Animals authorized per species (rows left empty are ignored).
+            $quotaRows = [];
+            foreach ((array) ($_POST['quota_species'] ?? []) as $i => $species) {
+                $species = trim((string) $species);
+                $max = (int) ($_POST['quota_max'][$i] ?? 0);
+                if ($species === '' && $max === 0) {
+                    continue;
+                }
+                if ($species === '' || $max <= 0) {
+                    throw new Exception(tr('Each quota needs a species and a number of animals greater than 0.'));
+                }
+                $quotaRows[mb_strtolower($species)] = [$species, $max];
+            }
+            $keep = array_keys($quotaRows);
+            $del = $con->prepare('DELETE FROM iacuc_animal_quotas WHERE iacuc_id = ?' . ($keep ? ' AND LOWER(species) NOT IN (' . implode(',', array_fill(0, count($keep), '?')) . ')' : ''));
+            $del->bind_param(str_repeat('s', count($keep) + 1), $ethicsNumber, ...$keep);
+            $del->execute();
+            $del->close();
+            $up = $con->prepare('INSERT INTO iacuc_animal_quotas (iacuc_id, species, max_animals) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE species = VALUES(species), max_animals = VALUES(max_animals)');
+            foreach ($quotaRows as [$species, $max]) {
+                $up->bind_param('ssi', $ethicsNumber, $species, $max);
+                $up->execute();
+            }
+            $up->close();
+            $over = array_filter(authorization_quotas($con, $ethicsNumber), fn($q) => $q['used'] > $q['max']);
+            quota_send_alerts($con, $ethicsNumber);
+
             log_activity($con, $isEdit ? 'update' : 'create', 'authorization', $ethicsNumber, tr('Authorization {auth}, valid {from} → {until}', ['auth' => $authorizationNumber ?? '—', 'from' => $validFrom, 'until' => $validUntil]), $currentUserId);
-            $_SESSION['message'] = $isEdit ? tr('Authorization {number} updated.', ['number' => $ethicsNumber]) : tr('Authorization {number} added.', ['number' => $ethicsNumber]);
+            $_SESSION['message'] = ($isEdit ? tr('Authorization {number} updated.', ['number' => $ethicsNumber]) : tr('Authorization {number} added.', ['number' => $ethicsNumber]))
+                . ($quotaRows ? ' ' . tr('Animals authorized: {list}.', ['list' => implode(', ', array_map(fn($r) => $r[0] . ' ' . $r[1], $quotaRows))]) : '')
+                . ($over ? ' ' . tr('Warning: more animals already used than authorized for {list}.', ['list' => implode(', ', array_column($over, 'species'))]) : '');
             $back = 'manage_iacuc.php';
         }
     } catch (Exception $e) {
@@ -125,6 +157,8 @@ $authorizations = $con->query(
      FROM iacuc i ORDER BY i.valid_until IS NULL, i.valid_until DESC, i.iacuc_id"
 )->fetch_all(MYSQLI_ASSOC);
 $editing = isset($_GET['edit']) ? load_authorization($con, (string) $_GET['edit']) : null;
+$editingQuotas = $editing ? authorization_quotas($con, $editing['iacuc_id']) : [];
+$knownSpecies = array_column($con->query('SELECT DISTINCT species FROM animal_lines ORDER BY species')->fetch_all(MYSQLI_ASSOC), 'species');
 $showForm = $editing || isset($_GET['new']);
 
 require 'header.php';
@@ -191,6 +225,19 @@ require 'header.php';
                                 </div>
                             <?php endforeach; ?>
                         </div>
+                        <h6 class="mt-4"><?= trh('Animals authorized per species') ?></h6>
+                        <p class="small text-muted mb-2"><?= trh('Number of animals the project may use, per species (as in the authorization). Every enrollment in an experiment of a linked trial is checked; an animal counts once per project. Without any number, enrollments are not limited.') ?></p>
+                        <datalist id="speciesList"><?php foreach ($knownSpecies as $sp) : ?><option value="<?= htmlspecialchars($sp) ?>"><?php endforeach; ?></datalist>
+                        <div id="quotaRows">
+                            <?php foreach (array_merge(array_values($editingQuotas), [['species' => '', 'max' => '', 'used' => null]]) as $q) : ?>
+                                <div class="row g-2 mb-2 quota-row">
+                                    <div class="col-md-4"><input class="form-control form-control-sm" name="quota_species[]" list="speciesList" maxlength="100" placeholder="<?= trh('Species (e.g. mouse)') ?>" value="<?= htmlspecialchars($q['species']) ?>"></div>
+                                    <div class="col-md-2"><input class="form-control form-control-sm" type="number" min="1" name="quota_max[]" placeholder="<?= trh('Animals') ?>" value="<?= htmlspecialchars((string) $q['max']) ?>"></div>
+                                    <div class="col-md-4 small pt-1"><?= $q['used'] !== null ? trh('{used} used ({pct} %)', ['used' => $q['used'], 'pct' => $q['pct']]) : '' ?></div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="addQuota"><i class="fas fa-plus"></i> <?= trh('Add a species') ?></button>
                         <div class="mt-3">
                             <button type="submit" name="<?= $editing ? 'edit' : 'add'; ?>" class="btn btn-primary"><i class="fas fa-save"></i> <?= trh('Save') ?></button>
                             <a href="manage_iacuc.php" class="btn btn-secondary"><?= trh('Cancel') ?></a>
@@ -208,6 +255,7 @@ require 'header.php';
                         <th><?= trh('Authorization number') ?></th>
                         <th><?= trh('Validity') ?></th>
                         <th><?= trh('Documents') ?></th>
+                        <th><?= trh('Animals authorized') ?></th>
                         <th class="text-center"><?= trh('Trials') ?></th>
                         <th class="text-end"><?= trh('Actions') ?></th>
                     </tr>
@@ -230,6 +278,7 @@ require 'header.php';
                                     <a href="<?= htmlspecialchars($a['file_url']); ?>" target="_blank" class="d-block small"><i class="fas fa-paperclip"></i> <?= trh('Former attachment') ?></a>
                                 <?php endif; ?>
                             </td>
+                            <td><?php $q = authorization_quotas($con, $a['iacuc_id']); ?><?= $q ? quota_badges($q) : '<span class="small text-muted">—</span>' ?></td>
                             <td class="text-center"><?= (int) $a['n_trials']; ?></td>
                             <td class="text-end text-nowrap">
                                 <a href="manage_iacuc.php?<?= htmlspecialchars(http_build_query(['edit' => $a['iacuc_id']])); ?>" class="btn btn-sm btn-outline-primary" title="<?= trh('Edit') ?>"><i class="fas fa-edit"></i></a>
@@ -242,7 +291,7 @@ require 'header.php';
                         </tr>
                     <?php endforeach; ?>
                     <?php if (!$authorizations) : ?>
-                        <tr><td colspan="6" class="text-muted text-center"><?= trh('No authorization yet.') ?></td></tr>
+                        <tr><td colspan="7" class="text-muted text-center"><?= trh('No authorization yet.') ?></td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>
@@ -250,6 +299,16 @@ require 'header.php';
     </div>
 
     <br>
+    <script>
+        // Another empty quota row.
+        document.getElementById('addQuota')?.addEventListener('click', () => {
+            const rows = document.getElementById('quotaRows');
+            const row = rows.querySelector('.quota-row').cloneNode(true);
+            row.querySelectorAll('input').forEach(i => i.value = '');
+            row.querySelector('.small').textContent = '';
+            rows.appendChild(row);
+        });
+    </script>
     <?php include 'footer.php'; ?>
 </body>
 
