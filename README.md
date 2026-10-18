@@ -36,7 +36,10 @@ MyVivarium est une plateforme en ligne pour gérer efficacement votre animalerie
 - [Guide de l’utilisateur](docs/guides/guide_utilisateur.pdf) : connexion, cages, tournée quotidienne, animaux, reproduction et sevrage, expérimentation, pharmacie, terrariums, formation, règles de traçabilité.
 - [Guide de l’administrateur](docs/guides/guide_administrateur.pdf) : rôles, installation et mises à jour, paramètres du laboratoire, comptes, référentiels, supervision quotidienne, corrections réglementaires, volet BEA, stupéfiants, exports et préparation d’une inspection.
 
-Les sources LaTeX sont dans `docs/guides/` (`pdflatex guide_utilisateur.tex`).
+Les sources LaTeX sont dans `docs/guides/` (`pdflatex guide_utilisateur.tex`). Les captures d’écran (`docs/guides/img/`) sont prises sur une base de démonstration fictive :
+
+- `php tools/demo_data.php --db=myanimlab_demo --user=root --password=… --ids=/tmp/demo_ids.json` crée cette base (nom contenant « demo », effacée puis recréée) : utilisateurs, autorisation de projet, cages, portées, expérience avec suivis et correction, signalement sanitaire, pharmacie. Tous les comptes ont le mot de passe `Demo-2026!` ; elle sert aussi aux formations ;
+- `node tools/guide_screenshots.js docs/guides/img`, avec Playwright, sur un serveur de test dont le `.env` pointe vers cette base, prend les captures (voir l’en-tête du script pour les variables `BASE`, `IDS` et `ASSETS`).
 
 ## Langue de l’interface
 
