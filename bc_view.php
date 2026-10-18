@@ -54,12 +54,6 @@ if (isset($_GET['id'])) {
     $stmt->execute();
     $result = $stmt->get_result();
 
-    // Fetch files associated with the specified cage ID
-    $query2 = "SELECT * FROM files WHERE cage_id = ?";
-    $stmt2 = $con->prepare($query2);
-    $stmt2->bind_param("s", $id);
-    $stmt2->execute();
-    $files = $stmt2->get_result();
 
     // Fetch the breeding cage litter records with the specified ID
     $query3 = "SELECT * FROM litters WHERE `cage_id` = ?";
@@ -435,34 +429,7 @@ require 'header.php';
                 <!-- Separator -->
                 <hr class="mt-4 mb-4" style="border-top: 3px solid #000;">
 
-                <!-- Display Files Section -->
-                <div class="card mt-4">
-
-                    <div class="card-header">
-                        <h4><?= trh('Manage Files') ?></h4>
-                    </div>
-
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th><?= trh('File Name') ?></th>
-                                    <th><?= trh('Actions') ?></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php while ($file = $files->fetch_assoc()) : ?>
-                                    <tr>
-                                        <td><?= htmlspecialchars($file['file_name']); ?></td>
-                                        <td><a href="<?= htmlspecialchars(cage_file_url((int) $file['id'])); ?>" class="btn btn-sm btn-outline-primary"><i class="fas fa-cloud-download-alt"></i></a></td>
-                                    </tr>
-                                <?php endwhile; ?>
-                            </tbody>
-                        </table>
-                    </div>
-
-
-                </div>
+                <?php render_cage_files($con, $breedingcage['cage_id'], 'bc_view'); ?>
 
                 <!-- Litter Details Section -->
                 <div class="card mt-4">

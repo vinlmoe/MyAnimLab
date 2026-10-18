@@ -47,12 +47,6 @@ if (isset($_GET['id'])) {
     $stmt->execute();
     $result = $stmt->get_result();
 
-    $query2 = "SELECT * FROM files WHERE cage_id = ?";
-    $stmt2 = $con->prepare($query2);
-    $stmt2->bind_param("s", $id);
-    $stmt2->execute();
-    $files = $stmt2->get_result();
-
     if (mysqli_num_rows($result) === 1) {
         $holdingcage = mysqli_fetch_assoc($result);
 
@@ -480,37 +474,7 @@ require 'header.php';
 
             <hr class="mt-4 mb-4" style="border-top: 3px solid #000;">
 
-            <div class="card mt-4">
-                <div class="card-header">
-                    <h4><?= trh('Manage Files') ?></h4>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th><?= trh('File Name') ?></th>
-                                    <th><?= trh('Actions') ?></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php
-                                while ($file = $files->fetch_assoc()) {
-                                    $file_url = htmlspecialchars(cage_file_url((int) $file['id']));
-                                    $file_name = htmlspecialchars($file['file_name']);
-                                    $file_id = intval($file['id']);
-
-                                    echo "<tr>";
-                                    echo "<td>$file_name</td>";
-                                    echo "<td><a href='$file_url' class='btn btn-sm btn-outline-primary'> <i class='fas fa-cloud-download-alt fa-sm'></i></a></td>";
-                                    echo "</tr>";
-                                }
-                                ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+            <?php render_cage_files($con, $holdingcage['cage_id'], 'hc_view'); ?>
 
             <br>
 

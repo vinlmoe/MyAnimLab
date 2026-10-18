@@ -185,8 +185,10 @@ QA-14 & \textcolor{ok}{Corrigé} & \f{.DS_Store} supprimé, \f{uploads/} ignoré
     \f{hc_edit.php}/\f{bc_edit.php} se trouvait dans des pages déjà retirées,
     sans effet en production. Le risque réel tenait aux fichiers existants de
     \f{uploads/}, servis sans contrôle : il est corrigé (\f{.htaccess},
-    \f{file_download.php}). L'application ne permet plus aujourd'hui
-    d'ajouter un fichier à une cage.
+    \f{file_download.php}). Le dépôt est rétabli sur la fiche de la cage
+    (\f{file_upload.php}) : réservé aux utilisateurs de la cage et aux
+    administrateurs, contenu réel contrôlé, 10 Mo au plus, ajout et
+    suppression tracés.
 \end{itemize}
 
 \paragraph{Points restant à traiter.}

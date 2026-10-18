@@ -6,7 +6,8 @@ RUN apt-get update \
     && docker-php-ext-install mysqli zip \
     && a2enmod rewrite \
     && printf '<Directory /var/www/html>\n    AllowOverride All\n</Directory>\n' > /etc/apache2/conf-available/myanimlab.conf \
-    && a2enconf myanimlab
+    && a2enconf myanimlab \
+    && printf 'upload_max_filesize = 10M\npost_max_size = 12M\n' > /usr/local/etc/php/conf.d/uploads.ini
 
 COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
 COPY docker/local-entrypoint.sh /usr/local/bin/myvivarium-entrypoint

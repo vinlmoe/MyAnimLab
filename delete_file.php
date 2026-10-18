@@ -1,108 +1,48 @@
 <?php
 
 /**
- * File Deletion Script
- *
- * This script handles the deletion of a file from the server and the database based on the file ID passed via a GET request.
- * It starts a session, checks if the file exists, deletes it from the server and database, and then redirects the user
- * to a specified URL.
- *
+ * Delete a file of a cage (button of render_cage_files()): a user assigned
+ * to the cage or an administrator, by POST with the CSRF token. The stored
+ * file and its record are removed and the deletion is logged; then back to
+ * the cage page (?url=hc_view / bc_view).
  */
 
-// Start a new session or resume the existing session
 require_once 'session_config.php';
-
-// Include the database connection file
 require 'dbcon.php';
+require 'animal_lib.php';
 require_once 'cage_files_lib.php';
 
-// Check if the user is not logged in, redirect them to index.php with the current URL for redirection after login
 if (!isset($_SESSION['username'])) {
     header("Location: index.php");
-    exit; // Exit to ensure no further code is executed
+    exit;
 }
 
-// Deleting changes data: only by POST with the session's CSRF token (the
-// delete buttons submit the cage edit form, which carries it).
+// Deleting changes data: only by POST with the session's CSRF token.
 if (!csrf_valid()) {
     http_response_code(403);
     exit(trh('CSRF token validation failed'));
 }
 
-// Check if the 'id' parameter is set in the request
-if (isset($_GET['id'])) {
-    $id = $_GET['id']; // Get the file ID from the GET request
-
-    // SQL query to select the file record from the database
-    $fileQuery = "SELECT * FROM files WHERE id = ?";
-
-    // Prepare the statement to prevent SQL injection
-    $stmt = $con->prepare($fileQuery);
-    $stmt->bind_param("i", $id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $file = $result->fetch_assoc();
-
-    // Check if a file record was found
-    if ($file) {
-        // Get the cage ID from the file record
-        $cage_id = $file['cage_id'];
-
-        // SECURITY: Authorization check - verify user has permission to delete this file
-        // Only users assigned to the cage or admins can delete files
-        $currentUserId = $_SESSION['user_id'];
-        $userRole = $_SESSION['role'];
-
-        // Fetch users assigned to this cage
-        $cageUsersQuery = "SELECT user_id FROM cage_users WHERE cage_id = ?";
-        $stmtCageUsers = $con->prepare($cageUsersQuery);
-        $stmtCageUsers->bind_param("s", $cage_id);
-        $stmtCageUsers->execute();
-        $cageUsersResult = $stmtCageUsers->get_result();
-        $cageUsers = array_column($cageUsersResult->fetch_all(MYSQLI_ASSOC), 'user_id');
-        $stmtCageUsers->close();
-
-        // Check if user is authorized (admin or assigned to cage)
-        if ($userRole !== 'admin' && !in_array($currentUserId, $cageUsers)) {
-            $_SESSION['message'] = tr('Access denied. Only assigned users or admins can delete files.');
-            header("Location: index.php");
-            exit();
-        }
-
-        // Delete the stored file (only inside uploads/, see cage_files_lib.php)
-        $diskPath = cage_file_disk_path($file['file_path']);
-        if ($diskPath !== null) {
-            unlink($diskPath);
-        }
-
-        // SQL query to delete the file record from the database
-        $deleteQuery = "DELETE FROM files WHERE id = ?";
-
-        // Prepare the statement to prevent SQL injection
-        $deleteStmt = $con->prepare($deleteQuery);
-        $deleteStmt->bind_param("i", $id);
-        $deleteStmt->execute();
-
-        // Validate and sanitize the redirect URL parameter
-        $allowedPages = ['bc_edit', 'hc_edit', 'bc_view', 'hc_view', 'bc_dash', 'hc_dash'];
-        $redirect = isset($_GET['url']) ? $_GET['url'] : 'bc_edit';
-
-        // Only allow whitelisted page names (prevents open redirect vulnerability)
-        if (!in_array($redirect, $allowedPages)) {
-            $redirect = 'bc_edit'; // Default to safe page
-        }
-
-        // Build safe redirect URL
-        $url = $redirect . ".php?id=" . urlencode($cage_id);
-
-        // Redirect to the validated URL
-        header("Location: $url");
-        exit();
-    } else {
-        // Handle the case where the file record was not found
-        echo trh('File record not found.');
-    }
-} else {
-    // Handle the case where the 'id' parameter is not set in the GET request
-    echo trh('File ID not specified.');
+$file = db_row($con, 'SELECT * FROM files WHERE id = ?', 'i', [(int) ($_GET['id'] ?? 0)]);
+if (!$file) {
+    http_response_code(404);
+    exit(trh('File record not found.'));
 }
+$cageId = (string) $file['cage_id'];
+$page = in_array($_GET['url'] ?? '', ['hc_view', 'bc_view'], true) ? $_GET['url'] : 'hc_view';
+
+if (!cage_file_can_manage($con, $cageId)) {
+    $_SESSION['message'] = tr('Only the users of the cage and the administrators can add or delete files.');
+} else {
+    // The stored file is deleted only inside uploads/ (cage_files_lib.php).
+    $diskPath = cage_file_disk_path($file['file_path']);
+    if ($diskPath !== null) {
+        unlink($diskPath);
+    }
+    db_execute($con, 'DELETE FROM files WHERE id = ?', 'i', [(int) $file['id']]);
+    log_activity($con, 'cage_file_deleted', 'cage', $cageId, $file['file_name'], (int) $_SESSION['user_id']);
+    $_SESSION['message'] = tr('File deleted.');
+}
+
+header('Location: ' . $page . '.php?id=' . rawurlencode($cageId) . '#files');
+exit;

@@ -8,6 +8,12 @@
 
 Options -Indexes
 
+# Cage files up to 10 MB (cage_files_lib.php). PHP-FPM reads .user.ini.
+<IfModule mod_php.c>
+    php_value upload_max_filesize 10M
+    php_value post_max_size 12M
+</IfModule>
+
 # Folders: answered as if they did not exist.
 RedirectMatch 404 "/(\.git|\.github|vendor|database|docker|docs|lang|setup|storage|tests|tools|uploads)(/|$)"
 
