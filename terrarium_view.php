@@ -109,8 +109,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $con->rollback();
                     throw $e;
                 }
-                log_activity($con, 'terrarium_capture', 'terrarium', (string) $id, tr('{n} animal(s) captured into cage {cage}', ['n' => count($r['animal_ids']), 'cage' => $r['cage_id']]), $userId);
-                $_SESSION['message'] = tr('{n} animal(s) captured into cage {cage}.', ['n' => count($r['animal_ids']), 'cage' => $r['cage_id']]);
+                log_activity($con, 'terrarium_capture', 'terrarium', (string) $id, tr('{n} animal(s) captured into cage(s) {cage}', ['n' => count($r['animal_ids']), 'cage' => implode(', ', $r['cage_ids'])]), $userId);
+                $_SESSION['message'] = tr('{n} animal(s) captured into cage(s) {cage}.', ['n' => count($r['animal_ids']), 'cage' => implode(', ', $r['cage_ids'])]);
                 $anchor = '#captures';
                 break;
             default:
@@ -144,7 +144,7 @@ $lots = $con->query(
 )->fetch_all(MYSQLI_ASSOC);
 $experiments = $con->query("SELECT id, experiment_number, title FROM experiments WHERE status IN ('planned', 'active') ORDER BY experiment_number")->fetch_all(MYSQLI_ASSOC);
 $cages = array_column($con->query("SELECT cage_id FROM cages WHERE status = 'active' ORDER BY cage_id")->fetch_all(MYSQLI_ASSOC), 'cage_id');
-$lines = $con->query('SELECT id, code, name, species FROM animal_lines ORDER BY code')->fetch_all(MYSQLI_ASSOC);
+$lines = $con->query('SELECT id, code, name, species, next_seq FROM animal_lines ORDER BY code')->fetch_all(MYSQLI_ASSOC);
 $users = $con->query("SELECT id, name FROM users WHERE status = 'approved' ORDER BY name")->fetch_all(MYSQLI_ASSOC);
 $rooms = array_column($con->query("SELECT DISTINCT room FROM cages WHERE room IS NOT NULL AND room <> '' UNION SELECT DISTINCT room FROM terrariums WHERE room IS NOT NULL AND room <> '' ORDER BY room")->fetch_all(MYSQLI_ASSOC), 'room');
 $eventTypes = terrarium_event_types();
@@ -286,7 +286,7 @@ require 'header.php';
                         <div class="col-md-1 ev-census"><label class="form-label small"><?= trh('Low') ?></label><input class="form-control form-control-sm" type="number" min="0" name="estimate_min"></div>
                         <div class="col-md-1 ev-census"><label class="form-label small"><?= trh('High') ?></label><input class="form-control form-control-sm" type="number" min="0" name="estimate_max"></div>
                         <div class="col-md-2 ev-census"><label class="form-label small"><?= trh('Method') ?></label><input class="form-control form-control-sm" name="method" list="censusMethods" placeholder="<?= trh('visual count, sampling…') ?>"></div>
-                        <div class="col-md-1 ev-qty d-none"><label class="form-label small"><?= trh('Number') ?></label><input class="form-control form-control-sm" type="number" min="1" name="quantity"></div>
+                        <div class="col-md-1 ev-qty d-none"><label class="form-label small"><?= trh('Number of animals') ?></label><input class="form-control form-control-sm" type="number" min="1" name="quantity"></div>
                         <div class="col-md-2 ev-ref d-none"><label class="form-label small"><?= trh('Reference') ?></label><input class="form-control form-control-sm" name="reference" placeholder="<?= trh('batch, supplier, destination…') ?>"></div>
                         <div class="col-md-1 ev-stage"><label class="form-label small"><?= trh('Stage') ?></label><input class="form-control form-control-sm" name="life_stage" list="lifeStages"></div>
                         <div class="col-md-2"><label class="form-label small"><?= trh('Note') ?></label><input class="form-control form-control-sm" name="note"></div>
@@ -296,7 +296,7 @@ require 'header.php';
                     <datalist id="lifeStages"><option value="<?= trh('eggs') ?>"><option value="<?= trh('larvae') ?>"><option value="<?= trh('juveniles') ?>"><option value="<?= trh('adults') ?>"><option value="<?= trh('mixed') ?>"></datalist>
                 <?php endif; ?>
                 <table class="table table-sm table-striped align-middle small" id="journalTable">
-                    <thead><tr><th><?= trh('Date') ?></th><th><?= trh('Entry') ?></th><th class="text-end"><?= trh('Number') ?></th><th><?= trh('Stage') ?></th><th><?= trh('Method / reference') ?></th><th><?= trh('Note') ?></th><th><?= trh('By') ?></th></tr></thead>
+                    <thead><tr><th><?= trh('Date') ?></th><th><?= trh('Entry') ?></th><th class="text-end"><?= trh('Animals') ?></th><th><?= trh('Stage') ?></th><th><?= trh('Method / reference') ?></th><th><?= trh('Note') ?></th><th><?= trh('By') ?></th></tr></thead>
                     <tbody>
                         <?php if (!$events) : ?><tr><td colspan="7" class="text-muted"><?= trh('Nothing recorded yet.') ?></td></tr><?php endif; ?>
                         <?php foreach ($events as $e) : ?>
@@ -448,21 +448,41 @@ require 'header.php';
                         <input type="hidden" name="id" value="<?= $id ?>">
                         <input type="hidden" name="action" value="capture">
                         <p class="small text-muted mb-1 col-12"><?= trh('The animals captured become identified animals (origin “captured from a facility population” in the entry register), in a new holding cage or an existing cage, and leave the population estimate.') ?></p>
-                        <div class="col-md-1"><label class="form-label small"><?= trh('Number') ?> *</label><input class="form-control form-control-sm" type="number" min="1" max="200" name="count" required></div>
                         <div class="col-md-2"><label class="form-label small"><?= trh('Date') ?></label><input class="form-control form-control-sm" type="date" name="date" value="<?= $today ?>" max="<?= $today ?>" required></div>
                         <div class="col-md-3"><label class="form-label small"><?= trh('Line') ?> *</label>
-                            <select class="form-select form-select-sm" name="line_id" required>
+                            <select class="form-select form-select-sm" name="line_id" id="captureLine" required>
                                 <option value=""><?= trh('Choose…') ?></option>
-                                <?php foreach ($lines as $l) : ?><option value="<?= (int) $l['id'] ?>" <?= (int) $t['line_id'] === (int) $l['id'] ? 'selected' : '' ?>><?= htmlspecialchars($l['code'] . ' — ' . $l['name']) ?></option><?php endforeach; ?>
+                                <?php foreach ($lines as $l) : ?><option value="<?= (int) $l['id'] ?>" data-code="<?= htmlspecialchars($l['code']) ?>" data-next="<?= (int) $l['next_seq'] ?>" <?= (int) $t['line_id'] === (int) $l['id'] ? 'selected' : '' ?>><?= htmlspecialchars($l['code'] . ' — ' . $l['name']) ?></option><?php endforeach; ?>
                             </select></div>
-                        <div class="col-md-1"><label class="form-label small"><?= trh('Sex') ?></label>
-                            <select class="form-select form-select-sm" name="sex"><option value=""><?= trh('unknown') ?></option><option value="male"><?= trh('Male') ?></option><option value="female"><?= trh('Female') ?></option></select></div>
                         <div class="col-md-2"><label class="form-label small"><?= trh('Date of birth (estimated)') ?></label><input class="form-control form-control-sm" type="date" name="dob" max="<?= $today ?>"></div>
                         <div class="col-md-1"><label class="form-label small"><?= trh('Stage') ?></label><input class="form-control form-control-sm" name="life_stage" list="lifeStages"></div>
-                        <div class="col-md-2"><label class="form-label small"><?= trh('Destination cage') ?></label>
-                            <input class="form-control form-control-sm" name="cage" list="activeCages" value="new" required>
-                            <div class="form-text"><?= trh('“new” or an existing cage') ?></div></div>
-                        <div class="col-md-2"><label class="form-label small"><?= trh('Room of the new cage') ?></label><input class="form-control form-control-sm" name="room" list="terrariumRooms" value="<?= htmlspecialchars((string) $t['room']) ?>"></div>
+                        <div class="col-md-2"><label class="form-label small"><?= trh('Room of the new cages') ?></label><input class="form-control form-control-sm" name="room" list="terrariumRooms" value="<?= htmlspecialchars((string) $t['room']) ?>"></div>
+                        <div class="col-12">
+                            <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                                <strong class="small"><?= trh('Distribution by cage') ?></strong>
+                                <span class="small text-muted ms-2"><?= trh('Quick fill:') ?></span>
+                                <input class="form-control form-control-sm" style="width: 70px" type="number" min="1" max="50" id="fillCages" value="1" aria-label="<?= trh('Number of cages') ?>">
+                                <span class="small"><?= trh('cage(s) of') ?></span>
+                                <input class="form-control form-control-sm" style="width: 70px" type="number" min="1" max="200" id="fillCount" value="4" aria-label="<?= trh('Animals per cage') ?>">
+                                <span class="small"><?= trh('animals') ?></span>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="fillRows"><?= trh('Fill') ?></button>
+                            </div>
+                            <table class="table table-sm align-middle mb-1" id="captureRows" style="max-width: 760px">
+                                <thead><tr><th><?= trh('Destination cage') ?></th><th style="width: 140px"><?= trh('Number of animals') ?> *</th><th style="width: 150px"><?= trh('Sex') ?></th><th class="small text-muted"><?= trh('Identifiers given') ?></th><th></th></tr></thead>
+                                <tbody>
+                                    <tr class="capture-row">
+                                        <td><input class="form-control form-control-sm row-cage" name="groups[0][cage]" list="activeCages" placeholder="<?= trh('new cage') ?>"></td>
+                                        <td><input class="form-control form-control-sm row-count" type="number" min="1" max="200" name="groups[0][count]" value="4" required></td>
+                                        <td><select class="form-select form-select-sm" name="groups[0][sex]"><option value=""><?= trh('unknown') ?></option><option value="male"><?= trh('Male') ?></option><option value="female"><?= trh('Female') ?></option></select></td>
+                                        <td class="small text-muted row-uids"></td>
+                                        <td><button type="button" class="btn btn-sm btn-outline-danger row-remove" title="<?= trh('Remove') ?>">&times;</button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="addRow"><i class="fas fa-plus"></i> <?= trh('Add a cage') ?></button>
+                            <span class="small text-muted ms-2" id="captureTotal"></span>
+                            <div class="form-text"><?= trh('Leave the cage empty to create a new holding cage; the identifiers follow on automatically from the line.') ?></div>
+                        </div>
                         <div class="col-md-3"><label class="form-label small"><?= trh('Enroll in the experiment') ?></label>
                             <select class="form-select form-select-sm" name="experiment_id">
                                 <option value=""><?= trh('— no experiment —') ?></option>
@@ -473,9 +493,9 @@ require 'header.php';
                         <?php if ($withdrawal) : ?>
                             <div class="col-12"><div class="form-check small"><input class="form-check-input" type="checkbox" name="ignore_withdrawal" value="1" id="ignoreWithdrawal"><label class="form-check-label" for="ignoreWithdrawal"><?= trh('Capture during the withdrawal period (not for an experiment)') ?></label></div></div>
                         <?php endif; ?>
-                        <div class="col-md-auto"><button class="btn btn-sm btn-primary"><?= trh('Capture') ?></button></div>
+                        <div class="col-md-auto"><button class="btn btn-sm btn-primary"><?= trh('Record the capture') ?></button></div>
                     </form>
-                    <datalist id="activeCages"><option value="new"><?php foreach ($cages as $c) : ?><option value="<?= htmlspecialchars($c) ?>"><?php endforeach; ?></datalist>
+                    <datalist id="activeCages"><?php foreach ($cages as $c) : ?><option value="<?= htmlspecialchars($c) ?>"><?php endforeach; ?></datalist>
                     <?php if (!$canManage) : // else printed by the edit form ?><datalist id="terrariumRooms"><?php foreach ($rooms as $r) : ?><option value="<?= htmlspecialchars($r) ?>"><?php endforeach; ?></datalist><?php endif; ?>
                 <?php endif; ?>
                 <table class="table table-sm table-striped align-middle small" id="capturedTable">
@@ -486,7 +506,7 @@ require 'header.php';
                             <tr>
                                 <td>#<?= (int) $a['event_id'] ?></td>
                                 <td><a href="animal_view.php?id=<?= (int) $a['id'] ?>"><?= htmlspecialchars($a['animal_uid'] ?: $a['mouse_id'] ?: '#' . $a['id']) ?></a></td>
-                                <td><?= htmlspecialchars((string) $a['sex']) ?></td>
+                                <td><?= $a['sex'] === 'male' ? trh('Male') : ($a['sex'] === 'female' ? trh('Female') : '') ?></td>
                                 <td><?= htmlspecialchars((string) $a['cage_id']) ?></td>
                                 <td><?= htmlspecialchars((string) $a['status']) ?></td>
                                 <td><?= htmlspecialchars((string) $a['experiments']) ?></td>
@@ -517,6 +537,50 @@ require 'header.php';
                 const show = () => document.querySelectorAll('#healthForm .hc-screening').forEach(el => el.classList.toggle('d-none', check.value !== 'screening'));
                 check.addEventListener('change', show);
                 show();
+            }
+            // Capture: one row per destination cage, identifiers previewed from the line.
+            const rows = document.querySelector('#captureRows tbody');
+            if (rows) {
+                const line = document.getElementById('captureLine');
+                const template = rows.querySelector('.capture-row').cloneNode(true);
+                const renumber = () => {
+                    let next = Number(line.selectedOptions[0]?.dataset.next || 0);
+                    const code = line.selectedOptions[0]?.dataset.code || '';
+                    let total = 0;
+                    rows.querySelectorAll('.capture-row').forEach((tr, i) => {
+                        tr.querySelectorAll('[name^="groups["]').forEach(el => el.name = el.name.replace(/groups\[\d+\]/, 'groups[' + i + ']'));
+                        const n = Math.max(0, parseInt(tr.querySelector('.row-count').value, 10) || 0);
+                        const uid = k => code + '-' + String(k).padStart(4, '0');
+                        tr.querySelector('.row-uids').textContent = code && n ? (n === 1 ? uid(next) : uid(next) + ' → ' + uid(next + n - 1)) : '';
+                        next += n;
+                        total += n;
+                    });
+                    document.getElementById('captureTotal').textContent = <?= json_encode(tr('Total: {n} animal(s)')) ?>.replace('{n}', total);
+                };
+                const addRow = (count) => {
+                    const tr = template.cloneNode(true);
+                    tr.querySelector('.row-cage').value = '';
+                    tr.querySelector('.row-count').value = count ?? '';
+                    rows.appendChild(tr);
+                    return tr;
+                };
+                document.getElementById('addRow').addEventListener('click', () => { addRow(4); renumber(); });
+                document.getElementById('fillRows').addEventListener('click', () => {
+                    const cages = Math.min(50, Math.max(1, parseInt(document.getElementById('fillCages').value, 10) || 1));
+                    const count = Math.max(1, parseInt(document.getElementById('fillCount').value, 10) || 1);
+                    rows.innerHTML = '';
+                    for (let i = 0; i < cages; i++) addRow(count);
+                    renumber();
+                });
+                rows.addEventListener('click', e => {
+                    if (e.target.closest('.row-remove') && rows.querySelectorAll('.capture-row').length > 1) {
+                        e.target.closest('.capture-row').remove();
+                        renumber();
+                    }
+                });
+                rows.addEventListener('input', renumber);
+                line.addEventListener('change', renumber);
+                renumber();
             }
             // Open the tab named in the address (after a form was sent).
             const openTab = () => {

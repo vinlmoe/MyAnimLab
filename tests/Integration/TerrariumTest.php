@@ -114,6 +114,33 @@ final class TerrariumTest extends DatabaseTestCase
         $this->assertSame(37, terrarium_population($this->con, $t)['estimate']);
     }
 
+    public function testCaptureSpreadOverSeveralCages(): void
+    {
+        $t = $this->terrarium();
+        $existing = TestDatabase::cage($this->con, false);
+        $before = (int) TestDatabase::value($this->con, "SELECT next_seq FROM animal_lines WHERE id = {$t['line_id']}");
+        $r = capture_from_terrarium($this->con, $t, ['date' => date('Y-m-d'), 'groups' => [
+            ['cage' => '', 'count' => 4, 'sex' => 'male'],
+            ['cage' => 'new', 'count' => 4, 'sex' => 'female'],
+            ['cage' => $existing, 'count' => 2, 'sex' => ''],
+            ['cage' => '', 'count' => ''], // empty row of the form
+        ]], null, 'Tester');
+        $this->assertCount(10, $r['animal_ids']);
+        $this->assertCount(3, $r['cage_ids']);
+        $this->assertSame($existing, $r['cage_ids'][2]);
+        $this->assertSame(4, (int) TestDatabase::value($this->con, "SELECT COUNT(*) FROM mice WHERE cage_id = '{$r['cage_ids'][0]}' AND sex = 'male'"));
+        $this->assertSame(4, (int) TestDatabase::value($this->con, "SELECT COUNT(*) FROM mice WHERE cage_id = '{$r['cage_ids'][1]}' AND sex = 'female'"));
+        // Identifiers numbered automatically and consecutively from the line.
+        $uids = array_column($this->con->query('SELECT animal_uid FROM mice WHERE id IN (' . implode(',', $r['animal_ids']) . ') ORDER BY id')->fetch_all(MYSQLI_ASSOC), 'animal_uid');
+        $code = TestDatabase::value($this->con, "SELECT code FROM animal_lines WHERE id = {$t['line_id']}");
+        $this->assertSame($code . '-' . str_pad((string) $before, 4, '0', STR_PAD_LEFT), $uids[0]);
+        $this->assertSame($code . '-' . str_pad((string) ($before + 9), 4, '0', STR_PAD_LEFT), $uids[9]);
+        $this->assertSame(10, (int) TestDatabase::value($this->con, "SELECT quantity FROM terrarium_events WHERE id = {$r['event_id']}"));
+
+        $this->expectException(Exception::class);
+        capture_from_terrarium($this->con, $t, ['groups' => [['cage' => 'P-NOPE', 'count' => 1]]], null, null);
+    }
+
     public function testWithdrawalBlocksCaptureForAnExperiment(): void
     {
         $t = $this->terrarium();

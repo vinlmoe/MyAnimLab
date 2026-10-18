@@ -294,18 +294,33 @@ function record_terrarium_treatment(mysqli $con, array $t, array $d, ?int $userI
 
 /**
  * Capture animals from a population: they become identified animals of the
- * line, in a new holding cage (room given) or an existing active cage, and
- * are enrolled in the experiment given, if any. $c: count, date, line_id,
- * sex, dob, cage ('new' or a cage id), room, experiment_id, baseline_weight,
- * life_stage, note, ignore_withdrawal. Must run in a transaction.
- * Returns ['event_id', 'animal_ids', 'cage_id'].
+ * line (identifiers numbered automatically from the line), spread over one
+ * or more cages, and are enrolled in the experiment given, if any.
+ * $c: date, line_id, dob, room, experiment_id, baseline_weight, life_stage,
+ * note, ignore_withdrawal, and groups: a list of ['cage' => '' or 'new' for
+ * a new holding cage, or an active cage id; 'count'; 'sex'] (or count, cage
+ * and sex directly for a single cage). Must run in a transaction.
+ * Returns ['event_id', 'animal_ids', 'cage_id' (first), 'cage_ids'].
  */
 function capture_from_terrarium(mysqli $con, array $t, array $c, ?int $userId, ?string $userName): array
 {
     if ($t['status'] !== 'active') {
         throw new Exception(tr('This terrarium is archived.'));
     }
-    $count = (int) ($c['count'] ?? 0);
+    $groups = [];
+    foreach ($c['groups'] ?? [['cage' => $c['cage'] ?? 'new', 'count' => $c['count'] ?? 0, 'sex' => $c['sex'] ?? null]] as $g) {
+        $n = (int) ($g['count'] ?? 0);
+        $cage = trim((string) ($g['cage'] ?? ''));
+        if ($n === 0 && $cage === '') {
+            continue; // empty row of the form
+        }
+        if ($n < 1) {
+            throw new Exception(tr('Give the number of animals for each cage.'));
+        }
+        $groups[] = ['cage' => $cage === '' ? 'new' : $cage, 'count' => $n,
+            'sex' => in_array($g['sex'] ?? '', ['male', 'female'], true) ? $g['sex'] : null];
+    }
+    $count = array_sum(array_column($groups, 'count'));
     if ($count < 1 || $count > 200) {
         throw new Exception(tr('Capture between 1 and 200 animals at a time.'));
     }
@@ -314,7 +329,6 @@ function capture_from_terrarium(mysqli $con, array $t, array $c, ?int $userId, ?
     if (!$lineId) {
         throw new Exception(tr('Choose the line the captured animals belong to (their identifiers come from it).'));
     }
-    $sex = in_array($c['sex'] ?? '', ['male', 'female'], true) ? $c['sex'] : null;
     $dob = trim((string) ($c['dob'] ?? '')) ?: null;
     $experimentId = (int) ($c['experiment_id'] ?? 0) ?: null;
 
@@ -348,28 +362,31 @@ function capture_from_terrarium(mysqli $con, array $t, array $c, ?int $userId, ?
         }
     }
 
-    // Destination cage.
-    $cage = (string) ($c['cage'] ?? 'new');
+    // Destination cages.
     $why = tr('Capture in terrarium {code}', ['code' => $t['code']]);
-    if ($cage === 'new') {
-        $room = trim((string) ($c['room'] ?? '')) ?: ($t['room'] ?: null);
-        $cageId = create_holding_cage($con, null, $room, null, $dob, $userId ? [$userId] : [], $why, $userId, $userName);
-    } else {
-        $stmt = $con->prepare("SELECT cage_id FROM cages WHERE cage_id = ? AND status = 'active'");
-        $stmt->bind_param('s', $cage);
-        $stmt->execute();
-        $cageId = $stmt->get_result()->fetch_row()[0] ?? null;
-        $stmt->close();
-        if (!$cageId) {
-            throw new Exception(tr('Destination cage not found or retired.'));
+    $room = trim((string) ($c['room'] ?? '')) ?: ($t['room'] ?: null);
+    $check = $con->prepare("SELECT cage_id FROM cages WHERE cage_id = ? AND status = 'active'");
+    foreach ($groups as &$g) {
+        if ($g['cage'] === 'new') {
+            $g['cage_id'] = create_holding_cage($con, null, $room, null, $dob, $userId ? [$userId] : [], $why, $userId, $userName);
+        } else {
+            $check->bind_param('s', $g['cage']);
+            $check->execute();
+            $g['cage_id'] = $check->get_result()->fetch_row()[0] ?? null;
+            if (!$g['cage_id']) {
+                throw new Exception(tr('Destination cage {cage} not found or retired.', ['cage' => $g['cage']]));
+            }
         }
     }
+    unset($g);
+    $check->close();
+    $cageIds = array_values(array_unique(array_column($groups, 'cage_id')));
 
     $eventId = terrarium_add_event($con, (int) $t['id'], 'capture', $date, [
         'quantity' => $count, 'life_stage' => $c['life_stage'] ?? null,
         'note' => trim(($exp ? tr('For experiment {number}.', ['number' => $exp['experiment_number']]) . ' ' : '') . (string) ($c['note'] ?? ''))
             . ($withdrawal !== null ? ' ' . tr('(captured during the withdrawal period until {date})', ['date' => $withdrawal]) : ''),
-        'reference' => tr('Cage {cage}', ['cage' => $cageId]),
+        'reference' => tr('Cage {cage}', ['cage' => implode(', ', $cageIds)]),
     ], $userId, $userName);
     $origin = [
         'origin_type' => 'population_capture',
@@ -379,11 +396,13 @@ function capture_from_terrarium(mysqli $con, array $t, array $c, ?int $userId, ?
     ];
     $animalIds = [];
     $link = $con->prepare('INSERT INTO terrarium_capture_animals (event_id, animal_id) VALUES (?, ?)');
-    for ($i = 0; $i < $count; $i++) {
-        $animalId = create_animal($con, $cageId, $lineId, $sex, $dob, null, $why, $userId, $origin);
-        $link->bind_param('ii', $eventId, $animalId);
-        $link->execute();
-        $animalIds[] = $animalId;
+    foreach ($groups as $g) {
+        for ($i = 0; $i < $g['count']; $i++) {
+            $animalId = create_animal($con, $g['cage_id'], $lineId, $g['sex'], $dob, null, $why, $userId, $origin);
+            $link->bind_param('ii', $eventId, $animalId);
+            $link->execute();
+            $animalIds[] = $animalId;
+        }
     }
     $link->close();
 
@@ -403,7 +422,7 @@ function capture_from_terrarium(mysqli $con, array $t, array $c, ?int $userId, ?
         mark_cages_experimental_for_animals($con, $animalIds, $userId);
         quota_send_alerts($con, $exp['iacuc_id']);
     }
-    return ['event_id' => $eventId, 'animal_ids' => $animalIds, 'cage_id' => $cageId];
+    return ['event_id' => $eventId, 'animal_ids' => $animalIds, 'cage_id' => $cageIds[0], 'cage_ids' => $cageIds];
 }
 
 function terrarium_health_check_types(): array
@@ -564,6 +583,12 @@ function terrarium_health_notify(mysqli $con, array $t, string $message): void
     foreach (terrarium_recipients($con, $t) as $userId) {
         create_notification($con, $userId, tr('Health alert: terrarium {code}', ['code' => $t['code']]), $message, 'terrarium_view.php?id=' . (int) $t['id'] . '#health', 'reminder');
     }
+}
+
+// Identifier the next animal of a line will get (e.g. RN-0003).
+function line_next_uid(array $line): string
+{
+    return $line['code'] . '-' . str_pad((string) $line['next_seq'], 4, '0', STR_PAD_LEFT);
 }
 
 /**
