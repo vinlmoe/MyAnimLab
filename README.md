@@ -261,7 +261,7 @@ Pour la configuration initiale, utilisez les identifiants administrateur par dé
 - `cage_view_parts.php` : sections Emplacement et Animaux communes à toutes les pages de cage.
 - `bc_dash.php` : tableau de bord des cages d’accouplement, avec recherche et pagination.
 - `bc_addn.php` : création des cages d’accouplement et des données de portée associées.
-- `bc_view.php` : affichage du détail d’une cage d’accouplement.
+- `bc_view.php` : fiche d’une cage d’accouplement. En tête, l’encadré « Portées en cours » liste les portées non sevrées : date de naissance, âge en jours, petits vivants (morts enregistrées déduites), date de sevrage prévue (en rouge si elle est dépassée) et lien vers le sevrage. Les portées sevrées ou clôturées sont regroupées plus bas dans « Portées précédentes », des plus récentes aux plus anciennes.
 - `bc_edit.php` : ancienne page de modification, retirée ; l’adresse redirige vers la fiche de la cage.
 - `bc_drop.php` : suppression des cages d’accouplement et de leurs données.
 - `hc_dash.php` : tableau de bord des cages d’hébergement.
@@ -291,7 +291,7 @@ Pour la configuration initiale, utilisez les identifiants administrateur par dé
 - `maintenance.php` : ajoute des entrées de maintenance aux cages, avec commentaire facultatif.
 - `get_reminder.php` : renvoie les rappels programmés enregistrés dans la base de données.
 - `manage_reminder.php` : gestion des rappels (ajout, modification, suppression).
-- `process_reminders.php` : traite les rappels programmés et crée les tâches correspondantes ; à exécuter en tâche cron.
+- `process_reminders.php` : traite les rappels programmés et crée les tâches correspondantes ; à exécuter en tâche cron. Chaque matin (heure des rappels de Gérer le laboratoire, 07:30 par défaut), il envoie aussi les rappels de sevrage : les portées à sevrer le jour même ou le lendemain sont signalées aux utilisateurs de la cage (aux administrateurs si la cage n’en a pas) ; les sevrages en retard le sont aussi aux administrateurs et responsables BEA, par notification et e-mail.
 - `daily_round_alert.php` : alerte de fin de journée envoyée aux administrateurs avec les cages non vues lors de la tournée quotidienne ; à lancer par cron toutes les quelques minutes (par ex. `*/5 * * * * php /chemin/vers/daily_round_alert.php`). Elle n’est envoyée qu’une fois par jour, après l’heure définie dans Gérer le laboratoire.
 
 ## Site de démonstration
