@@ -9,10 +9,11 @@
  */
 
 // Start a new session or resume the existing session
-session_start();
+require_once 'session_config.php';
 
 // Include the database connection file
 require 'dbcon.php';
+require 'animal_lib.php';
 
 // Check if the user is logged in and has admin role
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
@@ -41,6 +42,7 @@ $defaultLabData = [
     'timezone' => '',
     'round_alert_time' => '18:00',
     'weaning_age_days' => '21',
+    'session_timeout_minutes' => (string) SESSION_TIMEOUT_DEFAULT_MINUTES,
     'r1_temp' => '',
     'r1_humi' => '',
     'r1_illu' => '',
@@ -65,10 +67,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_lab'])) {
     }
 
     // Sanitize and fetch form inputs
-    $inputFields = ['lab_name', 'url', 'timezone', 'round_alert_time', 'weaning_age_days', 'r1_temp', 'r1_humi', 'r1_illu', 'r1_pres', 'r2_temp', 'r2_humi', 'r2_illu', 'r2_pres', 'cf-turnstile-secretKey', 'cf-turnstile-sitekey'];
+    $inputFields = ['lab_name', 'url', 'timezone', 'round_alert_time', 'weaning_age_days', 'session_timeout_minutes', 'r1_temp', 'r1_humi', 'r1_illu', 'r1_pres', 'r2_temp', 'r2_humi', 'r2_illu', 'r2_pres', 'cf-turnstile-secretKey', 'cf-turnstile-sitekey'];
     $inputData = [];
     foreach ($inputFields as $field) {
-        $inputData[$field] = filter_input(INPUT_POST, $field, FILTER_SANITIZE_STRING);
+        // Stored as typed (every output escapes it); FILTER_SANITIZE_STRING is deprecated.
+        $inputData[$field] = trim(strip_tags((string) ($_POST[$field] ?? '')));
+    }
+    // Inactivity before sign-out: whole minutes within the allowed range.
+    $minutes = (int) $inputData['session_timeout_minutes'];
+    $inputData['session_timeout_minutes'] = (string) max(SESSION_TIMEOUT_MIN_MINUTES, min(SESSION_TIMEOUT_MAX_MINUTES, $minutes ?: SESSION_TIMEOUT_DEFAULT_MINUTES));
+    if ($inputData['session_timeout_minutes'] !== $labData['session_timeout_minutes']) {
+        log_activity($con, 'settings_changed', 'settings', 'session_timeout_minutes', $labData['session_timeout_minutes'] . ' → ' . $inputData['session_timeout_minutes'] . ' min', $_SESSION['user_id'] ?? null);
     }
 
     // Update or insert new data
@@ -185,6 +194,11 @@ require 'header.php';
                 <label for="round_alert_time"><?= trh('Daily round alert time') ?></label>
                 <small class="form-text text-muted d-block"><?= trh('After this time (lab timezone), admins are alerted once about cages not yet seen today. Requires the daily_round_alert.php cron job.') ?></small>
                 <input type="time" class="form-control" id="round_alert_time" name="round_alert_time" value="<?php echo htmlspecialchars($labData['round_alert_time']); ?>">
+            </div>
+            <div class="form-group">
+                <label for="session_timeout_minutes"><?= trh('Sign-out after inactivity (minutes)') ?></label>
+                <small class="form-text text-muted d-block"><?= trh('A user who does nothing for this time is signed out and must sign in again ({min} to {max} minutes; default {default}).', ['min' => SESSION_TIMEOUT_MIN_MINUTES, 'max' => SESSION_TIMEOUT_MAX_MINUTES, 'default' => SESSION_TIMEOUT_DEFAULT_MINUTES]) ?></small>
+                <input type="number" min="<?= SESSION_TIMEOUT_MIN_MINUTES ?>" max="<?= SESSION_TIMEOUT_MAX_MINUTES ?>" step="1" class="form-control" id="session_timeout_minutes" name="session_timeout_minutes" value="<?php echo htmlspecialchars($labData['session_timeout_minutes']); ?>" required>
             </div>
             <div class="form-group">
                 <label for="weaning_age_days"><?= trh('Weaning age (days)') ?></label>

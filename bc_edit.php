@@ -9,7 +9,7 @@
  */
 
 // Start a new session or resume the existing session
-session_start();
+require_once 'session_config.php';
 
 // Include the database connection
 require 'dbcon.php';

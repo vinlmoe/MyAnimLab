@@ -14,7 +14,7 @@
  * (one row per act, animal and planned date, with the values entered).
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 require 'experiment_acts_lib.php';

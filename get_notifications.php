@@ -5,7 +5,9 @@
  * notification bell in header.php.
  */
 
-session_start();
+// Polled every minute by every page: not an activity of the user.
+const SESSION_PASSIVE_REQUEST = true;
+require_once 'session_config.php';
 require 'dbcon.php';
 
 header('Content-Type: application/json');

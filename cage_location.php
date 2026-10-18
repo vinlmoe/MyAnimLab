@@ -9,7 +9,7 @@
  *   - holding:      classify experimental cages back as holding cages
  * Then returns to the page that sent the form.
  */
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 

@@ -15,7 +15,7 @@
  * for a medication of the stock, the lot used).
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 require 'experiment_acts_lib.php';

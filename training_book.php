@@ -10,7 +10,7 @@
  * validate or reject declared ones. Printable.
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 require_once 'training_lib.php';

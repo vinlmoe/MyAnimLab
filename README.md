@@ -343,3 +343,17 @@ Les contributions pour améliorer MyVivarium sont les bienvenues. Pour contribue
 
 ## Licence
 Ce projet est distribué sous licence LGPL — voir le fichier [LICENSE](LICENSE) pour plus de détails.
+
+## Tests automatisés
+
+Les tests sont écrits avec PHPUnit (`composer install`, puis `vendor/bin/phpunit` ou `composer test`) :
+
+- `tests/Unit` : fonctions sans base de données (nombres, doses selon le poids, redirections, traductions), compilation de tous les fichiers PHP, traduction française de chaque texte de l’interface, démarrage des sessions par `session_config.php`, numérotation des migrations ;
+- `tests/Integration` : actes expérimentaux (planification, confirmation, débit du stock, refus, correction et recrédit, encadrant exigé), validation des cages en essai, livrets de formation (fonctions, formation continue, échéances, diplôme) ;
+- `tests/Http` : serveur PHP intégré sur la base de test, connexion réelle par la page de login, ouverture de toutes les pages par un administrateur et un utilisateur sans erreur PHP, pages refusées aux visiteurs non connectés et aux non-administrateurs, jetons CSRF, notes modifiables par leur seul auteur, expiration de session.
+
+Les tests d’intégration et HTTP utilisent un serveur MySQL / MariaDB où ils créent une base jetable à partir de `database/schema.sql` (jamais la base du `.env`) : `TEST_DB_HOST` (127.0.0.1), `TEST_DB_PORT` (3306), `TEST_DB_USER` (root), `TEST_DB_PASSWORD` (vide) et `TEST_DB_NAME` (`myanimlab_test`, qui doit contenir « test »). Sans serveur joignable, ils sont ignorés et seuls les tests unitaires s’exécutent. Le workflow `.github/workflows/tests.yml` les lance tous sur GitHub à chaque push.
+
+## Sessions
+
+Toutes les pages démarrent leur session par `session_config.php` : cookie HttpOnly, SameSite=Lax, Secure en HTTPS (y compris derrière un proxy qui envoie `X-Forwarded-Proto`), identifiant renouvelé toutes les 30 minutes et déconnexion après une période d’inactivité réglable par un administrateur dans Manage Lab (« Déconnexion après inactivité », 5 à 720 minutes, 30 par défaut, migration `031_session_timeout_setting.sql`). L’interrogation périodique des notifications ne compte pas comme une activité.

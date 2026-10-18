@@ -9,7 +9,7 @@
  * can be confirmed here for the whole cage at once; the cage is validated
  * only once they are all confirmed (done or not done) too.
  */
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 require 'experiment_acts_lib.php';

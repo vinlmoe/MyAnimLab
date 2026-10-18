@@ -5,7 +5,7 @@
  * thresholds — the criteria applied to every experiment run under this protocol.
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 require 'ethics_lib.php';

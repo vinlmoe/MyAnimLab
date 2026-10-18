@@ -5,7 +5,7 @@
  * This script handles AJAX requests to fetch a single reminder's data based on its ID.
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 
 header('Content-Type: application/json');

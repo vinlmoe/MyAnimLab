@@ -8,7 +8,7 @@
  * 
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 require 'cage_view_parts.php';

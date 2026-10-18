@@ -1,6 +1,6 @@
 <?php
 /** Printable report for one trial and all of its protocols / experiments. */
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'ethics_lib.php';
 if (!isset($_SESSION['username'])) { header('Location:index.php?redirect=' . urlencode($_SERVER['REQUEST_URI'])); exit; }

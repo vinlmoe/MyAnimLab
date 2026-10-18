@@ -7,7 +7,7 @@
  * author of the note or an administrator can edit it. Answers in JSON.
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'notes_lib.php';
 

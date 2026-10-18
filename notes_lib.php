@@ -17,9 +17,7 @@ function note_fail(string $message, int $status = 400): never
 // Signed-in user id of a valid note request (POST with the CSRF token).
 function note_request_user(): int
 {
-    if (session_status() === PHP_SESSION_NONE) {
-        session_start();
-    }
+    // The session is started by the endpoint (session_config.php).
     header('Content-Type: application/json; charset=utf-8');
     if (!isset($_SESSION['username'], $_SESSION['user_id'])) {
         note_fail(tr('You must be logged in to add a note.'), 401);
