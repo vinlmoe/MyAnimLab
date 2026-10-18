@@ -320,7 +320,7 @@ require 'header.php';
 
             <?php if ($cage['status'] === 'active') : ?>
                 <div class="card card-body">
-                    <h5><?= trh('Record a birth') ?></h5>
+                    <h5 id="birth"><?= trh('Record a birth') ?></h5>
                     <form method="POST" id="birthForm">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>">
                         <input type="hidden" name="cage_id" value="<?= htmlspecialchars($cageId); ?>">

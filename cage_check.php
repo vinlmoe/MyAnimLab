@@ -117,6 +117,24 @@ $roomKey = ($cage['room'] ?? '') === '' ? '__none' : $cage['room'];
                 <button type="submit" class="btn btn-success w-100 big-btn"><i class="fas fa-check"></i> <?= trh('All OK for this cage') ?></button>
             </form>
 
+            <?php if ($cage['kind'] === 'breeding') :
+                // Litters noted in pencil on the cage card are recorded here too.
+                $nursing = db_rows($con, "SELECT * FROM litters WHERE cage_id = ? AND status = 'nursing' ORDER BY litter_dob", 's', [$cageId]); ?>
+                <h5><?= trh('Litters — record what is noted on the cage card') ?></h5>
+                <div class="list-group mb-2" id="checkLitters">
+                    <?php foreach ($nursing as $l) :
+                        $overdue = $l['expected_weaning_date'] !== null && $l['expected_weaning_date'] < date('Y-m-d'); ?>
+                        <div class="list-group-item d-flex justify-content-between align-items-center <?= $overdue ? 'list-group-item-danger' : '' ?>">
+                            <span><?= trh('Born {dob}: {n} alive', ['dob' => $l['litter_dob'] ?? '?', 'n' => litter_alive_now($con, $l)]) ?>
+                                <br><small><?= trh('weaning expected {date}', ['date' => $l['expected_weaning_date'] ?? '?']) ?></small></span>
+                            <a href="litter_manage.php?litter_id=<?= (int) $l['id'] ?>" class="btn btn-outline-success btn-sm"><?= trh('Deaths / weaning') ?></a>
+                        </div>
+                    <?php endforeach; ?>
+                    <?php if (!$nursing) : ?><div class="list-group-item text-muted"><?= trh('No litter being nursed in this cage.') ?></div><?php endif; ?>
+                </div>
+                <a href="litter_manage.php?cage_id=<?= rawurlencode($cageId) ?>#birth" class="btn btn-success w-100 mb-3"><i class="fas fa-baby"></i> <?= trh('Record a birth') ?></a>
+            <?php endif; ?>
+
             <h5><?= trh('Animals — report a health issue') ?></h5>
             <div class="list-group mb-3">
                 <?php foreach ($animals as $a) :
