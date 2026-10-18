@@ -647,14 +647,26 @@ Le tableau \btn{Stock par lot} donne pour chaque lot sa péremption (en jaune
     celles des actes expérimentaux étant marquées \btn{Acte expérimental}.
 \end{itemize}
 \end{regle}
+\begin{procedure}{Annuler une administration enregistrée par erreur}
+\begin{enumerate}
+  \item En bas de la page \btn{Administrations}, tableau \btn{Dernières
+    administrations}, colonne \btn{Annulation}.
+  \item Saisissez le \btn{Motif} (mauvais animal, mauvaise dose, doublon…),
+    puis \btn{Annuler} et confirmez.
+  \item L'administration reste affichée avec le badge \btn{Annulée le …
+    (quantité recréditée)} ; la quantité revient sur le lot et l'animal est
+    de nouveau à traiter.
+\end{enumerate}
+\end{procedure}
+\capture[0.85\linewidth]{u_administrations_historique}{Dernières administrations : annulation avec motif.}
 \begin{trace}
 Une ordonnance enregistrée ne peut plus être modifiée ni supprimée. Une
-administration enregistrée non plus : seule la correction d'un acte
-expérimental annule l'administration correspondante, avec un motif, et
-recrédite le lot. En cas d'erreur sur une administration d'ordonnance,
-prévenez un administrateur ; l'écart de stock se corrige par un ajustement
-motivé. Les mouvements des stupéfiants figurent dans le \btn{Registre des
-stupéfiants}.
+administration ne se modifie pas non plus : elle s'annule, une seule fois,
+avec un motif, par son auteur ou un administrateur. Le motif, l'auteur et la
+date de l'annulation sont conservés, et le mouvement de stock figure dans
+l'historique du lot (et dans le \btn{Registre des stupéfiants} pour un
+stupéfiant). Une administration faite lors d'un acte expérimental s'annule
+en corrigeant l'acte.
 \end{trace}
 
 \section{Terrariums et populations}\label{sec:terrariums}
@@ -769,17 +781,162 @@ possible. Une capture hors expérimentation reste possible en cochant
 \btn{Capturer pendant le délai d’attente (hors expérimentation)}.
 \end{regle}
 
-\section{Formation, tâches et rappels}
+\section{Formation et livret de compétences}\label{sec:livret}
+Toute personne qui travaille avec les animaux tient son \textbf{livret de
+formation} dans \menu{Paramètres > Mon livret de formation}. Il répond aux
+articles 23 et 24 de la directive 2010/63/UE et à l'arrêté du 1\textsuperscript{er}
+février 2013 :
 \begin{itemize}
-  \item \menu{Paramètres > Mon livret de formation} : déclarez votre diplôme,
-    vos formations réglementaires par fonction, vos compétences validées et
-    votre formation continue, avec l'attestation PDF. Une entrée compte une
-    fois validée par un administrateur ou un responsable BEA. Un bandeau vous
-    prévient si votre formation continue arrive à échéance.
-  \item \menu{Paramètres > Tâches et rappels} : tâches assignées, et rappels
-    récurrents (quotidiens, hebdomadaires, mensuels) qui créent des tâches
-    et envoient un e-mail.
+  \item une \textbf{fonction} (conception des procédures et des projets,
+    application des procédures expérimentales, soins aux animaux, mise à mort)
+    n'est exercée qu'après la \textbf{formation réglementaire initiale}
+    correspondante ;
+  \item la personne travaille ensuite \textbf{sous encadrement} jusqu'à la
+    \textbf{validation de sa compétence} par son tuteur ;
+  \item elle suit une \textbf{formation continue} d'au moins 3 jours sur
+    6 ans (période glissante ; minimum réglé par l'administrateur).
 \end{itemize}
+Chaque entrée porte son \textbf{attestation} (numéro et PDF) : le livret
+imprimé et ses attestations sont les preuves présentées lors d'une
+inspection.
+
+\capture[0.85\linewidth]{u_livret}{Livret de formation : diplôme, fonctions, formation continue et parcours.}
+
+\subsection{Lire son livret}
+\begin{itemize}
+  \item \textbf{Diplôme initial} : le diplôme le plus élevé enregistré, en
+    rouge s'il manque.
+  \item \textbf{Fonctions} : pour chacune, \btn{Compétent depuis le …}
+    (vert), \btn{Formé le … --- sous encadrement} (orange) ou --- (non formé).
+  \item \textbf{Formation continue} : heures validées sur la période
+    glissante, barre de progression et badge \btn{À jour},
+    \btn{À jour jusqu’au …}, \btn{À compléter avant le …} ou
+    \btn{Non conforme depuis le …}. L'obligation commence avec la première
+    formation réglementaire initiale validée : la personne dispose alors de
+    la durée de la période pour atteindre le minimum.
+  \item Les tableaux par type d'entrée : dates, durée (« comptée » ou « hors
+    période » pour la formation continue), attestation et statut
+    (\btn{À valider}, \btn{Validée} avec le nom du valideur, \btn{Refusée}
+    avec son motif).
+\end{itemize}
+
+\subsection{Le parcours de formation}
+L'encadré \btn{Mon parcours de formation} guide pas à pas. Chaque étape
+indique ce qui est fait (coche verte), ce qui est à faire (flèche bleue), ce
+qui demande attention (point orange), ce qui est en retard (croix rouge) ou
+en attente (sablier). Le bouton de l'étape ouvre directement le formulaire
+\btn{Ajouter une entrée} avec le bon type et la bonne fonction.
+
+\capture[0.85\linewidth]{u_livret_parcours}{Parcours d’une personne formée, encore sous encadrement pour l’application des procédures.}
+
+\begin{enumerate}
+  \item \textbf{Diplôme initial} : \btn{Enregistrer mon diplôme}.
+  \item \textbf{Formation réglementaire initiale} : une par fonction
+    exercée ; \btn{Ajouter une autre fonction} pour une nouvelle fonction.
+  \item \textbf{Période encadrée et compétence} : tant qu'une fonction n'est
+    pas validée, \btn{Enregistrer une compétence validée}.
+  \item \textbf{Formation continue} : \btn{Enregistrer une formation
+    continue} avant l'échéance affichée.
+  \item \textbf{Attestations} : les entrées sans PDF, à compléter avec
+    \btn{Joindre}.
+  \item \textbf{Validation des entrées} : les entrées en attente, et celles
+    refusées à corriger.
+\end{enumerate}
+
+\subsection{Enregistrer une entrée}
+\begin{procedure}{Ajouter une entrée au livret}
+\begin{enumerate}
+  \item Bouton de l'étape du parcours, ou \btn{Ajouter une entrée}.
+  \item \btn{Type} :
+    \begin{itemize}
+      \item \btn{Diplôme initial} : \btn{Niveau} (de CAP/BEP à doctorat,
+        docteur vétérinaire…), \btn{Intitulé et spécialité},
+        \btn{Établissement} et \btn{Date d’obtention} ;
+      \item \btn{Formation réglementaire initiale} : la \btn{Fonction}, le
+        titre de la formation agréée, l'\btn{Organisme}, les dates, la
+        \btn{Durée} (heures ou jours) et l'\btn{Espèce} ;
+      \item \btn{Compétence validée (fin d’encadrement / tutorat)} : la
+        \btn{Fonction}, la date de validation et l'\btn{Encadrant / tuteur}
+        qui a validé la compétence ;
+      \item \btn{Formation continue} : titre, organisme, dates et
+        \btn{Durée} (obligatoire, en heures ou en jours de 7~h) --- formation,
+        congrès, atelier, e-learning ;
+      \item \btn{Autre formation} : toute formation utile non réglementaire.
+    \end{itemize}
+  \item \btn{N° d’attestation} et \btn{Attestation (PDF)} : joignez le
+    scan de l'attestation signée (PDF, 20~Mo au plus).
+  \item \btn{Enregistrer l’entrée}. Elle apparaît \btn{À valider} (sur fond
+    jaune) et ne compte qu'une fois validée.
+\end{enumerate}
+\end{procedure}
+\capture[0.85\linewidth]{u_livret_ajout}{Formulaire ouvert par « Enregistrer une compétence validée » : type et fonction déjà choisis.}
+
+\begin{regle}
+\begin{itemize}
+  \item Seules les formations déjà suivies s'enregistrent (pas de date
+    future).
+  \item Une entrée saisie par un administrateur ou un responsable BEA est
+    validée aussitôt.
+  \item Vous pouvez supprimer vos entrées non encore validées ; une entrée
+    validée ne peut être supprimée que par un administrateur ou un
+    responsable BEA (la suppression est journalisée).
+\end{itemize}
+\end{regle}
+
+\subsection{Les attestations (certification)}
+\begin{procedure}{Joindre une attestation manquante}
+\begin{enumerate}
+  \item Dans le tableau de l'entrée, colonne \btn{Attestation}, choisissez
+    le fichier PDF.
+  \item \btn{Joindre}. L'ajout est inscrit au journal d'activité ; le lien
+    \btn{PDF} remplace le champ.
+\end{enumerate}
+\end{procedure}
+\capture[0.85\linewidth]{u_livret_continue}{Formation continue : une entrée à valider, une entrée validée sans attestation (« Joindre »).}
+Une attestation ne se remplace pas : en cas d'erreur, demandez à un
+administrateur ou à un responsable BEA de supprimer l'entrée, puis
+enregistrez-la de nouveau. Les attestations sont conservées dans un dossier
+privé : seuls leur titulaire, les administrateurs et les responsables BEA
+peuvent les ouvrir.
+
+\begin{procedure}{Produire son livret pour une inspection}
+\begin{enumerate}
+  \item \btn{Imprimer / PDF} : le livret s'imprime sans les boutons ni le
+    parcours, avec la date d'édition, l'établissement et la base
+    réglementaire appliquée.
+  \item Joignez les attestations utiles (liens \btn{PDF}).
+\end{enumerate}
+\end{procedure}
+
+\subsection{Travailler sous encadrement}
+\begin{itemize}
+  \item Tant que la compétence « application des procédures » n'est pas
+    validée, un bandeau \btn{Votre livret de formation :} le rappelle sur les
+    pages expérimentales, avec le lien \btn{Ouvrir mon livret de formation}.
+  \item Pour confirmer un acte expérimental réalisé, choisissez
+    l'\btn{Encadrant présent} parmi les personnes compétentes de
+    l'établissement, ou \btn{Autre personne (nom)}. Son nom est conservé avec
+    l'acte.
+  \item Quand votre tuteur vous juge compétent, enregistrez la
+    \btn{Compétence validée} avec son nom et l'attestation signée. Une fois
+    l'entrée validée, le bandeau disparaît et vous confirmez seul.
+\end{itemize}
+
+\subsection{Validation et rappels}
+\begin{itemize}
+  \item Les entrées déclarées sont validées ou refusées par un
+    administrateur ou un responsable BEA (guide administrateur). Vous recevez
+    une notification ; un refus porte son motif : corrigez puis
+    enregistrez de nouveau l'entrée.
+  \item Une notification vous prévient quand votre formation continue doit
+    être renouvelée dans les 6 mois, ou qu'elle est en retard (au plus une
+    fois tous les 30 jours).
+\end{itemize}
+
+\section{Tâches et rappels}
+\menu{Paramètres > Tâches et rappels} : tâches assignées, et rappels
+récurrents (quotidiens, hebdomadaires, mensuels) qui créent des tâches et
+envoient un e-mail.
 
 \section{Les règles de traçabilité en bref}
 \begin{trace}

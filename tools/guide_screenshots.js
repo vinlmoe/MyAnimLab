@@ -73,7 +73,9 @@ async function shot(page, name, url, opts = {}) {
   if (opts.before) await opts.before(page);
   await page.waitForTimeout(150);
   const file = path.join(out, name + '.png');
-  if (opts.element) {
+  if (opts.locator) {
+    await page.locator(opts.locator).first().screenshot({ path: file });
+  } else if (opts.element) {
     await (await page.$(opts.element)).screenshot({ path: file });
   } else {
     await page.screenshot({ path: file, fullPage: false, clip: opts.clip });
@@ -102,6 +104,14 @@ async function shot(page, name, url, opts = {}) {
   await shot(u, 'u_registre_animal', 'animal_view.php?id=' + ids.exitedAnimal, { element: '#register' });
   await shot(u, 'u_ordonnances', 'prescription_manage.php');
   await shot(u, 'u_administration_cage', 'medication_administration.php?cage_id=' + ids.holding[1]);
+  await shot(u, 'u_administrations_historique', null, { element: '#administrationHistory' });
+  await shot(u, 'u_livret', 'training_book.php');
+  await shot(u, 'u_livret_parcours', null, { element: '#trainingPath' });
+  await shot(u, 'u_livret_continue', null, { locator: 'h5:has-text("Formation continue") + div' });
+  await shot(u, 'u_livret_ajout', null, {
+    before: async p => { await p.click('.path-add[data-category="competence"]'); await p.waitForTimeout(600); },
+    element: '#addEntry form',
+  });
   await shot(u, 'u_naissance', 'litter_manage.php?cage_id=' + ids.breeding, { element: '#birthForm' });
   await shot(u, 'u_sevrage', 'litter_manage.php?litter_id=' + ids.overdueLitter, { element: '#weanForm' });
   await shot(u, 'u_terrarium', 'terrarium_view.php?id=' + ids.terrarium);
@@ -157,6 +167,8 @@ async function shot(page, name, url, opts = {}) {
   await shot(a, 'a_journaux', 'log_export.php');
   await shot(a, 'a_stupefiants', 'narcotics_register.php');
   await shot(a, 'a_pharmacie', 'pharmacy_manage.php');
+  await shot(a, 'a_livrets', 'training_overview.php');
+  await shot(a, 'a_livret_validation', 'training_book.php?user_id=' + ids.julien, { locator: 'h5:has-text("Formation continue") + div' });
   await shot(a, 'a_accouplement', 'bc_addn.php');
   await shot(a, 'a_terrariums', 'terrarium_dash.php');
 

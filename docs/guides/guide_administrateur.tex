@@ -247,11 +247,12 @@ est marqué « corrigé » dans le registre.
   \item \textbf{Suivis journaliers} et \textbf{confirmations d'actes} : se
     corrigent depuis le suivi, avec un motif. Les valeurs remplacées sont
     conservées. Pour un acte, le médicament est recrédité.
-  \item \textbf{Administrations de médicaments} : une administration liée à
-    un acte expérimental est annulée, une seule fois et avec motif, par la
-    correction de l'acte, et le lot est recrédité. Une ordonnance et ses
-    administrations ne se modifient jamais : créez une nouvelle ordonnance
-    et corrigez le stock par un ajustement motivé.
+  \item \textbf{Administrations de médicaments} : une administration sur
+    ordonnance s'annule une seule fois, avec un motif, depuis la page
+    \btn{Administrations} (par son auteur ou un administrateur) ; celle d'un
+    acte expérimental, en corrigeant l'acte. Le lot est recrédité et
+    l'animal redevient à traiter. Une ordonnance ne se modifie jamais : il
+    faut en créer une nouvelle.
   \item \textbf{Remettre une cage en service} : réservé aux administrateurs,
     pour une cage retirée qui héberge encore des animaux vivants (données
     antérieures au contrôle d'hébergement, listées par la recherche
@@ -275,13 +276,62 @@ est marqué « corrigé » dans le registre.
   \item \menu{Paramètres > Bilan annuel d'utilisation des animaux} :
     effectifs, procédures terminées par sévérité réelle, utilisation par
     autorisation, sorties, animaux non utilisés. Export CSV ou ZIP.
-  \item \menu{Paramètres > Livrets de formation du personnel} : validez ou
-    refusez, avec un motif, les entrées déclarées. Réglez l'obligation de
-    formation continue (3 jours sur 6 ans par défaut). Suivez les personnes
-    à traiter en priorité. Une personne non encore compétente ne peut
-    confirmer un acte qu'en indiquant son encadrant.
+  \item \menu{Paramètres > Livrets de formation du personnel} : voir la
+    section~\ref{sec:livrets}.
 \end{itemize}
 \capture[0.85\linewidth]{a_retrospective}{Analyse rétrospective BEA d’une expérience.}
+
+\section{Livrets de formation du personnel}\label{sec:livrets}
+Les administrateurs et les responsables BEA suivent la formation de chaque
+personne (directive 2010/63/UE, art. 23 et 24). Le guide utilisateur décrit
+le livret côté personne : parcours, saisie des entrées, attestations.
+
+\capture[0.85\linewidth]{a_livrets}{Synthèse des livrets : fonctions, formation continue, statut et entrées à valider.}
+
+\begin{itemize}
+  \item \textbf{Synthèse} : une ligne par personne avec son diplôme, l'état
+    de chaque fonction (compétence validée, formé sous encadrement, non
+    formé), les heures de formation continue sur la période, le statut et
+    le nombre d'entrées à valider. Les compteurs en tête (non conformes, à
+    renouveler bientôt, à compléter, à jour, entrées à valider) et
+    \btn{Seulement ce qui demande une action} désignent les personnes à
+    traiter en priorité. Export \btn{CSV}.
+  \item \textbf{Obligation de formation continue} : \btn{Minimum (jours)},
+    \btn{Période glissante (années)} et \btn{Heures par jour} (3 jours sur
+    6 ans de 7~h par défaut, arrêté du 1\textsuperscript{er} février 2013).
+    Une modification est journalisée et s'applique aussitôt à tous les
+    livrets.
+\end{itemize}
+
+\begin{procedure}{Valider les entrées d'un livret}
+\begin{enumerate}
+  \item Dans la synthèse, cliquez sur le nom de la personne : son livret
+    s'ouvre.
+  \item Les entrées \btn{À valider} sont sur fond jaune. Ouvrez
+    l'attestation (\btn{PDF}) et vérifiez-la : intitulé, organisme agréé,
+    dates, durée, fonction, signature du tuteur pour une compétence.
+  \item \btn{Valider}, ou \btn{Refuser} avec une note obligatoire (le
+    motif). La personne est notifiée ; une entrée refusée reste visible,
+    barrée, avec son motif.
+\end{enumerate}
+\end{procedure}
+\capture[0.85\linewidth]{a_livret_validation}{Livret vu par un responsable BEA : entrée à valider, attestation à joindre.}
+
+\begin{regle}
+\begin{itemize}
+  \item Une entrée saisie par un administrateur ou un responsable BEA (par
+    exemple lors de l'arrivée d'une personne, d'après ses attestations) est
+    validée aussitôt.
+  \item Ils peuvent joindre une attestation manquante et supprimer une
+    entrée erronée, même validée ; ces actions sont journalisées.
+  \item Le système refuse qu'une personne dont la compétence « application
+    des procédures » n'est pas validée confirme seule un acte réalisé : elle
+    doit indiquer l'encadrant présent.
+  \item Chaque jour, les administrateurs et responsables BEA sont prévenus
+    des entrées en attente de validation ; chaque personne, de l'échéance de
+    sa formation continue.
+\end{itemize}
+\end{regle}
 
 \section{Pharmacie et stupéfiants}
 La saisie des médicaments, des lots, des ordonnances et des administrations
@@ -322,9 +372,10 @@ traitements »). Rôle de l'administrateur :
 \end{procedure}
 \capture[0.85\linewidth]{a_stupefiants}{Registre des stupéfiants.}
 \begin{trace}
-Ordonnances et administrations ne peuvent être ni modifiées ni supprimées.
-Une erreur de stock se corrige par un ajustement motivé ou par un inventaire
-justifié, qui restent tous deux dans l'historique du lot.
+Ordonnances et administrations ne peuvent être ni modifiées ni supprimées ;
+une administration erronée s'annule avec un motif, ce qui recrédite le lot.
+Un autre écart de stock se corrige par un ajustement motivé ou par un
+inventaire justifié, qui restent dans l'historique du lot.
 \end{trace}
 
 \section{Terrariums}\label{sec:terrariums-admin}
