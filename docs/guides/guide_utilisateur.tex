@@ -36,6 +36,7 @@ libre. Votre identifiant est votre adresse e-mail.
   \item Changez votre mot de passe dans \menu{Paramètres > Profil utilisateur}.
 \end{enumerate}
 \end{procedure}
+\capture[0.62\linewidth]{u_connexion}{Page de connexion.}
 
 \begin{regle}
 \begin{itemize}
@@ -80,6 +81,7 @@ administrateur.
   \item La langue (français ou anglais) se choisit dans l'en-tête ou dans le
     profil.
 \end{itemize}
+\capture[0.85\linewidth]{u_accueil}{Accueil : action de point limite requise, portée dont le sevrage est en retard, avancement de la tournée.}
 
 \section{Les cages}
 
@@ -137,6 +139,7 @@ l'impression.
     une donnée encore absente du logiciel.
 \end{enumerate}
 \end{procedure}
+\captures{u_etiquette}{0.4\linewidth}{Étiquette d'une cage d'accouplement : tableau des portées à compléter au crayon.}{u_qr_accouplement}{0.27\linewidth}{Page ouverte par le QR code : report des portées.}
 
 \subsection{Fichiers joints à une cage}
 \begin{procedure}{Ajouter un fichier}
@@ -146,6 +149,7 @@ l'impression.
     10~Mo au plus. Validez avec \btn{Envoyer}.
 \end{enumerate}
 \end{procedure}
+\capture[0.8\linewidth]{u_fichiers}{Section « Gérer les fichiers » de la fiche d’une cage.}
 Seuls les utilisateurs affectés à la cage et les administrateurs ajoutent ou
 suppriment des fichiers. Tout utilisateur connecté peut les télécharger. Un
 fichier dont le contenu ne correspond pas à son extension est refusé. Chaque
@@ -172,6 +176,7 @@ Chaque cage en service doit être vue au moins une fois par jour.
     l'étiquette, puis validez la cage en un geste ou signalez un problème.
 \end{enumerate}
 \end{procedure}
+\capture[0.9\linewidth]{u_tournee}{Tournée quotidienne : avancement par salle, cages vues, bouton RAS.}
 
 \begin{regle}
 \begin{itemize}
@@ -210,6 +215,7 @@ Une fois l'entrée enregistrée, seul un administrateur peut la corriger, avec
 un motif. Les valeurs remplacées restent visibles dans \btn{Corrections du
 registre} sur la fiche et dans le dossier BEA.
 \end{trace}
+\capture[0.8\linewidth]{u_registre_animal}{Cadre « Registre des entrées et sorties » d’un animal, avec une correction de sortie.}
 
 \subsection{Transférer un animal}
 \menu{Animaux > Transférer des animaux}, ou bouton \btn{Changer de cage} sur
@@ -249,6 +255,7 @@ motif.
 Le \menu{Registre sanitaire} conserve tous les signalements et leurs suivis.
 Aucune entrée ne peut être modifiée ni supprimée.
 \end{trace}
+\capture[0.85\linewidth]{u_sanitaire}{Un signalement sanitaire et son suivi.}
 
 \section{La reproduction}\label{sec:portees}
 
@@ -261,6 +268,7 @@ sevrés ne sont pas encore identifiés et ne sont pas comptés parmi les animaux
 vivants de la cage. Les portées sevrées ou clôturées sont regroupées plus bas
 dans \btn{Portées précédentes}.
 
+\capture[0.8\linewidth]{u_portees_en_cours}{Encadré « Portées en cours » : le sevrage en retard est en rouge.}
 \begin{procedure}{De la naissance au sevrage}
 \begin{enumerate}
   \item Sur la fiche de la cage, ou après le scan de son QR code :
@@ -283,6 +291,7 @@ dans \btn{Portées précédentes}.
     motif.
 \end{enumerate}
 \end{procedure}
+\capture[0.85\linewidth]{u_portee}{Page d’une portée : journal et actions (décès, sexage, sevrage, clôture).}
 
 \begin{regle}
 Chaque matin, un rappel (notification et e-mail) signale aux utilisateurs de
@@ -325,6 +334,7 @@ comprise dans la validité de l'autorisation. Un essai contient des
     au calcul de la perte de poids.
 \end{enumerate}
 \end{procedure}
+\capture[0.85\linewidth]{u_experience}{Une expérience et ses animaux inclus.}
 \begin{regle}
 L'inclusion est refusée si l'autorisation de projet est expirée ou pas encore
 valide, si l'espèce n'est pas autorisée, si l'animal n'a pas de lignée, ou si
@@ -346,6 +356,7 @@ par projet.
     administrateurs sont prévenus.
 \end{enumerate}
 \end{procedure}
+\capture[0.85\linewidth]{u_suivi}{Suivi journalier : action requise ouverte par un point limite, rappel des critères, saisie du jour.}
 
 \begin{trace}
 \begin{itemize}
@@ -358,6 +369,7 @@ par projet.
     été fait.
 \end{itemize}
 \end{trace}
+\capture[0.85\linewidth]{u_suivi_correction}{Consultation d’un suivi corrigé : motif et valeurs remplacées.}
 
 \subsection{Les actes expérimentaux}
 Depuis une expérience, bouton \btn{Actes} : injection, gavage, anesthésie,
@@ -400,6 +412,7 @@ analgésie, prélèvement, chirurgie, pesée de l'alimentation, etc.
     ou pour toute une cage. Le stock du lot est débité.
 \end{enumerate}
 \end{procedure}
+\capture[0.85\linewidth]{u_ordonnances}{Ordonnances et administrations.}
 \begin{trace}
 Une ordonnance enregistrée ne peut plus être modifiée ni supprimée. Une
 administration ne peut qu'être annulée, une seule fois et avec un motif : la

@@ -9,6 +9,8 @@
 \usepackage[hidelinks]{hyperref}
 \usepackage{fancyhdr}
 \usepackage[most]{tcolorbox}
+\usepackage{graphicx}
+\graphicspath{{img/}}
 \sloppy
 
 \definecolor{accent}{HTML}{1F5F8B}
@@ -38,3 +40,17 @@
 \pagestyle{fancy}
 \fancyhf{}
 \cfoot{\thepage}
+
+% Capture d'écran centrée avec sa légende : \capture[largeur]{fichier}{légende}
+\newcommand{\capture}[3][\linewidth]{%
+  \par\begin{center}\begin{minipage}{#1}\centering
+  \fcolorbox{gray!50}{white}{\includegraphics[width=\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax]{#2}}\\[2pt]
+  {\small\itshape #3}\end{minipage}\end{center}}
+% Deux captures côte à côte : \captures{f1}{l1}{légende1}{f2}{l2}{légende2}
+\newcommand{\captures}[6]{%
+  \par\begin{center}
+  \begin{minipage}[t]{#2}\centering\fcolorbox{gray!50}{white}{\includegraphics[width=\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax]{#1}}\\[2pt]{\small\itshape #3}\end{minipage}\hspace{6mm}%
+  \begin{minipage}[t]{#5}\centering\fcolorbox{gray!50}{white}{\includegraphics[width=\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax]{#4}}\\[2pt]{\small\itshape #6}\end{minipage}
+  \end{center}}
+% Les captures proviennent de la base de démonstration (tools/demo_data.php,
+% tools/guide_screenshots.js).
