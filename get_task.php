@@ -9,13 +9,22 @@
  */
 
 // Start the session to use session variables
-session_start();
+require_once 'session_config.php';
 
 // Include the database connection file
 require 'dbcon.php';
 
 // Initialize the response array
 $response = [];
+
+if (!isset($_SESSION['username'])) {
+    http_response_code(401);
+    header('Content-Type: application/json');
+    echo json_encode(['error' => tr('You must be logged in.')]);
+    exit;
+}
+$currentUserId = (string) ($_SESSION['user_id'] ?? '');
+$isAdmin = ($_SESSION['role'] ?? '') === 'admin';
 
 // Check if a valid task ID is provided via GET request
 if (isset($_GET['id']) && is_numeric($_GET['id'])) {
@@ -30,10 +39,16 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
     if ($stmt->execute()) {
         $result = $stmt->get_result();
 
+        $task = $result->fetch_assoc();
+        // Same visibility as manage_tasks.php: administrators, or the people
+        // who assigned the task or are assigned to it.
+        if ($task && !$isAdmin && (string) $task['assigned_by'] !== $currentUserId
+            && !in_array($currentUserId, array_map('trim', explode(',', (string) $task['assigned_to'])), true)) {
+            $task = null;
+        }
+
         // Check if a matching task is found
-        if ($result->num_rows > 0) {
-            // Fetch task data if a matching task is found
-            $task = $result->fetch_assoc();
+        if ($task) {
 
             // Populate the response array with task data
             $response = [

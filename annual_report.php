@@ -11,7 +11,7 @@
  * A procedure is counted in the year it ends (experiment_animals.removed_at).
  * Restricted to administrators and BEA responsibles.
  */
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 

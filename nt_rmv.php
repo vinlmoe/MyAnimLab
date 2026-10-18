@@ -2,56 +2,22 @@
 
 /**
  * Delete Note Script
- * 
- * This script handles the deletion of a note from the database.
- * It expects a POST request with the note ID. The note can only be deleted by the user who created it.
- * The response is returned as JSON.
- * 
+ *
+ * Deletes a note (POST note_id, csrf_token). Only the author of the note or
+ * an administrator can delete it. Answers in JSON.
  */
 
-// Include the database connection file
-include_once("dbcon.php");
+require_once 'session_config.php';
+require 'dbcon.php';
+require 'notes_lib.php';
 
-// Start or resume the session if not already started
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+$userId = note_request_user();
+$noteId = (int) ($_POST['note_id'] ?? 0);
+note_require_owner($con, $noteId, $userId);
 
-// Initialize response array
-$response = ['success' => false, 'message' => tr('Invalid request.')];
-
-// Check if the request is a POST and the 'note_id' field is set
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['note_id'])) {
-    // Retrieve the note ID from the POST data
-    $note_id = $_POST['note_id'];
-
-    // Prepare the SQL statement to delete the note
-    $sql = "DELETE FROM notes WHERE id = ?";
-    $stmt = $con->prepare($sql);
-    if ($stmt === false) {
-        $response['message'] = tr('Prepare failed: {error}', ['error' => htmlspecialchars($con->error)]);
-        echo json_encode($response);
-        exit;
-    }
-
-    // Bind parameters
-    $stmt->bind_param("i", $note_id);
-
-    // Execute the statement
-    if ($stmt->execute()) {
-        $response['success'] = true;
-        $response['message'] = tr('Note deleted successfully.');
-    } else {
-        $response['message'] = tr('Execute failed: {error}', ['error' => htmlspecialchars($stmt->error)]);
-    }
-
-    // Close the statement
-    $stmt->close();
-}
-
-// Close the database connection
-$con->close();
-
-// Return the response as JSON
-echo json_encode($response);
-?>
+$stmt = $con->prepare('DELETE FROM notes WHERE id = ?');
+$stmt->bind_param('i', $noteId);
+echo json_encode($stmt->execute()
+    ? ['success' => true, 'message' => tr('Note deleted successfully.')]
+    : ['success' => false, 'message' => tr('Execute failed: {error}', ['error' => htmlspecialchars($stmt->error)])]);
+$stmt->close();

@@ -1,6 +1,6 @@
 <?php
 /** Printable report for one protocol (plan) and its experiments. */
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'ethics_lib.php';
 require 'animal_lib.php';

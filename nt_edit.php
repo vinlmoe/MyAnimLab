@@ -2,33 +2,26 @@
 
 /**
  * Edit Note Script
- * 
- * This script handles the updating of a note in the database.
- * It expects a POST request with the note ID and the updated note text.
- * The response is returned as JSON.
- * 
+ *
+ * Updates the text of a note (POST note_id, note_text, csrf_token). Only the
+ * author of the note or an administrator can edit it. Answers in JSON.
  */
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    require 'dbcon.php'; // Include the database connection file
+require_once 'session_config.php';
+require 'dbcon.php';
+require 'notes_lib.php';
 
-    // Retrieve the note ID and updated note text from the POST request
-    $noteId = $_POST['note_id'];
-    $noteText = $_POST['note_text'];
-
-    // Prepare the SQL statement to update the note in the database
-    $sql = "UPDATE notes SET note_text = ? WHERE id = ?";
-    $stmt = $con->prepare($sql);
-    $stmt->bind_param('si', $noteText, $noteId);
-
-    // Execute the statement and return the response as JSON
-    if ($stmt->execute()) {
-        echo json_encode(['success' => true, 'message' => tr('Note updated successfully.')]);
-    } else {
-        echo json_encode(['success' => false, 'message' => tr('Failed to update note.')]);
-    }
-
-    // Close the statement and database connection
-    $stmt->close();
-    $con->close();
+$userId = note_request_user();
+$noteId = (int) ($_POST['note_id'] ?? 0);
+$noteText = trim((string) ($_POST['note_text'] ?? ''));
+if ($noteText === '') {
+    note_fail(tr('Invalid request.'));
 }
+note_require_owner($con, $noteId, $userId);
+
+$stmt = $con->prepare('UPDATE notes SET note_text = ? WHERE id = ?');
+$stmt->bind_param('si', $noteText, $noteId);
+echo json_encode($stmt->execute()
+    ? ['success' => true, 'message' => tr('Note updated successfully.')]
+    : ['success' => false, 'message' => tr('Failed to update note.')]);
+$stmt->close();

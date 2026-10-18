@@ -10,21 +10,21 @@
  * 
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php'; // Database connection
 require 'config.php'; // Configuration file for email settings
-require 'header.php'; // Include the header file
 require 'vendor/autoload.php'; // Include PHPMailer autoload file
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-// Check if the user is logged in
+// Check if the user is logged in (before any output, so that the redirect works)
 if (!isset($_SESSION['username'])) {
     $currentUrl = urlencode($_SERVER['REQUEST_URI']);
     header("Location: index.php?redirect=$currentUrl");
     exit; // Exit to ensure no further code is executed
 }
+require 'header.php'; // Include the header file (also sets $url from the settings)
 
 // Generate CSRF token if not already set
 if (empty($_SESSION['csrf_token'])) {
@@ -313,7 +313,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
             <br>
             <div class="form-group">
                 <label for="initials"><?= htmlspecialchars(t('profile.initials')) ?> <span class="note1">(<?= htmlspecialchars(t('profile.initials_help')) ?>)</span></label>
-                <input type="text" class="form-control" id="initials" name="initials" value="<?php echo htmlspecialchars($user['initials']); ?>" maxlength="3" required>
+                <input type="text" class="form-control" id="initials" name="initials" value="<?php echo htmlspecialchars((string) ($user['initials'] ?? '')); ?>" maxlength="3" required>
             </div>
             <br>
             <div class="form-group">

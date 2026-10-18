@@ -7,7 +7,7 @@
  * each animal's complete record one click away (animal_dossier.php, new tab).
  * Access: admin or BEA responsible.
  */
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 require 'ethics_lib.php';
@@ -213,7 +213,8 @@ if ($level === 'root') {
                 (SELECT MAX(GREATEST(FIELD(r.severity, $severityRank),
                         COALESCE((SELECT MAX(FIELD(u.severity, $severityRank)) FROM health_report_updates u WHERE u.report_id = r.id), 0)))
                    FROM health_reports r WHERE r.animal_id = ea.animal_id AND r.observed_at $window) AS worst_health,
-                (SELECT COUNT(*) FROM medication_administrations ma WHERE ma.animal_id = ea.animal_id AND DATE(ma.administered_at) $window) AS n_treatments
+                (SELECT COUNT(*) FROM medication_administrations ma WHERE ma.animal_id = ea.animal_id AND ma.prescription_id IS NOT NULL AND DATE(ma.administered_at) $window) AS n_treatments,
+                (SELECT COUNT(*) FROM experiment_act_animals aa WHERE aa.experiment_animal_id = ea.id AND aa.status = 'done') AS n_acts
          FROM experiment_animals ea
          JOIN mice m ON m.id = ea.animal_id
          LEFT JOIN experiment_retrospective_assessments ra ON ra.experiment_animal_id = ea.id
@@ -427,6 +428,7 @@ require 'header.php';
                                                 <dt class="col-7"><?= trh('Endpoint reached') ?></dt><dd class="col-5"><?= (int) $en['n_endpoints'] ? '<span class="badge bg-danger">' . trh('{n} time(s)', ['n' => (int) $en['n_endpoints']]) . '</span>' : trh('No') ?>
                                                     <?php if ((int) $en['n_actions']) : ?><br><span class="text-muted"><?= trh('{n} endpoint action(s)', ['n' => (int) $en['n_actions']]) ?><?= (int) $en['n_pending_actions'] ? ', ' . trh('{n} pending', ['n' => (int) $en['n_pending_actions']]) : '' ?></span><?php endif; ?></dd>
                                                 <dt class="col-7"><?= trh('Health reports') ?></dt><dd class="col-5"><?= (int) $en['n_health'] ?><?= $worst ? ' ' . health_badge($worst, HEALTH_SEVERITIES) : '' ?></dd>
+                                                <dt class="col-7"><?= trh('Experimental acts done') ?></dt><dd class="col-5"><?= (int) $en['n_acts'] ?></dd>
                                                 <dt class="col-7"><?= trh('Treatments given') ?></dt><dd class="col-5"><?= (int) $en['n_treatments'] ?></dd>
                                             </dl>
                                         </td>

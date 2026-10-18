@@ -225,6 +225,7 @@ if (isset($settings['r2_pres'])) {
                     <li><hr class="dropdown-divider"></li>
                     <li><a class="dropdown-item" href="health_report.php"><i class="fas fa-notes-medical me-1"></i> <?= htmlspecialchars(t('nav.report_health')) ?></a></li>
                     <li><a class="dropdown-item" href="health_registry.php"><i class="fas fa-book-medical me-1"></i> <?= htmlspecialchars(t('nav.health_registry')) ?></a></li>
+                    <li><a class="dropdown-item" href="terrarium_dash.php"><i class="fas fa-frog me-1"></i> <?= trh('Terrariums and populations') ?></a></li>
                     <li><a class="dropdown-item" href="animal_register.php"><i class="fas fa-book me-1"></i> <?= trh('Entry / exit register') ?></a></li>
                     <li><a class="dropdown-item" href="pharmacy_manage.php"><i class="fas fa-pills me-1"></i> <?= trh('Pharmacy, prescriptions and administrations') ?></a></li>
                 </ul>
@@ -255,7 +256,10 @@ if (isset($settings['r2_pres'])) {
                 <ul class="dropdown-menu" aria-labelledby="settingsMenuButton">
                     <li><a class="dropdown-item" href="user_profile.php"><?= htmlspecialchars(t('nav.profile')) ?></a></li>
                     <li><a class="dropdown-item" href="manage_tasks.php"><?= htmlspecialchars(t('nav.tasks')) ?></a></li>
+                    <li><a class="dropdown-item" href="training_book.php"><i class="fas fa-user-graduate me-1"></i> <?= trh('My training record') ?></a></li>
+                    <li><a class="dropdown-item" href="two_factor.php"><i class="fas fa-shield-alt me-1"></i> <?= trh('Two-factor authentication') ?></a></li>
                     <?php if ($showBeaReview) : ?>
+                        <li><a class="dropdown-item" href="training_overview.php"><i class="fas fa-users me-1"></i> <?= trh('Training records of the staff') ?></a></li>
                         <li><a class="dropdown-item" href="experiment_retrospective.php"><i class="fas fa-clipboard-list me-1"></i> <?= trh('BEA retrospective review') ?></a></li>
                         <li><a class="dropdown-item" href="annual_report.php"><i class="fas fa-chart-bar me-1"></i> <?= htmlspecialchars(t('nav.annual_report')) ?></a></li>
                     <?php endif; ?>

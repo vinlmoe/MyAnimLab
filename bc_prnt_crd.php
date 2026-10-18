@@ -13,7 +13,7 @@ exit;
  */
 
 // Start a new session or resume the existing session
-session_start();
+require_once 'session_config.php';
 
 // Include the database connection file
 require 'dbcon.php';
@@ -203,7 +203,7 @@ function getIacucIdsByCageId($con, $cageId)
                         <tr>
                             <td colspan="3" style="width: 100%; text-align:center;">
                                 <span style="font-weight: bold; font-size: 10pt; text-transform: uppercase; padding:3px;">
-                                    <?= trh('Breeding Cage') ?> - # <?= $breedingcage["cage_id"] ?> </span>
+                                    <?= trh('Breeding Cage') ?> - # <?= htmlspecialchars((string) $breedingcage["cage_id"]) ?> </span>
                             </td>
                         </tr>
                         <tr>
@@ -213,7 +213,7 @@ function getIacucIdsByCageId($con, $cageId)
                             </td>
                             <td style="width:40%;">
                                 <span style="font-weight: bold; padding:3px; text-transform: uppercase;"><?= trh('Cross:') ?></span>
-                                <span><?= $breedingcage["cross"] ?></span>
+                                <span><?= htmlspecialchars((string) $breedingcage["cross"]) ?></span>
                             </td>
                             <td rowspan="4" style="width:20%; text-align:center;">
                                 <img src="<?php echo "https://api.qrserver.com/v1/create-qr-code/?size=75x75&data=https://" . $url . "/bc_view.php?id=" . $breedingcage["cage_id"] . "&choe=UTF-8"; ?>" alt="QR Code">
@@ -226,27 +226,27 @@ function getIacucIdsByCageId($con, $cageId)
                             </td>
                             <td style="width:40%;">
                                 <span style="font-weight: bold; padding:3px; text-transform: uppercase;"><?= trh('User:') ?></span>
-                                <span><?= $breedingcage['user_initials']; ?></span>
+                                <span><?= htmlspecialchars($breedingcage['user_initials']); ?></span>
                             </td>
                         </tr>
                         <tr>
                             <td style="width:40%;">
                                 <span style="font-weight: bold; padding:3px; text-transform: uppercase;"><?= trh('Male ID:') ?></span>
-                                <span><?= $breedingcage["male_id"] ?></span>
+                                <span><?= htmlspecialchars((string) $breedingcage["male_id"]) ?></span>
                             </td>
                             <td style="width:40%;">
                                 <span style="font-weight: bold; padding:3px; text-transform: uppercase;"><?= trh('Male DOB:') ?></span>
-                                <span><?= $breedingcage["male_dob"] ?></span>
+                                <span><?= htmlspecialchars((string) $breedingcage["male_dob"]) ?></span>
                             </td>
                         </tr>
                         <tr style="border-bottom: none;">
                             <td style="width:40%;">
                                 <span style="font-weight: bold; padding:3px; text-transform: uppercase;"><?= trh('Female ID:') ?></span>
-                                <span><?= $breedingcage["female_id"] ?></span>
+                                <span><?= htmlspecialchars((string) $breedingcage["female_id"]) ?></span>
                             </td>
                             <td style="width:40%;">
                                 <span style="font-weight: bold; padding:3px; text-transform: uppercase;"><?= trh('Female DOB:') ?></span>
-                                <span><?= $breedingcage["female_dob"] ?></span>
+                                <span><?= htmlspecialchars((string) $breedingcage["female_dob"]) ?></span>
                             </td>
                         </tr>
                     </table>

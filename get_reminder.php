@@ -5,7 +5,15 @@
  * This script handles AJAX requests to fetch a single reminder's data based on its ID.
  */
 
+require_once 'session_config.php';
 require 'dbcon.php';
+
+header('Content-Type: application/json');
+if (!isset($_SESSION['username'])) {
+    http_response_code(401);
+    echo json_encode(['error' => tr('You must be logged in.')]);
+    exit;
+}
 
 if (isset($_GET['id'])) {
     $id = intval($_GET['id']);

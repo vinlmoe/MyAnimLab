@@ -9,7 +9,7 @@
  * and PDF; every export is recorded in the activity log. Animals whose
  * origin is still to be completed are listed separately.
  */
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 require 'pdf_lib.php';

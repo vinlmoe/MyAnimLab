@@ -11,7 +11,7 @@
  */
 
 ob_start(); // Start output buffering
-session_start(); // Start the session to use session variables
+require_once 'session_config.php';
 require 'header.php'; // Include header file
 require 'dbcon.php'; // Include database connection
 
@@ -220,25 +220,47 @@ $search = htmlspecialchars($_GET['search'] ?? '');
 $cageIdFilter = htmlspecialchars($_GET['id'] ?? '');
 $filter = htmlspecialchars($_GET['filter'] ?? '');
 
-// Construct the task query with search and filter options
+// Construct the task query with search and filter options (bound parameters:
+// the values above are escaped for HTML, the query uses the raw input).
 $taskQueries = "SELECT * FROM tasks WHERE 1";
-if ($search) {
-    $taskQueries .= " AND (title LIKE '%$search%' OR assigned_by LIKE '%$search%' OR assigned_to LIKE '%$search%' OR status LIKE '%$search%' OR cage_id LIKE '%$search%')";
+$taskTypes = '';
+$taskParams = [];
+$rawSearch = trim((string) ($_GET['search'] ?? ''));
+$rawCage = trim((string) ($_GET['id'] ?? ''));
+$me = (string) $currentUserId;
+if ($rawSearch !== '') {
+    $taskQueries .= " AND (title LIKE ? OR assigned_by LIKE ? OR assigned_to LIKE ? OR status LIKE ? OR cage_id LIKE ?)";
+    $like = '%' . $rawSearch . '%';
+    $taskTypes .= 'sssss';
+    array_push($taskParams, $like, $like, $like, $like, $like);
 }
 
 if ($filter == 'assigned_by_me') {
-    $taskQueries .= " AND assigned_by = '$currentUserId'";
+    $taskQueries .= " AND assigned_by = ?";
+    $taskTypes .= 's';
+    $taskParams[] = $me;
 } elseif ($filter == 'assigned_to_me') {
-    $taskQueries .= " AND FIND_IN_SET('$currentUserId', assigned_to)";
+    $taskQueries .= " AND FIND_IN_SET(?, assigned_to)";
+    $taskTypes .= 's';
+    $taskParams[] = $me;
 } elseif (!$isAdmin) {
-    $taskQueries .= " AND (assigned_by = '$currentUserId' OR FIND_IN_SET('$currentUserId', assigned_to))";
+    $taskQueries .= " AND (assigned_by = ? OR FIND_IN_SET(?, assigned_to))";
+    $taskTypes .= 'ss';
+    array_push($taskParams, $me, $me);
 }
 
-if ($cageIdFilter) {
-    $taskQueries .= " AND cage_id = '$cageIdFilter'";
+if ($rawCage !== '') {
+    $taskQueries .= " AND cage_id = ?";
+    $taskTypes .= 's';
+    $taskParams[] = $rawCage;
 }
 
-$taskResult = $con->query($taskQueries);
+$taskStmt = $con->prepare($taskQueries);
+if ($taskParams) {
+    $taskStmt->bind_param($taskTypes, ...$taskParams);
+}
+$taskStmt->execute();
+$taskResult = $taskStmt->get_result();
 
 // Fetch cages for the dropdown
 $cageQuery = "SELECT cage_id FROM cages";
@@ -501,10 +523,10 @@ ob_end_flush(); // Flush the output buffer
         <!-- Include message for user notifications -->
         <?php include('message.php'); ?>
 
-        <h2><?= trh('Manage Tasks') ?> <?= $cageIdFilter ? trh('for Cage {cage}', ['cage' => $cageIdFilter]) : ''; ?></h2>
+        <h2><?= trh('Manage Tasks') ?> <?= $rawCage !== '' ? trh('for Cage {cage}', ['cage' => $rawCage]) : ''; ?></h2>
         <?php if (isset($_SESSION['message'])) : ?>
             <div class="alert alert-info">
-                <?= $_SESSION['message']; ?>
+                <?= htmlspecialchars($_SESSION['message']); ?>
                 <?php unset($_SESSION['message']); ?>
             </div>
         <?php endif; ?>
@@ -660,7 +682,7 @@ ob_end_flush(); // Flush the output buffer
         const taskStatusLabels = <?= json_encode(array_map('tr', ['Pending' => 'Pending', 'In Progress' => 'In Progress', 'Completed' => 'Completed']), JSON_HEX_TAG | JSON_UNESCAPED_UNICODE) ?>;
         // Embed the PHP-encoded JSON into a JavaScript variable
         const users = <?= json_encode($users); ?>;
-        const cageIdFilter = '<?= $cageIdFilter; ?>';
+        const cageIdFilter = <?= json_encode($rawCage, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
         $(document).ready(function() {
             $('#assigned_to').select2({
@@ -762,7 +784,7 @@ ob_end_flush(); // Flush the output buffer
             document.getElementById('id').value = '';
             document.getElementById('title').value = '';
             document.getElementById('description').value = '';
-            document.getElementById('assigned_by').value = '<?= $currentUserName; ?>';
+            document.getElementById('assigned_by').value = <?= json_encode((string) $currentUserName, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
             document.getElementById('assigned_by_id').value = '<?= $currentUserId; ?>';
             $('#assigned_to').val(null).trigger('change');
             document.querySelector('input[name="status"][value="Pending"]').checked = true;

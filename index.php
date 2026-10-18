@@ -14,11 +14,12 @@ ini_set('display_startup_errors', 0);
 error_reporting(E_ALL);
 
 // Start a new session or resume the existing session
-session_start();
+require_once 'session_config.php';
 
 // Include the database connection file
 require 'dbcon.php';
 require 'config.php'; // Include configuration file for SMTP details
+require 'auth_lib.php'; // Sign-in and two-factor authentication
 require 'vendor/autoload.php'; // Include PHPMailer autoload file
 
 use PHPMailer\PHPMailer\PHPMailer;
@@ -178,40 +179,17 @@ if (isset($_POST['login'])) {
                 } else {
                     // Verify password
                     if (password_verify($password, $row['password'])) {
-                        // Set session variables
-                        $_SESSION['name'] = $row['name'];
-                        $_SESSION['username'] = $row['username'];
-                        $_SESSION['role'] = $row['role'];
-                        $_SESSION['position'] = $row['position'];
-                        $_SESSION['user_id'] = $row['id'];
-                        $_SESSION['is_bea_responsible'] = !empty($row['is_bea_responsible']);
-                        $_SESSION['locale'] = in_array($row['preferred_locale'] ?? '', ['fr', 'en'], true)
-                            ? $row['preferred_locale']
-                            : 'fr';
-
-                        // Regenerate session ID to prevent session fixation    
-                        session_regenerate_id(true);
-
-                        // Reset login attempts and unlock the account
-                        $reset_attempts = "UPDATE users SET login_attempts = 0, account_locked = NULL WHERE username=?";
-                        $reset_stmt = mysqli_prepare($con, $reset_attempts);
-                        mysqli_stmt_bind_param($reset_stmt, "s", $username);
-                        mysqli_stmt_execute($reset_stmt);
-
-                        // Redirect to the specified URL or default to home.php
-                        if (isset($_GET['redirect'])) {
-                            $rurl = urldecode($_GET['redirect']);
-                            // SECURITY: Validate redirect URL to prevent open redirect attacks
-                            // Open redirects can be exploited for phishing by redirecting users to malicious sites
-                            // Only allow relative URLs to .php pages within this application
-                            // Reject any URLs containing http:// or https:// (external sites)
-                            if (preg_match('/^[a-zA-Z0-9_\-\.\/\?=&]+\.php/', $rurl) && !preg_match('/^(https?:)?\/\//', $rurl)) {
-                                header("Location: $rurl");
-                                exit;
-                            }
+                        $target = login_redirect_target($_GET['redirect'] ?? null);
+                        // Second factor set up: the code is asked on login_2fa.php
+                        // before the session is opened.
+                        if (!empty($row['totp_enabled']) && !empty($row['totp_secret'])) {
+                            session_regenerate_id(true);
+                            $_SESSION['pending_2fa'] = ['user_id' => (int) $row['id'], 'at' => time(), 'attempts' => 0, 'redirect' => $target];
+                            header('Location: login_2fa.php');
+                            exit;
                         }
-                        // Default redirect if validation fails or no redirect specified
-                        header("Location: home.php");
+                        complete_login($con, $row);
+                        header('Location: ' . (!empty($_SESSION['must_setup_2fa']) ? 'two_factor.php' : $target));
                         exit;
                     } else {
                         // Handle failed login attempts
@@ -408,6 +386,10 @@ mysqli_close($con);
                         <h3><?= trh('Login') ?></h3>
                         <?php if (!empty($error_message)) { ?>
                             <div class="alert alert-danger"><?= htmlspecialchars($error_message); ?></div>
+                        <?php } ?>
+                        <?php if (isset($_SESSION['message'])) { ?>
+                            <div class="alert alert-warning"><?= htmlspecialchars($_SESSION['message']); ?></div>
+                            <?php unset($_SESSION['message']); ?>
                         <?php } ?>
                         <?php if (isset($_SESSION['error_message'])) { ?>
                             <div class="alert alert-danger">

@@ -9,7 +9,7 @@
  * without a camera.
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 
 if (!isset($_SESSION['username'])) {

@@ -6,7 +6,7 @@
  * needs. Read-only against V1.
  */
 
-require 'session_config.php';
+require_once 'session_config.php';
 require 'dbcon.php';
 
 if (!isset($_SESSION['username'])) {

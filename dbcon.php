@@ -9,8 +9,13 @@
  *
  */
 
+// Already connected (session_config.php loads this file first): nothing to redo.
+if (isset($con) && $con instanceof mysqli) {
+    return;
+}
+
 // Load Composer's autoload file
-require __DIR__ . '/vendor/autoload.php';
+require_once __DIR__ . '/vendor/autoload.php';
 
 use Dotenv\Dotenv;
 
@@ -19,24 +24,27 @@ require_once __DIR__ . '/i18n.php';
 
 // Check if the .env file exists in the current directory
 if (file_exists(__DIR__ . '/.env')) {
-    // Create an instance of Dotenv and load the .env file
+    // Load the .env file. Immutable: variables already set in the environment
+    // (e.g. by the automated tests or a container) are kept.
     $dotenv = Dotenv::createImmutable(__DIR__);
     $dotenv->load();
-} else {
-    // Terminate the script with an error message if the .env file is not found
+} elseif (getenv('DB_DATABASE') === false) {
+    // Terminate the script with an error message if no configuration is found
     die('.env file not found. Please create the file and add your database credentials.');
 }
 
-// Retrieve database connection credentials from environment variables
-$servername = $_ENV['DB_HOST'] ?? 'localhost'; // Default to 'localhost' if not set
-$username = $_ENV['DB_USERNAME'] ?? 'root'; // Default to 'root' if not set
-$password = $_ENV['DB_PASSWORD'] ?? ''; // Default to an empty string if not set
-$dbname = $_ENV['DB_DATABASE'] ?? 'myvivarium'; // Default to 'database' if not set
+// Database credentials from the environment (.env, or real environment variables).
+$envValue = fn(string $name, string $default): string => (string) ($_ENV[$name] ?? (getenv($name) !== false ? getenv($name) : $default));
+$servername = $envValue('DB_HOST', 'localhost');
+$username = $envValue('DB_USERNAME', 'root');
+$password = $envValue('DB_PASSWORD', '');
+$dbname = $envValue('DB_DATABASE', 'myvivarium');
+$dbport = (int) $envValue('DB_PORT', '3306');
 
-$demo = $_ENV['DEMO'] ?? ''; // Default to an empty string if not set
+$demo = $envValue('DEMO', '');
 
 // Create a new connection to the database using the object-oriented style
-$con = new mysqli($servername, $username, $password, $dbname);
+$con = new mysqli($servername, $username, $password, $dbname, $dbport);
 
 // Check the connection to the database
 if ($con->connect_error) {
