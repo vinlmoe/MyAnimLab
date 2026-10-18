@@ -85,12 +85,12 @@ function sendPendingEmails()
     // Fetch pending emails
     $stmt = $con->prepare("SELECT id, recipient, subject, body FROM outbox WHERE status = 'pending'");
     $stmt->execute();
-    $stmt->store_result(); // Store the result set to free the connection
-    $stmt->bind_result($id, $recipient, $subject, $body);
+    $pending = $stmt->get_result()->fetch_all(MYSQLI_ASSOC); // read at once: the connection is free for the updates
 
-    while ($stmt->fetch()) {
+    foreach ($pending as $email) {
+        $id = (int) $email['id'];
         // Attempt to send the email
-        $result = sendEmail($recipient, $subject, $body);
+        $result = sendEmail($email['recipient'], $email['subject'], $email['body']);
         $sentAt = date('Y-m-d H:i:s');
 
         // Update the email status based on the result

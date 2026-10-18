@@ -262,12 +262,12 @@ Pour la configuration initiale, utilisez les identifiants administrateur par dé
 - `bc_dash.php` : tableau de bord des cages d’accouplement, avec recherche et pagination.
 - `bc_addn.php` : création des cages d’accouplement et des données de portée associées.
 - `bc_view.php` : affichage du détail d’une cage d’accouplement.
-- `bc_edit.php` : modification d’une cage d’accouplement, y compris les portées et l’envoi de fichiers.
+- `bc_edit.php` : ancienne page de modification, retirée ; l’adresse redirige vers la fiche de la cage.
 - `bc_drop.php` : suppression des cages d’accouplement et de leurs données.
 - `hc_dash.php` : tableau de bord des cages d’hébergement.
 - `hc_addn.php` : ajout de cages d’hébergement.
 - `hc_view.php` : affichage du détail d’une cage d’hébergement.
-- `hc_edit.php` : modification d’une cage d’hébergement.
+- `hc_edit.php` : ancienne page de modification, retirée ; l’adresse redirige vers la fiche de la cage.
 - `hc_drop.php` : suppression des cages d’hébergement.
 - `nt_app.php` : script principal de l’application de notes.
 - `nt_add.php` : ajout de notes.
@@ -277,8 +277,8 @@ Pour la configuration initiale, utilisez les identifiants administrateur par dé
 - `footer.php` : pied de page avec le nom du laboratoire et l’année en cours.
 - `message.php` : affiche les messages de session sous forme d’alertes Bootstrap.
 - `logout.php` : déconnecte l’utilisateur en détruisant la session et redirige vers la page de connexion.
-- `cage_files_lib.php` / `file_download.php` : fichiers joints aux cages. Un fichier est enregistré dans `uploads/` sous un nom aléatoire après contrôle de sa taille, de son extension et de son contenu réel (un SVG, ou une page HTML renommée en `.png` ou `.pdf`, sont refusés). `uploads/` n’est jamais servi par Apache : le fichier est téléchargé par `file_download.php`, pour un utilisateur connecté, toujours en pièce jointe.
-- `delete_file.php` : supprime les fichiers envoyés, sur le serveur et dans la base de données.
+- `cage_files_lib.php` / `file_download.php` : fichiers joints aux cages, listés sur leur fiche. `uploads/` n’est jamais servi par Apache : un fichier est téléchargé par `file_download.php`, pour un utilisateur connecté, toujours en pièce jointe avec le type de son extension. L’ajout de fichiers faisait partie des pages de modification retirées.
+- `delete_file.php` : supprime un fichier de cage, sur le serveur et dans la base (POST avec jeton CSRF, utilisateur de la cage ou administrateur).
 - `export_for_v2.php` : export JSON des données pour la version 2 (administrateurs) ; les secrets (mots de passe hachés, jetons, secrets de double authentification, corps des e-mails) en sont exclus et chaque export est tracé.
 - `export_data.php` : permet aux administrateurs d’exporter toutes les tables de la base en fichiers CSV.
 - `log_export.php` : export des journaux bruts (activité, événements et mouvements des animaux, contrôles et cycle de vie des cages, portées, suivi sanitaire, actions de point limite, actes expérimentaux (définitions, informations demandées, statut par animal et par date, valeurs saisies), notifications, e-mails) tels qu’enregistrés, par journal en CSV ou tous en ZIP, avec filtre de dates ; réservé aux administrateurs et tracé dans le journal d’activité.
@@ -359,13 +359,13 @@ Ce projet est distribué sous licence LGPL — voir le fichier [LICENSE](LICENSE
 
 ## Tests automatisés
 
-Les tests sont écrits avec PHPUnit (`composer install`, puis `vendor/bin/phpunit` ou `composer test`) :
+L’analyse statique utilise PHPStan (`composer analyse`, configuration `phpstan.neon`, niveau 0 sans erreur). Les tests sont écrits avec PHPUnit (`composer install`, puis `vendor/bin/phpunit` ou `composer test`) :
 
 - `tests/Unit` : fonctions sans base de données (nombres, doses selon le poids, redirections, traductions), compilation de tous les fichiers PHP, traduction française de chaque texte de l’interface, démarrage des sessions par `session_config.php`, numérotation des migrations et leur enregistrement dans `schema.sql`, valeurs SQL toujours liées (aucune requête construite avec une valeur), jetons CSRF vérifiés par `csrf_valid()`, scripts cron refusant le web, règles du `.htaccess` ;
-- `tests/Integration` : actes expérimentaux (planification, confirmation, débit du stock, refus, correction et recrédit, encadrant exigé), validation des cages en essai, livrets de formation (fonctions, formation continue, échéances, diplôme), journaux en ajout seul et corrections des suivis, outil de migrations ;
-- `tests/Http` : serveur PHP intégré sur la base de test, connexion réelle par la page de login, ouverture de toutes les pages par un administrateur et un utilisateur sans erreur PHP, pages refusées aux visiteurs non connectés et aux non-administrateurs, jetons CSRF, notes modifiables par leur seul auteur, expiration de session, téléchargement des fichiers de cage, correction d’un suivi avec motif, export V2 sans secrets, scripts cron refusés par HTTP.
+- `tests/Integration` : actes expérimentaux (planification, confirmation, débit du stock, refus, correction et recrédit, encadrant exigé), validation des cages en essai, livrets de formation (fonctions, formation continue, échéances, diplôme), journaux en ajout seul et corrections des suivis, corrections du registre des entrées et sorties, protection des prescriptions et administrations, outil de migrations ;
+- `tests/Http` : serveur PHP intégré sur la base de test, connexion réelle par la page de login, ouverture de toutes les pages par un administrateur et un utilisateur sans erreur PHP, pages refusées aux visiteurs non connectés et aux non-administrateurs, jetons CSRF, notes modifiables par leur seul auteur, expiration de session, téléchargement des fichiers de cage, correction d’un suivi avec motif, export V2 sans secrets, scripts cron refusés par HTTP, corrections du registre réservées aux administrateurs avec motif.
 
-Les tests d’intégration et HTTP utilisent un serveur MySQL / MariaDB où ils créent une base jetable à partir de `database/schema.sql` (jamais la base du `.env`) : `TEST_DB_HOST` (127.0.0.1), `TEST_DB_PORT` (3306), `TEST_DB_USER` (root), `TEST_DB_PASSWORD` (vide) et `TEST_DB_NAME` (`myanimlab_test`, qui doit contenir « test »). Sans serveur joignable, ils sont ignorés et seuls les tests unitaires s’exécutent. Le workflow `.github/workflows/tests.yml` les lance tous sur GitHub à chaque push.
+Les tests d’intégration et HTTP utilisent un serveur MySQL / MariaDB où ils créent une base jetable à partir de `database/schema.sql` (jamais la base du `.env`) : `TEST_DB_HOST` (127.0.0.1), `TEST_DB_PORT` (3306), `TEST_DB_USER` (root), `TEST_DB_PASSWORD` (vide) et `TEST_DB_NAME` (`myanimlab_test`, qui doit contenir « test »). Sans serveur joignable, ils sont ignorés et seuls les tests unitaires s’exécutent. Le workflow `.github/workflows/tests.yml` lance sur GitHub, à chaque push, l’audit des dépendances (`composer audit`), PHPStan puis tous les tests.
 
 ## Sessions
 
@@ -394,3 +394,5 @@ Toutes les pages démarrent leur session par `session_config.php` : cookie HttpO
 - **Journaux en ajout seul** : le journal d’activité, les événements et mouvements des animaux, les événements de portées et de terrariums, les mouvements de stock, les corrections d’actes et de suivis refusent toute modification ou suppression au niveau de la base (déclencheurs, comme le registre sanitaire, les contrôles et le cycle de vie des cages). Seule la suppression d’un animal ou d’un utilisateur par un administrateur retire, par cascade, les lignes qui lui sont rattachées.
 - **Correction d’un suivi expérimental** : enregistrer de nouveau un jour déjà saisi est une correction. Le motif est obligatoire ; les valeurs remplacées (poids, scores de la grille, observations, auteur et date de saisie) sont conservées et affichées dans la consultation du suivi (« Corrections de ce suivi »), le jour est marqué « corrigé » dans l’historique, et la correction est tracée dans le journal d’activité et l’export brut des journaux (migration `035_followup_revisions_append_only_logs.sql`).
 - **Mises à jour de la base** : `php tools/migrate.php` applique, dans l’ordre, les migrations de `database/migrations` qui ne le sont pas encore et les enregistre dans la table `schema_migrations` (`--status` les liste). `database/schema.sql` crée une base à jour. Pour une base créée avant cet outil, indiquez une fois la dernière migration déjà appliquée : `php tools/migrate.php --baseline=034`. Les migrations créent des tables et des déclencheurs : renseignez `MIGRATION_DB_USERNAME` et `MIGRATION_DB_PASSWORD` (dans `.env` ou l’environnement) avec un compte administrateur de la base.
+- **Corrections du registre des entrées et sorties** : un administrateur corrige l’entrée d’un animal (provenance, fournisseur, référence, date) ou sa sortie (code et donc statut, date, circonstances, destination) depuis sa fiche, avec un motif obligatoire. Les valeurs remplacées et les nouvelles sont conservées dans `record_corrections` (ajout seul) et affichées sur la fiche et le dossier BEA de l’animal. L’animal porte la mention « corrigé » dans le registre, et les corrections figurent dans l’export brut des journaux. Les inclusions en expérience clôturées par la sortie suivent sa date et son code (`corrections_lib.php`, migration `036_register_corrections_prescriptions_protected.sql`).
+- **Prescriptions et administrations** : une prescription et ses animaux ne peuvent plus être modifiés ni supprimés au niveau de la base (seul le statut peut évoluer). Une administration de médicament ne peut pas être supprimée et ne peut être qu’annulée une fois, avec un motif ; l’administration d’origine reste telle qu’enregistrée.
