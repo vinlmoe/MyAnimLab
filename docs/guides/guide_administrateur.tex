@@ -247,9 +247,19 @@ est marqué « corrigé » dans le registre.
   \item \textbf{Suivis journaliers} et \textbf{confirmations d'actes} : se
     corrigent depuis le suivi, avec un motif. Les valeurs remplacées sont
     conservées. Pour un acte, le médicament est recrédité.
-  \item \textbf{Administrations de médicaments} : annulation unique avec
-    motif. Une ordonnance ne se modifie jamais ; il faut en créer une
-    nouvelle.
+  \item \textbf{Administrations de médicaments} : une administration liée à
+    un acte expérimental est annulée, une seule fois et avec motif, par la
+    correction de l'acte, et le lot est recrédité. Une ordonnance et ses
+    administrations ne se modifient jamais : créez une nouvelle ordonnance
+    et corrigez le stock par un ajustement motivé.
+  \item \textbf{Remettre une cage en service} : réservé aux administrateurs,
+    pour une cage retirée qui héberge encore des animaux vivants (données
+    antérieures au contrôle d'hébergement, listées par la recherche
+    \btn{Anomalies d’hébergement}). Sur la fiche de la cage, le bandeau
+    \btn{Cage retirée} propose alors un champ \btn{Raison} et le bouton
+    \btn{Remettre en service}. La raison est inscrite dans l'historique de
+    la cage et le journal d'activité. Une cage vide ne peut pas être remise
+    en service.
   \item \textbf{Suppression définitive d'un animal} : réservée aux erreurs de
     saisie manifestes (animal créé par erreur). Elle demande de retaper le
     numéro de l'animal. Elle est journalisée avant la suppression. Préférez

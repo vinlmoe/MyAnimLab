@@ -527,6 +527,31 @@ function retire_cage(mysqli $con, string $cageId, string $reason, ?int $userId =
     return true;
 }
 
+// Put an archived cage back in service (administrators). Only a cage that
+// still houses active animals can be restored, e.g. after an exit recorded
+// by mistake was corrected; the reason is kept in the cage lifecycle and the
+// activity log.
+function restore_cage(mysqli $con, string $cageId, string $reason, ?int $userId = null, ?string $userName = null): void
+{
+    $reason = trim($reason);
+    if ($reason === '') {
+        throw new Exception(tr('Give the reason for putting the cage back in service.'));
+    }
+    if (cage_active_animal_count($con, $cageId) === 0) {
+        throw new Exception(tr('Cage {id} has no active animal: an empty cage cannot be put back in service.', ['id' => $cageId]));
+    }
+    $stmt = $con->prepare("UPDATE cages SET status = 'active' WHERE cage_id = ? AND status = 'archived'");
+    $stmt->bind_param("s", $cageId);
+    $stmt->execute();
+    $restored = $stmt->affected_rows === 1;
+    $stmt->close();
+    if (!$restored) {
+        throw new Exception(tr('Cage {id} is not archived; nothing to restore.', ['id' => $cageId]));
+    }
+    log_cage_lifecycle($con, $cageId, 'restored', $reason, $userId, $userName);
+    log_activity($con, 'restore', 'cage', $cageId, tr('Cage restored from archive.') . ' ' . $reason, $userId);
+}
+
 // Cages due on $date that have not been seen, grouped by room ('' = no room).
 function unseen_cages_by_room(mysqli $con, string $date): array
 {
