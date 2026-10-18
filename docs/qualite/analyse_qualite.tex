@@ -31,7 +31,7 @@
 \cfoot{\thepage}
 
 \title{\textbf{MyAnimLab}\\[4pt]\large Analyse d'assurance qualité du logiciel}
-\author{Revue initiale : commit \f{a2b130b}\\ Suivi après fusion : \f{4bcdec1} --- Corrections : \f{ae02007}}
+\author{Revue initiale : commit \f{a2b130b}\\ Suivi après fusion : \f{4bcdec1} --- Corrections : \f{ae02007}, \f{2de62b3}}
 \date{18 octobre 2026}
 
 \begin{document}
@@ -137,7 +137,7 @@ quotidiens (QA-04).
 
 Les constats restés ouverts ou partiels après la fusion ont été corrigés sur
 la branche \f{ccr-e82b7497-x6tqzs}. La suite de tests passe désormais de 194 à
-216 tests, tous exécutés et réussis sur MariaDB (unitaires, intégration et
+222 tests, tous exécutés et réussis sur MariaDB (unitaires, intégration et
 HTTP). Le parcours a aussi été vérifié sous Apache avec le \f{.htaccess} :
 toutes les pages répondent sans erreur 5xx ni erreur PHP, \f{/.env} et les
 dossiers internes répondent 403 ou 404, et un fichier de cage déposé n'est
@@ -153,11 +153,11 @@ QA-01 & \textcolor{ok}{Corrigé} & \f{.htaccess} racine : fichiers cachés, conf
 QA-03 & \textcolor{ok}{Corrigé} & \f{cage_files_lib.php} : nom aléatoire, contenu réel contrôlé (un SVG, ou un HTML renommé en image ou en PDF, est refusé), droits 0750/0640. \f{file_download.php} sert les fichiers aux seuls utilisateurs connectés, en pièce jointe (\texttt{nosniff}, CSP \texttt{sandbox}).\\
 QA-04 & \textcolor{ok}{Corrigé} & Modifier un suivi quotidien est une correction : motif obligatoire, valeurs remplacées conservées dans \f{experiment_followup_revisions}, affichées dans la consultation du suivi, signalées dans l'historique et journalisées.\\
 QA-05 & \textcolor{ok}{Corrigé} & Triggers d'ajout seul sur 8 tables de traçabilité (dont \f{activity_log}). Le compte de l'application n'a plus que les droits sur les données : il ne peut plus supprimer les triggers.\\
-QA-06 & \textcolor{ok}{Corrigé} & \texttt{composer audit} ajouté à la CI ; 22 tests supplémentaires.\\
+QA-06 & \textcolor{ok}{Corrigé} & \texttt{composer audit} et PHPStan (niveau 0, sans erreur ni baseline) ajoutés à la CI ; 28 tests supplémentaires.\\
 QA-07 & \textcolor{ok}{Corrigé} & \f{tools/migrate.php} avec la table \f{schema_migrations} (\texttt{--status}, \texttt{--baseline}) ; \f{schema.sql} enregistre ses migrations, et un test le vérifie. \f{setup.sh} et le README pointent vers ce dépôt.\\
 QA-08 & \textcolor{ok}{Corrigé} & Garde CLI dans \f{process_reminders.php} et \f{send_email.php} ; ces scripts sont aussi refusés par le \f{.htaccess}.\\
 QA-09 & \textcolor{ok}{Corrigé} & Les hachés de mots de passe, les jetons, les secrets TOTP et les corps d'e-mails sont exclus de l'export ; chaque export est journalisé.\\
-QA-10 & \textcolor{maj}{Amélioré} & \f{csrf_token()} et \f{csrf_valid()} remplacent 50 contrôles recopiés (certains comparaient avec \texttt{!==}). Code de téléversement factorisé, helpers SQL ajoutés. Les grands fichiers \f{hc_*}/\f{bc_*} restent à découper.\\
+QA-10 & \textcolor{ok}{Corrigé} & \f{csrf_token()} et \f{csrf_valid()} remplacent 50 contrôles recopiés (certains comparaient avec \texttt{!==}) ; helpers SQL ajoutés. \f{hc_edit.php} et \f{bc_edit.php} étaient déjà retirés (redirection immédiate) : leurs quelque 2\,000 lignes inatteignables sont supprimées (commit \f{2de62b3}).\\
 QA-11 & \textcolor{ok}{Corrigé} & \f{db_error_message()} et \f{error_message()} : l'erreur SQL va au journal du serveur, l'utilisateur voit un message générique.\\
 QA-12 & \textcolor{ok}{Corrigé} & Toutes les requêtes passent par des paramètres liés (\f{db_lib.php}), soit environ 35 requêtes converties. Un test refuse toute nouvelle requête construite avec une valeur.\\
 QA-13 & \textcolor{ok}{Corrigé} & Fuseau horaire par défaut \f{Europe/Paris}.\\
@@ -166,20 +166,38 @@ QA-14 & \textcolor{ok}{Corrigé} & \f{.DS_Store} supprimé, \f{uploads/} ignoré
 \end{tabularx}
 \end{center}
 
+\paragraph{Compléments (commit \f{2de62b3}).}
+\begin{itemize}[nosep]
+  \item \textbf{Registre des entrées et sorties.} Corriger l'entrée d'un
+    animal (provenance, fournisseur, référence, date) écrasait l'ancienne
+    valeur, et une sortie ne pouvait pas être corrigée du tout. Les deux se
+    font désormais par un administrateur, avec un motif obligatoire. Les
+    valeurs remplacées et les nouvelles sont conservées dans
+    \f{record_corrections} (ajout seul) et affichées sur la fiche et le dossier
+    BEA. L'animal est signalé « corrigé » dans le registre. Les inclusions
+    clôturées par la sortie suivent sa date.
+  \item \textbf{Prescriptions.} L'application ne permet pas de les modifier.
+    Des triggers interdisent désormais toute modification ou suppression des
+    prescriptions et de leurs animaux (seul le statut peut évoluer). Ils
+    interdisent aussi toute modification d'une administration, sauf une
+    annulation unique.
+  \item \textbf{Précision sur QA-03.} Le dépôt de fichiers analysé dans
+    \f{hc_edit.php}/\f{bc_edit.php} se trouvait dans des pages déjà retirées,
+    sans effet en production. Le risque réel tenait aux fichiers existants de
+    \f{uploads/}, servis sans contrôle : il est corrigé (\f{.htaccess},
+    \f{file_download.php}). L'application ne permet plus aujourd'hui
+    d'ajouter un fichier à une cage.
+\end{itemize}
+
 \paragraph{Points restant à traiter.}
 \begin{itemize}[nosep]
-  \item Analyse statique (PHPStan) non encore intégrée à la CI.
-  \item Le versionnement avec motif est en place pour les suivis quotidiens
-    et les actes. Les autres écrans de modification des données
-    réglementaires (registre, sorties, prescriptions) restent à traiter de la
-    même façon.
-  \item Découpage des fichiers monolithiques \f{hc_edit.php} et
-    \f{bc_edit.php} (QA-10).
+  \item Monter PHPStan au niveau 1. Il signale aujourd'hui 905 variables
+    « peut-être non définies », presque toutes la connexion \f{$con} fournie
+    par les fichiers inclus : il faudrait la passer explicitement aux pages.
   \item Les installations existantes doivent être mises à jour une fois :
     \texttt{php tools/migrate.php --baseline=034}, puis
-    \texttt{php tools/migrate.php} avec un compte administrateur de la base.
-    Les anciens fichiers de \f{uploads/<cage>/} restent téléchargeables par
-    \f{file_download.php}.
+    \texttt{php tools/migrate.php} avec un compte administrateur de la base
+    (migrations 035 et 036).
 \end{itemize}
 
 \section{Constats détaillés (revue initiale)}
