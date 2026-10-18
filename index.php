@@ -30,7 +30,7 @@ $labQuery = "SELECT name, value FROM settings WHERE name IN ('lab_name', 'url', 
 $labResult = mysqli_query($con, $labQuery);
 
 // Default values if the query fails or returns no result
-$labName = "My Vivarium";
+$labName = "MyAnimLab";
 $url = "";
 $turnstileSecretKey = "";
 $turnstileSiteKey = "";
@@ -228,6 +228,7 @@ mysqli_close($con);
     <title><?php echo htmlspecialchars($labName); ?></title>
 
     <!-- Favicon and Icons -->
+    <link rel="icon" type="image/svg+xml" href="images/logo-mark.svg">
     <link rel="icon" href="icons/favicon.ico" type="image/x-icon">
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32x32.png">
@@ -241,7 +242,7 @@ mysqli_close($con);
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
     <!-- Google Font: Poppins -->
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;700&display=swap" rel="stylesheet">
 
     <!-- Bootstrap and jQuery JS -->
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
@@ -294,51 +295,10 @@ mysqli_close($con);
             margin-top: 50px;
         }
 
-        .header {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            align-items: center;
-            background-color: #343a40;
-            color: white;
-            padding: 1rem;
-            text-align: center;
-            margin: 0;
-        }
 
-        .header .logo-container {
-            padding: 0;
-            margin: 0;
-        }
 
-        .header img.header-logo {
-            width: 300px;
-            height: auto;
-            display: block;
-            margin: 0;
-        }
 
-        .header h2 {
-            margin-left: 15px;
-            margin-bottom: 0;
-            margin-top: 12px;
-            font-size: 3.5rem;
-            white-space: nowrap;
-            font-family: 'Poppins', sans-serif;
-            font-weight: 500;
-        }
 
-        /* Responsive styling for smaller screens */
-        @media (max-width: 576px) {
-            .header h2 {
-                font-size: 1.8rem;
-                margin-bottom: 5px;
-            }
-
-            .header img.header-logo {
-                width: 150px;
-            }
-        }
     </style>
 </head>
 
@@ -346,14 +306,7 @@ mysqli_close($con);
 
     <!-- Header Section -->
     <?php if ($demo === "yes") include('demo/demo-banner.php'); ?>
-    <div class="header">
-        <div class="logo-container">
-            <a href="home.php">
-                <img src="images/logo1.jpg" alt="Logo" class="header-logo">
-            </a>
-        </div>
-        <h2><?php echo htmlspecialchars($labName); ?></h2>
-    </div>
+    <?php require 'brand_banner.php'; ?>
 
     <div class="content">
         <!-- Main Content -->

@@ -21,7 +21,7 @@
     }
 
     footer {
-        background-color: #343a40;
+        background-color: #0c2333;
         padding: 20px 0;
         text-align: center;
         color: white;
@@ -43,7 +43,7 @@
         if (isset($labName)) {
             echo htmlspecialchars($labName);
         } else {
-            echo "My Vivarium";
+            echo "MyAnimLab";
         }
         ?>. <?= trh('All rights reserved.') ?></p>
 </footer>

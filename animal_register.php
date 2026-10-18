@@ -119,7 +119,7 @@ $periodText = tr('Period: {from} to {to}', ['from' => $from, 'to' => $to])
 
 if ($format === 'csv' || $format === 'pdf') {
     // The header (which loads the lab name) is not included for a download.
-    $labName = $con->query("SELECT value FROM settings WHERE name = 'lab_name'")->fetch_row()[0] ?? 'My Vivarium';
+    $labName = $con->query("SELECT value FROM settings WHERE name = 'lab_name'")->fetch_row()[0] ?? 'MyAnimLab';
     log_activity($con, 'export', 'animal_register', null, strtoupper($format) . " $from → $to ($movement" . ($species !== '' ? ", $species" : '') . ($lineId ? ", line $lineId" : '') . ')', $_SESSION['user_id'] ?? null);
     $filename = 'registre_entrees_sorties_' . $from . '_' . $to . '.' . $format;
     if ($format === 'csv') {

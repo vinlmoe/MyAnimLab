@@ -24,6 +24,6 @@ RedirectMatch 404 "/(\.git|\.github|vendor|database|docker|docs|lang|setup|stora
 </FilesMatch>
 
 # Included files and command-line (cron) scripts: never opened directly.
-<FilesMatch "^((config|dbcon|session_config|i18n|header|footer|message|cage_view_parts|terrarium_form_fields)\.php|.+_lib\.php|(process_reminders|send_email|daily_round_alert)\.php)$">
+<FilesMatch "^((config|dbcon|session_config|i18n|header|footer|brand_banner|message|cage_view_parts|terrarium_form_fields)\.php|.+_lib\.php|(process_reminders|send_email|daily_round_alert)\.php)$">
     Require all denied
 </FilesMatch>

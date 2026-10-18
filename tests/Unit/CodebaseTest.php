@@ -177,15 +177,15 @@ final class CodebaseTest extends TestCase
         preg_match_all('/<FilesMatch "([^"]+)">\s*Require all denied/', $htaccess, $files);
         preg_match('/RedirectMatch 404 "([^"]+)"/', $htaccess, $folders);
         $denied = fn(string $name): bool => (bool) array_filter($files[1], fn($re) => preg_match('#' . $re . '#', $name));
-        foreach (['.env', '.htaccess', 'composer.json', 'composer.lock', 'phpunit.xml', 'README.md', 'dbcon.php', 'config.php', 'animal_lib.php', 'process_reminders.php', 'send_email.php'] as $name) {
+        foreach (['.env', '.htaccess', 'composer.json', 'composer.lock', 'phpunit.xml', 'README.md', 'dbcon.php', 'config.php', 'animal_lib.php', 'process_reminders.php', 'send_email.php', 'brand_banner.php'] as $name) {
             $this->assertTrue($denied($name), "$name must not be served");
         }
-        foreach (['index.php', 'home.php', 'file_download.php', 'manifest.json', 'logo1.jpg'] as $name) {
+        foreach (['index.php', 'home.php', 'file_download.php', 'manifest.json', 'logo-mark.svg'] as $name) {
             $this->assertFalse($denied($name), "$name must be served");
         }
         foreach (['/vendor/autoload.php', '/database/schema.sql', '/uploads/abc.pdf', '/tools/migrate.php', '/tests/bootstrap.php', '/.git/config', '/sub/vendor/x'] as $url) {
             $this->assertMatchesRegularExpression('#' . $folders[1] . '#', $url, "$url must not be served");
         }
-        $this->assertDoesNotMatchRegularExpression('#' . $folders[1] . '#', '/images/logo1.jpg');
+        $this->assertDoesNotMatchRegularExpression('#' . $folders[1] . '#', '/images/logo-mark.svg');
     }
 }
