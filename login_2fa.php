@@ -18,9 +18,6 @@ if (!$pending || time() - (int) $pending['at'] > TOTP_PENDING_TTL) {
     header('Location: index.php');
     exit;
 }
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 
 $stmt = $con->prepare('SELECT * FROM users WHERE id = ?');
 $stmt->bind_param('i', $pending['user_id']);
@@ -35,7 +32,7 @@ if (!$user || empty($user['totp_enabled']) || $user['status'] !== 'approved') {
 
 $error = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!hash_equals($_SESSION['csrf_token'], (string) ($_POST['csrf_token'] ?? ''))) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
     $code = trim((string) ($_POST['code'] ?? ''));

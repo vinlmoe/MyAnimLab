@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # === Variables - Set your repository and application directory ===
-REPO_URL="https://github.com/myvivarium/MyVivarium.git"
+REPO_URL="https://github.com/vinlmoe/MyAnimLab.git"
 APP_DIR="/var/www/html"
 DB_NAME="myvivarium"
 DB_USER="myvivarium"
@@ -119,14 +119,17 @@ echo "Création de la base MySQL '$DB_NAME' avec l’utilisateur '$DB_USER'…"
 sudo mysql -u root <<MYSQL_SCRIPT
 CREATE DATABASE IF NOT EXISTS $DB_NAME;
 CREATE USER IF NOT EXISTS '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASSWORD';
-GRANT ALL PRIVILEGES ON $DB_NAME.* TO '$DB_USER'@'localhost';
+-- The application reads and writes data only: it cannot change the schema nor
+-- drop the triggers that keep the audit tables append-only.
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE TEMPORARY TABLES ON $DB_NAME.* TO '$DB_USER'@'localhost';
 FLUSH PRIVILEGES;
 MYSQL_SCRIPT
 echo
 
 echo "Import du schéma de la base de données…"
 if [ -f "database/schema.sql" ]; then
-    sudo mysql -u $DB_USER -p$DB_PASSWORD $DB_NAME < database/schema.sql
+    # As root: the schema creates triggers, which the application account may not.
+    sudo mysql -u root $DB_NAME < database/schema.sql
     echo "Schéma de la base de données importé."
 else
     echo "Erreur : fichier schema.sql introuvable dans le dossier /database."
@@ -137,6 +140,11 @@ echo
 echo "Configuration des permissions pour Apache…"
 sudo chown -R www-data:www-data $APP_DIR
 sudo chmod -R 755 $APP_DIR
+# Secrets readable by Apache only; uploaded cage files outside any URL (.htaccess).
+sudo chmod 640 $APP_DIR/.env
+sudo mkdir -p $APP_DIR/uploads
+sudo chown www-data:www-data $APP_DIR/uploads
+sudo chmod 750 $APP_DIR/uploads
 echo
 
 # === Step 8: Set Up Apache Virtual Host ===

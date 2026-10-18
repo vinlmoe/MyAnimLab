@@ -58,30 +58,10 @@ final class TestDatabase
         return self::$unavailable ?? '';
     }
 
-    /**
-     * Run an SQL script as the mysql client does: statements end with the
-     * current delimiter at the end of a line; DELIMITER lines change it (for
-     * triggers and procedures).
-     */
+    /** Run an SQL script as the mysql client does (tools/migrations_lib.php). */
     public static function runSql(mysqli $con, string $sql): void
     {
-        $delimiter = ';';
-        $buffer = '';
-        foreach (preg_split('/\R/', $sql) as $line) {
-            if (preg_match('/^\s*DELIMITER\s+(\S+)\s*$/i', $line, $m)) {
-                $delimiter = $m[1];
-                continue;
-            }
-            $buffer .= $line . "\n";
-            $trimmed = rtrim($buffer);
-            if (str_ends_with($trimmed, $delimiter)) {
-                $statement = trim(substr($trimmed, 0, -strlen($delimiter)));
-                $buffer = '';
-                if ($statement !== '' && !preg_match('/^(\s*--[^\n]*\n?)*\s*$/', $statement)) {
-                    $con->query($statement);
-                }
-            }
-        }
+        run_sql_script($con, $sql);
     }
 
     public static function unique(string $prefix): string

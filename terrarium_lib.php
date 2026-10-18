@@ -131,13 +131,17 @@ function terrarium_population(mysqli $con, array $t, ?string $today = null): arr
 {
     $today ??= date('Y-m-d');
     $id = (int) $t['id'];
-    $last = $con->query("SELECT * FROM terrarium_events WHERE terrarium_id = $id AND event_type = 'census' ORDER BY event_date DESC, id DESC LIMIT 1")->fetch_assoc();
+    $last = db_row($con, "SELECT * FROM terrarium_events WHERE terrarium_id = ? AND event_type = 'census' ORDER BY event_date DESC, id DESC LIMIT 1", 'i', [$id]);
     $since = ['introduction' => 0, 'death' => 0, 'capture' => 0, 'transfer_out' => 0];
-    $where = "terrarium_id = $id AND event_type IN ('introduction', 'death', 'capture', 'transfer_out')";
+    $where = "terrarium_id = ? AND event_type IN ('introduction', 'death', 'capture', 'transfer_out')";
+    $types = 'i';
+    $params = [$id];
     if ($last) {
-        $where .= " AND (event_date > '" . $con->real_escape_string($last['event_date']) . "' OR (event_date = '" . $con->real_escape_string($last['event_date']) . "' AND id > " . (int) $last['id'] . '))';
+        $where .= ' AND (event_date > ? OR (event_date = ? AND id > ?))';
+        $types .= 'ssi';
+        array_push($params, $last['event_date'], $last['event_date'], (int) $last['id']);
     }
-    foreach ($con->query("SELECT event_type, COALESCE(SUM(quantity), 0) AS n FROM terrarium_events WHERE $where GROUP BY event_type") as $r) {
+    foreach (db_rows($con, "SELECT event_type, COALESCE(SUM(quantity), 0) AS n FROM terrarium_events WHERE $where GROUP BY event_type", $types, $params) as $r) {
         $since[$r['event_type']] = (int) $r['n'];
     }
     $estimate = $last
@@ -466,17 +470,20 @@ function terrarium_health_summary(mysqli $con, array $t, ?string $today = null):
 {
     $today ??= date('Y-m-d');
     $id = (int) $t['id'];
-    $last = $con->query("SELECT * FROM terrarium_health_checks WHERE terrarium_id = $id ORDER BY checked_on DESC, id DESC LIMIT 1")->fetch_assoc();
-    $pending = (int) $con->query("SELECT COUNT(*) FROM terrarium_health_checks WHERE terrarium_id = $id AND result = 'pending'")->fetch_row()[0];
+    $last = db_row($con, "SELECT * FROM terrarium_health_checks WHERE terrarium_id = ? ORDER BY checked_on DESC, id DESC LIMIT 1", 'i', [$id]);
+    $pending = (int) db_value($con, "SELECT COUNT(*) FROM terrarium_health_checks WHERE terrarium_id = ? AND result = 'pending'", 'i', [$id]);
     $from = $last['checked_on'] ?? ($t['established_on'] ?: substr((string) $t['created_at'], 0, 10));
     $every = (int) ($t['health_every_days'] ?? 0);
     $due = $t['status'] === 'active' && $every > 0 ? date('Y-m-d', strtotime($from . ' +' . $every . ' days')) : null;
     // The state comes from the latest observation or screening with its result
     // (an environment check or a pending screening does not clear an alert).
-    $state = $con->query(
-        "SELECT * FROM terrarium_health_checks WHERE terrarium_id = $id AND (check_type = 'observation' OR (check_type = 'screening' AND result <> 'pending'))
-         ORDER BY checked_on DESC, id DESC LIMIT 1"
-    )->fetch_assoc();
+    $state = db_row(
+        $con,
+        "SELECT * FROM terrarium_health_checks WHERE terrarium_id = ? AND (check_type = 'observation' OR (check_type = 'screening' AND result <> 'pending'))
+         ORDER BY checked_on DESC, id DESC LIMIT 1",
+        'i',
+        [$id]
+    );
     $alert = $state && $state['status'] === 'abnormal' ? $state : null;
     return ['last' => $last, 'due' => $due, 'overdue' => $due !== null && $due < $today, 'pending' => $pending, 'alert' => $alert];
 }
@@ -591,7 +598,7 @@ function record_terrarium_screening_result(mysqli $con, array $t, int $checkId, 
         throw new Exception(tr('This screening has no pending result (or the date is before the sampling).'));
     }
     if ($result === 'positive') {
-        $agents = (string) $con->query('SELECT agents_screened FROM terrarium_health_checks WHERE id = ' . $checkId)->fetch_row()[0];
+        $agents = (string) db_value($con, 'SELECT agents_screened FROM terrarium_health_checks WHERE id = ?', 'i', [$checkId]);
         terrarium_health_notify($con, $t, tr('Positive screening ({agents}): {detail}', ['agents' => $agents, 'detail' => $detail ?? '']));
     }
 }

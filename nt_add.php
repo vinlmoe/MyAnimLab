@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['note_text'])) {
     $sql = "INSERT INTO notes (user_id, note_text, cage_id) VALUES (?, ?, ?)";
     $stmt = $con->prepare($sql);
     if ($stmt === false) {
-        $response['message'] = tr('Prepare failed: {error}', ['error' => htmlspecialchars($con->error)]);
+        $response['message'] = db_error_message($con->error);
         echo json_encode($response);
         exit;
     }
@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['note_text'])) {
         $response['success'] = true;
         $response['message'] = tr('Note added successfully.');
     } else {
-        $response['message'] = tr('Execute failed: {error}', ['error' => htmlspecialchars($stmt->error)]);
+        $response['message'] = db_error_message($stmt->error);
     }
 
     // Close the statement

@@ -19,5 +19,5 @@ $stmt = $con->prepare('DELETE FROM notes WHERE id = ?');
 $stmt->bind_param('i', $noteId);
 echo json_encode($stmt->execute()
     ? ['success' => true, 'message' => tr('Note deleted successfully.')]
-    : ['success' => false, 'message' => tr('Execute failed: {error}', ['error' => htmlspecialchars($stmt->error)])]);
+    : ['success' => false, 'message' => db_error_message($stmt->error)]);
 $stmt->close();

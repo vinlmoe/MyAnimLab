@@ -102,7 +102,7 @@ function training_records(mysqli $con, array $userIds): array
         return [];
     }
     $out = array_fill_keys($ids, []);
-    foreach ($con->query('SELECT * FROM training_records WHERE user_id IN (' . implode(',', $ids) . ') ORDER BY start_date DESC, id DESC') as $r) {
+    foreach (db_rows($con, 'SELECT * FROM training_records WHERE user_id IN (' . db_placeholders(count($ids)) . ') ORDER BY start_date DESC, id DESC', str_repeat('i', count($ids)), $ids) as $r) {
         $out[(int) $r['user_id']][] = $r;
     }
     return $out;
@@ -274,6 +274,96 @@ function store_training_pdf(array $file): ?string
         throw new Exception(tr('Error uploading file.'));
     }
     return $stored;
+}
+
+/**
+ * Steps of the training path of a person, from their records and status, to
+ * guide them in their training record: initial diploma, initial regulatory
+ * training, supervised period up to the validated competence, continuing
+ * training, certificates, validation of the entries. Each step:
+ * ['state' => done|todo|warning|late|waiting, 'title', 'text', 'action' =>
+ * null|['label', 'category', 'function']].
+ */
+function training_path(array $records, array $status): array
+{
+    $functions = training_functions();
+    $steps = [];
+    $pendingOf = fn(string $category) => array_filter($records, fn($r) => $r['category'] === $category && $r['status'] === 'pending');
+
+    if ($status['diploma']) {
+        $steps[] = ['state' => 'done', 'title' => tr('Initial diploma'), 'text' => training_diploma_text($status['diploma']), 'action' => null];
+    } else {
+        $steps[] = ['state' => $pendingOf('diploma') ? 'waiting' : 'todo', 'title' => tr('Initial diploma'),
+            'text' => $pendingOf('diploma') ? tr('Recorded, waiting for validation.') : tr('Record your highest diploma (title and speciality, level, institution, date obtained) with a copy as PDF.'),
+            'action' => $pendingOf('diploma') ? null : ['label' => tr('Record my diploma'), 'category' => 'diploma', 'function' => '']];
+    }
+
+    $trained = array_filter($status['functions'], fn($f) => $f['state'] !== 'none');
+    if ($trained) {
+        $held = array_map(fn($code) => $functions[$code] . ' (' . $status['functions'][$code]['trained_on'] . ')', array_keys($trained));
+        $steps[] = ['state' => 'done', 'title' => tr('Initial regulatory training'), 'text' => tr('Validated for: {functions}. Another function needs its own training.', ['functions' => implode(', ', $held)]),
+            'action' => ['label' => tr('Add another function'), 'category' => 'initial', 'function' => '']];
+    } else {
+        $waiting = (bool) $pendingOf('initial');
+        $steps[] = ['state' => $waiting ? 'waiting' : 'todo', 'title' => tr('Initial regulatory training'),
+            'text' => $waiting ? tr('Recorded, waiting for validation: until then you only work under the supervision of a trained person.')
+                : tr('Follow the approved regulatory training of each function you carry out (design, application of procedures, care, killing), then record it with its certificate. Until then you only work under supervision.'),
+            'action' => $waiting ? null : ['label' => tr('Record a regulatory training'), 'category' => 'initial', 'function' => 'procedures']];
+    }
+
+    $supervised = array_filter($status['functions'], fn($f) => $f['state'] === 'supervised');
+    if (!$trained) {
+        $steps[] = ['state' => 'waiting', 'title' => tr('Supervised period and competence'), 'text' => tr('Starts after the initial regulatory training.'), 'action' => null];
+    } elseif ($supervised) {
+        $code = array_key_first($supervised);
+        $list = implode(', ', array_map(fn($c) => $functions[$c] . ' (' . tr('since {date}', ['date' => $status['functions'][$c]['trained_on']]) . ')', array_keys($supervised)));
+        $steps[] = ['state' => 'warning', 'title' => tr('Supervised period and competence'),
+            'text' => tr('Under supervision for: {functions}. Each act you confirm names the competent person present. Once your tutor judges you competent, record "Competence validated" with the name of the tutor and the signed certificate.', ['functions' => $list])
+                . ($pendingOf('competence') ? ' ' . tr('A competence is waiting for validation.') : ''),
+            'action' => ['label' => tr('Record a validated competence'), 'category' => 'competence', 'function' => $code]];
+    } else {
+        $steps[] = ['state' => 'done', 'title' => tr('Supervised period and competence'), 'text' => tr('Competence validated for every function held: you work alone.'), 'action' => null];
+    }
+
+    $cpd = $status['cpd'];
+    $add = ['label' => tr('Record a continuing training'), 'category' => 'continuing', 'function' => ''];
+    $steps[] = match ($cpd['state']) {
+        'ok' => ['state' => 'done', 'title' => tr('Continuing training'), 'text' => tr('Minimum reached. Compliant until {date}: plan the next training before.', ['date' => $cpd['deadline'] ?? '—']), 'action' => $add],
+        'expiring' => ['state' => 'warning', 'title' => tr('Continuing training'), 'text' => tr('Compliant until {date} only: follow a continuing training before that date.', ['date' => $cpd['deadline']]), 'action' => $add],
+        'to_complete' => ['state' => 'todo', 'title' => tr('Continuing training'), 'text' => tr('Reach the minimum by {date} (training, congress, workshop...; record each one with its duration and certificate).', ['date' => $cpd['deadline']]), 'action' => $add],
+        'late' => ['state' => 'late', 'title' => tr('Continuing training'), 'text' => tr('Below the regulatory minimum since {date}: follow a continuing training without delay.', ['date' => $cpd['deadline']]), 'action' => $add],
+        default => ['state' => 'waiting', 'title' => tr('Continuing training'), 'text' => tr('The obligation starts with the first validated initial regulatory training.'), 'action' => null],
+    };
+
+    $missing = array_filter($records, fn($r) => $r['status'] !== 'rejected' && $r['category'] !== 'other' && !$r['certificate_file']);
+    $steps[] = $records && !$missing
+        ? ['state' => 'done', 'title' => tr('Certificates'), 'text' => tr('Every entry has its certificate (PDF).'), 'action' => null]
+        : ['state' => $records ? 'warning' : 'waiting', 'title' => tr('Certificates'),
+            'text' => $records ? tr('{n} entry(ies) without certificate: attach the PDF from the table below ("Attach").', ['n' => count($missing)]) : tr('Attach the certificate (PDF) of each training: it is the proof shown at an inspection.'),
+            'action' => null];
+
+    $pending = array_filter($records, fn($r) => $r['status'] === 'pending');
+    $rejected = array_filter($records, fn($r) => $r['status'] === 'rejected');
+    $steps[] = $pending
+        ? ['state' => 'waiting', 'title' => tr('Validation of the entries'), 'text' => tr('{n} entry(ies) waiting for validation by an administrator or a BEA responsible: they count once validated.', ['n' => count($pending)]), 'action' => null]
+        : ['state' => 'done', 'title' => tr('Validation of the entries'), 'text' => $rejected ? tr('{n} entry(ies) rejected: read the reason, correct and record the entry again.', ['n' => count($rejected)]) : tr('No entry waiting for validation.'), 'action' => null];
+    return $steps;
+}
+
+/**
+ * Attach a certificate (stored PDF name) to an entry that has none: by its
+ * owner (entry not rejected) or a manager (administrator, BEA responsible).
+ * Logged.
+ */
+function training_attach_certificate(mysqli $con, int $entryId, int $ownerId, string $storedFile, ?string $certificateRef, bool $isManager, ?int $byUserId): void
+{
+    $entry = db_row($con, 'SELECT * FROM training_records WHERE id = ? AND user_id = ?', 'ii', [$entryId, $ownerId]);
+    if (!$entry || $entry['certificate_file'] || (!$isManager && $entry['status'] === 'rejected')) {
+        throw new Exception(tr('A certificate cannot be attached to this entry.'));
+    }
+    $ref = trim((string) $certificateRef) ?: null;
+    db_execute($con, 'UPDATE training_records SET certificate_file = ?, certificate_ref = COALESCE(certificate_ref, ?) WHERE id = ? AND certificate_file IS NULL', 'ssi', [$storedFile, $ref, $entryId]);
+    log_activity($con, 'training_certificate_attached', 'user', (string) $ownerId, "#$entryId " . $entry['title'], $byUserId);
 }
 
 /**

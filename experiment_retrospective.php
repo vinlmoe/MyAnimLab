@@ -20,9 +20,6 @@ if (!is_bea_user($con)) {
     http_response_code(403);
     exit(trh('Access restricted to the BEA responsible.'));
 }
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 
 $classes = retrospective_severities();
 $trialId = (int) ($_GET['trial_id'] ?? 0);
@@ -77,7 +74,7 @@ $closedEnrollments = function () use ($con, $experimentId): array {
 };
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $experiment) {
-    if (!hash_equals($_SESSION['csrf_token'], (string) ($_POST['csrf_token'] ?? ''))) {
+    if (!csrf_valid()) {
         die(trh('CSRF token validation failed'));
     }
     $postedClasses = (array) ($_POST['classification'] ?? []);
@@ -130,7 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $experiment) {
         } catch (Throwable $e) {
             $con->rollback();
             $_SESSION['retrospective_draft'][$experimentId] = $entries;
-            $_SESSION['message'] = tr('Nothing saved: {error}', ['error' => $e->getMessage()]);
+            $_SESSION['message'] = tr('Nothing saved: {error}', ['error' => error_message($e)]);
         }
     }
     header('Location: ' . $experimentUrl);
@@ -213,7 +210,7 @@ if ($level === 'root') {
                 (SELECT MAX(GREATEST(FIELD(r.severity, $severityRank),
                         COALESCE((SELECT MAX(FIELD(u.severity, $severityRank)) FROM health_report_updates u WHERE u.report_id = r.id), 0)))
                    FROM health_reports r WHERE r.animal_id = ea.animal_id AND r.observed_at $window) AS worst_health,
-                (SELECT COUNT(*) FROM medication_administrations ma WHERE ma.animal_id = ea.animal_id AND ma.prescription_id IS NOT NULL AND DATE(ma.administered_at) $window) AS n_treatments,
+                (SELECT COUNT(*) FROM medication_administrations ma WHERE ma.animal_id = ea.animal_id AND ma.prescription_id IS NOT NULL AND ma.cancelled_at IS NULL AND DATE(ma.administered_at) $window) AS n_treatments,
                 (SELECT COUNT(*) FROM experiment_act_animals aa WHERE aa.experiment_animal_id = ea.id AND aa.status = 'done') AS n_acts
          FROM experiment_animals ea
          JOIN mice m ON m.id = ea.animal_id

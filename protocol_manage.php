@@ -15,10 +15,6 @@ if (!isset($_SESSION['username'])) {
     exit;
 }
 
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-
 $trialId = (int) ($_GET['trial_id'] ?? $_POST['trial_id'] ?? 0);
 
 $trialStmt = $con->prepare("SELECT * FROM trials WHERE id = ?");
@@ -34,7 +30,7 @@ if (!$trial) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
 
@@ -112,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($label === '') {
             $_SESSION['message'] = tr('Give the observation a label.');
         } else {
-            $pos = (int) $con->query("SELECT COALESCE(MAX(position), 0) + 1 FROM protocol_observation_fields WHERE protocol_id = $protocolId")->fetch_row()[0];
+            $pos = (int) db_value($con, "SELECT COALESCE(MAX(position), 0) + 1 FROM protocol_observation_fields WHERE protocol_id = ?", 'i', [$protocolId]);
             $stmt = $con->prepare("INSERT INTO protocol_observation_fields (protocol_id, position, label, value_type, unit, required) VALUES (?, ?, ?, ?, ?, ?)");
             $stmt->bind_param("iisssi", $protocolId, $pos, $label, $type, $unit, $required);
             $stmt->execute();

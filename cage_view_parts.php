@@ -149,3 +149,92 @@ function render_cage_animals(mysqli $con, string $cageId, string $viewPage): voi
     </div>
     <?php
 }
+
+// Breeding cage: litters still nursing (not weaned yet), at the top of the
+// cage page, with their age, live pups and expected weaning (overdue in red).
+function render_current_litters(mysqli $con, string $cageId): void
+{
+    $litters = db_rows($con, "SELECT * FROM litters WHERE cage_id = ? AND status = 'nursing' ORDER BY expected_weaning_date IS NULL, expected_weaning_date, litter_dob", 's', [$cageId]);
+    $today = date('Y-m-d');
+    foreach ($litters as &$l) {
+        $l['alive_now'] = litter_alive_now($con, $l); // born alive minus the deaths recorded since
+    }
+    unset($l);
+    $pups = array_sum(array_column($litters, 'alive_now'));
+    ?>
+    <div class="card mb-3 <?= $litters ? 'border-success' : '' ?>" id="currentLitters">
+        <div class="card-body py-2">
+            <h5 class="card-title d-flex justify-content-between flex-wrap gap-2 mb-2">
+                <span><i class="fas fa-baby"></i> <?= trh('Litters being nursed') ?>
+                    <?php if ($litters) : ?><span class="badge bg-success"><?= trh('{n} litter(s), {pups} pup(s) not weaned', ['n' => count($litters), 'pups' => $pups]) ?></span><?php endif; ?></span>
+                <a href="litter_manage.php?cage_id=<?= rawurlencode($cageId) ?>" class="btn btn-sm btn-success"><i class="fas fa-plus"></i> <?= trh('Litters: birth → weaning') ?></a>
+            </h5>
+            <?php if (!$litters) : ?>
+                <p class="text-muted mb-0"><?= trh('No litter being nursed in this cage.') ?></p>
+            <?php else : ?>
+                <p class="small text-muted mb-2"><?= trh('Pups not weaned are not identified yet: they are not counted among the living animals of the cage below.') ?></p>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead class="table-light"><tr><th><?= trh('Born on') ?></th><th><?= trh('Age') ?></th><th><?= trh('Pups Alive') ?></th><th><?= trh('Weaning expected') ?></th><th></th></tr></thead>
+                        <tbody>
+                            <?php foreach ($litters as $l) :
+                                $due = $l['expected_weaning_date'];
+                                $overdue = $due !== null && $due < $today;
+                                $age = $l['litter_dob'] ? (int) (new DateTime($l['litter_dob']))->diff(new DateTime($today))->days : null;
+                                ?>
+                                <tr class="<?= $overdue ? 'table-danger' : ($due === $today ? 'table-warning' : '') ?>">
+                                    <td class="text-nowrap"><?= htmlspecialchars($l['litter_dob'] ?? '—') ?></td>
+                                    <td class="text-nowrap"><?= $age !== null ? trh('{n} days', ['n' => $age]) : '—' ?></td>
+                                    <td><?= (int) $l['alive_now'] ?><?= $l['pups_male'] !== null || $l['pups_female'] !== null ? ' <span class="small text-muted">(' . trh('{m} M, {f} F', ['m' => $l['pups_male'] ?? '?', 'f' => $l['pups_female'] ?? '?']) . ')</span>' : '' ?></td>
+                                    <td class="text-nowrap <?= $overdue ? 'text-danger fw-bold' : '' ?>">
+                                        <?= htmlspecialchars($due ?? '—') ?>
+                                        <?php if ($overdue) : ?><span class="badge bg-danger"><?= trh('overdue') ?></span><?php elseif ($due === $today) : ?><span class="badge bg-warning text-dark"><?= trh('today') ?></span><?php endif; ?>
+                                    </td>
+                                    <td class="text-nowrap"><a href="litter_manage.php?litter_id=<?= (int) $l['id'] ?>" class="btn btn-sm btn-outline-success"><?= trh('Wean / update') ?></a></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php
+}
+
+// Breeding cage: litters already weaned or closed, most recent first, folded.
+function render_litter_history(mysqli $con, string $cageId): void
+{
+    $litters = db_rows($con, "SELECT * FROM litters WHERE cage_id = ? AND status <> 'nursing' ORDER BY litter_dob IS NULL, litter_dob DESC, id DESC", 's', [$cageId]);
+    ?>
+    <div class="card mt-4" id="litterHistory">
+        <div class="card-header"><h4 class="mb-0"><?= trh('Previous litters') ?></h4></div>
+        <div class="card-body">
+            <?php if (!$litters) : ?>
+                <p class="text-muted mb-0"><?= trh('No weaned or closed litter yet.') ?></p>
+            <?php else : ?>
+                <details>
+                    <summary><?= trh('{n} litter(s) weaned or closed', ['n' => count($litters)]) ?></summary>
+                    <div class="table-responsive mt-2">
+                        <table class="table table-sm table-bordered">
+                            <thead class="table-light"><tr><th><?= trh('Litter DOB') ?></th><th><?= trh('Status') ?></th><th><?= trh('Pups Alive') ?></th><th><?= trh('Pups Dead') ?></th><th><?= trh('Weaned') ?></th><th><?= trh('Remarks') ?></th></tr></thead>
+                            <tbody>
+                                <?php foreach ($litters as $l) : ?>
+                                    <tr>
+                                        <td class="text-nowrap"><a href="litter_manage.php?litter_id=<?= (int) $l['id'] ?>"><?= htmlspecialchars($l['litter_dob'] ?? '—') ?></a></td>
+                                        <td><?= trh((string) $l['status']) ?><?= $l['status'] === 'closed' && $l['closed_reason'] ? ' <span class="small text-muted">— ' . htmlspecialchars($l['closed_reason']) . '</span>' : '' ?></td>
+                                        <td><?= (int) $l['pups_alive'] ?></td>
+                                        <td><?= (int) $l['pups_dead'] ?></td>
+                                        <td class="text-nowrap"><?= $l['weaned_at'] ? htmlspecialchars($l['weaned_at']) . ' — ' . trh('{m} M, {f} F', ['m' => (int) $l['weaned_males'], 'f' => (int) $l['weaned_females']]) : '—' ?></td>
+                                        <td class="small"><?= htmlspecialchars($l['remarks'] ?? '') ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </details>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php
+}
