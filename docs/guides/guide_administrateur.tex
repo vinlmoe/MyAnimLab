@@ -274,18 +274,87 @@ est marqué « corrigé » dans le registre.
 \capture[0.85\linewidth]{a_retrospective}{Analyse rétrospective BEA d’une expérience.}
 
 \section{Pharmacie et stupéfiants}
+La saisie des médicaments, des lots, des ordonnances et des administrations
+est décrite pas à pas dans le guide utilisateur (section « Pharmacie et
+traitements »). Rôle de l'administrateur :
 \begin{itemize}
-  \item \btn{Nouveau médicament} : cochez \btn{Stupéfiant} pour un produit
-    soumis au registre spécial, et indiquez sa concentration (par exemple
-    100~mg/mL) pour le calcul des doses selon le poids.
-  \item \btn{Réception d'un lot} : numéro, péremption, quantité,
-    emplacement. \btn{Ajuster} un stock exige un motif.
-  \item \btn{Registre des stupéfiants} : tous les mouvements par lot et leur
-    solde. Les administrateurs y enregistrent les \textbf{inventaires} :
-    quantité comptée, écart justifié, appliqué au stock. Un écart entre le
-    registre et le stock est signalé.
+  \item \textbf{Référencer les médicaments} (\btn{Nouveau médicament}) :
+    cochez \btn{Stupéfiant (registre spécial, inventaires)} pour un produit
+    soumis au registre spécial (kétamine, buprénorphine…). Indiquez la
+    concentration (par exemple 100~mg/mL) : sans elle, une dose selon le
+    poids ne peut pas être convertie en volume. Ces deux réglages restent
+    modifiables dans le tableau \btn{Médicaments} (bouton \btn{OK}).
+  \item \textbf{Surveiller le stock} : dans \btn{Stock par lot}, un lot
+    proche de la péremption est en jaune, un lot expiré en rouge ; un lot
+    expiré ne peut plus être administré. \btn{Ajuster} un stock exige un
+    motif, inscrit dans les mouvements du lot.
 \end{itemize}
+\capture[0.85\linewidth]{a_pharmacie}{Page Pharmacie : nouveau médicament et réception d’un lot.}
+
+\begin{procedure}{Tenir le registre des stupéfiants}
+\begin{enumerate}
+  \item \btn{Registre des stupéfiants} : choisissez le stupéfiant, et
+    éventuellement une période (\btn{Du}, \btn{Au}, puis \btn{Afficher}).
+    Pour chaque lot : entrées, sorties (animal ou destination), solde après
+    chaque mouvement, solde en début et en fin de période. Les soldes sont
+    calculés sur tout l'historique ; la période ne filtre que les lignes
+    affichées.
+  \item \btn{Enregistrer un inventaire} : pour chaque lot vérifié, le
+    \btn{Stock théorique} est affiché ; saisissez la quantité
+    \btn{Compté}e. Un écart doit être justifié dans \btn{Justification d’un
+    écart} (flacon cassé, volume mort, erreur de comptage…).
+  \item \btn{Enregistrer l’inventaire} : l'écart est appliqué au stock et
+    inscrit au registre ; la date du \btn{Dernier inventaire} est mise à
+    jour.
+  \item \btn{Imprimer / PDF} produit le registre pour l'inspection ;
+    l'export CSV est aussi disponible.
+\end{enumerate}
+\end{procedure}
 \capture[0.85\linewidth]{a_stupefiants}{Registre des stupéfiants.}
+\begin{trace}
+Ordonnances et administrations ne peuvent être ni modifiées ni supprimées.
+Une erreur de stock se corrige par un ajustement motivé ou par un inventaire
+justifié, qui restent tous deux dans l'historique du lot.
+\end{trace}
+
+\section{Terrariums}\label{sec:terrariums-admin}
+Les responsables BEA et les administrateurs créent et gèrent les terrariums
+(\menu{Animaux > Terrariums et populations}). Le suivi courant (journal,
+traitements, contrôles, captures) est décrit dans le guide utilisateur.
+
+\begin{procedure}{Créer un terrarium}
+\begin{enumerate}
+  \item \btn{Nouveau terrarium} : code (unique, par exemple T-01) et nom.
+  \item La lignée de la population (à créer au besoin dans
+    \menu{Paramètres > Gérer les lignées animales}), ou à défaut l'espèce. La lignée donne la
+    numérotation des animaux capturés.
+  \item Salle et emplacement, origine de la population (fournisseur,
+    capture sur le terrain…), référence (arrêté, bon de livraison…) et date
+    de mise en place.
+  \item Fréquences de rappel : \textbf{recensement tous les N jours} (30 par
+    défaut) et \textbf{contrôle sanitaire tous les N jours} (90 par défaut),
+    0 désactivant le rappel.
+  \item Le \textbf{responsable}, qui reçoit les rappels et les alertes
+    sanitaires, et une description. \btn{Créer}.
+  \item Enregistrez ensuite un premier \btn{Recensement} ou une
+    \btn{Introduction} pour que l'estimation s'affiche.
+\end{enumerate}
+\end{procedure}
+\capture[0.85\linewidth]{a_terrariums}{Tableau de bord des terrariums.}
+\begin{itemize}
+  \item \textbf{Modifier} : depuis la page du terrarium, mêmes champs que la
+    création.
+  \item \btn{Archiver} un terrarium vide ou abandonné : il quitte le tableau
+    de bord et ne déclenche plus de rappel, mais son journal reste
+    consultable dans \btn{Terrariums archivés}, d'où il peut être
+    \btn{Réactiver}.
+\end{itemize}
+\begin{regle}
+Fixez la date de fin du \textbf{délai d'attente} lors de chaque traitement
+médicamenteux : tant qu'elle n'est pas passée, aucune capture pour une
+expérimentation n'est possible. Les traitements, contrôles et captures
+figurent dans l'export des journaux.
+\end{regle}
 
 \section{Exports, audit et inspection}
 \begin{itemize}
