@@ -439,4 +439,76 @@ final class PagesTest extends TestCase
         $this->assertStringContainsString('wrong supplier', $view);
         @unlink($admin);
     }
+
+    /** Multipart POST of a file; returns [status, location]. */
+    private function upload(string $path, string $jar, array $fields, string $file, string $name): array
+    {
+        $ch = curl_init('http://127.0.0.1:' . self::$port . '/' . $path);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true, CURLOPT_HEADER => true, CURLOPT_TIMEOUT => 30,
+            CURLOPT_COOKIEJAR => $jar, CURLOPT_COOKIEFILE => $jar, CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $fields + ['fileUpload' => new CURLFile($file, '', $name)],
+        ]);
+        $raw = (string) curl_exec($ch);
+        $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        curl_close($ch);
+        preg_match('/^Location:\s*(.+)$/mi', $raw, $m);
+        return [$status, trim($m[1] ?? '')];
+    }
+
+    public function testCageFilesAreAddedAndDeletedByTheCageUsers(): void
+    {
+        $con = TestDatabase::connection();
+        $cage = TestDatabase::cage($con, false);
+        $con->query("INSERT INTO holding (cage_id, dob) VALUES ('$cage', CURDATE())");
+        $count = fn() => (int) TestDatabase::value($con, "SELECT COUNT(*) FROM files WHERE cage_id = '$cage'");
+        $dir = sys_get_temp_dir() . '/cagefiles-' . getmypid();
+        @mkdir($dir);
+        file_put_contents("$dir/protocol.pdf", "%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n");
+        file_put_contents("$dir/fake.png", '<html><script>alert(1)</script></html>');
+        file_put_contents("$dir/image.svg", '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
+        $jar = $this->login('user');
+        $fields = fn() => ['csrf_token' => $this->csrfToken($jar), 'cage_id' => $cage, 'page' => 'hc_view'];
+        try {
+            // Not a user of the cage: no form, upload refused.
+            [, $page] = $this->request('hc_view.php?id=' . rawurlencode($cage), $jar);
+            $this->assertStringNotContainsString('id="cageFileUpload"', $page);
+            $this->upload('file_upload.php', $jar, $fields(), "$dir/protocol.pdf", 'protocol.pdf');
+            $this->assertSame(0, $count());
+
+            $con->query("INSERT INTO cage_users (cage_id, user_id) VALUES ('$cage', " . self::$users['user'] . ")");
+            [, $page] = $this->request('hc_view.php?id=' . rawurlencode($cage), $jar);
+            $this->assertStringContainsString('id="cageFileUpload"', $page);
+
+            // Disguised or scriptable files are refused.
+            $this->upload('file_upload.php', $jar, $fields(), "$dir/fake.png", 'fake.png');
+            $this->upload('file_upload.php', $jar, $fields(), "$dir/image.svg", 'image.svg');
+            $this->assertSame(0, $count());
+
+            [$status, $location] = $this->upload('file_upload.php', $jar, $fields(), "$dir/protocol.pdf", 'protocol.pdf');
+            $this->assertSame(302, $status);
+            $this->assertStringContainsString('hc_view.php?id=', $location);
+            $this->assertSame(1, $count());
+            $file = TestDatabase::value($con, "SELECT id FROM files WHERE cage_id = '$cage'");
+            $stored = TestDatabase::value($con, "SELECT file_path FROM files WHERE id = $file");
+            $this->assertMatchesRegularExpression('#^uploads/[0-9a-f]{32}\.pdf$#', $stored);
+            [$status, $body] = $this->request("file_download.php?id=$file", $jar);
+            $this->assertSame(200, $status);
+            $this->assertSame(file_get_contents("$dir/protocol.pdf"), $body);
+            $this->assertSame(1, (int) TestDatabase::value($con, "SELECT COUNT(*) FROM activity_log WHERE action = 'cage_file_added' AND entity_id = '$cage'"));
+
+            // Deleted by POST with the token: record and stored file removed.
+            $this->request("delete_file.php?url=hc_view&id=$file", $jar, ['csrf_token' => $this->csrfToken($jar)]);
+            $this->assertSame(0, $count());
+            $this->assertFileDoesNotExist(APP_ROOT . '/' . $stored);
+            $this->assertSame(1, (int) TestDatabase::value($con, "SELECT COUNT(*) FROM activity_log WHERE action = 'cage_file_deleted' AND entity_id = '$cage'"));
+        } finally {
+            foreach (TestDatabase::connection()->query("SELECT file_path FROM files WHERE cage_id = '$cage'") as $f) {
+                @unlink(APP_ROOT . '/' . $f['file_path']);
+            }
+            array_map('unlink', glob("$dir/*"));
+            @rmdir($dir);
+            @unlink($jar);
+        }
+    }
 }
