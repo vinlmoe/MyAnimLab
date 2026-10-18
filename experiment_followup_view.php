@@ -6,7 +6,7 @@
  * observations, endpoint and the actions it raised. Previous / next day of
  * the same participation are one click away.
  */
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 require 'experiment_acts_lib.php';

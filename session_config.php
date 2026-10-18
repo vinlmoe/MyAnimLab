@@ -3,70 +3,84 @@
 /**
  * Session Security Configuration
  *
- * This file configures secure session settings to protect against session hijacking,
- * session fixation, and other session-based attacks. It should be included at the
- * beginning of any file that uses sessions.
+ * Every page starts its session through this file (require_once
+ * 'session_config.php'), so that the same rules apply everywhere:
+ *  - HttpOnly session cookie (not readable from JavaScript), SameSite=Lax
+ *    (sent when following a link — QR code, e-mail — but not on cross-site
+ *    form posts), Secure when the site is served over HTTPS (also behind a
+ *    reverse proxy setting X-Forwarded-Proto);
+ *  - strict mode and cookies only (no session id in URLs);
+ *  - sign-out after a period of inactivity set by an administrator in Manage
+ *    Lab (setting session_timeout_minutes, 30 minutes by default); the next
+ *    page shows that the session expired;
+ *  - the session id is renewed every 30 minutes (session fixation).
+ * A request that must not count as activity (the notifications polled by
+ * every page) defines SESSION_PASSIVE_REQUEST before including this file.
  *
- * SECURITY FEATURES:
- * - HttpOnly cookies: Prevents JavaScript from accessing session cookies (XSS protection)
- * - Secure flag: Only sends cookies over HTTPS (prevents interception)
- * - SameSite protection: Prevents CSRF attacks
- * - Session timeout: 30 minutes of inactivity
- * - Session ID regeneration: Every 30 minutes
- *
- * DEPLOYMENT NOTES:
- *
- * FOR PRODUCTION (HTTPS REQUIRED):
- * - Ensure your site runs on HTTPS before enabling session.cookie_secure
- * - All security features will be active
- * - To use: Replace session_start() with: require 'session_config.php';
- *
- * FOR DEVELOPMENT (HTTP):
- * - Comment out the session.cookie_secure line (line 26) if using HTTP
- * - Otherwise sessions will not work without HTTPS
- * - Change: ini_set('session.cookie_secure', 1);
- * - To:     // ini_set('session.cookie_secure', 1);  // DISABLED FOR HTTP DEVELOPMENT
- *
- * USAGE:
- * Replace all instances of session_start() with:
- *   require 'session_config.php';
- *
- * This ensures consistent session security across the entire application.
- *
+ * It loads dbcon.php (database, settings, translations) before starting the
+ * session; dbcon.php may still be required afterwards.
  */
 
-// Configure session cookie parameters for security
-ini_set('session.cookie_httponly', 1);  // Prevent JavaScript access to session cookie (XSS protection)
-ini_set('session.cookie_secure', 1);    // Only send cookie over HTTPS connections (COMMENT OUT FOR HTTP DEV)
-ini_set('session.cookie_samesite', 'Strict'); // Prevent CSRF attacks
-ini_set('session.use_only_cookies', 1); // Only use cookies for session ID
-ini_set('session.use_strict_mode', 1);  // Reject uninitialized session IDs
+require_once __DIR__ . '/dbcon.php';
 
-// Set session timeout to 30 minutes of inactivity
-ini_set('session.gc_maxlifetime', 1800); // 30 minutes in seconds
-ini_set('session.cookie_lifetime', 1800); // Cookie expires after 30 minutes
+const SESSION_TIMEOUT_DEFAULT_MINUTES = 30;
+const SESSION_TIMEOUT_MIN_MINUTES = 5;
+const SESSION_TIMEOUT_MAX_MINUTES = 720;
 
-// Start session if not already started
-if (session_status() === PHP_SESSION_NONE) {
+// Inactivity allowed before sign-out, in minutes (Manage Lab setting).
+function session_timeout_minutes(mysqli $con): int
+{
+    static $minutes = null;
+    if ($minutes === null) {
+        $result = $con->query("SELECT value FROM settings WHERE name = 'session_timeout_minutes'");
+        $value = $result ? (int) ($result->fetch_row()[0] ?? 0) : 0;
+        $minutes = $value > 0 ? max(SESSION_TIMEOUT_MIN_MINUTES, min(SESSION_TIMEOUT_MAX_MINUTES, $value)) : SESSION_TIMEOUT_DEFAULT_MINUTES;
+    }
+    return $minutes;
+}
+
+$sessionTimeout = session_timeout_minutes($con) * 60;
+
+if (session_status() === PHP_SESSION_NONE && PHP_SAPI !== 'cli') {
+    $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
+    ini_set('session.use_only_cookies', '1');
+    ini_set('session.use_strict_mode', '1');
+    // Keep the data on the server at least as long as the allowed inactivity.
+    ini_set('session.gc_maxlifetime', (string) max($sessionTimeout, 1440));
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path' => '/',
+        'secure' => $isHttps,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
     session_start();
 }
 
-// Check for session timeout
-if (isset($_SESSION['LAST_ACTIVITY']) && (time() - $_SESSION['LAST_ACTIVITY'] > 1800)) {
-    // Last request was more than 30 minutes ago
-    session_unset();     // Unset $_SESSION variable
-    session_destroy();   // Destroy session data in storage
-    session_start();     // Start a new session
-}
-$_SESSION['LAST_ACTIVITY'] = time(); // Update last activity timestamp
+if (PHP_SAPI !== 'cli') {
+    // Sign out after the allowed inactivity.
+    if (isset($_SESSION['LAST_ACTIVITY']) && time() - $_SESSION['LAST_ACTIVITY'] > $sessionTimeout) {
+        $wasSignedIn = isset($_SESSION['username']);
+        session_unset();
+        session_destroy();
+        session_start();
+        session_regenerate_id(true);
+        if ($wasSignedIn) {
+            $_SESSION['message'] = tr('Your session expired after {n} minutes of inactivity: please sign in again.', ['n' => intdiv($sessionTimeout, 60)]);
+        }
+    }
+    if (!defined('SESSION_PASSIVE_REQUEST')) {
+        $_SESSION['LAST_ACTIVITY'] = time();
+    } else {
+        $_SESSION['LAST_ACTIVITY'] ??= time();
+    }
 
-// Regenerate session ID periodically to prevent session fixation
-if (!isset($_SESSION['CREATED'])) {
-    $_SESSION['CREATED'] = time();
-} else if (time() - $_SESSION['CREATED'] > 1800) {
-    // Session started more than 30 minutes ago
-    session_regenerate_id(true);    // Change session ID and delete old session
-    $_SESSION['CREATED'] = time();  // Update creation time
+    // Renew the session id periodically (session fixation).
+    if (!isset($_SESSION['CREATED'])) {
+        $_SESSION['CREATED'] = time();
+    } elseif (time() - $_SESSION['CREATED'] > 1800) {
+        session_regenerate_id(true);
+        $_SESSION['CREATED'] = time();
+    }
 }
-
-?>

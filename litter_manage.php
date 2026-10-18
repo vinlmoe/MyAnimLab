@@ -14,7 +14,7 @@
  * litter is read-only.
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 

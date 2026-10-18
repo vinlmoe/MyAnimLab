@@ -10,7 +10,7 @@
  * itself recorded in the activity log.
  */
 
-require 'session_config.php';
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 

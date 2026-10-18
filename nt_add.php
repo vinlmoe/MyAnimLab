@@ -8,9 +8,7 @@
  * 
  */
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+require_once __DIR__ . '/session_config.php';
 // Include the database connection file
 include_once("dbcon.php");
 require 'notes_lib.php';

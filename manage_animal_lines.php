@@ -8,7 +8,7 @@
  * RY139-0023 (Rat Y139). Modeled on manage_strain.php.
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 
 if (!isset($_SESSION['username'])) {

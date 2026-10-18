@@ -10,7 +10,7 @@
  * 
  */
 
-session_start(); // Start the session to use session variables
+require_once 'session_config.php';
 require 'dbcon.php'; // Include database connection
 
 if (!isset($_SESSION['username'])) {

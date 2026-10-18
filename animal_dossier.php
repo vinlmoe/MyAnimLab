@@ -8,7 +8,7 @@
  * their follow-up notes, treatments, cage movements and exit. Printable.
  * Access: admin or BEA responsible.
  */
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 require 'ethics_lib.php';

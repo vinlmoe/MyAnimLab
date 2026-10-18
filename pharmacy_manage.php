@@ -1,5 +1,5 @@
 <?php
-session_start(); require 'dbcon.php'; require 'animal_lib.php';
+require_once 'session_config.php';
 if (!isset($_SESSION['username'])) { header('Location: index.php'); exit; }
 if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 $uid=(int)($_SESSION['user_id']??0);

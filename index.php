@@ -14,7 +14,7 @@ ini_set('display_startup_errors', 0);
 error_reporting(E_ALL);
 
 // Start a new session or resume the existing session
-session_start();
+require_once 'session_config.php';
 
 // Include the database connection file
 require 'dbcon.php';
@@ -408,6 +408,10 @@ mysqli_close($con);
                         <h3><?= trh('Login') ?></h3>
                         <?php if (!empty($error_message)) { ?>
                             <div class="alert alert-danger"><?= htmlspecialchars($error_message); ?></div>
+                        <?php } ?>
+                        <?php if (isset($_SESSION['message'])) { ?>
+                            <div class="alert alert-warning"><?= htmlspecialchars($_SESSION['message']); ?></div>
+                            <?php unset($_SESSION['message']); ?>
                         <?php } ?>
                         <?php if (isset($_SESSION['error_message'])) { ?>
                             <div class="alert alert-danger">

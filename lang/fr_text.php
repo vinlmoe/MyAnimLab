@@ -1959,4 +1959,9 @@ return [
     // quality review
     'Only the author of the note or an administrator can change it.' => 'Seul l’auteur de la note ou un administrateur peut la modifier.',
     'You must be logged in.' => 'Vous devez être connecté.',
+
+    // session settings
+    'Your session expired after {n} minutes of inactivity: please sign in again.' => 'Votre session a expiré après {n} minutes d’inactivité : reconnectez-vous.',
+    'Sign-out after inactivity (minutes)' => 'Déconnexion après inactivité (minutes)',
+    'A user who does nothing for this time is signed out and must sign in again ({min} to {max} minutes; default {default}).' => 'Un utilisateur inactif pendant cette durée est déconnecté et doit se reconnecter (de {min} à {max} minutes ; {default} par défaut).',
 ];

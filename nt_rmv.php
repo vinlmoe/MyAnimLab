@@ -7,7 +7,7 @@
  * an administrator can delete it. Answers in JSON.
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'notes_lib.php';
 

@@ -1038,6 +1038,9 @@ INSERT INTO `settings` (`name`, `value`) VALUES ('experimental_round_since', CUR
 -- Continuing training requirement of the training records (days over years).
 INSERT INTO `settings` (`name`, `value`) VALUES ('training_cpd_days', '3'), ('training_cpd_years', '6'), ('training_hours_per_day', '7');
 
+-- Inactivity (minutes) before sign-out, set in Manage Lab.
+INSERT INTO `settings` (`name`, `value`) VALUES ('session_timeout_minutes', '30');
+
 -- Insert initial data into the users table
 INSERT INTO `users` (`name`, `username`, `position`, `role`, `password`, `status`, `reset_token`, `reset_token_expiration`, `login_attempts`, `account_locked`, `email_verified`, `email_token`, `initials`, `is_bea_responsible`)
 VALUES ('Administrateur temporaire', 'admin@myvivarium.online', 'Principal Investigator', 'admin', '$2y$10$roVlhpjZsRFXY.m9JtRB/OAaN2dp50O7D2J5idI2MsUotxMyrHRZ6', 'approved', NULL, NULL, 0, NULL, 1, NULL, 'TAN', 1);

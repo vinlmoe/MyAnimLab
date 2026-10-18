@@ -1,6 +1,6 @@
 <?php
 
-require 'session_config.php';
+require_once 'session_config.php';
 require 'dbcon.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST'

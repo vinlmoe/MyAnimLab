@@ -1,7 +1,7 @@
 <?php
 
 /** Route opened by printed cage QR codes: experimental cage follow-up first. */
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 
 if (!isset($_SESSION['username'])) {

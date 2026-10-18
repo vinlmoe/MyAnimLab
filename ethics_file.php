@@ -6,7 +6,7 @@
  * The files live in a private folder and are never linked directly.
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'ethics_lib.php';
 

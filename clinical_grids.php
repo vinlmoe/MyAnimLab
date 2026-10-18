@@ -9,7 +9,7 @@
  * follow-up or an endpoint uses it, it is read-only: duplicate it to change.
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 

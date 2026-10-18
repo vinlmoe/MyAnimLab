@@ -1,6 +1,6 @@
 <?php
 // Planning view for animal uses, modelled on JCMS MouseUsage.
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 
 if (!isset($_SESSION['username'])) {

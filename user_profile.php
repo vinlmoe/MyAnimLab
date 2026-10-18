@@ -10,7 +10,7 @@
  * 
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php'; // Database connection
 require 'config.php'; // Configuration file for email settings
 require 'vendor/autoload.php'; // Include PHPMailer autoload file
@@ -313,7 +313,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
             <br>
             <div class="form-group">
                 <label for="initials"><?= htmlspecialchars(t('profile.initials')) ?> <span class="note1">(<?= htmlspecialchars(t('profile.initials_help')) ?>)</span></label>
-                <input type="text" class="form-control" id="initials" name="initials" value="<?php echo htmlspecialchars($user['initials']); ?>" maxlength="3" required>
+                <input type="text" class="form-control" id="initials" name="initials" value="<?php echo htmlspecialchars((string) ($user['initials'] ?? '')); ?>" maxlength="3" required>
             </div>
             <br>
             <div class="form-group">
