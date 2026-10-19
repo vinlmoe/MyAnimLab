@@ -65,4 +65,26 @@ final class PedigreeTest extends DatabaseTestCase
         $this->assertSame([$brother, $sister], array_column($desc[0]['children'], 'id'));
         $this->assertSame($pup, $desc[0]['children'][0]['descendants'][0]['children'][0]['id'], 'grandchild');
     }
+
+    public function testDilutionRateOfAnAncestorInADescendant(): void
+    {
+        [$sire, $dam, $other] = [TestDatabase::animal($this->con, $this->cage), TestDatabase::animal($this->con, $this->cage), TestDatabase::animal($this->con, $this->cage)];
+        $son = $this->born($sire, $dam);
+        $daughter = $this->born($sire, $dam);
+        $grandchild = $this->born($son, $other);
+        $inbred = $this->born($son, $daughter);
+        $map = pedigree_parent_map($this->con, [$grandchild, $inbred], PEDIGREE_MAX_GENERATIONS);
+
+        $this->assertSame(0.5, pedigree_dilution($map, $son, $grandchild), 'parent');
+        $this->assertSame(0.25, pedigree_dilution($map, $sire, $grandchild), 'grandparent');
+        $this->assertSame(0.0, pedigree_dilution($map, $daughter, $grandchild), 'not an ancestor');
+        // Sib mating: the grandparents are reached twice.
+        $shares = pedigree_ancestor_shares($map, $inbred);
+        $this->assertSame(0.5, $shares[$sire]['share']);
+        $this->assertSame(2, $shares[$sire]['paths']);
+        $this->assertSame([2], $shares[$sire]['generations']);
+        $this->assertSame(1.0, $shares[$sire]['share'] + $shares[$dam]['share'], 'a complete generation adds up to 100 %');
+        $this->assertSame('3/8', pedigree_fraction(0.375));
+        $this->assertSame('12,5 %', pedigree_percent(0.125));
+    }
 }

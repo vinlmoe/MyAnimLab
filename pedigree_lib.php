@@ -6,7 +6,9 @@
  * generations, descendants grouped by litter, ancestors met more than once
  * and the inbreeding coefficient (Wright), computed with the kinship
  * (coancestry) recursion on the known pedigree: an unknown parent counts as
- * unrelated, so the value is a minimum. Requires db_lib.php.
+ * unrelated, so the value is a minimum. The dilution rate of an ancestor in
+ * a descendant is its expected share of the descendant's genome: 1/2 per
+ * generation, added over every path linking them. Requires db_lib.php.
  */
 
 const PEDIGREE_MAX_GENERATIONS = 6;
@@ -178,4 +180,59 @@ function pedigree_descendant_ids(array $groups): array
         }
     }
     return $ids;
+}
+
+/**
+ * Expected share of each known ancestor in the genome of $id (dilution
+ * rate): [ancestor id => ['share' => float, 'paths' => int, 'generations' =>
+ * [n, ...]]], largest share first. A parent gives 1/2, each further
+ * generation halves it; an ancestor reached by several paths (inbreeding)
+ * adds the shares of each path.
+ */
+function pedigree_ancestor_shares(array $parents, int $id): array
+{
+    $shares = [];
+    $walk = function (int $x, int $n) use (&$walk, &$shares, $parents): void {
+        foreach ([$parents[$x]['sire'] ?? null, $parents[$x]['dam'] ?? null] as $p) {
+            if ($p === null) {
+                continue;
+            }
+            $shares[$p] ??= ['share' => 0.0, 'paths' => 0, 'generations' => []];
+            $shares[$p]['share'] += 0.5 ** $n;
+            $shares[$p]['paths']++;
+            $shares[$p]['generations'][$n] = $n;
+            $walk($p, $n + 1);
+        }
+    };
+    $walk($id, 1);
+    uasort($shares, fn($a, $b) => [$b['share'], min($a['generations'])] <=> [$a['share'], min($b['generations'])]);
+    foreach ($shares as &$s) {
+        $s['generations'] = array_values($s['generations']);
+        sort($s['generations']);
+    }
+    return $shares;
+}
+
+// Dilution rate of $ancestor in $descendant (0 when not an ancestor).
+function pedigree_dilution(array $parents, int $ancestor, int $descendant): float
+{
+    return pedigree_ancestor_shares($parents, $descendant)[$ancestor]['share'] ?? 0.0;
+}
+
+// A share as a fraction of a power of two ("3/8"), or "" when not exact.
+function pedigree_fraction(float $share): string
+{
+    for ($d = 1; $d <= 1024; $d *= 2) {
+        $n = $share * $d;
+        if (abs($n - round($n)) < 1e-9) {
+            return (int) round($n) . '/' . $d;
+        }
+    }
+    return '';
+}
+
+// A share as a percentage: "25 %", "12,5 %", "0,39 %".
+function pedigree_percent(float $share): string
+{
+    return rtrim(rtrim(number_format($share * 100, 2, ',', ''), '0'), ',') . ' %';
 }
