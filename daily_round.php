@@ -8,6 +8,8 @@
  * report on one of its animals. Cages already seen today through the
  * experimental daily follow-up, a health report or a QR scan show as seen.
  * Past days can be reviewed (read-only) to spot missed cages.
+ * The temperature of each room is entered on the round: the minimum and
+ * maximum of the day, or the current temperature (Manage Lab).
  */
 
 require_once 'session_config.php';
@@ -34,6 +36,19 @@ $hideSeen = !empty($_GET['hide_seen']);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
+    }
+
+    // Temperature of a room (today only, like the checks).
+    if (isset($_POST['room_temperature'])) {
+        try {
+            $tempRoom = trim((string) ($_POST['temp_room'] ?? ''));
+            record_room_temperature($con, $tempRoom, room_temperature_mode($con), ['min' => $_POST['temp_min'] ?? '', 'max' => $_POST['temp_max'] ?? '', 'current' => $_POST['temp_current'] ?? ''], $_SESSION['user_id'] ?? null, $_SESSION['name'] ?? null);
+            $_SESSION['message'] = tr('Temperature of room {room} recorded.', ['room' => $tempRoom]);
+        } catch (Exception $e) {
+            $_SESSION['message'] = tr('Temperature not recorded: {error}', ['error' => error_message($e)]);
+        }
+        header("Location: daily_round.php?" . http_build_query(['room' => $room, 'hide_seen' => $_POST['hide_seen'] ?? null]) . '#roomTemperatures');
+        exit;
     }
 
     // Checks can only be recorded for today: the log is a real-time record.
@@ -102,6 +117,15 @@ foreach ($cages as $c) {
     }
 }
 $totalCages = count($cages);
+// Room temperatures of the day: the last reading of each room counts.
+$temperatureMode = room_temperature_mode($con);
+$temperatures = room_temperatures_for_date($con, $date);
+$temperatureRooms = array_values(array_filter(array_keys($rooms), fn($r) => $r !== '' && ($room === '' || $room === $r)));
+foreach (array_keys($temperatures) as $r) {
+    if (($room === '' || $room === $r) && !in_array($r, $temperatureRooms, true)) {
+        $temperatureRooms[] = $r; // a room emptied since the reading
+    }
+}
 $totalSeen = array_sum(array_column($rooms, 'seen'));
 $roomLabel = fn($r) => $r === '' ? tr('No room assigned') : tr('Room {room}', ['room' => $r]);
 
@@ -183,6 +207,7 @@ require 'header.php';
                                 <strong><?= htmlspecialchars($roomLabel($r)); ?></strong><br>
                                 <span class="badge bg-<?= $done ? 'success' : 'warning text-dark'; ?>"><?= trh('{seen} / {total} seen', ['seen' => $st['seen'], 'total' => $st['total']]); ?></span>
                                 <?php if ($st['issues']) : ?><span class="badge bg-danger"><?= trh('{n} issue(s)', ['n' => $st['issues']]); ?></span><?php endif; ?>
+                                <?php if (!empty($temperatures[$r])) : ?><br><small class="text-muted"><i class="fas fa-thermometer-half"></i> <?= htmlspecialchars(room_temperature_text(end($temperatures[$r]))); ?></small><?php endif; ?>
                             </div>
                         </div>
                     </a>
@@ -197,6 +222,47 @@ require 'header.php';
                 <?php else : ?>
                     <a href="<?= htmlspecialchars('daily_round.php?' . http_build_query(['room' => $room, 'hide_seen' => 1])); ?>" class="btn btn-sm btn-outline-secondary"><?= trh('Show only cages still to check') ?></a>
                 <?php endif; ?>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($temperatureRooms) : ?>
+            <div class="card mb-3" id="roomTemperatures">
+                <div class="card-body py-2">
+                    <h6 class="mb-2"><i class="fas fa-thermometer-half"></i> <?= trh('Room temperatures') ?>
+                        <small class="text-muted fw-normal">— <?= trh(ROOM_TEMPERATURE_MODES[$temperatureMode]) ?></small></h6>
+                    <?php foreach ($temperatureRooms as $r) :
+                        $readings = $temperatures[$r] ?? [];
+                        $last = $readings ? end($readings) : null; ?>
+                        <div class="row g-2 align-items-center mb-1 room-temperature" data-room="<?= htmlspecialchars($r); ?>">
+                            <div class="col-md-2"><strong><?= htmlspecialchars($roomLabel($r)); ?></strong></div>
+                            <div class="col-md-4">
+                                <?php if ($last) : ?>
+                                    <span class="badge bg-light text-dark border"><?= htmlspecialchars(room_temperature_text($last)); ?></span>
+                                    <small class="text-muted"><?= htmlspecialchars(substr($last['recorded_at'], 11, 5) . ' · ' . ($last['recorded_by_name'] ?? '')); ?><?= count($readings) > 1 ? ' · ' . trh('{n} readings', ['n' => count($readings)]) : ''; ?></small>
+                                <?php else : ?>
+                                    <span class="text-<?= $isToday ? 'warning' : 'danger'; ?>"><?= trh($isToday ? 'Not entered yet' : 'Not entered'); ?></span>
+                                <?php endif; ?>
+                            </div>
+                            <?php if ($isToday) : ?>
+                                <div class="col-md-6">
+                                    <form method="POST" class="d-flex gap-1 align-items-center">
+                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                        <input type="hidden" name="room" value="<?= htmlspecialchars($room); ?>">
+                                        <input type="hidden" name="hide_seen" value="<?= $hideSeen ? 1 : ''; ?>">
+                                        <input type="hidden" name="temp_room" value="<?= htmlspecialchars($r); ?>">
+                                        <?php if ($temperatureMode === 'current') : ?>
+                                            <input type="text" inputmode="decimal" class="form-control form-control-sm" style="max-width: 7em" name="temp_current" required placeholder="<?= trh('°C now') ?>" aria-label="<?= trh('Current temperature (°C)') ?>">
+                                        <?php else : ?>
+                                            <input type="text" inputmode="decimal" class="form-control form-control-sm" style="max-width: 7em" name="temp_min" required placeholder="<?= trh('min °C') ?>" aria-label="<?= trh('Minimum temperature (°C)') ?>">
+                                            <input type="text" inputmode="decimal" class="form-control form-control-sm" style="max-width: 7em" name="temp_max" required placeholder="<?= trh('max °C') ?>" aria-label="<?= trh('Maximum temperature (°C)') ?>">
+                                        <?php endif; ?>
+                                        <button type="submit" name="room_temperature" class="btn btn-sm btn-outline-primary text-nowrap"><?= trh($last ? 'Correct' : 'Save') ?></button>
+                                    </form>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
             </div>
         <?php endif; ?>
 

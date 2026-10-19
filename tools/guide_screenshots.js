@@ -118,6 +118,7 @@ async function shot(page, name, url, opts = {}) {
   const u = await session(browser, 'julien.bernard@demo.fr');
   await shot(u, 'u_accueil', 'home.php', { banner: true });
   await shot(u, 'u_tournee', 'daily_round.php');
+  await shot(u, 'u_temperatures', 'daily_round.php', { element: '#roomTemperatures' });
   await shot(u, 'u_tableau_bord', 'hc_dash.php', { height: 500 });
   await shot(u, 'u_fiche_cage', 'hc_view.php?id=' + ids.holding[0], { clipX: [230, 1050] });
   await shot(u, 'u_portees_en_cours', 'bc_view.php?id=' + ids.breeding, { element: '#currentLitters' });

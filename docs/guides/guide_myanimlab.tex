@@ -3,7 +3,7 @@
 \lhead{\logomark\ \wordmark\ --- Guide}
 % Version du guide : à incrémenter, avec une ligne dans l'historique des
 % versions, à chaque modification.
-\newcommand{\versionguide}{1.3}
+\newcommand{\versionguide}{1.6}
 \newcommand{\dateguide}{19 octobre 2026}
 \rhead{Version \versionguide{} du \dateguide}
 \hypersetup{pdftitle={Guide de MyAnimLab},pdfauthor={Sébastien Lefebvre},pdfsubject={Version \versionguide}}
@@ -20,6 +20,19 @@ formation. La partie~\ref{part:admin} décrit ce qui est réservé aux
 administrateurs et aux responsables BEA : installation et mises à jour,
 paramétrage, comptes, référentiels, supervision quotidienne, corrections
 réglementaires, volet BEA et préparation d'une inspection.
+
+\paragraph{Origine de MyAnimLab.} MyAnimLab est un \textbf{fork} (une
+version dérivée) de \href{https://github.com/myvivarium/MyVivarium}{MyVivarium}
+(\url{https://github.com/myvivarium/MyVivarium}), plateforme libre de gestion
+d'animalerie distribuée sous licence LGPL. Il en reprend la base (comptes,
+cages d'hébergement et d'accouplement, tableaux de bord, tâches et rappels,
+notes, capteurs IoT, étiquettes de cages) et l'adapte à la réglementation
+européenne et française de l'expérimentation animale (directive 2010/63/UE) :
+traduction française, tournée quotidienne, registre des entrées et sorties,
+autorisations de projet, essais et expériences avec grilles cliniques et
+points limites, actes expérimentaux, pharmacie et stupéfiants, livrets de
+formation, volet BEA et terrariums. MyAnimLab reste sous licence LGPL, comme
+MyVivarium.
 
 \begin{center}
 \rowcolors{2}{gray!8}{white}
@@ -62,6 +75,9 @@ Ce qui est conservé pour le registre et l'inspection, et comment corriger.
 1.1 & 19 octobre 2026 & Âge au sevrage par espèce et par lignée (sections~\ref{sec:portees} et~\ref{sec:lignees}).\\
 1.2 & 19 octobre 2026 & Suivi des portées sur l'étiquette d'une cage d'accouplement, avec un exemple complété au crayon (section~\ref{sec:etiquettes}). Analyse rétrospective BEA détaillée pas à pas, avec captures (section~\ref{sec:retrospective}).\\
 1.3 & 19 octobre 2026 & Licences : le guide sous CC BY-SA 4.0, le logiciel sous LGPLv3.\\
+1.4 & 19 octobre 2026 & Plan de l'application : menus, pages et pages qu'elles ouvrent (section~\ref{sec:premiers}).\\
+1.5 & 19 octobre 2026 & Température des salles relevée à la tournée : minimum et maximum de la journée, ou température actuelle, au choix dans les paramètres (section~\ref{sec:tournee}).\\
+1.6 & 19 octobre 2026 & Origine de MyAnimLab, fork de MyVivarium, dans l'introduction.\\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -138,6 +154,8 @@ téléphone et des codes de secours, demandez une réinitialisation à un
 administrateur.
 
 \subsection{Se repérer}
+Le \textbf{plan de l'application} (page~\pageref{plan}) montre d'un coup
+d'œil les menus, leurs pages et les pages qu'elles ouvrent.
 \begin{itemize}
   \item \menu{Accueil} : statistiques des cages, alertes du jour (actions
     de point limite, portées à sevrer, en rouge si le sevrage est en retard,
@@ -155,6 +173,16 @@ administrateur.
     profil.
 \end{itemize}
 \capture[0.85\linewidth]{u_accueil}{Accueil : action de point limite requise, portée dont le sevrage est en retard, avancement de la tournée.}
+
+\begin{landscape}
+\subsubsection*{Plan de l'application}\label{plan}
+\begin{center}
+\resizebox{\linewidth}{!}{\input{plan_navigation}}
+\end{center}
+{\small Selon le rôle, certaines pages n'apparaissent pas dans le menu : celles
+des responsables BEA et des administrateurs, et les capteurs IoT tant
+qu'ils ne sont pas configurés.}
+\end{landscape}
 
 \section{Formation et livret de compétences}\label{sec:livret}
 Toute personne qui travaille avec les animaux tient son \textbf{livret de
@@ -548,6 +576,8 @@ Chaque cage en service doit être vue au moins une fois par jour.
 \begin{enumerate}
   \item \menu{Animaux > Tournée quotidienne} : les cages sont classées par
     salle.
+  \item Relevez la \textbf{température de chaque salle} dans l'encadré
+    \btn{Températures des salles} (voir ci-dessous).
   \item Pour chaque cage : \btn{RAS} (une à une ou en groupe), ou
     signalement d'un problème sanitaire sur l'un de ses animaux.
   \item Pour une cage en expérimentation : \btn{Suivi expérimental (x/y)},
@@ -558,7 +588,37 @@ Chaque cage en service doit être vue au moins une fois par jour.
     l'étiquette, puis validez la cage en un geste ou signalez un problème.
 \end{enumerate}
 \end{procedure}
-\capture[0.9\linewidth]{u_tournee}{Tournée quotidienne : avancement par salle, cages vues, bouton RAS.}
+\capture[0.9\linewidth]{u_tournee}{Tournée quotidienne : avancement et température par salle, températures à relever, cages vues, bouton RAS.}
+
+\subsection*{La température des salles}
+L'administrateur choisit ce qui se relève pour toutes les salles
+(\menu{Paramètres > Gérer le laboratoire}, réglage \btn{Température des
+salles à la tournée}) :
+\begin{itemize}
+  \item \textbf{Minimum et maximum de la journée} (par défaut) : les valeurs
+    du thermomètre mini / maxi de la salle ;
+  \item \textbf{Température actuelle} : la température lue au moment de la
+    tournée.
+\end{itemize}
+\begin{procedure}{Relever la température d'une salle}
+\begin{enumerate}
+  \item Dans l'encadré \btn{Températures des salles} de la tournée, sur la
+    ligne de la salle, saisissez \btn{min °C} et \btn{max °C} (ou la
+    température actuelle). La virgule est acceptée (19,5).
+  \item \btn{Enregistrer}. Le relevé s'affiche avec l'heure et son auteur,
+    et la température apparaît sur la carte de la salle.
+  \item Une erreur de saisie se rectifie par \btn{Corriger} : un nouveau
+    relevé remplace le précédent pour la journée.
+\end{enumerate}
+\end{procedure}
+\capture[0.85\linewidth]{u_temperatures}{Températures des salles : la salle A1 est relevée, les salles A2 et B2 restent à relever.}
+\begin{trace}
+Chaque relevé est conservé tel que saisi, avec son heure et son auteur, et
+ne peut être ni modifié ni supprimé : une correction s'ajoute aux relevés
+précédents et c'est le dernier de la journée qui compte. Les jours passés se
+consultent en lecture seule (une salle non relevée y est signalée en rouge).
+Les relevés figurent dans l'export des journaux bruts.
+\end{trace}
 
 \begin{regle}
 \begin{itemize}
@@ -572,6 +632,9 @@ Chaque cage en service doit être vue au moins une fois par jour.
     le suivi de l'animal ou de la cage), ou annulé (page \btn{Actes} de
     l'expérience, bouton \btn{Annuler}, pour une date ou toutes les dates
     restant à faire).
+  \item La température d'une salle se relève le jour même : les valeurs
+    doivent être comprises entre -30 et 60~°C, et le minimum ne peut pas
+    dépasser le maximum.
   \item En fin de journée, à l'heure fixée par l'administrateur (18:00 par
     défaut), les administrateurs reçoivent la liste des cages non vues.
   \item Les jours passés se consultent en lecture seule.
@@ -1422,6 +1485,7 @@ fois par an : les registres réglementaires dépendent de ces sauvegardes.
 Nom, URL & --- & Affichés sur les pages, les étiquettes et dans les e-mails.\\
 Fuseau horaire & Europe/Paris & Définit le « jour » de la tournée, des suivis et des rappels.\\
 Alerte de la tournée & 18:00 & Heure après laquelle les administrateurs reçoivent la liste des cages non vues.\\
+Température des salles & min / max & Ce qui se relève pour chaque salle à la tournée : minimum et maximum de la journée, ou température actuelle.\\
 Âge au sevrage & 21 jours & Sert au calcul de la date de sevrage prévue des portées dont l'espèce et la lignée n'ont pas leur propre âge (section~\ref{sec:lignees}).\\
 Rappels du matin & 07:30 & Heure des rappels d'actes expérimentaux et de sevrage.\\
 Déconnexion & 30 min & Inactivité tolérée avant fermeture de la session (5 à 720 minutes).\\
