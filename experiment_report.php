@@ -387,7 +387,7 @@ require 'header.php';
                                     <td><?= htmlspecialchars($a['created_at']); ?></td>
                                     <td><?= htmlspecialchars(endpoint_required_actions()[$a['required_action']]); ?></td>
                                     <td><?= htmlspecialchars($a['message'] ?? ''); ?></td>
-                                    <td><?= $a['status'] === 'done' ? htmlspecialchars($a['done_at'] . ' — ' . ($a['done_by_name'] ?? '') . ': ' . ($a['done_note'] ?? '')) : '<strong class="text-danger">' . trh('PENDING') . '</strong>'; ?></td>
+                                    <td><?= $a['status'] !== 'pending' ? ($a['status'] === 'withdrawn' ? '<span class="badge bg-secondary">' . trh('Withdrawn') . '</span> ' : '') . htmlspecialchars($a['done_at'] . ' — ' . ($a['done_by_name'] ?? '') . ': ' . ($a['done_note'] ?? '')) : '<strong class="text-danger">' . trh('PENDING') . '</strong>'; ?></td>
                                 </tr>
                             <?php endforeach; ?>
                         </table>

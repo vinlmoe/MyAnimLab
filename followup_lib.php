@@ -7,6 +7,11 @@
  * it requires a reason, and the values it replaces are kept in
  * experiment_followup_revisions (append-only), so that what was recorded
  * first, by whom, and why it was changed can always be shown.
+ *
+ * Endpoint actions (points limites) raised by a follow-up are withdrawn when
+ * a correction of that follow-up no longer reaches their endpoint. An action
+ * not carried out at once is commented (endpoint_action.php): why, and what
+ * is planned.
  */
 
 /** Values of a follow-up as they are now: entry, grid scores, observations. */
@@ -103,4 +108,77 @@ function followup_revision_summary(array $previous): string
     }
     $by = ($previous['recorded_by_name'] ?? '') !== '' ? $previous['recorded_by_name'] : '—';
     return ($parts ? implode(' · ', $parts) : tr('no value')) . ' (' . tr('entered by {user} on {at}', ['user' => $by, 'at' => substr((string) ($previous['entered_at'] ?? $previous['created_at'] ?? ''), 0, 16)]) . ')';
+}
+
+/**
+ * Withdraw the pending actions a follow-up had raised whose endpoint the
+ * corrected values no longer reach ($breachedThresholdIds: the endpoints
+ * still reached). An action is kept while a later follow-up of the same
+ * participation still reaches an endpoint: the animal may still need it.
+ * Returns the withdrawn and the kept actions.
+ */
+function withdraw_endpoint_actions_no_longer_reached(mysqli $con, int $followupId, array $breachedThresholdIds, string $reason, ?int $userId, ?string $userName): array
+{
+    $actions = db_rows(
+        $con,
+        "SELECT a.*, f.observed_at,
+                EXISTS (SELECT 1 FROM experiment_followups later
+                        WHERE later.experiment_animal_id = f.experiment_animal_id AND later.observed_at > f.observed_at AND later.endpoint_reached = 1) AS reached_later
+         FROM endpoint_actions a JOIN experiment_followups f ON f.id = a.followup_id
+         WHERE a.followup_id = ? AND a.status = 'pending' AND a.threshold_id IS NOT NULL",
+        'i',
+        [$followupId]
+    );
+    $breached = array_map('intval', $breachedThresholdIds);
+    $result = ['withdrawn' => [], 'kept' => []];
+    foreach ($actions as $a) {
+        if (in_array((int) $a['threshold_id'], $breached, true)) {
+            continue;
+        }
+        if ($a['reached_later']) {
+            $result['kept'][] = $a;
+            continue;
+        }
+        $note = tr('Endpoint no longer reached after the correction of the follow-up of {date}: {reason}', ['date' => $a['observed_at'], 'reason' => $reason]);
+        if (db_execute($con, "UPDATE endpoint_actions SET status = 'withdrawn', done_at = NOW(), done_by = ?, done_by_name = ?, done_note = ? WHERE id = ? AND status = 'pending'", 'issi', [$userId, $userName, $note, (int) $a['id']]) === 1) {
+            $result['withdrawn'][] = $a;
+        }
+    }
+    return $result;
+}
+
+/** Record a pending action other than euthanasia as done, with what was done. */
+function complete_endpoint_action(mysqli $con, int $actionId, int $experimentAnimalId, string $note, ?int $userId, ?string $userName): bool
+{
+    return db_execute(
+        $con,
+        "UPDATE endpoint_actions SET status = 'done', done_at = NOW(), done_by = ?, done_by_name = ?, done_note = ?
+         WHERE id = ? AND experiment_animal_id = ? AND status = 'pending' AND required_action <> 'euthanasia'",
+        'issii',
+        [$userId, $userName, $note, $actionId, $experimentAnimalId]
+    ) === 1;
+}
+
+/** Comment a pending action not carried out at once (why, what is planned). */
+function comment_endpoint_action(mysqli $con, int $actionId, int $experimentAnimalId, string $comment, ?int $userId, ?string $userName): bool
+{
+    if (!db_value($con, "SELECT 1 FROM endpoint_actions WHERE id = ? AND experiment_animal_id = ? AND status = 'pending'", 'ii', [$actionId, $experimentAnimalId])) {
+        return false;
+    }
+    db_execute($con, "INSERT INTO endpoint_action_comments (action_id, comment, created_by, created_by_name) VALUES (?, ?, ?, ?)", 'isis', [$actionId, $comment, $userId, $userName]);
+    return true;
+}
+
+/** Comments of a list of endpoint actions, oldest first, by action id. */
+function endpoint_action_comments(mysqli $con, array $actionIds): array
+{
+    $ids = array_values(array_unique(array_map('intval', $actionIds)));
+    if (!$ids) {
+        return [];
+    }
+    $byAction = [];
+    foreach (db_rows($con, "SELECT * FROM endpoint_action_comments WHERE action_id IN (" . db_placeholders(count($ids)) . ") ORDER BY created_at, id", str_repeat('i', count($ids)), $ids) as $c) {
+        $byAction[(int) $c['action_id']][] = $c;
+    }
+    return $byAction;
 }

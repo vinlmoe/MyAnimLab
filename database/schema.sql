@@ -290,7 +290,7 @@ CREATE TABLE `animal_parentage` (
 CREATE TABLE `animal_events` (
   `id` int NOT NULL AUTO_INCREMENT,
   `animal_id` int NOT NULL,
-  `event_type` ENUM('created','transferred','status_change','experiment_start','experiment_end','endpoint_alert','note','health_report','medication_administration','experiment_act') NOT NULL,
+  `event_type` ENUM('created','transferred','status_change','experiment_start','experiment_end','endpoint_alert','endpoint_withdrawn','note','health_report','medication_administration','experiment_act') NOT NULL,
   `payload` JSON DEFAULT NULL,
   `created_by` int DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
@@ -635,7 +635,8 @@ CREATE TABLE `experiment_followup_scores` (
 
 -- Action the experimenter must take when an endpoint (point limite) is
 -- reached: pending until done (euthanasia is completed by the animal's exit,
--- other actions by a written note such as the vet's decision).
+-- other actions by a written note such as the vet's decision), or withdrawn
+-- when a correction of the follow-up no longer reaches the endpoint.
 CREATE TABLE `endpoint_actions` (
   `id` int NOT NULL AUTO_INCREMENT,
   `experiment_animal_id` int NOT NULL,
@@ -644,7 +645,7 @@ CREATE TABLE `endpoint_actions` (
   `required_action` ENUM('euthanasia','call_vet','increase_monitoring','other') NOT NULL,
   `message` varchar(512) DEFAULT NULL,
   `measured_value` decimal(10,2) DEFAULT NULL,
-  `status` ENUM('pending','done') NOT NULL DEFAULT 'pending',
+  `status` ENUM('pending','done','withdrawn') NOT NULL DEFAULT 'pending',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `done_at` timestamp NULL DEFAULT NULL,
   `done_by` int DEFAULT NULL,
@@ -1360,6 +1361,25 @@ BEGIN
 END$$
 DELIMITER ;
 
+-- Comments on an endpoint action not carried out at once (why, what is
+-- planned), append-only.
+CREATE TABLE `endpoint_action_comments` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `action_id` int NOT NULL,
+  `comment` text NOT NULL,
+  `created_by` int DEFAULT NULL,
+  `created_by_name` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_endpoint_action_comments_action` (`action_id`),
+  FOREIGN KEY (`action_id`) REFERENCES `endpoint_actions` (`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+);
+CREATE TRIGGER `endpoint_action_comments_no_update` BEFORE UPDATE ON `endpoint_action_comments`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Endpoint action comments are append-only';
+CREATE TRIGGER `endpoint_action_comments_no_delete` BEFORE DELETE ON `endpoint_action_comments`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Endpoint action comments are append-only';
+
 -- Migrations already included in this schema (tools/migrate.php applies the
 -- later ones). Keep this list in step with database/migrations.
 CREATE TABLE `schema_migrations` (
@@ -1404,4 +1424,5 @@ INSERT INTO `schema_migrations` (`version`) VALUES
   ('034_terrarium_capture_weight.sql'),
   ('035_followup_revisions_append_only_logs.sql'),
   ('036_register_corrections_prescriptions_protected.sql'),
-  ('037_animal_hard_delete_guard.sql');
+  ('037_animal_hard_delete_guard.sql'),
+  ('038_endpoint_withdrawal_and_comments.sql');

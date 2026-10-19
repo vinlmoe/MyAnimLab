@@ -10,6 +10,9 @@
  * An endpoint that requires an action (euthanasia, calling the vet...) opens
  * a pending action shown to the experimenter until it is done: euthanasia is
  * completed by recording the animal's exit, other actions by a written note.
+ * Saving a follow-up that raises an action leads to endpoint_action.php, to
+ * carry it out or say why it is not done at once. A correction that no
+ * longer reaches an endpoint withdraws the action it had raised.
  * The experimental acts planned for the animal up to the chosen day are
  * confirmed here too (done / not done, with the information they ask for and,
  * for a medication of the stock, the lot used).
@@ -109,14 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($note === '') {
             $_SESSION['message'] = tr('Describe what was done (e.g. vet called, decision taken).');
         } else {
-            $stmt = $con->prepare(
-                "UPDATE endpoint_actions SET status = 'done', done_at = NOW(), done_by = ?, done_by_name = ?, done_note = ?
-                 WHERE id = ? AND experiment_animal_id = ? AND status = 'pending' AND required_action <> 'euthanasia'"
-            );
-            $stmt->bind_param("issii", $currentUserId, $currentUserName, $note, $actionId, $experimentAnimalId);
-            $stmt->execute();
-            $done = $stmt->affected_rows === 1;
-            $stmt->close();
+            $done = complete_endpoint_action($con, $actionId, $experimentAnimalId, $note, $currentUserId, $currentUserName);
             if ($done) {
                 log_activity($con, 'endpoint_action_done', 'animal', (string) $ea['animal_id'], tr('Action #{id}: {note}', ['id' => $actionId, 'note' => $note]), $currentUserId);
             }
@@ -319,6 +315,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $newActions[] = endpoint_required_actions()[$t['required_action']];
         }
 
+        // A correction that no longer reaches an endpoint withdraws the action it had raised.
+        $withdrawn = ['withdrawn' => [], 'kept' => []];
+        if ($previous !== null) {
+            $withdrawn = withdraw_endpoint_actions_no_longer_reached($con, $followupId, array_map(fn($b) => (int) $b['threshold']['id'], $breaches), $revisionReason, $currentUserId, $currentUserName);
+            foreach ($withdrawn['withdrawn'] as $w) {
+                log_activity($con, 'endpoint_action_withdrawn', 'animal', (string) $ea['animal_id'], tr('Action #{id} withdrawn: {reason}', ['id' => $w['id'], 'reason' => $revisionReason]), $currentUserId);
+            }
+            if (!empty($previous['endpoint_reached']) && !$endpointReached) {
+                log_animal_event($con, (int) $ea['animal_id'], 'endpoint_withdrawn', [
+                    'experiment_animal_id' => $experimentAnimalId,
+                    'observed_at' => $observedAt,
+                    'reason' => $revisionReason,
+                    'withdrawn_actions' => array_map(fn($w) => endpoint_required_actions()[$w['required_action']], $withdrawn['withdrawn']),
+                ], $currentUserId);
+                notify_admins(
+                    $con,
+                    tr('Endpoint withdrawn: {animal}', ['animal' => $ea['animal_uid']]),
+                    tr('Experiment {number} ({protocol}): ', ['number' => $ea['experiment_number'], 'protocol' => $ea['protocol_number']])
+                        . tr('the correction of the follow-up of {date} no longer reaches the endpoint ({reason}).', ['date' => $observedAt, 'reason' => $revisionReason]),
+                    $selfUrl,
+                    'endpoint_alert'
+                );
+            }
+        }
+
         foreach ($actConfirmations as $actAnimalId => $raw) {
             confirm_experiment_act($con, $actAnimalId, $raw, $followupId, $currentUserId, $currentUserName, $experimentAnimalId);
             $confirmedActs[$actAnimalId] = $raw['status'];
@@ -367,7 +388,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($confirmedActs) {
         $_SESSION['message'] .= ' ' . tr('{n} act(s) confirmed.', ['n' => count($confirmedActs)]);
     }
+    if ($withdrawn['withdrawn']) {
+        $_SESSION['message'] .= ' ' . tr('Endpoint no longer reached: action(s) withdrawn ({actions}).', ['actions' => implode(', ', array_map(fn($w) => endpoint_required_actions()[$w['required_action']], $withdrawn['withdrawn']))]);
+    }
+    if ($withdrawn['kept']) {
+        $_SESSION['message'] .= ' ' . tr('Action(s) kept: a later follow-up still reaches an endpoint ({actions}).', ['actions' => implode(', ', array_map(fn($w) => endpoint_required_actions()[$w['required_action']], $withdrawn['kept']))]);
+    }
 
+    // An action raised now is carried out, or commented, on its own page.
+    if ($newActions) {
+        header('Location: endpoint_action.php?' . http_build_query(['experiment_animal_id' => $experimentAnimalId, 'followup_id' => $followupId, 'return' => $returnUrl ?? $selfUrl]));
+        exit();
+    }
     header("Location: " . ($returnUrl ?? $selfUrl));
     exit();
 }
@@ -452,6 +484,8 @@ $actions->bind_param("i", $experimentAnimalId);
 $actions->execute();
 $actions = $actions->get_result()->fetch_all(MYSQLI_ASSOC);
 $pendingActions = array_filter($actions, fn($a) => $a['status'] === 'pending');
+$actionComments = endpoint_action_comments($con, array_column($pendingActions, 'id'));
+$endpointActionUrl = 'endpoint_action.php?' . http_build_query(['experiment_animal_id' => $experimentAnimalId, 'return' => $selfUrl]);
 
 $isFollowed = $ea['animal_status'] === 'active' && $ea['removed_at'] === null;
 
@@ -509,6 +543,11 @@ require 'header.php';
             <div class="alert alert-danger" id="pendingAction<?= (int) $a['id']; ?>">
                 <h5 class="alert-heading"><i class="fas fa-exclamation-triangle"></i> <?= trh('ACTION REQUIRED: {actions}', ['actions' => endpoint_required_actions()[$a['required_action']]]); ?></h5>
                 <p class="mb-2"><?= htmlspecialchars($a['message'] ?? ''); ?> — <?= trh('since {date}', ['date' => $a['created_at']]); ?></p>
+                <?php $comments = $actionComments[(int) $a['id']] ?? [];
+                if ($lastComment = $comments ? end($comments) : null) : ?>
+                    <p class="mb-2 small"><i class="fas fa-comment"></i> <?= trh('Not done at once: {comment}', ['comment' => $lastComment['comment']]); ?> <span class="text-muted">— <?= htmlspecialchars(($lastComment['created_by_name'] ?? '') . ', ' . substr($lastComment['created_at'], 0, 16)); ?></span></p>
+                <?php endif; ?>
+                <p class="mb-2"><a href="<?= htmlspecialchars($endpointActionUrl); ?>" class="alert-link"><?= trh('Carry out or comment this action') ?></a></p>
                 <?php if ($a['required_action'] === 'euthanasia') : ?>
                     <a href="animal_exit.php?<?= htmlspecialchars(http_build_query(['id' => $ea['animal_id'], 'code' => 'point_limite', 'return' => $backUrl])); ?>" class="btn btn-danger"><?= trh('Record the euthanasia (exit: endpoint reached)') ?></a>
                 <?php else : ?>
@@ -820,7 +859,7 @@ require 'header.php';
                             <td><?= htmlspecialchars($a['created_at']); ?></td>
                             <td><?= htmlspecialchars(endpoint_required_actions()[$a['required_action']]); ?></td>
                             <td><?= htmlspecialchars($a['message'] ?? ''); ?></td>
-                            <td><span class="badge bg-<?= $a['status'] === 'pending' ? 'danger' : 'success'; ?>"><?= trh($a['status']); ?></span></td>
+                            <td><span class="badge bg-<?= ['pending' => 'danger', 'done' => 'success'][$a['status']] ?? 'secondary'; ?>"><?= trh($a['status']); ?></span></td>
                             <td><?= $a['done_at'] ? htmlspecialchars($a['done_at'] . ' — ' . ($a['done_by_name'] ?? '') . ': ' . ($a['done_note'] ?? '')) : ''; ?></td>
                         </tr>
                     <?php endforeach; ?>
