@@ -262,8 +262,8 @@ require 'header.php';
                             <td class="text-nowrap small"><?= htmlspecialchars(substr($a['created_at'], 0, 16)) ?><?= $a['observed_at'] ? '<br>' . trh('follow-up of {date}', ['date' => $a['observed_at']]) : '' ?></td>
                             <td><?= htmlspecialchars($actionLabels[$a['required_action']] ?? $a['required_action']) ?></td>
                             <td class="small"><?= htmlspecialchars($a['message'] ?? '') ?></td>
-                            <td><?= $a['status'] === 'done' ? '<span class="badge bg-success">' . trh('Done') . '</span>' : '<span class="badge bg-danger">' . trh('Pending') . '</span>' ?></td>
-                            <td class="small"><?php if ($a['status'] === 'done') : ?><?= htmlspecialchars(substr((string) $a['done_at'], 0, 16)) ?> · <?= htmlspecialchars($a['done_by_name'] ?? '') ?><?= $a['done_note'] ? '<br>' . nl2br(htmlspecialchars($a['done_note'])) : '' ?><?php endif; ?></td>
+                            <td><?= ['done' => '<span class="badge bg-success">' . trh('Done') . '</span>', 'withdrawn' => '<span class="badge bg-secondary">' . trh('Withdrawn') . '</span>'][$a['status']] ?? '<span class="badge bg-danger">' . trh('Pending') . '</span>' ?></td>
+                            <td class="small"><?php if ($a['status'] !== 'pending') : ?><?= htmlspecialchars(substr((string) $a['done_at'], 0, 16)) ?> · <?= htmlspecialchars($a['done_by_name'] ?? '') ?><?= $a['done_note'] ? '<br>' . nl2br(htmlspecialchars($a['done_note'])) : '' ?><?php endif; ?></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>

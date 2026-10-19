@@ -229,9 +229,9 @@ require 'header.php';
             <ul class="list-group mb-3">
                 <?php foreach ($actions as $a) : ?>
                     <li class="list-group-item">
-                        <span class="badge bg-<?= $a['status'] === 'pending' ? 'danger' : 'success' ?>"><?= trh($a['status'] === 'pending' ? 'Pending' : 'Done') ?></span>
+                        <span class="badge bg-<?= ['pending' => 'danger', 'done' => 'success'][$a['status']] ?? 'secondary' ?>"><?= ['pending' => trh('Pending'), 'done' => trh('Done')][$a['status']] ?? trh('Withdrawn') ?></span>
                         <strong><?= htmlspecialchars($actionLabels[$a['required_action']] ?? $a['required_action']) ?></strong> — <?= htmlspecialchars($a['message'] ?? '') ?>
-                        <?php if ($a['status'] === 'done') : ?><div class="small text-muted"><?= htmlspecialchars(substr((string) $a['done_at'], 0, 16) . ' · ' . ($a['done_by_name'] ?? '')) ?><?= $a['done_note'] ? ' — ' . htmlspecialchars($a['done_note']) : '' ?></div><?php endif; ?>
+                        <?php if ($a['status'] !== 'pending') : ?><div class="small text-muted"><?= htmlspecialchars(substr((string) $a['done_at'], 0, 16) . ' · ' . ($a['done_by_name'] ?? '')) ?><?= $a['done_note'] ? ' — ' . htmlspecialchars($a['done_note']) : '' ?></div><?php endif; ?>
                     </li>
                 <?php endforeach; ?>
             </ul>
