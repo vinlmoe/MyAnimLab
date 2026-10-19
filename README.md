@@ -35,16 +35,17 @@ MyVivarium est une plateforme en ligne pour gérer efficacement votre animalerie
 
 ## Guides
 
-[Guide de MyAnimLab](docs/guides/guide_myanimlab.pdf), par Sébastien Lefebvre, en un seul document :
+[Guide de MyAnimLab](docs/guides/guide_myanimlab.pdf), par Sébastien Lefebvre, en un seul document versionné (version 1.6 ; l’historique des versions figure en tête du guide, et le numéro se change par `\versionguide` dans la source) :
 
+- introduction : origine de MyAnimLab (fork de MyVivarium), plan de l’application ;
 - partie I, utilisation au quotidien : parcours d’un nouvel arrivant, livret de formation, cages, tournée quotidienne, animaux, reproduction et sevrage, expérimentation (dont la mise en œuvre des points limites), pharmacie, terrariums, « Que faire si… », règles de traçabilité ;
 - partie II, administration : rôles, installation et mises à jour, paramètres du laboratoire, comptes, référentiels, supervision quotidienne, corrections réglementaires, volet BEA, stupéfiants, exports et préparation d’une inspection ;
 - annexes : aide-mémoire et glossaire.
 
 La source LaTeX est dans `docs/guides/` (`pdflatex guide_myanimlab.tex`, deux passes ; paquets TeX Live courants et `lmodern`). Le logo est `images/logo.svg` (icône seule : `images/logo-mark.svg`, convertie en `docs/guides/img/logo-mark.pdf` pour les guides). Les captures d’écran (`docs/guides/img/`) sont prises sur une base de démonstration fictive :
 
-- `php tools/demo_data.php --db=myanimlab_demo --user=root --password=… --ids=/tmp/demo_ids.json` crée cette base (nom contenant « demo », effacée puis recréée) : utilisateurs, autorisation de projet, cages, portées, expérience avec suivis, actes planifiés et correction, signalement sanitaire, pharmacie avec ordonnance et administrations, terrarium (journal, traitement, contrôles), livrets de formation avec attestations. Tous les comptes ont le mot de passe `Demo-2026!` ; elle sert aussi aux formations ;
-- `node tools/guide_screenshots.js docs/guides/img`, avec Playwright, sur un serveur de test dont le `.env` pointe vers cette base, prend les captures (voir l’en-tête du script pour les variables `BASE`, `IDS` et `ASSETS`).
+- `php tools/demo_data.php --db=myanimlab_demo --user=root --password=… --ids=/tmp/demo_ids.json` crée cette base (nom contenant « demo », effacée puis recréée) : utilisateurs, autorisation de projet, cages, portées, expérience avec suivis, actes planifiés et correction, expérience terminée avec participations clôturées pour l’analyse rétrospective, signalement sanitaire, pharmacie avec ordonnance et administrations, terrarium (journal, traitement, contrôles), livrets de formation avec attestations. Tous les comptes ont le mot de passe `Demo-2026!` ; elle sert aussi aux formations ;
+- `node tools/guide_screenshots.js docs/guides/img`, avec Playwright, sur un serveur de test dont le `.env` pointe vers cette base, prend les captures (voir l’en-tête du script pour les variables `BASE`, `IDS` et `ASSETS` ; `ONLY=nom1,nom2` ne prend que certaines captures).
 
 ## Langue de l’interface
 
@@ -277,6 +278,7 @@ Pour la configuration initiale, utilisez les identifiants administrateur par dé
 - `cage_view_parts.php` : sections Emplacement et Animaux communes à toutes les pages de cage.
 - `bc_dash.php` : tableau de bord des cages d’accouplement, avec recherche et pagination.
 - `bc_addn.php` : création des cages d’accouplement et des données de portée associées.
+- `manage_animal_lines.php` : lignées animales (code, espèce) et âge au sevrage par lignée et par espèce. La date de sevrage prévue d’une portée est sa date de naissance plus l’âge au sevrage de la lignée de la mère (à défaut, du père), sinon de son espèce, sinon du laboratoire (Gérer le laboratoire, 21 jours par défaut) ; un changement s’applique aux portées enregistrées ensuite (migration `039_weaning_age_by_species_and_line.sql`).
 - `bc_view.php` : fiche d’une cage d’accouplement. En tête, l’encadré « Portées en cours » liste les portées non sevrées : date de naissance, âge en jours, petits vivants (morts enregistrées déduites), date de sevrage prévue (en rouge si elle est dépassée) et lien vers le sevrage. Les portées sevrées ou clôturées sont regroupées plus bas dans « Portées précédentes », des plus récentes aux plus anciennes.
 - `bc_edit.php` : ancienne page de modification, retirée ; l’adresse redirige vers la fiche de la cage.
 - `bc_drop.php` : suppression des cages d’accouplement et de leurs données.
@@ -308,6 +310,7 @@ Pour la configuration initiale, utilisez les identifiants administrateur par dé
 - `get_reminder.php` : renvoie les rappels programmés enregistrés dans la base de données.
 - `manage_reminder.php` : gestion des rappels (ajout, modification, suppression).
 - `process_reminders.php` : traite les rappels programmés et crée les tâches correspondantes ; à exécuter en tâche cron. Chaque matin (heure des rappels de Gérer le laboratoire, 07:30 par défaut), il envoie aussi les rappels de sevrage : les portées à sevrer le jour même ou le lendemain sont signalées aux utilisateurs de la cage (aux administrateurs si la cage n’en a pas) ; les sevrages en retard le sont aussi aux administrateurs et responsables BEA, par notification et e-mail.
+- `daily_round.php` : tournée quotidienne par salle. Chaque salle reçoit aussi son relevé de température : minimum et maximum de la journée, ou température actuelle, au choix dans Gérer le laboratoire (réglage `room_temperature_mode`). Les relevés sont conservés tels que saisis (une correction ajoute un relevé, le dernier de la journée compte) et figurent dans l’export des journaux bruts (migration `040_room_temperatures.sql`).
 - `daily_round_alert.php` : alerte de fin de journée envoyée aux administrateurs avec les cages non vues lors de la tournée quotidienne ; à lancer par cron toutes les quelques minutes (par ex. `*/5 * * * * php /chemin/vers/daily_round_alert.php`). Elle n’est envoyée qu’une fois par jour, après l’heure définie dans Gérer le laboratoire.
 
 ## Site de démonstration
@@ -372,6 +375,8 @@ Les contributions pour améliorer MyVivarium sont les bienvenues. Pour contribue
 
 ## Licence
 Ce projet est distribué sous licence LGPL — voir le fichier [LICENSE](LICENSE) pour plus de détails.
+
+Le guide (`docs/guides/`) est publié sous licence [Creative Commons Attribution – Partage dans les mêmes conditions 4.0 International (CC BY-SA 4.0)](https://creativecommons.org/licenses/by-sa/4.0/deed.fr).
 
 ## Tests automatisés
 

@@ -226,6 +226,63 @@ function record_cage_check(mysqli $con, string $cageId, string $type, string $re
     $stmt->close();
 }
 
+// Room temperatures of the daily round: the minimum and maximum of the day,
+// or the current temperature, as chosen in Manage Lab.
+const ROOM_TEMPERATURE_MODES = ['min_max' => 'Minimum and maximum of the day', 'current' => 'Current temperature'];
+
+function room_temperature_mode(mysqli $con): string
+{
+    $mode = (string) db_value($con, "SELECT value FROM settings WHERE name = 'room_temperature_mode'");
+    return isset(ROOM_TEMPERATURE_MODES[$mode]) ? $mode : 'min_max';
+}
+
+// Record a reading (today only); $values: ['min' => .., 'max' => ..] or ['current' => ..], as typed.
+function record_room_temperature(mysqli $con, string $room, string $mode, array $values, ?int $userId, ?string $userName): void
+{
+    if ($room === '') {
+        throw new Exception(tr('Choose a room.'));
+    }
+    $read = function (string $key) use ($values): float {
+        $value = parse_number($values[$key] ?? '');
+        if ($value === null || $value < -30 || $value > 60) {
+            throw new Exception(tr('Give a temperature between -30 and 60 °C.'));
+        }
+        return round($value, 1);
+    };
+    if ($mode === 'current') {
+        $current = $read('current');
+        $min = $max = null;
+    } else {
+        $mode = 'min_max';
+        [$min, $max, $current] = [$read('min'), $read('max'), null];
+        if ($min > $max) {
+            throw new Exception(tr('The minimum temperature cannot be above the maximum.'));
+        }
+    }
+    db_execute($con, "INSERT INTO room_temperatures (room, reading_date, mode, temp_min, temp_max, temp_current, recorded_by, recorded_by_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        'sssdddis', [$room, date('Y-m-d'), $mode, $min, $max, $current, $userId, $userName]);
+    log_activity($con, 'room_temperature', 'room', $room, room_temperature_text(['mode' => $mode, 'temp_min' => $min, 'temp_max' => $max, 'temp_current' => $current]), $userId);
+}
+
+// Readings of a day by room, oldest first (the last one is the day's value).
+function room_temperatures_for_date(mysqli $con, string $date): array
+{
+    $byRoom = [];
+    foreach (db_rows($con, "SELECT * FROM room_temperatures WHERE reading_date = ? ORDER BY recorded_at, id", 's', [$date]) as $row) {
+        $byRoom[$row['room']][] = $row;
+    }
+    return $byRoom;
+}
+
+// "min 19.5 °C · max 22.0 °C", or "21.0 °C" for a current temperature.
+function room_temperature_text(array $reading): string
+{
+    $deg = fn($v): string => number_format((float) $v, 1, ',', '') . ' °C';
+    return $reading['mode'] === 'current'
+        ? $deg($reading['temp_current'])
+        : tr('min {min} · max {max}', ['min' => $deg($reading['temp_min']), 'max' => $deg($reading['temp_max'])]);
+}
+
 // All checks of the given day, grouped by cage_id.
 //
 // A cage holding animals under experiment (cage "en essai") is only seen once
@@ -1033,11 +1090,45 @@ function threshold_target_label(array $t, ?array $grid, array $obsFields): ?stri
 // Litters (portées): birth -> nursing -> weaning.
 
 // Weaning age in days (Manage Lab setting, default 21).
-function weaning_age_days(mysqli $con): int
+function weaning_age_days(mysqli $con, ?int $lineId = null): int
 {
+    return weaning_age_source($con, $lineId)[0];
+}
+
+// Weaning age of a line and where it comes from: [days, 'line' | 'species' |
+// 'lab']. The line's own age, else its species', else the laboratory's.
+function weaning_age_source(mysqli $con, ?int $lineId = null): array
+{
+    if ($lineId) {
+        $row = db_row(
+            $con,
+            "SELECT l.weaning_age_days AS line_days, s.weaning_age_days AS species_days
+             FROM animal_lines l LEFT JOIN species_weaning_ages s ON s.species = l.species WHERE l.id = ?",
+            'i',
+            [$lineId]
+        );
+        if ((int) ($row['line_days'] ?? 0) > 0) {
+            return [(int) $row['line_days'], 'line'];
+        }
+        if ((int) ($row['species_days'] ?? 0) > 0) {
+            return [(int) $row['species_days'], 'species'];
+        }
+    }
     $row = $con->query("SELECT value FROM settings WHERE name = 'weaning_age_days'")->fetch_assoc();
     $days = (int) ($row['value'] ?? 0);
-    return $days > 0 ? $days : 21;
+    return [$days > 0 ? $days : 21, 'lab'];
+}
+
+// Line of a litter's pups for its weaning age: the dam's, else the sire's.
+function litter_line_id(mysqli $con, ?int $damId, ?int $sireId): ?int
+{
+    foreach ([$damId, $sireId] as $parentId) {
+        $line = $parentId ? db_value($con, "SELECT line_id FROM mice WHERE id = ?", 'i', [$parentId]) : null;
+        if ($line) {
+            return (int) $line;
+        }
+    }
+    return null;
 }
 
 // Pups of a litter still alive: born alive minus the deaths recorded since.

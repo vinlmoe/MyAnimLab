@@ -1,0 +1,157 @@
+% Plan de navigation de MyAnimLab (menus de header.php), inclus dans
+% guide_myanimlab.tex sur une page en paysage. Flèches pleines : menus et
+% pages du menu ; flèches pointillées : pages ouvertes depuis une autre page.
+\begin{tikzpicture}[
+    font=\sffamily\scriptsize, >={Stealth[length=1.6mm]},
+    menu/.style={draw, rounded corners=2mm, fill=brandnavy!8, minimum height=7mm, minimum width=30mm, font=\sffamily\normalsize\bfseries},
+    page/.style={draw, signal, signal from=west, signal pointer angle=140, fill=brandteal!12, minimum height=5mm,
+      text width=#1, inner xsep=1.6mm, anchor=west},
+    page/.default=40mm,
+    sub/.style={draw, rounded corners=1mm, fill=white, minimum height=4.2mm, inner xsep=1.2mm, inner ysep=0.6mm,
+      font=\sffamily\tiny, text width=#1, anchor=west},
+    sub/.default=33mm,
+    group/.style={draw=gray!70, dotted, thick, rounded corners=1mm},
+    grouplabel/.style={font=\sffamily\tiny\itshape, text=gray!70!black, anchor=west},
+    link/.style={->, thick},
+    opt/.style={->, dashed},
+    trunk/.style={thick},
+  ]
+
+  % ----- connexion -----
+  \node[menu, minimum width=46mm, fill=brandnavy, text=white] (login) at (12.6, 0) {Connexion \mdseries(e-mail, mot de passe)};
+  \node[sub=30mm, font=\sffamily\scriptsize] (forgot) at (16.6, 0.3) {Mot de passe oublié};
+  \node[sub=30mm, font=\sffamily\scriptsize] (twofa) at (16.6, -0.3) {Double authentification};
+  \draw[opt] (login.east) -- ++(0.7, 0) |- (forgot.west);
+  \draw[opt] (login.east) -- ++(0.7, 0) |- (twofa.west);
+  \node[font=\sffamily\tiny\itshape, text=gray!70!black, anchor=west] at (20.2, 0) {comptes créés par un administrateur};
+
+  % ----- menus -----
+  \draw[trunk] (login.south) -- (12.6, -0.8);
+  \draw[trunk] (2.2, -0.8) -- (23.0, -0.8);
+  \foreach \name/\x/\label in {home/2.2/Accueil, dash/7.3/Tableaux de bord, animals/15.0/Animaux, settings/23.0/Paramètres} {
+    \node[menu] (\name) at (\x, -1.5) {\label};
+    \draw[link] (\x, -0.8) -- (\name.north);
+  }
+
+  % \pages{trunk x}{first y}{step}{name/{label}, ...}: pages of a menu,
+  % each reached from a vertical trunk on its left.
+  \newcommand{\pages}[5][37mm]{%
+    \foreach \n/\t [count=\i] in {#5} {
+      \node[page=#1] (\n) at ({#2 + 0.25}, {#3 - (\i - 1) * #4}) {\t};
+      \draw[link] (#2, {#3 - (\i - 1) * #4}) -- (\n.west);
+    }}
+  \newcommand{\branche}[3]{\draw[trunk] (#1.south) |- (#2, -2.25) -- (#2, #3);}
+
+  % ----- accueil -----
+  \branche{home}{0.0}{-5.38}
+  \pages{0.0}{-2.9}{0.62}{
+    h1/{Alertes du jour : points limites, sevrages},
+    h2/{Avancement de la tournée},
+    h3/{Résumé des cages},
+    h4/{Notes générales},
+    h5/{Résumé des tâches}}
+  \node[grouplabel] at (0.0, -6.15) {En-tête de chaque page :};
+  \foreach \t [count=\i] in {{Cloche : notifications (rappels, alertes)}, {Recherche d’un animal ou d’une cage}, {Langue (français / anglais)}}
+    \node[sub=40mm] at (0.25, {-6.6 - (\i - 1) * 0.5}) {\t};
+
+  % ----- tableaux de bord -----
+  \branche{dash}{5.0}{-5.38}
+  \pages{5.0}{-2.9}{0.62}{
+    d1/{Cages d’hébergement},
+    d2/{Cages d’accouplement},
+    d3/{Cages d’expérimentation},
+    d4/{Toutes les cages / salles},
+    d5/{Capteurs IoT (si configurés)}}
+  \node[page, fill=brandnavy!12, font=\sffamily\scriptsize\bfseries] (cage) at (5.25, -6.3) {Fiche de cage};
+  \draw[opt] (d1.east) -- ++(0.3, 0) coordinate (k);
+  \draw[opt] (d2.east) -- ++(0.3, 0);
+  \draw[opt] (d3.east) -- ++(0.3, 0);
+  \draw[opt] (k) |- (cage.east);
+  \foreach \t [count=\i] in {Ajouter des animaux, Contrôle du jour (QR code), Portées : naissance → sevrage,
+      Suivi expérimental de la cage, Fichiers et notes, Journal de maintenance, Étiquette avec QR code,
+      Retirer la cage, Animaux de la cage}
+    \node[sub=37mm] (c\i) at (5.75, {-6.95 - (\i - 1) * 0.5}) {\t};
+  \draw[trunk] (5.5, -6.55) -- (5.5, -10.95);
+  \foreach \i in {1, ..., 9}
+    \draw[->] (5.5, {-6.95 - (\i - 1) * 0.5}) -- (c\i.west);
+  \node[sub=37mm] (animal) at (5.75, -11.75) {Fiche animal : sortie, arbre généalogique, dossier};
+  \draw[opt] (c9.south) -- (animal.north -| c9.south);
+
+  % ----- animaux -----
+  \branche{animals}{10.3}{-9.59}
+  \node[grouplabel] at (10.5, -2.55) {Au quotidien};
+  \pages[44mm]{10.3}{-2.9}{0.62}{
+    a1/{Tournée quotidienne},
+    a2/{Scanner le QR de cage},
+    a3/{Signaler un problème sanitaire}}
+  \node[grouplabel] at (10.5, -4.6) {Animaux et cages};
+  \pages[44mm]{10.3}{-5.0}{0.62}{
+    a4/{Rechercher un animal},
+    a5/{Transférer des animaux},
+    a6/{Créer des animaux et cages en lot},
+    a7/{Planification des utilisations},
+    a8/{Terrariums et populations}}
+  \node[grouplabel] at (10.5, -7.96) {Registres et pharmacie};
+  \pages[44mm]{10.3}{-8.35}{0.62}{
+    a9/{Registre sanitaire},
+    a10/{Registre des entrées et sorties},
+    a11/{Pharmacie, ordonnances, administrations}}
+
+  % Experimentation: trials down to the daily follow-up and endpoints.
+  \draw[trunk] (animals.south) |- (15.4, -2.25) -- (15.4, -3.52);
+  \node[grouplabel] at (15.6, -2.55) {Expérimentation};
+  \pages[42mm]{15.4}{-2.9}{0.62}{
+    e1/{Grilles d’évaluation clinique},
+    e2/{Essais / protocoles / expériences}}
+  \foreach \n/\t/\y in {e3/{Essai (autorisation de projet)}/-4.25,
+      e4/{Plan / protocole : grille, observations, points limites}/-4.85,
+      e5/{Expérience : animaux inclus, évaluations journalières}/-5.45}
+    \node[sub=37mm] (\n) at (16.15, \y) {\t};
+  \draw[opt] (15.9, -3.77) -- (15.9, -5.45) -- (e5.west);
+  \foreach \n in {e3, e4} \draw[opt] (15.9, 0 |- \n.west) -- (\n.west);
+  \foreach \n/\t/\y in {e6/{Suivi journalier de l’animal}/-6.15,
+      e7/{Actions de point limite : réaliser ou commenter}/-6.75,
+      e8/{Sortie de l’animal (euthanasie au point limite)}/-7.35,
+      e9/{Actes expérimentaux : planifier, confirmer}/-8.05,
+      e10/{Rapports d’essai, de protocole, d’expérience}/-8.65,
+      e11/{Analyse rétrospective (sévérité réelle)}/-9.25}
+    \node[sub=33mm] (\n) at (16.75, \y) {\t};
+  \draw[opt] (16.5, -5.75) -- (16.5, -9.25) -- (e11.west);
+  \foreach \n in {e6, e9, e10} \draw[opt] (16.5, 0 |- \n.west) -- (\n.west);
+  \draw[opt] (e6.south -| e7.north) -- (e7.north);
+  \draw[opt] (e7.south) -- (e8.north -| e7.south);
+
+  % ----- paramètres -----
+  \branche{settings}{20.8}{-13.2}
+  \pages[44mm]{20.8}{-2.9}{0.62}{
+    p1/{Profil utilisateur},
+    p2/{Tâches et rappels},
+    p3/{Mon livret de formation},
+    p4/{Double authentification}}
+  \draw[group] (20.65, -5.1) rectangle (25.95, -7.3);
+  \node[grouplabel] at (21.0, -5.32) {Responsables BEA et administrateurs};
+  \pages[44mm]{20.8}{-5.72}{0.62}{
+    p5/{Livrets de formation du personnel},
+    p6/{Analyse rétrospective BEA},
+    p7/{Bilan annuel d’utilisation}}
+  \draw[group] (20.65, -7.45) rectangle (25.95, -12.75);
+  \node[grouplabel] at (21.0, -7.67) {Administrateurs};
+  \pages[44mm]{20.8}{-8.07}{0.62}{
+    p8/{Gérer les utilisateurs},
+    p9/{Autorisations de projet (n° éthique)},
+    p10/{Gérer les souches},
+    p11/{Lignées et âge au sevrage},
+    p12/{Gérer le laboratoire},
+    p13/{Exporter en CSV},
+    p14/{Export des journaux bruts},
+    p15/{Exporter pour la migration V2}}
+  \pages[44mm]{20.8}{-13.2}{0.62}{p16/{Déconnexion}}
+
+  % ----- légende -----
+  \node[anchor=north west, align=left, font=\sffamily\tiny, draw=gray!50, rounded corners=1mm, inner sep=1.5mm] at (10.3, -10.4) {%
+    \tikz[baseline=-0.5ex]\draw[link] (0,0) -- (7mm,0);\ menu et pages du menu\\[1.2mm]
+    \tikz[baseline=-0.5ex]\draw[opt] (0,0) -- (7mm,0);\ page ouverte depuis une autre page\\[1.2mm]
+    \tikz[baseline=-0.5ex]\draw[group] (0,-1mm) rectangle (7mm,1mm);\ réservé à un rôle\\[1.2mm]
+    \tikz[baseline=-0.5ex]\node[page=4mm, minimum height=3mm, inner xsep=0.5mm] {};\ page du menu\quad
+    \tikz[baseline=-0.5ex]\node[sub=4mm, minimum height=3mm] {};\ page ou action secondaire};
+\end{tikzpicture}
