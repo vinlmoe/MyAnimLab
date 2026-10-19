@@ -1,4 +1,4 @@
-This is XeTeX, Version 3.141592653-2.6-0.999997 (TeX Live 2025) (preloaded format=xelatex 2025.6.17)  19 OCT 2026 17:43
+This is XeTeX, Version 3.141592653-2.6-0.999997 (TeX Live 2025) (preloaded format=xelatex 2025.6.17)  19 OCT 2026 17:58
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -1582,18 +1582,14 @@ File: img/logo-mark.pdf Graphic file (type pdf)
 LaTeX2e <2025-06-01> patch level 1
 L3 programming layer <2025-05-26>
  ***********
-
-
-LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.
-
 Package rerunfilecheck Info: File `guide_myanimlab.out' has not changed.
 (rerunfilecheck)             Checksum: 4AEEDF1E29C4CFC559AE57BFFB95DBBE;13373.
  ) 
 Here is how much of TeX's memory you used:
- 32673 strings out of 468527
- 662911 string characters out of 5447700
- 1226176 words of memory out of 5000000
- 60511 multiletter control sequences out of 15000+600000
+ 32674 strings out of 468527
+ 662927 string characters out of 5447700
+ 1226173 words of memory out of 5000000
+ 60512 multiletter control sequences out of 15000+600000
  736921 words of font info for 103 fonts, out of 8000000 for 9000
  1348 hyphenation exceptions out of 8191
  121i,17n,124p,488b,1515s stack positions out of 10000i,1000n,20000p,200000b,200000s
