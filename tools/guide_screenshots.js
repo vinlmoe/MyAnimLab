@@ -17,6 +17,7 @@
  *
  * Pages are saved as JPEG below the banner and menu, elements as PNG, at
  * 1.4 times their size (1792 px wide for a full page).
+ * ONLY=name1,name2 takes only those screenshots.
  */
 const fs = require('fs');
 const path = require('path');
@@ -80,7 +81,10 @@ async function session(browser, email, viewport = { width: 1280, height: 860 }) 
  * Playwright locator). opts.clipX = [left, right] keeps a band of the page,
  * opts.height its top part.
  */
+const only = (process.env.ONLY || '').split(',').filter(Boolean);
+
 async function shot(page, name, url, opts = {}) {
+  if (only.length && !only.includes(name)) return;
   if (url) await page.goto(base + '/' + url, { waitUntil: 'networkidle' });
   if (opts.before) await opts.before(page);
   await page.waitForTimeout(150);
@@ -173,6 +177,20 @@ async function shot(page, name, url, opts = {}) {
 
   // Breeding cage label (printed card).
   await shot(u, 'u_etiquette', 'cage_labels.php?id=' + ids.breeding, { element: 'article.label' });
+  // The same table once completed by hand (example of pencil entries).
+  await shot(u, 'u_etiquette_crayon', 'cage_labels.php?id=' + ids.breeding, {
+    before: async p => p.evaluate(() => {
+      const rows = document.querySelectorAll('article.label .litters tbody tr');
+      const pencil = (td, text, keep = false) => { td.innerHTML = (keep ? td.innerHTML + ' ' : '') + '<span style="font-family: \'Comic Sans MS\', \'Segoe Print\', cursive; color: #555; font-size: 1.05em">' + text + '</span>'; };
+      pencil(rows[0].cells[2], '16/10 : 1', true);
+      pencil(rows[0].cells[4], '17/10/26');
+      pencil(rows[2].cells[0], '18/10/26');
+      pencil(rows[2].cells[1], '8');
+      pencil(rows[2].cells[3], '08/11/26');
+      pencil(rows[2].cells[5], '✓');
+    }),
+    element: 'article.label .litters',
+  });
 
   // Administrator: Claire Martin.
   const a = await session(browser, 'claire.martin@demo.fr');
@@ -188,7 +206,9 @@ async function shot(page, name, url, opts = {}) {
     element: '.bulk-bar',
   });
   await shot(a, 'a_registre', 'animal_register.php');
-  await shot(a, 'a_retrospective', 'experiment_retrospective.php?experiment_id=' + ids.experiment);
+  await shot(a, 'a_retro_navigation', 'experiment_retrospective.php?protocol_id=' + ids.protocol, { height: 330 });
+  await shot(a, 'a_retrospective', 'experiment_retrospective.php?experiment_id=' + ids.doneExperiment, { element: 'main, .content' });
+  await shot(a, 'a_dossier', 'animal_dossier.php?experiment_animal_id=' + ids.doneEnrollment);
   await shot(a, 'a_journaux', 'log_export.php');
   await shot(a, 'a_stupefiants', 'narcotics_register.php');
   await shot(a, 'a_pharmacie', 'pharmacy_manage.php');

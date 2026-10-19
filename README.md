@@ -35,7 +35,7 @@ MyVivarium est une plateforme en ligne pour gérer efficacement votre animalerie
 
 ## Guides
 
-[Guide de MyAnimLab](docs/guides/guide_myanimlab.pdf), par Sébastien Lefebvre, en un seul document versionné (version 1.1 ; l’historique des versions figure en tête du guide, et le numéro se change par `\versionguide` dans la source) :
+[Guide de MyAnimLab](docs/guides/guide_myanimlab.pdf), par Sébastien Lefebvre, en un seul document versionné (version 1.2 ; l’historique des versions figure en tête du guide, et le numéro se change par `\versionguide` dans la source) :
 
 - partie I, utilisation au quotidien : parcours d’un nouvel arrivant, livret de formation, cages, tournée quotidienne, animaux, reproduction et sevrage, expérimentation (dont la mise en œuvre des points limites), pharmacie, terrariums, « Que faire si… », règles de traçabilité ;
 - partie II, administration : rôles, installation et mises à jour, paramètres du laboratoire, comptes, référentiels, supervision quotidienne, corrections réglementaires, volet BEA, stupéfiants, exports et préparation d’une inspection ;
@@ -43,8 +43,8 @@ MyVivarium est une plateforme en ligne pour gérer efficacement votre animalerie
 
 La source LaTeX est dans `docs/guides/` (`pdflatex guide_myanimlab.tex`, deux passes ; paquets TeX Live courants et `lmodern`). Le logo est `images/logo.svg` (icône seule : `images/logo-mark.svg`, convertie en `docs/guides/img/logo-mark.pdf` pour les guides). Les captures d’écran (`docs/guides/img/`) sont prises sur une base de démonstration fictive :
 
-- `php tools/demo_data.php --db=myanimlab_demo --user=root --password=… --ids=/tmp/demo_ids.json` crée cette base (nom contenant « demo », effacée puis recréée) : utilisateurs, autorisation de projet, cages, portées, expérience avec suivis, actes planifiés et correction, signalement sanitaire, pharmacie avec ordonnance et administrations, terrarium (journal, traitement, contrôles), livrets de formation avec attestations. Tous les comptes ont le mot de passe `Demo-2026!` ; elle sert aussi aux formations ;
-- `node tools/guide_screenshots.js docs/guides/img`, avec Playwright, sur un serveur de test dont le `.env` pointe vers cette base, prend les captures (voir l’en-tête du script pour les variables `BASE`, `IDS` et `ASSETS`).
+- `php tools/demo_data.php --db=myanimlab_demo --user=root --password=… --ids=/tmp/demo_ids.json` crée cette base (nom contenant « demo », effacée puis recréée) : utilisateurs, autorisation de projet, cages, portées, expérience avec suivis, actes planifiés et correction, expérience terminée avec participations clôturées pour l’analyse rétrospective, signalement sanitaire, pharmacie avec ordonnance et administrations, terrarium (journal, traitement, contrôles), livrets de formation avec attestations. Tous les comptes ont le mot de passe `Demo-2026!` ; elle sert aussi aux formations ;
+- `node tools/guide_screenshots.js docs/guides/img`, avec Playwright, sur un serveur de test dont le `.env` pointe vers cette base, prend les captures (voir l’en-tête du script pour les variables `BASE`, `IDS` et `ASSETS` ; `ONLY=nom1,nom2` ne prend que certaines captures).
 
 ## Langue de l’interface
 

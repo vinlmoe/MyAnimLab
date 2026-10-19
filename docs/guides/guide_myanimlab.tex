@@ -3,7 +3,7 @@
 \lhead{\logomark\ \wordmark\ --- Guide}
 % Version du guide : à incrémenter, avec une ligne dans l'historique des
 % versions, à chaque modification.
-\newcommand{\versionguide}{1.1}
+\newcommand{\versionguide}{1.2}
 \newcommand{\dateguide}{19 octobre 2026}
 \rhead{Version \versionguide{} du \dateguide}
 \hypersetup{pdftitle={Guide de MyAnimLab},pdfauthor={Sébastien Lefebvre},pdfsubject={Version \versionguide}}
@@ -60,6 +60,7 @@ Ce qui est conservé pour le registre et l'inspection, et comment corriger.
 \midrule
 1.0 & 19 octobre 2026 & Fusion du guide de l'utilisateur et du guide de l'administrateur en un seul guide. Mise en œuvre des actions de point limite (réalisation ou commentaire) et retrait d'un point limite par la correction d'un suivi.\\
 1.1 & 19 octobre 2026 & Âge au sevrage par espèce et par lignée (sections~\ref{sec:portees} et~\ref{sec:lignees}).\\
+1.2 & 19 octobre 2026 & Suivi des portées sur l'étiquette d'une cage d'accouplement, avec un exemple complété au crayon (section~\ref{sec:etiquettes}). Analyse rétrospective BEA détaillée pas à pas, avec captures (section~\ref{sec:retrospective}).\\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -406,24 +407,61 @@ voir la section~\ref{sec:accouplement}.
 catégories). Le QR code de l'étiquette ouvre le contrôle de la cage
 (section~\ref{sec:tournee}).
 
+\subsubsection*{Le suivi des portées sur l'étiquette d'accouplement}
 L'étiquette d'une cage d'accouplement porte les reproducteurs et un tableau
-\textbf{Portées --- à compléter au crayon}. Les portées en allaitement y sont
-imprimées : date de naissance, nés vivants, morts déjà saisies, sevrage
-prévu. Les lignes vides servent aux événements qui surviennent après
-l'impression.
+\textbf{Portées --- à compléter au crayon}. Elle sert de registre de cage :
+ce qui arrive aux portées entre deux impressions s'y écrit au crayon, puis
+se reporte dans MyAnimLab. On n'a donc pas besoin de réimprimer l'étiquette
+à chaque événement.
+
+\begin{center}
+\small
+\rowcolors{2}{gray!8}{white}
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+\textbf{Colonne} & \textbf{Contenu}\\
+\midrule
+Née le & Date de naissance de la portée.\\
+Nés vivants & Petits vivants à la naissance.\\
+Morts (date : nb) & Décès des petits : imprimé « $n$ saisi(s) » pour ceux déjà enregistrés, puis au crayon la date et le nombre de chaque nouveau décès.\\
+Sevrage prévu & Date de naissance plus l'âge au sevrage de la lignée de la mère, rappelé sous le tableau (section~\ref{sec:lignees}).\\
+Sevrée le & Date du sevrage, écrite au crayon le jour venu.\\
+Saisi & Coché quand tout ce qui est écrit sur la ligne est enregistré dans MyAnimLab.\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+À l'impression, les portées en allaitement (trois au plus) sont imprimées en
+gras avec leurs décès déjà enregistrés et leur sevrage prévu, et leur case
+\btn{Saisi} est déjà cochée. Les lignes vides, avec une case à cocher,
+reçoivent les naissances qui surviennent après l'impression.
+
 \begin{procedure}{Garder la fiche de cage à jour sans la réimprimer}
 \begin{enumerate}
-  \item Notez au crayon sur la fiche chaque naissance, mort (date et nombre)
-    et sevrage. Le sevrage prévu est égal à la date de naissance plus l'âge
-    au sevrage imprimé sur la fiche (celui de la lignée de la mère).
-  \item Scannez le QR code : la page de la cage propose \btn{Enregistrer une
-    naissance} et, pour chaque portée, \btn{Décès / sevrage}. Enregistrez ce
-    que vous venez de noter.
-  \item Cochez la case \btn{Saisi} de la ligne. Une ligne non cochée signale
-    une donnée encore absente du logiciel.
+  \item \textbf{Naissance} : sur une ligne vide, notez au crayon la date de
+    naissance et le nombre de nés vivants, puis calculez le sevrage prévu
+    (naissance plus l'âge imprimé sous le tableau).
+  \item \textbf{Décès} : dans la colonne \btn{Morts} de la portée, ajoutez
+    au crayon la date et le nombre (par exemple « 16/10 : 1 »).
+  \item \textbf{Sevrage} : notez la date dans \btn{Sevrée le}.
+  \item Scannez le QR code de l'étiquette. La page de la cage propose
+    \btn{Enregistrer une naissance} et, pour chaque portée,
+    \btn{Décès / sevrage} : enregistrez ce que vous venez de noter.
+  \item Cochez au crayon la case \btn{Saisi} de la ligne. Une ligne écrite
+    au crayon dont la case n'est pas cochée signale une donnée encore absente
+    du logiciel, à reporter au plus vite.
+  \item Réimprimez l'étiquette quand toutes ses lignes sont remplies, ou
+    quand elle devient difficile à lire : la nouvelle étiquette reprend les
+    portées en cours telles qu'elles sont enregistrées.
 \end{enumerate}
 \end{procedure}
-\captures{u_etiquette}{0.4\linewidth}{Étiquette d'une cage d'accouplement : tableau des portées à compléter au crayon.}{u_qr_accouplement}{0.27\linewidth}{Page ouverte par le QR code : report des portées.}
+\capture[0.75\linewidth]{u_etiquette_crayon}{Tableau des portées complété au crayon (exemple) : en gras, ce qui était imprimé ; en gris, ce qui a été écrit à la main. Le décès du 16/10 et le sevrage du 17/10 de la première portée, puis la naissance du 18/10, ont été enregistrés et cochés « Saisi ».}
+\captures{u_etiquette}{0.4\linewidth}{Étiquette d'une cage d'accouplement telle qu'imprimée.}{u_qr_accouplement}{0.27\linewidth}{Page ouverte par le QR code : report des portées.}
+\begin{regle}
+L'étiquette n'est qu'un support de terrain : seules les données enregistrées
+dans MyAnimLab comptent pour le registre, les rappels de sevrage et la
+filiation des petits. Reportez chaque note le jour même.
+\end{regle}
 
 \subsection{Fichiers joints à une cage}
 \begin{procedure}{Ajouter un fichier}
@@ -1574,17 +1612,62 @@ est marqué « corrigé » dans le registre.
 
 \section{Volet BEA}\label{sec:bea}
 \begin{itemize}
-  \item \menu{Paramètres > Analyse rétrospective BEA} : parcours par essai,
-    plan, puis expérience. Les sévérités réelles (sans réveil, légère,
-    modérée, sévère) sont classées en regard de la sévérité attendue du
-    plan. Le dossier complet de chaque animal est imprimable.
+  \item \menu{Paramètres > Analyse rétrospective BEA} : classement de la
+    sévérité réelle de chaque animal (section~\ref{sec:retrospective}).
   \item \menu{Paramètres > Bilan annuel d'utilisation des animaux} :
     effectifs, procédures terminées par sévérité réelle, utilisation par
     autorisation, sorties, animaux non utilisés. Export CSV ou ZIP.
   \item \menu{Paramètres > Livrets de formation du personnel} : voir la
     section~\ref{sec:livrets}.
 \end{itemize}
-\capture[0.85\linewidth]{a_retrospective}{Analyse rétrospective BEA d’une expérience.}
+
+\subsection{Analyse rétrospective}\label{sec:retrospective}
+Une fois la participation d'un animal clôturée (sortie de l'animal, ou
+bouton \btn{Clôturer} de l'expérience), le responsable BEA classe la
+\textbf{sévérité réelle} de ce qu'il a vécu : sans réveil, légère, modérée ou
+sévère. Ce classement alimente le bilan annuel. L'accès est réservé aux
+responsables BEA et aux administrateurs.
+
+\begin{procedure}{Classer les animaux d'une expérience}
+\begin{enumerate}
+  \item \menu{Paramètres > Analyse rétrospective BEA}. Descendez par
+    essai, puis par plan / protocole : chaque niveau indique, par
+    expérience, les participations, celles qui sont clôturées et celles qui
+    sont déjà classées. Un badge jaune \btn{$n$ à classer} signale le
+    travail en attente.
+  \item \btn{Ouvrir} l'expérience. La page rappelle l'essai, l'autorisation
+    de projet et la \textbf{sévérité attendue} du protocole. Chaque animal
+    clôturé y figure avec le déroulement de sa participation : dates
+    d'inclusion et de sortie, motif de sortie, nombre de suivis, score
+    clinique maximal, perte de poids maximale, points limites atteints et
+    actions ouvertes, signalements sanitaires, actes et traitements.
+  \item Au besoin, ouvrez le \btn{Dossier complet} de l'animal (nouvel
+    onglet, imprimable) : suivis jour par jour, actions de point limite,
+    signalements, traitements et mouvements de cage, la période de
+    participation étant mise en évidence.
+  \item Pour chaque animal, choisissez la classification et rédigez la
+    justification (déroulement, 3R, points à améliorer). Pour plusieurs
+    animaux au même déroulement, \btn{Même classification pour plusieurs
+    animaux} remplit la classification et la justification de tous les
+    animaux non classés, ou de tous.
+  \item \btn{Valider les classifications de l’expérience} : la page est
+    enregistrée en une seule fois, et chaque animal doit être classé et
+    justifié.
+\end{enumerate}
+\end{procedure}
+\capture[0.85\linewidth]{a_retro_navigation}{Analyse rétrospective d’un plan / protocole : une expérience terminée avec 2 animaux à classer, une expérience en cours.}
+\capture[0.95\linewidth]{a_retrospective}{Classement d’une expérience : l’animal sorti au point limite est classé « Sévère », au-dessus de la sévérité attendue ; les deux autres restent à classer.}
+\capture[0.85\linewidth]{a_dossier}{Dossier complet d’un animal : participation, sortie et classification BEA, puis suivis journaliers et actions de point limite.}
+\begin{regle}
+\begin{itemize}
+  \item Seules les participations clôturées se classent. Les animaux encore
+    en expérimentation sont listés à part.
+  \item Une sévérité réelle supérieure à la sévérité attendue du protocole
+    est signalée par le badge rouge \btn{Supérieure à l’attendu}.
+  \item Une classification se modifie en revenant sur la page de
+    l'expérience. Elle porte le nom de son auteur et sa date.
+\end{itemize}
+\end{regle}
 
 \section{Livrets de formation du personnel}\label{sec:livrets}
 Les administrateurs et les responsables BEA suivent la formation de chaque
