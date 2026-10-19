@@ -83,10 +83,10 @@ if (!$pending) {
     echo "La base est à jour.\n";
     exit(0);
 }
-foreach ($pending as $name => $path) {
-    echo "Application de $name… ";
+foreach ($pending as $migrationName => $path) {
+    echo "Application de {$migrationName}… ";
     try {
-        apply_migration($con, $name, $path);
+        apply_migration($con, $migrationName, $path);
         echo "ok\n";
     } catch (Throwable $e) {
         echo "échec\n";
