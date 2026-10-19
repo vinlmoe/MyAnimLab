@@ -1,11 +1,15 @@
 \documentclass[11pt,a4paper]{article}
 \input{guide-style}
 \lhead{\logomark\ \wordmark\ --- Guide}
-\rhead{Version du 19 octobre 2026}
-\hypersetup{pdftitle={Guide de MyAnimLab},pdfauthor={Sébastien Lefebvre}}
+% Version du guide : à incrémenter, avec une ligne dans l'historique des
+% versions, à chaque modification.
+\newcommand{\versionguide}{1.1}
+\newcommand{\dateguide}{19 octobre 2026}
+\rhead{Version \versionguide{} du \dateguide}
+\hypersetup{pdftitle={Guide de MyAnimLab},pdfauthor={Sébastien Lefebvre},pdfsubject={Version \versionguide}}
 
 \begin{document}
-\pagetitre{Guide de MyAnimLab}{Utilisateurs, administrateurs et responsables du bien-être animal (BEA)}{Sébastien Lefebvre}{19 octobre 2026}
+\pagetitre{Guide de MyAnimLab}{Utilisateurs, administrateurs et responsables du bien-être animal (BEA)}{Sébastien Lefebvre}{\versionguide{} du \dateguide}
 
 \section*{Comment utiliser ce guide}
 Ce guide réunit en un seul document l'usage quotidien de MyAnimLab et son
@@ -45,6 +49,20 @@ Une règle appliquée par le logiciel : ce qui est refusé, ce qui est notifié.
 \begin{trace}
 Ce qui est conservé pour le registre et l'inspection, et comment corriger.
 \end{trace}
+
+\subsection*{Historique des versions}
+\begin{center}
+\small
+\rowcolors{2}{gray!8}{white}
+\begin{tabularx}{\textwidth}{@{}llX@{}}
+\toprule
+\textbf{Version} & \textbf{Date} & \textbf{Modifications}\\
+\midrule
+1.0 & 19 octobre 2026 & Fusion du guide de l'utilisateur et du guide de l'administrateur en un seul guide. Mise en œuvre des actions de point limite (réalisation ou commentaire) et retrait d'un point limite par la correction d'un suivi.\\
+1.1 & 19 octobre 2026 & Âge au sevrage par espèce et par lignée (sections~\ref{sec:portees} et~\ref{sec:lignees}).\\
+\bottomrule
+\end{tabularx}
+\end{center}
 
 \newpage
 \tableofcontents
@@ -397,7 +415,7 @@ l'impression.
 \begin{enumerate}
   \item Notez au crayon sur la fiche chaque naissance, mort (date et nombre)
     et sevrage. Le sevrage prévu est égal à la date de naissance plus l'âge
-    au sevrage imprimé sur la fiche.
+    au sevrage imprimé sur la fiche (celui de la lignée de la mère).
   \item Scannez le QR code : la page de la cage propose \btn{Enregistrer une
     naissance} et, pour chaque portée, \btn{Décès / sevrage}. Enregistrez ce
     que vous venez de noter.
@@ -692,8 +710,10 @@ dans \btn{Portées précédentes}.
     parmi les reproducteurs de la cage, \btn{Petits nés vivants},
     \btn{Petits nés morts} et \btn{Remarques}.
   \item \btn{Enregistrer la naissance}. La date de sevrage prévue est
-    calculée automatiquement (âge réglé par l'administrateur, 21 jours par
-    défaut), et la portée apparaît dans l'encadré \btn{Portées en cours}.
+    calculée automatiquement : date de naissance plus l'âge au sevrage de la
+    lignée de la mère (à défaut, du père), sinon de son espèce, sinon du
+    laboratoire (21 jours par défaut). Le formulaire rappelle l'âge qui
+    s'appliquera. La portée apparaît dans l'encadré \btn{Portées en cours}.
   \item Reportez aussi la portée au crayon sur l'étiquette de la cage.
 \end{enumerate}
 \end{procedure}
@@ -1359,7 +1379,7 @@ fois par an : les registres réglementaires dépendent de ces sauvegardes.
 Nom, URL & --- & Affichés sur les pages, les étiquettes et dans les e-mails.\\
 Fuseau horaire & Europe/Paris & Définit le « jour » de la tournée, des suivis et des rappels.\\
 Alerte de la tournée & 18:00 & Heure après laquelle les administrateurs reçoivent la liste des cages non vues.\\
-Âge au sevrage & 21 jours & Sert au calcul de la date de sevrage prévue de chaque portée.\\
+Âge au sevrage & 21 jours & Sert au calcul de la date de sevrage prévue des portées dont l'espèce et la lignée n'ont pas leur propre âge (section~\ref{sec:lignees}).\\
 Rappels du matin & 07:30 & Heure des rappels d'actes expérimentaux et de sevrage.\\
 Déconnexion & 30 min & Inactivité tolérée avant fermeture de la session (5 à 720 minutes).\\
 Double authentification & obligatoire & Exigée des administrateurs et responsables BEA.\\
@@ -1417,11 +1437,34 @@ choisis} sur toutes ses cages, puis désactivez son compte.
 
 \section{Référentiels}
 
-\subsection{Lignées et souches}
+\subsection{Lignées et souches}\label{sec:lignees}
 \menu{Paramètres > Gérer les lignées animales} : code et espèce de chaque
 lignée. Le code forme le numéro des animaux (\texttt{RSD-0002}). Une espèce
 sans lignée ne peut pas être incluse en expérimentation.
 \menu{Paramètres > Gérer les souches} : souches et références (RRID).
+
+\begin{procedure}{Régler l'âge au sevrage par espèce ou par lignée}
+\begin{enumerate}
+  \item \menu{Paramètres > Gérer les lignées animales}.
+  \item \textbf{Par espèce} : dans le tableau \btn{Âge au sevrage par
+    espèce} (une ligne par espèce des lignées), saisissez le nombre de jours
+    puis \btn{Enregistrer}. Laissez vide pour revenir à la valeur du
+    laboratoire.
+  \item \textbf{Par lignée} : bouton de modification de la lignée, champ
+    \btn{Âge au sevrage (jours)}, puis \btn{Mettre à jour la lignée}. Laissez
+    vide pour utiliser l'âge de l'espèce.
+  \item La colonne \btn{Âge au sevrage} du tableau des lignées indique l'âge
+    appliqué à chaque lignée et sa provenance (lignée, espèce ou
+    laboratoire).
+\end{enumerate}
+\end{procedure}
+\begin{regle}
+L'âge au sevrage d'une portée est celui de la lignée de la mère (à défaut,
+du père), sinon celui de son espèce, sinon celui du laboratoire
+(\menu{Paramètres > Gérer le laboratoire}). Un changement s'applique aux
+portées enregistrées ensuite : la date prévue des portées en cours ne change
+pas. Chaque changement d'âge d'une espèce est journalisé.
+\end{regle}
 
 \subsection{Autorisations de projet}
 \menu{Paramètres > Autorisations de projet (n° éthique)}.

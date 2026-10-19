@@ -187,8 +187,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $litter_remarks = $_POST['remarks_litter'];
 
                 // Loop through each litter entry and insert into the database
+                $weaningAge = weaning_age_days($con, litter_line_id($con, $femaleIds[0] ?? null, $maleIds[0] ?? null));
                 for ($i = 0; $i < count($dom); $i++) {
-                    $expected = $litter_dob[$i] ? date('Y-m-d', strtotime($litter_dob[$i] . ' +' . weaning_age_days($con) . ' days')) : null;
+                    $expected = $litter_dob[$i] ? date('Y-m-d', strtotime($litter_dob[$i] . ' +' . $weaningAge . ' days')) : null;
                     $insert_litter_query = $con->prepare("INSERT INTO litters (`cage_id`, `dom`, `litter_dob`, `pups_alive`, `pups_dead`, `pups_male`, `pups_female`, `remarks`, `expected_weaning_date`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
                     $insert_litter_query->bind_param("sssssssss", $cage_id, $dom[$i], $litter_dob[$i], $pups_alive[$i], $pups_dead[$i], $pups_male[$i], $pups_female[$i], $litter_remarks[$i], $expected);
 
