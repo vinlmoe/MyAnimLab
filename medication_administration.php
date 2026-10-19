@@ -2,6 +2,7 @@
 require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
+require_once 'training_lib.php';
 require 'medication_lib.php';
 
 if (!isset($_SESSION['username'])) { header('Location:index.php'); exit; }
@@ -66,7 +67,7 @@ $hist = $con->query("SELECT a.*,m.animal_uid,m.mouse_id,p.name,l.lot_number FROM
 require 'header.php';
 ?>
 <!doctype html><html lang="fr"><head><title>Administrations | <?= htmlspecialchars($labName) ?></title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet"></head><body><main class="container mt-4 content" style="max-width:1100px">
-<h4><i class="fas fa-syringe"></i> Administrations<?= $cageId !== '' ? ' — cage '.htmlspecialchars($cageId) : '' ?></h4><p><a class="btn btn-outline-primary btn-sm" href="prescription_manage.php">Ordonnances</a> <a class="btn btn-outline-secondary btn-sm" href="pharmacy_manage.php">Pharmacie</a></p><?php include 'message.php'; ?>
+<h4><i class="fas fa-syringe"></i> Administrations<?= $cageId !== '' ? ' — cage '.htmlspecialchars($cageId) : '' ?></h4><p><a class="btn btn-outline-primary btn-sm" href="prescription_manage.php">Ordonnances</a> <a class="btn btn-outline-secondary btn-sm" href="pharmacy_manage.php">Pharmacie</a></p><?php include 'message.php'; ?><?= training_procedure_banner($con, 'treatment') ?>
 <?php if ($cageId !== ''): ?>
     <div class="alert alert-info">Chaque validation ci-dessous traite uniquement les animaux de la cage qui n’ont pas encore atteint le nombre d’administrations prévu. Une ligne est créée par animal.</div>
     <?php if (!$cageTreatments): ?><div class="alert alert-secondary">Aucun traitement actif restant pour cette cage.</div><?php endif; ?>

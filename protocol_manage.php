@@ -8,6 +8,7 @@
 require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
+require_once 'training_lib.php';
 require 'ethics_lib.php';
 
 if (!isset($_SESSION['username'])) {
@@ -231,6 +232,7 @@ require 'header.php';
         <?php endif; ?>
 
         <?php include('message.php'); ?>
+        <?= training_procedure_banner($con, 'design') ?>
 
         <div class="d-flex justify-content-between align-items-center mb-2">
             <h5 class="mb-0"><?= trh('Protocols') ?> <span class="badge bg-secondary"><?= count($protocols); ?></span></h5>
