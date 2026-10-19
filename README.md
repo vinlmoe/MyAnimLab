@@ -35,7 +35,7 @@ MyVivarium est une plateforme en ligne pour gérer efficacement votre animalerie
 
 ## Guides
 
-[Guide de MyAnimLab](docs/guides/guide_myanimlab.pdf), par Sébastien Lefebvre, en un seul document versionné (version 1.2 ; l’historique des versions figure en tête du guide, et le numéro se change par `\versionguide` dans la source) :
+[Guide de MyAnimLab](docs/guides/guide_myanimlab.pdf), par Sébastien Lefebvre, en un seul document versionné (version 1.3 ; l’historique des versions figure en tête du guide, et le numéro se change par `\versionguide` dans la source) :
 
 - partie I, utilisation au quotidien : parcours d’un nouvel arrivant, livret de formation, cages, tournée quotidienne, animaux, reproduction et sevrage, expérimentation (dont la mise en œuvre des points limites), pharmacie, terrariums, « Que faire si… », règles de traçabilité ;
 - partie II, administration : rôles, installation et mises à jour, paramètres du laboratoire, comptes, référentiels, supervision quotidienne, corrections réglementaires, volet BEA, stupéfiants, exports et préparation d’une inspection ;
@@ -373,6 +373,8 @@ Les contributions pour améliorer MyVivarium sont les bienvenues. Pour contribue
 
 ## Licence
 Ce projet est distribué sous licence LGPL — voir le fichier [LICENSE](LICENSE) pour plus de détails.
+
+Le guide (`docs/guides/`) est publié sous licence [Creative Commons Attribution – Partage dans les mêmes conditions 4.0 International (CC BY-SA 4.0)](https://creativecommons.org/licenses/by-sa/4.0/deed.fr).
 
 ## Tests automatisés
 
