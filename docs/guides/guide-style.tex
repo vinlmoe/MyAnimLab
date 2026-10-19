@@ -4,7 +4,7 @@
 \usepackage{lmodern}
 \usepackage[french]{babel}
 \usepackage[margin=2.2cm]{geometry}
-\usepackage{enumitem,tabularx,booktabs}
+\usepackage{enumitem,tabularx,booktabs,array}
 \usepackage[table]{xcolor}
 \usepackage{xurl}
 \usepackage[hidelinks]{hyperref}
@@ -81,6 +81,24 @@
     {\sffamily\color{gray} Version #4}
   \end{center}
   \vfill
+  \noindent\licences\par\medskip
   \noindent{\small\color{gray} Les captures d'écran proviennent de la base de
   démonstration : les personnes, animaux et numéros sont fictifs.}
   \end{titlepage}}
+
+% Licences : le guide sous CC BY-SA 4.0 (logo officiel, img/cc-by-sa.pdf,
+% tiré du paquet doclicense), le logiciel sous LGPLv3. Le logo LGPLv3 de la
+% FSF (https://www.gnu.org/graphics/lgplv3-147x51.png, converti en
+% img/lgplv3.pdf ou .png) s'affiche s'il est présent dans img/.
+\newcommand{\logolgpl}{\IfFileExists{img/lgplv3.pdf}{\includegraphics[height=9mm]{lgplv3}}%
+  {\IfFileExists{img/lgplv3.png}{\includegraphics[height=9mm]{lgplv3}}{}}}
+\newcommand{\licences}{%
+  {\small\renewcommand{\arraystretch}{1.6}%
+  \begin{tabularx}{\linewidth}{@{}m{24mm}X@{}}
+    \href{https://creativecommons.org/licenses/by-sa/4.0/deed.fr}{\includegraphics[height=8mm]{cc-by-sa}} &
+    Ce guide est publié sous licence \href{https://creativecommons.org/licenses/by-sa/4.0/deed.fr}{Creative
+    Commons Attribution -- Partage dans les mêmes conditions 4.0 International (CC BY-SA 4.0)}.\\
+    \logolgpl &
+    Le logiciel MyAnimLab est distribué sous licence
+    \href{https://www.gnu.org/licenses/lgpl-3.0.html}{GNU LGPL version 3 (LGPLv3)}.
+  \end{tabularx}}}
