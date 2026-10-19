@@ -257,19 +257,20 @@ est marqué « corrigé » dans le registre.
     \btn{Remettre en service}. La raison est inscrite dans l'historique de
     la cage et le journal d'activité. Une cage vide ne peut pas être remise
     en service.
-  \item \textbf{Suppression définitive d'un animal} : réservée aux erreurs de
-    saisie manifestes (animal créé par erreur). Pour une mort ou un départ,
-    enregistrez toujours une sortie avec son code. La suppression demande
-    de retaper le numéro de l'animal ; elle est \textbf{irréversible} et
-    inscrite au journal d'activité avant d'être exécutée. Elle supprime en
-    cascade les mouvements, événements, filiation, place de reproducteur,
-    utilisations planifiées, lien de capture et les inclusions en expérience
-    de l'animal, avec leurs suivis, scores, corrections de suivi, actions de
-    point limite et actes, y compris des lignes que l'application interdit
-    sinon de supprimer. Chez les descendants, le parent supprimé devient
-    inconnu ; les signalements sanitaires restent avec son numéro. Elle est
-    refusée si l'animal a une ordonnance ou une administration. Une cage
-    vidée est retirée.
+  \item \textbf{Suppression définitive d'un animal} : réservée à un animal
+    créé par erreur, sans historique réglementaire. Pour une mort ou un
+    départ, enregistrez une sortie avec son code ; pour une provenance
+    erronée, corrigez l'entrée au registre. La suppression demande de retaper
+    le numéro de l'animal ; elle est \textbf{irréversible} et inscrite au
+    journal d'activité avant d'être exécutée. Elle est refusée par
+    l'application et par la base de données (migration 037) dès que l'animal
+    a une sortie, une inclusion en expérience, un signalement sanitaire, une
+    ordonnance ou une administration, un rôle de reproducteur, une portée ou
+    des descendants, une naissance issue d'une portée, un transfert, une
+    correction de registre, une capture ou des événements dans son
+    historique : la page en donne les raisons et le bouton n'est pas proposé
+    sur la fiche. Les données ainsi protégées ne peuvent plus disparaître par
+    la suppression en cascade.
 \end{itemize}
 
 \section{Volet BEA}

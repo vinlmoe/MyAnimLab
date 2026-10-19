@@ -537,6 +537,35 @@ registre} sur la fiche et dans le dossier BEA.
 \end{trace}
 \capture[0.8\linewidth]{u_registre_animal}{Cadre « Registre des entrées et sorties » d’un animal, avec une correction de sortie.}
 
+\subsection{Arbre généalogique}\label{sec:arbre}
+Sur la fiche d'un animal, cadre \btn{Filiation}, bouton \btn{Arbre
+généalogique}. L'arbre est construit à partir de la filiation enregistrée au
+sevrage (père et mère de chaque portée) ; un animal acheté ou importé n'a pas
+de parents enregistrés (« Inconnu / origine externe »).
+\begin{itemize}
+  \item \textbf{Ascendance} : l'animal, puis son père (en haut) et sa mère
+    (en bas), sur 2, 3 ou 4 générations (\btn{Générations}). Chaque carte
+    donne la lignée, la date de naissance, la cage ou la sortie ; le numéro
+    ouvre l'arbre de cet animal, \btn{fiche} sa fiche.
+  \item \textbf{Ancêtres présents plusieurs fois} : ils portent la même
+    couleur et un badge (\btn{×2}) : c'est le signe d'une consanguinité.
+  \item \textbf{Coefficient de consanguinité} : probabilité que les deux
+    copies d'un gène de l'animal proviennent du même ancêtre (25~\% pour un
+    croisement frère × sœur, 12,5~\% pour des demi-frère et sœur). Il est
+    calculé sur la filiation connue (jusqu'à 6 générations) ; un parent
+    inconnu compte comme non apparenté, c'est donc une valeur minimale.
+  \item \textbf{Descendance} : les portées de l'animal, avec l'autre parent
+    et les petits, puis la descendance de chacun (deux générations). Une
+    portée de deux frère et sœur n'apparaît qu'une fois.
+  \item \btn{Imprimer / PDF} imprime l'arbre sans les boutons.
+\end{itemize}
+\capture[0.9\linewidth]{u_arbre}{Arbre d’un animal issu d’un croisement frère × sœur : ses grands-parents apparaissent deux fois, consanguinité de 25~\%.}
+\capture[0.9\linewidth]{u_arbre_descendance}{Descendance d’un reproducteur : sa portée, puis la portée de deux de ses petits.}
+\begin{regle}
+Avant de former un couple, ouvrez l'arbre des deux reproducteurs : un ancêtre
+commun signale une consanguinité de leur descendance.
+\end{regle}
+
 \subsection{Planifier les utilisations}
 \menu{Animaux > Planification des utilisations} : pour un animal, notez
 l'utilisation prévue (par exemple « prélèvement J28 »), la date prévue, puis la
@@ -1135,16 +1164,24 @@ sauvegardes et des durées de conservation fixées par l'établissement.
 \begin{regle}
 \textbf{Exception : suppression définitive d'un animal créé par erreur.}
 Seul un administrateur peut la faire, après avoir retapé le numéro de
-l'animal. L'opération est \textbf{irréversible}. Elle est inscrite au journal
-d'activité avant la suppression, puis supprime aussi, en cascade, les données
-rattachées à l'animal : ses mouvements, son journal d'événements, sa
-filiation, sa place de reproducteur, ses utilisations planifiées, son lien de
-capture, ses inclusions en expérience avec leurs suivis journaliers, scores,
-corrections de suivi, actions de point limite et actes. Chez ses
-descendants, la mère ou le père supprimé devient « inconnu ». Elle est
-refusée si l'animal a une ordonnance ou une administration de médicament.
-Ses signalements sanitaires restent, avec son numéro. Si la cage se trouve
-vidée, elle est retirée.
+l'animal. L'opération est \textbf{irréversible} et inscrite au journal
+d'activité avant la suppression. Elle n'est possible que pour un animal
+\textbf{sans historique réglementaire} : rien d'enregistré depuis sa
+création. Elle est refusée, par l'application et par la base de données, dès
+que l'animal a :
+\begin{itemize}
+  \item une sortie enregistrée, une inclusion en expérience, un signalement
+    sanitaire, une ordonnance ou une administration ;
+  \item un rôle de reproducteur, une portée ou des descendants, ou une
+    naissance issue d'une portée sevrée dans l'établissement ;
+  \item un transfert vers une autre cage, une correction de son entrée au
+    registre, une capture dans une population, ou des événements dans son
+    historique (actes, alertes, changements de statut).
+\end{itemize}
+La page de suppression liste alors les raisons du refus, et le bouton n'est
+pas proposé sur la fiche. Un animal supprimé emporte sa création (mouvement
+initial, événement de création, note, utilisations planifiées) ; si sa cage
+se trouve vidée, elle est retirée.
 \end{regle}
 
 \begin{center}
@@ -1215,6 +1252,9 @@ Après une formation & Entrée et attestation & \menu{Paramètres > Mon livret d
   \item[Essai, plan / protocole, expérience] Les trois niveaux d'un projet :
     l'essai relève d'une autorisation de projet, le protocole fixe la grille
     et les points limites, l'expérience regroupe les animaux inclus.
+  \item[Coefficient de consanguinité] Probabilité que les deux copies d'un
+    gène viennent du même ancêtre (25~\% pour frère × sœur), calculée dans
+    l'arbre généalogique.
   \item[Grille d'évaluation clinique] Items notés chaque jour (posture,
     pelage…) dont le total forme le score clinique.
   \item[Lignée] Code (par exemple RSD) qui forme le numéro des animaux.

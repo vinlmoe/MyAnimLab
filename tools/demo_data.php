@@ -164,7 +164,7 @@ $litter = function (string $dob, int $alive, int $dead, string $status, ?string 
         [$breedCage, $dob, $alive, $dead, $status, date('Y-m-d', strtotime("$dob +21 days")), $weanedAt, $males, $females, $sire, $dam1]);
     return (int) $con->insert_id;
 };
-$litter($day(-110), 9, 0, 'weaned', $day(-89), 4, 5);
+$firstLitter = $litter($day(-110), 9, 0, 'weaned', $day(-89), 4, 5);
 $overdue = $litter($day(-24), 9, 1, 'nursing');
 log_litter_event($con, $overdue, 'birth', $day(-24), 9, null, null, null, $julien, $names[$julien]);
 log_litter_event($con, $overdue, 'death', $day(-20), 1, null, null, 'Retrouvé mort au nid', $julien, $names[$julien]);
@@ -298,6 +298,33 @@ record_terrarium_health_check($con, $t, ['check_type' => 'environment', 'checked
 record_terrarium_health_check($con, $t, ['check_type' => 'screening', 'checked_on' => $day(-9), 'sample_type' => 'Fèces (mélange)', 'animals_sampled' => 10,
     'laboratory' => 'Laboratoire vétérinaire départemental', 'sample_reference' => 'LVD-26-5512', 'agents_screened' => 'Hantavirus, leptospires, parasites intestinaux'], $julien, $names[$julien]);
 
+// ----- three generations for the family tree -----
+// The first litter, weaned: its 9 pups (F1) in a holding cage; a brother and
+// a sister mated, their weaned litter (F2) is inbred (25 %).
+$f1Cage = create_holding_cage($con, $marc, 'A2', 'R4', $day(-89), [$julien], 'Sevrage de la portée n°' . $firstLitter, $julien, $names[$julien]);
+$f1 = [];
+foreach (['male', 'male', 'male', 'male', 'female', 'female', 'female', 'female', 'female'] as $sex) {
+    $f1[$sex][] = create_animal($con, $f1Cage, $rsd, $sex, $day(-110), ['litter_id' => $firstLitter, 'sire_id' => $sire, 'dam_id' => $dam1], 'Sevrage', $julien);
+}
+$f1Pair = allocate_cage_id($con);
+db_execute($con, "INSERT INTO cages (cage_id, pi_name, quantity, room, rack) VALUES (?, ?, 0, 'A2', 'R4')", 'si', [$f1Pair, $marc]);
+db_execute($con, 'INSERT INTO cage_users (cage_id, user_id) VALUES (?, ?)', 'si', [$f1Pair, $julien]);
+db_execute($con, "INSERT INTO breeding (cage_id, `cross`) VALUES (?, 'RSD F1 × F1 (frère × sœur)')", 's', [$f1Pair]);
+$f1Breeding = (int) $con->insert_id;
+log_cage_lifecycle($con, $f1Pair, 'created', 'Mise en accouplement', $julien, $names[$julien]);
+[$f1Male, $f1Female] = [$f1['male'][0], $f1['female'][0]];
+foreach ([[$f1Male, 'male'], [$f1Female, 'female']] as [$id, $sex]) {
+    move_animal($con, $id, $f1Pair, 'Mise en accouplement', $julien, $names[$julien], false);
+    db_execute($con, 'INSERT INTO breeding_animals (breeding_id, animal_id, sex) VALUES (?, ?, ?)', 'iis', [$f1Breeding, $id, $sex]);
+}
+db_execute($con, "INSERT INTO litters (cage_id, litter_dob, pups_alive, pups_dead, status, expected_weaning_date, weaned_at, weaned_males, weaned_females, sire_id, dam_id) VALUES (?, ?, 4, 0, 'weaned', ?, ?, 2, 2, ?, ?)",
+    'ssssii', [$f1Pair, $day(-30), $day(-9), $day(-9), $f1Male, $f1Female]);
+$f2Litter = (int) $con->insert_id;
+$f2 = [];
+foreach (['male', 'male', 'female', 'female'] as $sex) {
+    $f2[] = create_animal($con, $f1Cage, $rsd, $sex, $day(-30), ['litter_id' => $f2Litter, 'sire_id' => $f1Male, 'dam_id' => $f1Female], 'Sevrage', $julien);
+}
+
 // ----- notifications for the screenshots of the bell -----
 create_notification($con, $julien, '1 portée(s) : sevrage en retard', "Sevrage en retard :\n• cage $breedCage", "litter_manage.php?cage_id=$breedCage", 'reminder');
 
@@ -308,7 +335,7 @@ if (!empty($opt['ids'])) {
         'overdueLitter' => $overdue, 'exitedAnimal' => $exited, 'sickAnimal' => $sick, 'healthReport' => $report,
         'enrollmentAlert' => $enrollments[2], 'enrollmentCorrected' => $enrollments[0], 'correctedFollowup' => $correctedFollowup,
         'experiment' => $experiment, 'protocol' => $protocol, 'trial' => $trial, 'act' => $act,
-        'terrarium' => $terrarium, 'recentLitter' => $recent, 'narcotic' => $ketamine, 'julien' => $julien, 'sophie' => $sophie,
+        'terrarium' => $terrarium, 'recentLitter' => $recent, 'narcotic' => $ketamine, 'julien' => $julien, 'sophie' => $sophie, 'inbred' => $f2[0], 'founder' => $sire,
     ], JSON_PRETTY_PRINT));
 }
 
