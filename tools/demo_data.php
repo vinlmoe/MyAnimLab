@@ -359,6 +359,10 @@ foreach (['male', 'male', 'female', 'female'] as $sex) {
     $f2[] = create_animal($con, $f1Cage, $rsd, $sex, $day(-30), ['litter_id' => $f2Litter, 'sire_id' => $f1Male, 'dam_id' => $f1Female], 'Sevrage', $julien);
 }
 
+// ----- room temperatures of the round: one room entered today, corrected once -----
+db_execute($con, "INSERT INTO room_temperatures (room, reading_date, mode, temp_min, temp_max, recorded_at, recorded_by, recorded_by_name) VALUES ('A1', ?, 'min_max', 19.2, 22.6, ?, ?, ?), ('A1', ?, 'min_max', 19.6, 22.6, ?, ?, ?), ('B2', ?, 'min_max', 20.1, 23.0, ?, ?, ?)",
+    'ssisssisssis', [$day(-1), $at(-1, '08:40'), $julien, $names[$julien], $day(0), $at(0, '08:35'), $julien, $names[$julien], $day(-1), $at(-1, '08:50'), $julien, $names[$julien]]);
+
 // ----- notifications for the screenshots of the bell -----
 create_notification($con, $julien, '1 portée(s) : sevrage en retard', "Sevrage en retard :\n• cage $breedCage", "litter_manage.php?cage_id=$breedCage", 'reminder');
 

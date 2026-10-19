@@ -35,8 +35,9 @@ MyVivarium est une plateforme en ligne pour gérer efficacement votre animalerie
 
 ## Guides
 
-[Guide de MyAnimLab](docs/guides/guide_myanimlab.pdf), par Sébastien Lefebvre, en un seul document versionné (version 1.3 ; l’historique des versions figure en tête du guide, et le numéro se change par `\versionguide` dans la source) :
+[Guide de MyAnimLab](docs/guides/guide_myanimlab.pdf), par Sébastien Lefebvre, en un seul document versionné (version 1.6 ; l’historique des versions figure en tête du guide, et le numéro se change par `\versionguide` dans la source) :
 
+- introduction : origine de MyAnimLab (fork de MyVivarium), plan de l’application ;
 - partie I, utilisation au quotidien : parcours d’un nouvel arrivant, livret de formation, cages, tournée quotidienne, animaux, reproduction et sevrage, expérimentation (dont la mise en œuvre des points limites), pharmacie, terrariums, « Que faire si… », règles de traçabilité ;
 - partie II, administration : rôles, installation et mises à jour, paramètres du laboratoire, comptes, référentiels, supervision quotidienne, corrections réglementaires, volet BEA, stupéfiants, exports et préparation d’une inspection ;
 - annexes : aide-mémoire et glossaire.
@@ -309,6 +310,7 @@ Pour la configuration initiale, utilisez les identifiants administrateur par dé
 - `get_reminder.php` : renvoie les rappels programmés enregistrés dans la base de données.
 - `manage_reminder.php` : gestion des rappels (ajout, modification, suppression).
 - `process_reminders.php` : traite les rappels programmés et crée les tâches correspondantes ; à exécuter en tâche cron. Chaque matin (heure des rappels de Gérer le laboratoire, 07:30 par défaut), il envoie aussi les rappels de sevrage : les portées à sevrer le jour même ou le lendemain sont signalées aux utilisateurs de la cage (aux administrateurs si la cage n’en a pas) ; les sevrages en retard le sont aussi aux administrateurs et responsables BEA, par notification et e-mail.
+- `daily_round.php` : tournée quotidienne par salle. Chaque salle reçoit aussi son relevé de température : minimum et maximum de la journée, ou température actuelle, au choix dans Gérer le laboratoire (réglage `room_temperature_mode`). Les relevés sont conservés tels que saisis (une correction ajoute un relevé, le dernier de la journée compte) et figurent dans l’export des journaux bruts (migration `040_room_temperatures.sql`).
 - `daily_round_alert.php` : alerte de fin de journée envoyée aux administrateurs avec les cages non vues lors de la tournée quotidienne ; à lancer par cron toutes les quelques minutes (par ex. `*/5 * * * * php /chemin/vers/daily_round_alert.php`). Elle n’est envoyée qu’une fois par jour, après l’heure définie dans Gérer le laboratoire.
 
 ## Site de démonstration
