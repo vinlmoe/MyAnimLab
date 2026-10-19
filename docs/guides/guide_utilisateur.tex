@@ -188,6 +188,36 @@ en attente (sablier). Le bouton de l'étape ouvre directement le formulaire
     refusées à corriger.
 \end{enumerate}
 
+\subsection{Le livret et les procédures de l'application}\label{sec:livret-procedures}
+Chaque procédure de MyAnimLab relève d'une fonction réglementaire. Le cadre
+\btn{Ce que mon livret me permet de faire} indique, procédure par procédure,
+si vous travaillez \btn{Seul}, \btn{Sous encadrement} (formé, compétence non
+encore validée) ou si vous n'êtes \btn{Non formé : sous encadrement
+uniquement}. Le nom de chaque procédure ouvre sa page ; le bouton
+\btn{Enregistrer la formation} ou \btn{Enregistrer la compétence} ouvre le
+formulaire du livret pour la fonction concernée.
+
+\begin{center}
+\small
+\rowcolors{2}{gray!8}{white}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{5.2cm}>{\raggedright\arraybackslash}p{3.6cm}X@{}}
+\toprule
+\textbf{Procédure} & \textbf{Fonction requise} & \textbf{Sans compétence validée}\\
+\midrule
+Tournée quotidienne et soins aux cages & Soins aux animaux & Rappel sur la page de la tournée\\
+Accouplements, naissances et sevrages & Soins aux animaux & Rappel sur les pages des portées\\
+Signalements sanitaires & Soins aux animaux & Rappel sur la page du signalement\\
+Administrations de médicaments & Soins aux animaux & Rappel sur la page des administrations\\
+Terrariums et populations & Soins aux animaux & Rappel sur la page du terrarium\\
+Suivi clinique journalier & Application des procédures & Rappel sur les pages expérimentales\\
+Actes expérimentaux & Application des procédures & \textbf{Encadrant présent obligatoire} pour confirmer un acte réalisé\\
+Euthanasie et mise à mort & Mise à mort des animaux & \textbf{Encadrant présent obligatoire} pour une sortie « mis à mort », « euthanasie » ou « point limite », y compris au retrait d'une cage\\
+Conception des essais et protocoles & Conception des procédures et des projets & Rappel sur les pages des essais et protocoles\\
+\bottomrule
+\end{tabularx}
+\end{center}
+\capture[0.85\linewidth]{u_livret_procedures}{« Ce que mon livret me permet de faire » : un animalier compétent pour les soins, sous encadrement pour les procédures, non formé à la mise à mort.}
+
 \subsection{Enregistrer une entrée}
 \begin{procedure}{Ajouter une entrée au livret}
 \begin{enumerate}
@@ -255,6 +285,15 @@ peuvent les ouvrir.
 
 \subsection{Travailler sous encadrement}
 \begin{itemize}
+  \item Sur la page d'une procédure dont vous n'avez pas la compétence
+    validée, un bandeau bleu \btn{Livret de formation :} rappelle la fonction
+    requise et que vous travaillez sous encadrement, avec le lien vers votre
+    livret.
+  \item Pour enregistrer une sortie « mis à mort », « euthanasie » ou
+    « atteinte de point limite » sans la compétence « Mise à mort des
+    animaux », indiquez l'\btn{Encadrant présent} ; la mention
+    « sous l'encadrement de \ldots » est ajoutée aux circonstances de la
+    sortie, au registre.
   \item Tant que la compétence « application des procédures » n'est pas
     validée, un bandeau \btn{Votre livret de formation :} le rappelle sur les
     pages expérimentales, avec le lien \btn{Ouvrir mon livret de formation}.
@@ -373,14 +412,63 @@ suppriment des fichiers. Tout utilisateur connecté peut les télécharger. Un
 fichier dont le contenu ne correspond pas à son extension est refusé. Chaque
 ajout et chaque suppression sont enregistrés dans le journal d'activité.
 
-\subsection{Retirer une cage}
-Une cage ne peut être retirée qu'une fois que chacun de ses animaux vivants a
-reçu un devenir : transfert dans une autre cage, ou sortie avec son code. La
-page \btn{Retirer la cage} demande ce devenir animal par animal. L'opération
-est réalisée en entier ou pas du tout. Une cage qui a encore des portées en
-allaitement ne peut pas être retirée. Une cage vidée de son dernier animal
-est retirée automatiquement. Une cage retirée n'est pas remise en service
-(seul un administrateur peut le faire, dans un cas d'anomalie).
+\subsection{Retirer une cage}\label{sec:retrait}
+Retirer une cage la sort du service. Un animal vivant doit toujours être dans
+une cage active : la cage ne peut donc être retirée qu'une fois que
+\textbf{chacun de ses animaux vivants a reçu un devenir}.
+
+\begin{procedure}{Retirer une cage et décider du devenir de ses animaux}
+\begin{enumerate}
+  \item Sur la fiche de la cage, \btn{Retirer la cage} (utilisateurs de la
+    cage et administrateurs).
+  \item Pour chaque animal, choisissez le \btn{Devenir} :
+    \begin{itemize}
+      \item \btn{Déplacer vers une autre cage}, avec la cage de destination ;
+      \item ou une \textbf{sortie} avec son code : mis à mort (gestion de
+        population ou en expérimentation), euthanasie, atteinte de point
+        limite, retrouvé mort, export vers une autre animalerie (avec
+        l'animalerie de destination).
+    \end{itemize}
+    \btn{Même devenir pour tous les animaux} puis \btn{Appliquer à tous les
+    animaux} remplit toutes les lignes d'un coup ; chaque ligne reste
+    modifiable.
+  \item \btn{Raison du retrait de la cage} (fin d'étude, regroupement…) et
+    \btn{Date des sorties}.
+  \item Si un devenir est une mise à mort et que votre livret ne valide pas
+    cette compétence, indiquez l'\btn{Encadrant présent}.
+  \item \btn{Retirer la cage} et confirmez.
+\end{enumerate}
+\end{procedure}
+\capture[0.75\linewidth]{u_retrait_cage}{Retrait d’une cage : même devenir pour tous les animaux, encadrant demandé pour la mise à mort.}
+
+\paragraph{Ce que deviennent les animaux.}
+\begin{itemize}
+  \item \textbf{Animal déplacé} : il continue sa vie dans la cage de
+    destination, avec son numéro, sa filiation, ses expériences et sa santé ;
+    le mouvement est inscrit dans son historique avec la raison du retrait.
+    Le déplacer dans une cage en expérimentation fait passer cette cage en
+    expérimentation.
+  \item \textbf{Animal sorti} : il quitte l'établissement à la date indiquée
+    et figure au registre des entrées et sorties avec son code et ses
+    circonstances (« Cage … retirée : raison »). Ses inclusions en cours sont
+    clôturées et ses actions de point limite en attente soldées. Sa fiche
+    reste consultable indéfiniment.
+  \item \textbf{Tout ou rien} : si un seul devenir est impossible (cage de
+    destination manquante, export sans destination, encadrant manquant…),
+    rien n'est enregistré : aucun animal n'est déplacé ni sorti, et la cage
+    reste en service.
+  \item \textbf{Petits non sevrés} : ils ne sont pas encore des animaux
+    identifiés. Une cage dont une portée est en allaitement ne peut pas être
+    retirée : sevrez la portée ou clôturez-la d'abord.
+\end{itemize}
+
+\paragraph{Ce que devient la cage.} Elle passe « retirée » : elle
+n'apparaît plus dans les tableaux de bord ni dans la tournée, et ses rappels
+récurrents sont supprimés. Sa fiche, ses utilisateurs, ses fichiers, ses
+notes et son historique sont conservés. Une cage vidée de son dernier animal
+(transfert, sortie) est retirée automatiquement. Une cage retirée n'est pas
+remise en service, sauf par un administrateur, avec un motif, pour une
+anomalie d'hébergement.
 
 \section{La tournée quotidienne}\label{sec:tournee}
 Chaque cage en service doit être vue au moins une fois par jour.
@@ -463,6 +551,14 @@ La fiche de l'animal reste consultable indéfiniment. Ses inclusions en cours
 sont clôturées et ses actions de point limite en attente sont soldées. Une
 sortie erronée ne peut être corrigée que par un administrateur, avec un
 motif.
+\begin{regle}
+La mise à mort (codes « mis à mort », « euthanasie », « atteinte de point
+limite ») relève de la fonction « Mise à mort des animaux ». Si elle n'est
+pas validée dans votre livret, le formulaire demande l'\btn{Encadrant
+présent} : une personne compétente de l'établissement, ou une autre personne
+dont vous tapez le nom (section~\ref{sec:livret-procedures}).
+\end{regle}
+\capture[0.5\linewidth]{u_sortie_encadrant}{Sortie par euthanasie d’une personne non formée à la mise à mort : encadrant demandé.}
 
 \subsection{Signaler un problème sanitaire}
 \begin{procedure}{Signalement et suivi}
@@ -986,7 +1082,8 @@ Je ne reçois pas les rappels d'une cage. & Vous n'êtes pas parmi ses utilisate
 Une cage d'expérimentation ne peut pas être validée \btn{RAS}. & Normal : saisissez le suivi du jour de ses animaux en expérience et confirmez ses actes ; la cage passe alors « vue ».\\
 L'inclusion d'un animal est refusée. & Autorisation de projet expirée ou pas encore valide, espèce non autorisée, animal sans lignée ou quota atteint : prévenez l'administrateur.\\
 Le sevrage est refusé. & Les petits sevrés ne correspondent pas aux vivants : corrigez les nombres, ou expliquez les petits non sevrés.\\
-L'acte demande un \btn{Encadrant présent}. & Votre compétence n'est pas encore validée : indiquez la personne compétente qui vous encadre (section~\ref{sec:livret}).\\
+Un acte, une sortie ou un retrait de cage demande un \btn{Encadrant présent}. & Votre livret ne valide pas la compétence requise (application des procédures, mise à mort) : indiquez la personne compétente qui vous encadre (section~\ref{sec:livret-procedures}).\\
+Je veux retirer une cage qui contient encore des animaux. & Donnez un devenir à chacun (déplacement ou sortie) sur la page \btn{Retirer la cage} (section~\ref{sec:retrait}).\\
 Le lot voulu n'apparaît pas. & Il est périmé, vide, ou ce n'est pas un lot du médicament prescrit : choisissez un autre lot ou faites recevoir un nouveau lot.\\
 Un animal n'apparaît plus dans les administrations. & Toutes ses administrations prévues sont faites, l'ordonnance est terminée ou l'animal est sorti. Une administration annulée le remet à traiter.\\
 La capture pour une expérience est refusée. & Le terrarium est en délai d'attente après un traitement : attendez la date indiquée.\\
@@ -1085,6 +1182,8 @@ Après une formation & Entrée et attestation & \menu{Paramètres > Mon livret d
   \item[RAS] « Rien à signaler » : la cage a été vue et tout va bien.
   \item[Registre des entrées et sorties] Registre réglementaire de la
     provenance et du devenir de chaque animal.
+  \item[Retrait d'une cage] Mise hors service d'une cage, une fois chacun de
+    ses animaux vivants déplacé ou sorti.
   \item[Responsable (PI)] Chercheur responsable d'une cage ou d'un projet.
   \item[Sévérité] Classe de contrainte d'une procédure (sans réveil,
     légère, modérée, sévère) : attendue dans le protocole, réelle à la fin.

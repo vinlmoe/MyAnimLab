@@ -12,6 +12,7 @@ require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 require_once 'corrections_lib.php';
+require_once 'training_lib.php';
 
 if (!isset($_SESSION['username'])) {
     $currentUrl = urlencode($_SERVER['REQUEST_URI']);
@@ -61,6 +62,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     mysqli_begin_transaction($con);
     try {
+        // Killing an animal: a person not competent alone names the supervisor present.
+        if (in_array($code, TRAINING_KILLING_EXIT_CODES, true) && $currentUserId) {
+            $supervisor = training_posted_supervisor($con, (int) $currentUserId, 'euthanasia', (string) ($_POST['act_supervisor'] ?? ''), (string) ($_POST['act_supervisor_other'] ?? ''));
+            if ($supervisor !== null) {
+                $reason .= ' — ' . tr('under the supervision of {name}', ['name' => $supervisor]);
+            }
+        }
         $retiredCage = exit_animal($con, $animalId, $code, $date, $reason, $destination, $currentUserId, $_SESSION['name'] ?? null);
         mysqli_commit($con);
         $_SESSION['message'] = tr('Exit recorded: {label}.', ['label' => ANIMAL_EXIT_CODES[$code][0]])
@@ -105,6 +113,7 @@ $label = $animal['animal_uid'] ?? $animal['mouse_id'] ?? '#' . $animal['id'];
         <p class="text-muted"><?= trh('Records the animal leaving the facility (cage {cage}). Its full record (parentage, cage history, experiments, health) remains permanently accessible.', ['cage' => $animal['cage_id'] ?? tr('N/A')]); ?> <?= trh('To keep it in the facility, move it to another cage instead:') ?> <a href="animal_transfer.php?animal_id=<?= (int) $animal['id']; ?>"><?= trh('Transfer') ?></a>.</p>
 
         <?php include('message.php'); ?>
+        <?= training_procedure_banner($con, 'killing') ?>
 
         <?php if ($animal['status'] !== 'active') : ?>
             <div class="alert alert-warning"><?= trh('This animal has already left the facility (status: {status}).', ['status' => tr(str_replace('_', ' ', $animal['status']))]); ?></div>
@@ -134,6 +143,7 @@ $label = $animal['animal_uid'] ?? $animal['mouse_id'] ?? '#' . $animal['id'];
                     <label class="form-label" for="reason"><?= trh('Reason / circumstances') ?></label>
                     <textarea class="form-control" id="reason" name="reason" required></textarea>
                 </div>
+                <?= training_supervisor_field($con, 'Killing', 'euthanasia', true) ?>
                 <button type="submit" class="btn btn-danger" onclick="return confirm(<?= htmlspecialchars(trj('Confirm this animal leaves the facility?')) ?>);"><?= trh('Record exit') ?></button>
                 <a href="<?= htmlspecialchars($returnUrl ?? 'animal_view.php?id=' . (int) $animal['id']); ?>" class="btn btn-secondary"><?= trh('Cancel') ?></a>
             </form>
@@ -146,10 +156,17 @@ $label = $animal['animal_uid'] ?? $animal['mouse_id'] ?? '#' . $animal['id'];
             const type = document.getElementById('exit_code');
             const dest = document.getElementById('destination');
             if (!type || !dest) return;
+            const killing = <?= json_encode(TRAINING_KILLING_EXIT_CODES) ?>;
             const sync = () => {
                 const exp = type.value === 'export';
                 document.getElementById('destinationGroup').style.display = exp ? '' : 'none';
                 dest.required = exp;
+                // The supervisor is only asked for when the animal is killed.
+                const box = document.getElementById('supervisorBoxKilling');
+                if (box) {
+                    box.hidden = !killing.includes(type.value);
+                    box.dispatchEvent(new Event('change', { bubbles: true }));
+                }
             };
             type.addEventListener('change', sync);
             sync();

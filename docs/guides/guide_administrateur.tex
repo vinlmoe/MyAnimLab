@@ -320,9 +320,16 @@ le livret côté personne : parcours, saisie des entrées, attestations.
     validée aussitôt.
   \item Ils peuvent joindre une attestation manquante et supprimer une
     entrée erronée, même validée ; ces actions sont journalisées.
-  \item Le système refuse qu'une personne dont la compétence « application
-    des procédures » n'est pas validée confirme seule un acte réalisé : elle
-    doit indiquer l'encadrant présent.
+  \item Chaque procédure de l'application est rattachée à une fonction
+    (tableau « Ce que mon livret me permet de faire » du livret, détaillé dans
+    le guide utilisateur). Sans compétence validée, la page de la procédure
+    le rappelle.
+  \item Le système refuse qu'une personne dont la compétence n'est pas
+    validée confirme seule un acte réalisé (application des procédures) ou
+    enregistre seule une mise à mort, par une sortie ou au retrait d'une cage
+    (mise à mort des animaux) : elle doit indiquer l'encadrant présent. Pour
+    une mise à mort, la mention « sous l'encadrement de … » figure au
+    registre des entrées et sorties.
   \item Chaque jour, les administrateurs et responsables BEA sont prévenus
     des entrées en attente de validation ; chaque personne, de l'échéance de
     sa formation continue.

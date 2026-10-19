@@ -426,55 +426,133 @@ function training_send_reminders(mysqli $con): void
 // True when the user is not competent to apply procedures alone (not
 // trained, or trained and still under supervision): an act they confirm
 // needs the name of the competent person supervising them.
-function training_needs_supervisor(mysqli $con, int $userId): bool
+function training_needs_supervisor(mysqli $con, int $userId, string $function = 'procedures'): bool
 {
     static $cache = [];
-    return $cache[$userId] ??= training_status_for_user($con, $userId)['functions']['procedures']['state'] !== 'competent';
+    return $cache["$userId/$function"] ??= training_status_for_user($con, $userId)['functions'][$function]['state'] !== 'competent';
 }
 
-// Approved users whose competence to apply procedures is validated, other
-// than $excludeUserId: [id => name].
-function training_competent_supervisors(mysqli $con, int $excludeUserId): array
+// Approved users whose competence for $function (applying procedures by
+// default) is validated, other than $excludeUserId: [id => name].
+function training_competent_supervisors(mysqli $con, int $excludeUserId, string $function = 'procedures'): array
 {
     static $cache = [];
-    if (isset($cache[$excludeUserId])) {
-        return $cache[$excludeUserId];
+    $key = "$excludeUserId/$function";
+    if (isset($cache[$key])) {
+        return $cache[$key];
     }
     $users = $con->query("SELECT id, name FROM users WHERE status = 'approved' ORDER BY name")->fetch_all(MYSQLI_ASSOC);
     $records = training_records($con, array_column($users, 'id'));
     $out = [];
     foreach ($users as $u) {
-        if ((int) $u['id'] !== $excludeUserId && training_status($con, $records[(int) $u['id']] ?? [])['functions']['procedures']['state'] === 'competent') {
+        if ((int) $u['id'] !== $excludeUserId && training_status($con, $records[(int) $u['id']] ?? [])['functions'][$function]['state'] === 'competent') {
             $out[(int) $u['id']] = $u['name'];
         }
     }
-    return $cache[$excludeUserId] = $out;
+    return $cache[$key] = $out;
 }
 
 /**
- * Supervisor field of an act confirmation form, for a user who needs one:
+ * Supervisor field of a form, for a user not competent alone for $function:
  * a competent person of the establishment, or another person whose name is
  * typed (e.g. from another establishment). Posted as act_supervisor /
- * act_supervisor_other; required as soon as an act of the form is ticked done.
+ * act_supervisor_other. For an act confirmation form it is required as soon
+ * as an act is ticked done; with $alwaysRequired, whenever the box is shown.
  */
-function training_supervisor_field(mysqli $con, string $idSuffix = ''): string
+function training_supervisor_field(mysqli $con, string $idSuffix = '', string $function = 'procedures', bool $alwaysRequired = false): string
 {
     $userId = (int) ($_SESSION['user_id'] ?? 0);
-    if (!$userId || !training_needs_supervisor($con, $userId)) {
+    if (!$userId || !training_needs_supervisor($con, $userId, $function)) {
         return '';
     }
     $options = '<option value="">' . trh('Choose the supervisor…') . '</option>';
-    foreach (training_competent_supervisors($con, $userId) as $id => $name) {
+    foreach (training_competent_supervisors($con, $userId, $function) as $id => $name) {
         $options .= '<option value="' . $id . '">' . htmlspecialchars($name) . '</option>';
     }
     $options .= '<option value="other">' . trh('Other person (name)') . '</option>';
     $sel = 'actSupervisor' . $idSuffix;
-    return '<div class="alert alert-warning py-2 mb-2 act-supervisor-box"><div class="row g-2 align-items-end">'
+    $help = $function === 'procedures'
+        ? trh('Your competence to apply procedures is not validated in your training record: an act you confirm as done needs the competent person supervising you.')
+        : trh('Your competence for “{function}” is not validated in your training record: give the competent person supervising you.', ['function' => training_functions()[$function]]);
+    return '<div class="alert alert-warning py-2 mb-2 act-supervisor-box"' . ($alwaysRequired ? ' data-always="1"' : '') . ' id="supervisorBox' . $idSuffix . '"><div class="row g-2 align-items-end">'
         . '<div class="col-md-5"><label class="form-label small mb-0" for="' . $sel . '"><i class="fas fa-user-shield"></i> ' . trh('Supervisor present') . ' *</label>'
         . '<select class="form-select form-select-sm act-supervisor" name="act_supervisor" id="' . $sel . '">' . $options . '</select></div>'
         . '<div class="col-md-4 act-supervisor-other" hidden><input class="form-control form-control-sm" name="act_supervisor_other" maxlength="255" placeholder="' . trh('Name of the supervisor') . '"></div>'
-        . '<div class="col-12 small">' . trh('Your competence to apply procedures is not validated in your training record: an act you confirm as done needs the competent person supervising you.') . '</div>'
+        . '<div class="col-12 small">' . $help . ' <a href="training_book.php">' . trh('Open my training record') . '</a></div>'
         . '</div></div>' . training_supervisor_script();
+}
+
+/**
+ * Name of the supervisor posted with a supervisor field, when $userId is not
+ * competent alone for $function; null when no supervisor is needed. Throws
+ * when one is needed and missing.
+ */
+function training_posted_supervisor(mysqli $con, int $userId, string $function, string $choice, string $other): ?string
+{
+    if (!training_needs_supervisor($con, $userId, $function)) {
+        return null;
+    }
+    $name = $choice === 'other' ? trim($other) : (training_competent_supervisors($con, $userId, $function)[(int) $choice] ?? '');
+    if ($name === '') {
+        throw new Exception(tr('Your competence for “{function}” is not validated in your training record: give the competent person supervising you.', ['function' => training_functions()[$function]]));
+    }
+    return $name;
+}
+
+// Exit codes that mean killing an animal (function "killing of animals").
+const TRAINING_KILLING_EXIT_CODES = ['mam_population', 'mam_experimentation', 'euthanasie', 'point_limite'];
+
+/**
+ * Procedures of the application and the regulatory function each one
+ * needs: [code => ['label', 'function', 'url', 'detail']]. The training record
+ * shows the person's situation for each; the pages of the procedures recall
+ * it (training_procedure_banner).
+ */
+function training_procedures(): array
+{
+    return [
+        'round' => ['label' => tr('Daily round and care of the cages'), 'function' => 'care', 'url' => 'daily_round.php',
+            'detail' => tr('Checking each cage, maintenance, labels, transfers')],
+        'breeding' => ['label' => tr('Breeding, births and weaning'), 'function' => 'care', 'url' => 'bc_dash.php',
+            'detail' => tr('Breeding cages, litters, sexing, weaning')],
+        'health' => ['label' => tr('Health reports'), 'function' => 'care', 'url' => 'health_report.php',
+            'detail' => tr('Reporting and following up a health problem')],
+        'treatment' => ['label' => tr('Medication administrations'), 'function' => 'care', 'url' => 'medication_administration.php',
+            'detail' => tr('Treatments on prescription')],
+        'terrarium' => ['label' => tr('Terrariums and populations'), 'function' => 'care', 'url' => 'terrarium_dash.php',
+            'detail' => tr('Censuses, population treatments, health checks, captures')],
+        'followup' => ['label' => tr('Daily clinical follow-up'), 'function' => 'procedures', 'url' => 'trial_manage.php',
+            'detail' => tr('Clinical scores, weights, endpoints of the animals in experiments')],
+        'acts' => ['label' => tr('Experimental acts'), 'function' => 'procedures', 'url' => 'trial_manage.php',
+            'detail' => tr('Injection, gavage, anaesthesia, surgery, sampling…')],
+        'killing' => ['label' => tr('Euthanasia and killing'), 'function' => 'euthanasia', 'url' => 'animal_search.php?list=1',
+            'detail' => tr('Exits "killed", "euthanasia", "endpoint reached", also when retiring a cage')],
+        'design' => ['label' => tr('Design of trials and protocols'), 'function' => 'design', 'url' => 'trial_manage.php',
+            'detail' => tr('Trials, protocols, clinical grids, endpoints')],
+    ];
+}
+
+/**
+ * Banner shown on the page of a procedure when the current user is not
+ * competent alone for its function: what it implies and a link to the
+ * training record. '' when nothing is to report.
+ */
+function training_procedure_banner(mysqli $con, string $procedure): string
+{
+    $userId = (int) ($_SESSION['user_id'] ?? 0);
+    $p = training_procedures()[$procedure] ?? null;
+    if (!$userId || !$p) {
+        return '';
+    }
+    $state = training_status_for_user($con, $userId)['functions'][$p['function']]['state'];
+    if ($state === 'competent') {
+        return '';
+    }
+    $text = $state === 'supervised'
+        ? tr('“{procedure}” comes under the function “{function}”, for which your competence is not validated yet: work under the supervision of a competent person.', ['procedure' => $p['label'], 'function' => training_functions()[$p['function']]])
+        : tr('“{procedure}” comes under the function “{function}”, for which your training record has no validated regulatory training: you may only work under the supervision of a competent person.', ['procedure' => $p['label'], 'function' => training_functions()[$p['function']]]);
+    return '<div class="alert alert-info py-2 small training-procedure-banner"><i class="fas fa-user-graduate"></i> ' . htmlspecialchars($text)
+        . ' <a href="training_book.php#procedures">' . trh('Open my training record') . '</a></div>';
 }
 
 // Script of the supervisor fields (emitted once per page).
@@ -488,6 +566,7 @@ function training_supervisor_script(): string
     return "<script>document.addEventListener('DOMContentLoaded', () => document.querySelectorAll('.act-supervisor-box').forEach(box => {"
         . "const form = box.closest('form'), sel = box.querySelector('.act-supervisor'), otherBox = box.querySelector('.act-supervisor-other'), other = otherBox.querySelector('input');"
         . "const sync = () => { const done = [...form.querySelectorAll('.act-status:checked')].some(r => r.value === 'done' && !r.disabled);"
-        . "sel.required = done; otherBox.hidden = sel.value !== 'other'; other.required = done && sel.value === 'other'; };"
+        . "const need = box.dataset.always === '1' ? !box.hidden : done;"
+        . "sel.required = need; otherBox.hidden = sel.value !== 'other'; other.required = need && sel.value === 'other'; };"
         . "form.addEventListener('change', sync); form.addEventListener('click', () => setTimeout(sync)); sync(); }));</script>";
 }

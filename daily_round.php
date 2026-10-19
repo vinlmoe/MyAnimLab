@@ -13,6 +13,7 @@
 require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
+require_once 'training_lib.php';
 require 'experiment_acts_lib.php';
 
 if (!isset($_SESSION['username'])) {
@@ -151,6 +152,7 @@ require 'header.php';
         <p class="text-muted"><?= trh('Every active cage must be seen at least once a day. A cage counts as seen when it is ticked on this round, validated from its QR code, or has a health report on one of its animals. A cage under experiment is validated only once every one of its animals has its experimental follow-up for the day and every experimental act due on them is confirmed.') ?></p>
 
         <?php include('message.php'); ?>
+        <?= training_procedure_banner($con, 'round') ?>
 
         <div class="alert <?= $totalSeen === $totalCages ? 'alert-success' : ($isToday ? 'alert-warning' : 'alert-danger'); ?>">
             <?= tr($isToday ? '{count} cage(s) seen so far today.' : '{count} cage(s) seen on {date}.', ['count' => '<strong>' . $totalSeen . ' / ' . $totalCages . '</strong>', 'date' => htmlspecialchars($date)]); ?>
