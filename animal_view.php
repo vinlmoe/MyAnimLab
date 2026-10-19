@@ -134,7 +134,8 @@ $statusBadge = [
                 <a href="health_report.php?animal_id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-warning"><?= trh('Report Health Issue') ?></a>
                 <a href="animal_exit.php?id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-danger"><?= trh('Exit (sacrifice / death / export)') ?></a>
             <?php endif; ?>
-            <?php if (($_SESSION['role'] ?? '') === 'admin') : ?>
+            <?php // Deletion is only offered for an animal created by mistake (no regulatory history). ?>
+            <?php if (($_SESSION['role'] ?? '') === 'admin' && !animal_regulatory_history($con, (int) $animal['id'])) : ?>
                 <a href="animal_hard_delete.php?id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-dark"><?= trh('Permanently Delete (admin)') ?></a>
             <?php endif; ?>
         </h4>
@@ -292,7 +293,8 @@ $statusBadge = [
 
         <div class="card">
             <div class="card-body">
-                <h5 class="card-title"><?= trh('Parentage') ?></h5>
+                <h5 class="card-title d-flex justify-content-between align-items-center"><?= trh('Parentage') ?>
+                    <a class="btn btn-sm btn-outline-primary" href="animal_pedigree.php?id=<?= (int) $animal['id']; ?>"><i class="fas fa-sitemap"></i> <?= trh('Family tree') ?></a></h5>
                 <?php if ($parentage) : ?>
                     <p><strong><?= trh('Sire:') ?></strong> <?= htmlspecialchars($parentage['sire_uid'] ?? tr('Unknown/external')); ?></p>
                     <p><strong><?= trh('Dam:') ?></strong> <?= htmlspecialchars($parentage['dam_uid'] ?? tr('Unknown/external')); ?></p>

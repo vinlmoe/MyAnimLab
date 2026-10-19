@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             mysqli_begin_transaction($con);
             $animalId = cancel_prescription_administration($con, (int) $_POST['cancel_administration'], (string) ($_POST['cancel_reason'] ?? ''), $userId, $userName, ($_SESSION['role'] ?? '') === 'admin');
             mysqli_commit($con);
-            log_animal_event($con, $animalId, 'medication_administration_cancelled', ['administration_id' => (int) $_POST['cancel_administration'], 'reason' => trim((string) $_POST['cancel_reason'])], $userId);
+            log_animal_event($con, $animalId, 'medication_administration', ['cancelled' => true, 'administration_id' => (int) $_POST['cancel_administration'], 'reason' => trim((string) $_POST['cancel_reason'])], $userId);
             log_activity($con, 'administration_cancelled', 'animal', (string) $animalId, 'Administration #' . (int) $_POST['cancel_administration'] . ' annulée : ' . trim((string) $_POST['cancel_reason']), $userId);
             $_SESSION['message'] = 'Administration annulée : la quantité est recréditée sur le lot et l’animal est de nouveau à traiter.';
         } catch (Exception $e) {
