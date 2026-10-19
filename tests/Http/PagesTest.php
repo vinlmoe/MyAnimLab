@@ -372,6 +372,53 @@ final class PagesTest extends TestCase
         @unlink($jar);
     }
 
+    public function testEndpointActionIsCarriedOutOnItsPageAndWithdrawnByACorrection(): void
+    {
+        $con = TestDatabase::connection();
+        $animal = TestDatabase::animal($con, TestDatabase::cage($con));
+        $experiment = TestDatabase::experiment($con);
+        $enrollment = TestDatabase::enroll($con, $experiment, $animal);
+        $protocol = (int) TestDatabase::value($con, "SELECT protocol_id FROM experiments WHERE id = $experiment");
+        $con->query("INSERT INTO protocol_endpoint_thresholds (protocol_id, metric, operator, value, action_message, required_action) VALUES ($protocol, 'clinical_score', '>=', 5, 'Score too high', 'call_vet')");
+        $page = "experiment_followup.php?experiment_animal_id=$enrollment";
+        $jar = $this->login('admin');
+        [, $body] = $this->request($page, $jar);
+        $entry = fn(string $score, array $more = []): array => [
+            'csrf_token' => $this->pageToken($body), 'experiment_animal_id' => $enrollment,
+            'observed_at' => date('Y-m-d'), 'weight_g' => '24', 'clinical_score' => $score, 'observations' => '',
+        ] + $more;
+        $status = fn() => TestDatabase::value($con, "SELECT status FROM endpoint_actions WHERE experiment_animal_id = $enrollment");
+
+        // The follow-up raising an action leads to the page where it is carried out.
+        [, , $location] = $this->request($page, $jar, $entry('6'));
+        $this->assertStringContainsString('endpoint_action.php?experiment_animal_id=' . $enrollment, $location);
+        $this->assertSame('pending', $status());
+        $actionId = (int) TestDatabase::value($con, "SELECT id FROM endpoint_actions WHERE experiment_animal_id = $enrollment");
+        [, $actionPage] = $this->request($location, $jar);
+        $this->assertStringContainsString('Score too high', $actionPage);
+
+        // Not done at once: a comment is required, the action stays pending.
+        $comment = ['csrf_token' => $this->pageToken($actionPage), 'experiment_animal_id' => $enrollment, 'action_id' => $actionId, 'comment_action' => '1'];
+        $this->request('endpoint_action.php', $jar, $comment + ['text' => '']);
+        $this->assertSame(0, (int) TestDatabase::value($con, "SELECT COUNT(*) FROM endpoint_action_comments WHERE action_id = $actionId"));
+        $this->request('endpoint_action.php', $jar, $comment + ['text' => 'Vet unavailable until 14:00']);
+        $this->assertSame('Vet unavailable until 14:00', TestDatabase::value($con, "SELECT comment FROM endpoint_action_comments WHERE action_id = $actionId"));
+        $this->assertSame('pending', $status());
+
+        // A correction that no longer reaches the endpoint withdraws the action.
+        [, , $location] = $this->request($page, $jar, $entry('2', ['revision_reason' => 'score entered on the wrong animal']));
+        $this->assertStringNotContainsString('endpoint_action.php', $location);
+        $this->assertSame('withdrawn', $status());
+        $this->assertStringContainsString('score entered on the wrong animal', (string) TestDatabase::value($con, "SELECT done_note FROM endpoint_actions WHERE id = $actionId"));
+        $this->assertSame('0', (string) TestDatabase::value($con, "SELECT endpoint_reached FROM experiment_followups WHERE experiment_animal_id = $enrollment"));
+        $this->assertSame(1, (int) TestDatabase::value($con, "SELECT COUNT(*) FROM animal_events WHERE animal_id = $animal AND event_type = 'endpoint_withdrawn'"));
+
+        // Reached again by a new correction: a new action is raised.
+        $this->request($page, $jar, $entry('7', ['revision_reason' => 'second check']));
+        $this->assertSame(1, (int) TestDatabase::value($con, "SELECT COUNT(*) FROM endpoint_actions WHERE experiment_animal_id = $enrollment AND status = 'pending'"));
+        @unlink($jar);
+    }
+
     public function testExportForV2LeavesSecretsOutAndIsLogged(): void
     {
         $con = TestDatabase::connection();

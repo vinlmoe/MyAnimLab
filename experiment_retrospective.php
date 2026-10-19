@@ -204,7 +204,7 @@ if ($level === 'root') {
                 (SELECT MAX(f.clinical_score) FROM experiment_followups f WHERE f.experiment_animal_id = ea.id) AS max_score,
                 (SELECT MIN(f.weight_g) FROM experiment_followups f WHERE f.experiment_animal_id = ea.id) AS min_weight,
                 (SELECT SUM(f.endpoint_reached) FROM experiment_followups f WHERE f.experiment_animal_id = ea.id) AS n_endpoints,
-                (SELECT COUNT(*) FROM endpoint_actions a WHERE a.experiment_animal_id = ea.id) AS n_actions,
+                (SELECT COUNT(*) FROM endpoint_actions a WHERE a.experiment_animal_id = ea.id AND a.status <> 'withdrawn') AS n_actions,
                 (SELECT COUNT(*) FROM endpoint_actions a WHERE a.experiment_animal_id = ea.id AND a.status = 'pending') AS n_pending_actions,
                 (SELECT COUNT(*) FROM health_reports r WHERE r.animal_id = ea.animal_id AND r.observed_at $window) AS n_health,
                 (SELECT MAX(GREATEST(FIELD(r.severity, $severityRank),

@@ -10,6 +10,7 @@ require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 require 'ethics_lib.php';
+require_once 'followup_lib.php';
 
 if (!isset($_SESSION['username'])) {
     header("Location: index.php");
@@ -166,7 +167,7 @@ $stmt->bind_param("i", $protocolId);
 $stmt->execute();
 $pendingActions = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
-$stmt = $con->prepare($endpointFields . $endpointBase . " AND a.status = 'done' AND a.done_at >= NOW() - INTERVAL 30 DAY ORDER BY a.done_at DESC");
+$stmt = $con->prepare($endpointFields . $endpointBase . " AND a.status IN ('done', 'withdrawn') AND a.done_at >= NOW() - INTERVAL 30 DAY ORDER BY a.done_at DESC");
 $stmt->bind_param("i", $protocolId);
 $stmt->execute();
 $resolvedActions = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -185,6 +186,7 @@ $stmt->bind_param("i", $protocolId);
 $stmt->execute();
 $alertOnlyFollowups = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
+$actionComments = endpoint_action_comments($con, array_column($pendingActions, 'id'));
 $pendingByEnrollment = array_count_values(array_map('intval', array_column($pendingActions, 'experiment_animal_id')));
 $followupLink = fn(int $enrollmentId): string => 'experiment_followup.php?' . http_build_query(['experiment_animal_id' => $enrollmentId, 'return' => 'experiment_manage.php?protocol_id=' . $protocolId]);
 
@@ -385,9 +387,13 @@ require 'header.php';
                                             <?= trh('Raised on {date}', ['date' => substr($pa['created_at'], 0, 16)]); ?>
                                             <?php if ($pa['observed_at']) : ?> · <?= trh('follow-up of {date}: weight {weight} g, score {score}', ['date' => $pa['observed_at'], 'weight' => $pa['weight_g'] ?? '—', 'score' => $pa['clinical_score'] ?? '—']); ?><?php endif; ?>
                                         </div>
+                                        <?php foreach ($actionComments[(int) $pa['id']] ?? [] as $c) : ?>
+                                            <div class="small"><i class="fas fa-comment text-warning"></i> <?= trh('Not done at once: {comment}', ['comment' => $c['comment']]); ?> <span class="text-muted">— <?= htmlspecialchars(($c['created_by_name'] ?? '') . ', ' . substr($c['created_at'], 0, 16)); ?></span></div>
+                                        <?php endforeach; ?>
                                     </div>
                                     <div class="text-nowrap">
                                         <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars($followupLink((int) $pa['experiment_animal_id'])); ?>"><i class="fas fa-clipboard-check"></i> <?= trh('Follow-up') ?></a>
+                                        <a class="btn btn-sm btn-outline-danger" href="endpoint_action.php?<?= htmlspecialchars(http_build_query(['experiment_animal_id' => $pa['experiment_animal_id'], 'return' => 'experiment_manage.php?protocol_id=' . (int) $protocolId . '#endpointManagement'])); ?>"><i class="fas fa-comment"></i> <?= trh('Carry out or comment') ?></a>
                                         <?php if ($alive) : ?>
                                             <a class="btn btn-sm btn-danger" href="animal_exit.php?<?= htmlspecialchars(http_build_query(['id' => $pa['animal_id'], 'code' => 'point_limite', 'return' => 'experiment_manage.php?protocol_id=' . (int) $protocolId . '#endpointManagement'])); ?>"><i class="fas fa-sign-out-alt"></i> <?= trh('Record the euthanasia') ?></a>
                                         <?php endif; ?>
@@ -434,7 +440,7 @@ require 'header.php';
                                             <td><?= htmlspecialchars($ra['animal_uid']); ?> <span class="text-muted">(<?= htmlspecialchars($ra['experiment_number']); ?>)</span></td>
                                             <td><?= htmlspecialchars(endpoint_required_actions()[$ra['required_action']] ?? $ra['required_action']); ?></td>
                                             <td><?= htmlspecialchars(substr($ra['created_at'], 0, 16)); ?></td>
-                                            <td><?= htmlspecialchars(substr((string) $ra['done_at'], 0, 16) . ' — ' . ($ra['done_by_name'] ?? '') . ' : ' . ($ra['done_note'] ?? '')); ?></td>
+                                            <td><?= $ra['status'] === 'withdrawn' ? '<span class="badge bg-secondary">' . trh('Withdrawn') . '</span> ' : ''; ?><?= htmlspecialchars(substr((string) $ra['done_at'], 0, 16) . ' — ' . ($ra['done_by_name'] ?? '') . ' : ' . ($ra['done_note'] ?? '')); ?></td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
