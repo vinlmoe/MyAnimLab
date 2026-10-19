@@ -187,8 +187,17 @@ CREATE TABLE `animal_lines` (
   `species` varchar(100) NOT NULL,
   `name` varchar(255) NOT NULL,
   `notes` text DEFAULT NULL,
+  `weaning_age_days` int DEFAULT NULL,
   `next_seq` int NOT NULL DEFAULT 1,
   PRIMARY KEY (`id`)
+);
+
+-- Weaning age of a species, used by its lines that have none of their own
+-- (weaning_age_days() in animal_lib.php; else the laboratory setting).
+CREATE TABLE `species_weaning_ages` (
+  `species` varchar(100) NOT NULL,
+  `weaning_age_days` int NOT NULL,
+  PRIMARY KEY (`species`)
 );
 
 -- Singleton counter used to auto-generate every cage_id (P-00001, P-00002, ...).
@@ -1425,4 +1434,5 @@ INSERT INTO `schema_migrations` (`version`) VALUES
   ('035_followup_revisions_append_only_logs.sql'),
   ('036_register_corrections_prescriptions_protected.sql'),
   ('037_animal_hard_delete_guard.sql'),
-  ('038_endpoint_withdrawal_and_comments.sql');
+  ('038_endpoint_withdrawal_and_comments.sql'),
+  ('039_weaning_age_by_species_and_line.sql');

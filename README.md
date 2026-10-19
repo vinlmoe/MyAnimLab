@@ -35,7 +35,7 @@ MyVivarium est une plateforme en ligne pour gérer efficacement votre animalerie
 
 ## Guides
 
-[Guide de MyAnimLab](docs/guides/guide_myanimlab.pdf), par Sébastien Lefebvre, en un seul document :
+[Guide de MyAnimLab](docs/guides/guide_myanimlab.pdf), par Sébastien Lefebvre, en un seul document versionné (version 1.1 ; l’historique des versions figure en tête du guide, et le numéro se change par `\versionguide` dans la source) :
 
 - partie I, utilisation au quotidien : parcours d’un nouvel arrivant, livret de formation, cages, tournée quotidienne, animaux, reproduction et sevrage, expérimentation (dont la mise en œuvre des points limites), pharmacie, terrariums, « Que faire si… », règles de traçabilité ;
 - partie II, administration : rôles, installation et mises à jour, paramètres du laboratoire, comptes, référentiels, supervision quotidienne, corrections réglementaires, volet BEA, stupéfiants, exports et préparation d’une inspection ;
@@ -277,6 +277,7 @@ Pour la configuration initiale, utilisez les identifiants administrateur par dé
 - `cage_view_parts.php` : sections Emplacement et Animaux communes à toutes les pages de cage.
 - `bc_dash.php` : tableau de bord des cages d’accouplement, avec recherche et pagination.
 - `bc_addn.php` : création des cages d’accouplement et des données de portée associées.
+- `manage_animal_lines.php` : lignées animales (code, espèce) et âge au sevrage par lignée et par espèce. La date de sevrage prévue d’une portée est sa date de naissance plus l’âge au sevrage de la lignée de la mère (à défaut, du père), sinon de son espèce, sinon du laboratoire (Gérer le laboratoire, 21 jours par défaut) ; un changement s’applique aux portées enregistrées ensuite (migration `039_weaning_age_by_species_and_line.sql`).
 - `bc_view.php` : fiche d’une cage d’accouplement. En tête, l’encadré « Portées en cours » liste les portées non sevrées : date de naissance, âge en jours, petits vivants (morts enregistrées déduites), date de sevrage prévue (en rouge si elle est dépassée) et lien vers le sevrage. Les portées sevrées ou clôturées sont regroupées plus bas dans « Portées précédentes », des plus récentes aux plus anciennes.
 - `bc_edit.php` : ancienne page de modification, retirée ; l’adresse redirige vers la fiche de la cage.
 - `bc_drop.php` : suppression des cages d’accouplement et de leurs données.

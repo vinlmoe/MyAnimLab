@@ -1033,11 +1033,45 @@ function threshold_target_label(array $t, ?array $grid, array $obsFields): ?stri
 // Litters (portées): birth -> nursing -> weaning.
 
 // Weaning age in days (Manage Lab setting, default 21).
-function weaning_age_days(mysqli $con): int
+function weaning_age_days(mysqli $con, ?int $lineId = null): int
 {
+    return weaning_age_source($con, $lineId)[0];
+}
+
+// Weaning age of a line and where it comes from: [days, 'line' | 'species' |
+// 'lab']. The line's own age, else its species', else the laboratory's.
+function weaning_age_source(mysqli $con, ?int $lineId = null): array
+{
+    if ($lineId) {
+        $row = db_row(
+            $con,
+            "SELECT l.weaning_age_days AS line_days, s.weaning_age_days AS species_days
+             FROM animal_lines l LEFT JOIN species_weaning_ages s ON s.species = l.species WHERE l.id = ?",
+            'i',
+            [$lineId]
+        );
+        if ((int) ($row['line_days'] ?? 0) > 0) {
+            return [(int) $row['line_days'], 'line'];
+        }
+        if ((int) ($row['species_days'] ?? 0) > 0) {
+            return [(int) $row['species_days'], 'species'];
+        }
+    }
     $row = $con->query("SELECT value FROM settings WHERE name = 'weaning_age_days'")->fetch_assoc();
     $days = (int) ($row['value'] ?? 0);
-    return $days > 0 ? $days : 21;
+    return [$days > 0 ? $days : 21, 'lab'];
+}
+
+// Line of a litter's pups for its weaning age: the dam's, else the sire's.
+function litter_line_id(mysqli $con, ?int $damId, ?int $sireId): ?int
+{
+    foreach ([$damId, $sireId] as $parentId) {
+        $line = $parentId ? db_value($con, "SELECT line_id FROM mice WHERE id = ?", 'i', [$parentId]) : null;
+        if ($line) {
+            return (int) $line;
+        }
+    }
+    return null;
 }
 
 // Pups of a litter still alive: born alive minus the deaths recorded since.

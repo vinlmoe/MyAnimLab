@@ -217,7 +217,7 @@ require 'header.php';
             </div>
             <div class="form-group">
                 <label for="weaning_age_days"><?= trh('Weaning age (days)') ?></label>
-                <small class="form-text text-muted d-block"><?= trh('Used to compute each litter’s expected weaning date from its date of birth.') ?></small>
+                <small class="form-text text-muted d-block"><?= trh('Default used to compute each litter’s expected weaning date from its date of birth, for the species and lines without their own weaning age (Manage Animal Lines).') ?></small>
                 <input type="number" min="1" class="form-control" id="weaning_age_days" name="weaning_age_days" value="<?php echo htmlspecialchars($labData['weaning_age_days']); ?>">
             </div>
             <div class="form-group">

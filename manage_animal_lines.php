@@ -6,10 +6,13 @@
  * CRUD for animal lines (lineage code + species), the reference data used to
  * build unique animal IDs such as RSD-0002 (Rat Sprague Dawley) or
  * RY139-0023 (Rat Y139). Modeled on manage_strain.php.
+ * The weaning age is set here by line and by species: a litter is weaned at
+ * its line's age, else its species', else the laboratory's (Manage Lab).
  */
 
 require_once 'session_config.php';
 require 'dbcon.php';
+require_once 'animal_lib.php';
 
 if (!isset($_SESSION['username'])) {
     header('Location: index.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
@@ -28,7 +31,32 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         die(tr('CSRF token validation failed'));
     }
 
-    if (isset($_POST['add'])) {
+    // Weaning age of a line: empty uses the species' (else the laboratory's).
+    $lineWeaning = null;
+    if (isset($_POST['add']) || isset($_POST['edit'])) {
+        $raw = trim((string) ($_POST['weaning_age_days'] ?? ''));
+        $lineWeaning = $raw === '' ? null : (int) $raw;
+        if ($lineWeaning !== null && ($lineWeaning < 1 || $lineWeaning > 365)) {
+            $_SESSION['message'] = tr('The weaning age must be between 1 and 365 days, or left empty.');
+            unset($_POST['add'], $_POST['edit']);
+        }
+    }
+
+    if (isset($_POST['species_weaning'])) {
+        $species = trim((string) ($_POST['species'] ?? ''));
+        $raw = trim((string) ($_POST['weaning_age_days'] ?? ''));
+        if ($species === '' || ($raw !== '' && ((int) $raw < 1 || (int) $raw > 365))) {
+            $_SESSION['message'] = tr('The weaning age must be between 1 and 365 days, or left empty.');
+        } elseif ($raw === '') {
+            db_execute($con, "DELETE FROM species_weaning_ages WHERE species = ?", 's', [$species]);
+            log_activity($con, 'weaning_age', 'species', $species, tr('Weaning age of {species}: laboratory default', ['species' => $species]), $_SESSION['user_id'] ?? null);
+            $_SESSION['message'] = tr('Weaning age of {species}: the laboratory’s from now on.', ['species' => $species]);
+        } else {
+            db_execute($con, "INSERT INTO species_weaning_ages (species, weaning_age_days) VALUES (?, ?) ON DUPLICATE KEY UPDATE weaning_age_days = VALUES(weaning_age_days)", 'si', [$species, (int) $raw]);
+            log_activity($con, 'weaning_age', 'species', $species, tr('Weaning age of {species}: {n} days', ['species' => $species, 'n' => (int) $raw]), $_SESSION['user_id'] ?? null);
+            $_SESSION['message'] = tr('Weaning age of {species}: {n} days.', ['species' => $species, 'n' => (int) $raw]);
+        }
+    } elseif (isset($_POST['add'])) {
         $code = strtoupper(trim($_POST['code']));
         $species = trim($_POST['species']);
         $name = trim($_POST['name']);
@@ -44,8 +72,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if ($count > 0) {
             $_SESSION['message'] = tr('Error: Line code already exists.');
         } else {
-            $stmt = $con->prepare("INSERT INTO animal_lines (code, species, name, notes) VALUES (?, ?, ?, ?)");
-            $stmt->bind_param("ssss", $code, $species, $name, $notes);
+            $stmt = $con->prepare("INSERT INTO animal_lines (code, species, name, notes, weaning_age_days) VALUES (?, ?, ?, ?, ?)");
+            $stmt->bind_param("ssssi", $code, $species, $name, $notes, $lineWeaning);
             if ($stmt->execute()) {
                 $_SESSION['message'] = tr('Animal line added successfully.');
             } else {
@@ -59,8 +87,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $name = trim($_POST['name']);
         $notes = trim($_POST['notes']);
 
-        $stmt = $con->prepare("UPDATE animal_lines SET species = ?, name = ?, notes = ? WHERE id = ?");
-        $stmt->bind_param("sssi", $species, $name, $notes, $id);
+        $stmt = $con->prepare("UPDATE animal_lines SET species = ?, name = ?, notes = ?, weaning_age_days = ? WHERE id = ?");
+        $stmt->bind_param("sssii", $species, $name, $notes, $lineWeaning, $id);
         if ($stmt->execute()) {
             $_SESSION['message'] = tr('Animal line updated successfully.');
         } else {
@@ -93,6 +121,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 }
 
 $linesResult = $con->query("SELECT * FROM animal_lines ORDER BY code");
+$speciesWeaning = $con->query(
+    "SELECT l.species, s.weaning_age_days FROM (SELECT DISTINCT species FROM animal_lines) l
+     LEFT JOIN species_weaning_ages s ON s.species = l.species ORDER BY l.species"
+)->fetch_all(MYSQLI_ASSOC);
+$labWeaning = weaning_age_days($con);
+$weaningSources = ['line' => tr('line'), 'species' => tr('species'), 'lab' => tr('laboratory')];
 ?>
 
 <!DOCTYPE html>
@@ -185,6 +219,11 @@ $linesResult = $con->query("SELECT * FROM animal_lines ORDER BY code");
                     <input type="text" name="name" id="name" class="form-control" required placeholder="<?= trh('e.g. Rat Sprague Dawley') ?>">
                 </div>
                 <div class="form-group">
+                    <label for="weaning_age_days"><?= trh('Weaning age (days)') ?></label>
+                    <input type="number" name="weaning_age_days" id="weaning_age_days" class="form-control" min="1" max="365">
+                    <small class="form-text text-muted"><?= trh('Leave empty to use the species’ weaning age, else the laboratory’s.') ?></small>
+                </div>
+                <div class="form-group">
                     <label for="notes"><?= trh('Notes') ?></label>
                     <textarea name="notes" id="notes" class="form-control" rows="3"></textarea>
                 </div>
@@ -203,19 +242,22 @@ $linesResult = $con->query("SELECT * FROM animal_lines ORDER BY code");
                     <th><?= trh('Code') ?></th>
                     <th><?= trh('Species') ?></th>
                     <th><?= trh('Name') ?></th>
+                    <th><?= trh('Weaning age') ?></th>
                     <th><?= trh('Next ID') ?></th>
                     <th><?= trh('Actions') ?></th>
                 </tr>
             </thead>
             <tbody>
-                <?php while ($row = $linesResult->fetch_assoc()) : ?>
+                <?php while ($row = $linesResult->fetch_assoc()) :
+                    [$weaningDays, $weaningSource] = weaning_age_source($con, (int) $row['id']); ?>
                     <tr>
                         <td><?= htmlspecialchars($row['code']); ?></td>
                         <td><?= htmlspecialchars($row['species']); ?></td>
                         <td><?= htmlspecialchars($row['name']); ?></td>
+                        <td><?= trh('{n} days ({source})', ['n' => $weaningDays, 'source' => $weaningSources[$weaningSource]]); ?></td>
                         <td><code><?= htmlspecialchars($row['code'] . '-' . str_pad($row['next_seq'], 4, '0', STR_PAD_LEFT)); ?></code></td>
                         <td>
-                            <button class="btn btn-warning btn-sm" title="<?= trh('Edit') ?>" onclick="editLine(<?= (int) $row['id']; ?>, '<?= htmlspecialchars($row['code'], ENT_QUOTES); ?>', '<?= htmlspecialchars($row['species'], ENT_QUOTES); ?>', '<?= htmlspecialchars($row['name'], ENT_QUOTES); ?>', `<?= htmlspecialchars($row['notes'] ?? '', ENT_QUOTES); ?>`)"><i class="fas fa-edit"></i></button>
+                            <button class="btn btn-warning btn-sm" title="<?= trh('Edit') ?>" onclick="editLine(<?= (int) $row['id']; ?>, '<?= htmlspecialchars($row['code'], ENT_QUOTES); ?>', '<?= htmlspecialchars($row['species'], ENT_QUOTES); ?>', '<?= htmlspecialchars($row['name'], ENT_QUOTES); ?>', `<?= htmlspecialchars($row['notes'] ?? '', ENT_QUOTES); ?>`, '<?= $row['weaning_age_days'] === null ? '' : (int) $row['weaning_age_days']; ?>')"><i class="fas fa-edit"></i></button>
                             <form action="manage_animal_lines.php" method="post" style="display:inline-block;">
                                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                                 <input type="hidden" name="id" value="<?= (int) $row['id']; ?>">
@@ -224,6 +266,32 @@ $linesResult = $con->query("SELECT * FROM animal_lines ORDER BY code");
                         </td>
                     </tr>
                 <?php endwhile; ?>
+            </tbody>
+        </table>
+
+        <h3 class="mt-5" id="speciesWeaning"><?= trh('Weaning age by species') ?></h3>
+        <p class="text-muted"><?= trh('A litter is weaned at the age of its line (the dam’s), else of its species, else of the laboratory ({n} days, Manage Lab). Changing an age applies to the litters recorded afterwards.', ['n' => $labWeaning]) ?></p>
+        <table class="table table-bordered" style="max-width: 600px">
+            <thead>
+                <tr>
+                    <th><?= trh('Species') ?></th>
+                    <th><?= trh('Weaning age (days)') ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($speciesWeaning as $sw) : ?>
+                    <tr>
+                        <td><?= htmlspecialchars($sw['species']); ?></td>
+                        <td>
+                            <form action="manage_animal_lines.php" method="post" class="form-inline">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                <input type="hidden" name="species" value="<?= htmlspecialchars($sw['species']); ?>">
+                                <input type="number" name="weaning_age_days" class="form-control form-control-sm mr-2" style="width: 7em" min="1" max="365" value="<?= $sw['weaning_age_days'] === null ? '' : (int) $sw['weaning_age_days']; ?>" placeholder="<?= (int) $labWeaning; ?>">
+                                <button type="submit" name="species_weaning" class="btn btn-sm btn-success"><i class="fas fa-save"></i> <?= trh('Save') ?></button>
+                            </form>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
             </tbody>
         </table>
     </div>
@@ -240,6 +308,7 @@ $linesResult = $con->query("SELECT * FROM animal_lines ORDER BY code");
             document.getElementById('species').value = '';
             document.getElementById('name').value = '';
             document.getElementById('notes').value = '';
+            document.getElementById('weaning_age_days').value = '';
             document.getElementById('line_id_field').value = '';
         }
 
@@ -248,7 +317,7 @@ $linesResult = $con->query("SELECT * FROM animal_lines ORDER BY code");
             document.getElementById('popupForm').style.display = 'none';
         }
 
-        function editLine(id, code, species, name, notes) {
+        function editLine(id, code, species, name, notes, weaningDays) {
             openForm();
             document.getElementById('formTitle').innerText = <?= trj('Edit Animal Line') ?>;
             document.getElementById('addButton').style.display = 'none';
@@ -258,6 +327,7 @@ $linesResult = $con->query("SELECT * FROM animal_lines ORDER BY code");
             document.getElementById('species').value = species;
             document.getElementById('name').value = name;
             document.getElementById('notes').value = notes.replace(/\\n/g, '\n');
+            document.getElementById('weaning_age_days').value = weaningDays;
             document.getElementById('line_id_field').value = id;
         }
     </script>
