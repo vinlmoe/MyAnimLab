@@ -188,6 +188,36 @@ en attente (sablier). Le bouton de l'étape ouvre directement le formulaire
     refusées à corriger.
 \end{enumerate}
 
+\subsection{Le livret et les procédures de l'application}\label{sec:livret-procedures}
+Chaque procédure de MyAnimLab relève d'une fonction réglementaire. Le cadre
+\btn{Ce que mon livret me permet de faire} indique, procédure par procédure,
+si vous travaillez \btn{Seul}, \btn{Sous encadrement} (formé, compétence non
+encore validée) ou si vous n'êtes \btn{Non formé : sous encadrement
+uniquement}. Le nom de chaque procédure ouvre sa page ; le bouton
+\btn{Enregistrer la formation} ou \btn{Enregistrer la compétence} ouvre le
+formulaire du livret pour la fonction concernée.
+
+\begin{center}
+\small
+\rowcolors{2}{gray!8}{white}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{5.2cm}>{\raggedright\arraybackslash}p{3.6cm}X@{}}
+\toprule
+\textbf{Procédure} & \textbf{Fonction requise} & \textbf{Sans compétence validée}\\
+\midrule
+Tournée quotidienne et soins aux cages & Soins aux animaux & Rappel sur la page de la tournée\\
+Accouplements, naissances et sevrages & Soins aux animaux & Rappel sur les pages des portées\\
+Signalements sanitaires & Soins aux animaux & Rappel sur la page du signalement\\
+Administrations de médicaments & Soins aux animaux & Rappel sur la page des administrations\\
+Terrariums et populations & Soins aux animaux & Rappel sur la page du terrarium\\
+Suivi clinique journalier & Application des procédures & Rappel sur les pages expérimentales\\
+Actes expérimentaux & Application des procédures & \textbf{Encadrant présent obligatoire} pour confirmer un acte réalisé\\
+Euthanasie et mise à mort & Mise à mort des animaux & \textbf{Encadrant présent obligatoire} pour une sortie « mis à mort », « euthanasie » ou « point limite », y compris au retrait d'une cage\\
+Conception des essais et protocoles & Conception des procédures et des projets & Rappel sur les pages des essais et protocoles\\
+\bottomrule
+\end{tabularx}
+\end{center}
+\capture[0.85\linewidth]{u_livret_procedures}{« Ce que mon livret me permet de faire » : un animalier compétent pour les soins, sous encadrement pour les procédures, non formé à la mise à mort.}
+
 \subsection{Enregistrer une entrée}
 \begin{procedure}{Ajouter une entrée au livret}
 \begin{enumerate}
@@ -209,7 +239,10 @@ en attente (sablier). Le bouton de l'étape ouvre directement le formulaire
       \item \btn{Autre formation} : toute formation utile non réglementaire.
     \end{itemize}
   \item \btn{N° d’attestation} et \btn{Attestation (PDF)} : joignez le
-    scan de l'attestation signée (PDF, 20~Mo au plus).
+    scan de l'attestation signée, en PDF. Avec la configuration fournie
+    (\f{.htaccess}, \f{.user.ini}, \f{Dockerfile.local}), un fichier ne peut
+    pas dépasser 10~Mo ; cette limite dépend de la configuration PHP du
+    serveur (l'application elle-même accepte jusqu'à 20~Mo).
   \item \btn{Enregistrer l’entrée}. Elle apparaît \btn{À valider} (sur fond
     jaune) et ne compte qu'une fois validée.
 \end{enumerate}
@@ -255,6 +288,15 @@ peuvent les ouvrir.
 
 \subsection{Travailler sous encadrement}
 \begin{itemize}
+  \item Sur la page d'une procédure dont vous n'avez pas la compétence
+    validée, un bandeau bleu \btn{Livret de formation :} rappelle la fonction
+    requise et que vous travaillez sous encadrement, avec le lien vers votre
+    livret.
+  \item Pour enregistrer une sortie « mis à mort », « euthanasie » ou
+    « atteinte de point limite » sans la compétence « Mise à mort des
+    animaux », indiquez l'\btn{Encadrant présent} ; la mention
+    « sous l'encadrement de \ldots » est ajoutée aux circonstances de la
+    sortie, au registre.
   \item Tant que la compétence « application des procédures » n'est pas
     validée, un bandeau \btn{Votre livret de formation :} le rappelle sur les
     pages expérimentales, avec le lien \btn{Ouvrir mon livret de formation}.
@@ -373,14 +415,64 @@ suppriment des fichiers. Tout utilisateur connecté peut les télécharger. Un
 fichier dont le contenu ne correspond pas à son extension est refusé. Chaque
 ajout et chaque suppression sont enregistrés dans le journal d'activité.
 
-\subsection{Retirer une cage}
-Une cage ne peut être retirée qu'une fois que chacun de ses animaux vivants a
-reçu un devenir : transfert dans une autre cage, ou sortie avec son code. La
-page \btn{Retirer la cage} demande ce devenir animal par animal. L'opération
-est réalisée en entier ou pas du tout. Une cage qui a encore des portées en
-allaitement ne peut pas être retirée. Une cage vidée de son dernier animal
-est retirée automatiquement. Une cage retirée n'est pas remise en service
-(seul un administrateur peut le faire, dans un cas d'anomalie).
+\subsection{Retirer une cage}\label{sec:retrait}
+Retirer une cage la sort du service. Un animal vivant doit toujours être dans
+une cage active : la cage ne peut donc être retirée qu'une fois que
+\textbf{chacun de ses animaux vivants a reçu un devenir}.
+
+\begin{procedure}{Retirer une cage et décider du devenir de ses animaux}
+\begin{enumerate}
+  \item Sur la fiche de la cage, \btn{Retirer la cage} (utilisateurs de la
+    cage et administrateurs).
+  \item Pour chaque animal, choisissez le \btn{Devenir} :
+    \begin{itemize}
+      \item \btn{Déplacer vers une autre cage}, avec la cage de destination ;
+      \item ou une \textbf{sortie} avec son code : mis à mort (gestion de
+        population ou en expérimentation), euthanasie, atteinte de point
+        limite, retrouvé mort, export vers une autre animalerie (avec
+        l'animalerie de destination).
+    \end{itemize}
+    \btn{Même devenir pour tous les animaux} puis \btn{Appliquer à tous les
+    animaux} remplit toutes les lignes d'un coup ; chaque ligne reste
+    modifiable.
+  \item \btn{Raison du retrait de la cage} (fin d'étude, regroupement…) et
+    \btn{Date des sorties}.
+  \item Si un devenir est une mise à mort et que votre livret ne valide pas
+    cette compétence, indiquez l'\btn{Encadrant présent}.
+  \item \btn{Retirer la cage} et confirmez.
+\end{enumerate}
+\end{procedure}
+\capture[0.75\linewidth]{u_retrait_cage}{Retrait d’une cage : même devenir pour tous les animaux, encadrant demandé pour la mise à mort.}
+
+\paragraph{Ce que deviennent les animaux.}
+\begin{itemize}
+  \item \textbf{Animal déplacé} : il continue sa vie dans la cage de
+    destination, avec son numéro, sa filiation, ses expériences et sa santé ;
+    le mouvement est inscrit dans son historique avec la raison du retrait.
+    Le déplacer dans une cage en expérimentation fait passer cette cage en
+    expérimentation.
+  \item \textbf{Animal sorti} : il quitte l'établissement à la date indiquée
+    et figure au registre des entrées et sorties avec son code et ses
+    circonstances (« Cage … retirée : raison »). Ses inclusions en cours sont
+    clôturées et ses actions de point limite en attente soldées. Sa fiche
+    et son historique restent consultables
+    (section~\ref{sec:conservation}).
+  \item \textbf{Tout ou rien} : si un seul devenir est impossible (cage de
+    destination manquante, export sans destination, encadrant manquant…),
+    rien n'est enregistré : aucun animal n'est déplacé ni sorti, et la cage
+    reste en service.
+  \item \textbf{Petits non sevrés} : ils ne sont pas encore des animaux
+    identifiés. Une cage dont une portée est en allaitement ne peut pas être
+    retirée : sevrez la portée ou clôturez-la d'abord.
+\end{itemize}
+
+\paragraph{Ce que devient la cage.} Elle passe « retirée » : elle
+n'apparaît plus dans les tableaux de bord ni dans la tournée, et ses rappels
+récurrents sont supprimés. Sa fiche, ses utilisateurs, ses fichiers, ses
+notes et son historique sont conservés. Une cage vidée de son dernier animal
+(transfert, sortie) est retirée automatiquement. Une cage retirée n'est pas
+remise en service, sauf par un administrateur, avec un motif, pour une
+anomalie d'hébergement.
 
 \section{La tournée quotidienne}\label{sec:tournee}
 Chaque cage en service doit être vue au moins une fois par jour.
@@ -391,6 +483,10 @@ Chaque cage en service doit être vue au moins une fois par jour.
     salle.
   \item Pour chaque cage : \btn{RAS} (une à une ou en groupe), ou
     signalement d'un problème sanitaire sur l'un de ses animaux.
+  \item Pour une cage en expérimentation : \btn{Suivi expérimental (x/y)},
+    saisissez le suivi du jour de chaque animal en expérience et traitez
+    \textbf{tous les actes échus}, ceux du jour comme ceux en retard
+    (bouton \btn{n acte(s)}).
   \item Sur téléphone : \menu{Animaux > Scanner le QR de cage}, scannez
     l'étiquette, puis validez la cage en un geste ou signalez un problème.
 \end{enumerate}
@@ -403,7 +499,12 @@ Chaque cage en service doit être vue au moins une fois par jour.
     sanitaire, scan QR) apparaît comme vue.
   \item Une \textbf{cage en expérimentation} ne peut pas être validée
     \btn{RAS}. Elle n'est validée qu'une fois saisi le suivi du jour de
-    chacun de ses animaux en expérience, et confirmés ses actes du jour.
+    chacun de ses animaux en expérience \textbf{et} traités tous ses actes
+    échus, y compris ceux en retard des jours précédents. Un acte est traité
+    quand il est confirmé réalisé, confirmé non réalisé avec son motif (dans
+    le suivi de l'animal ou de la cage), ou annulé (page \btn{Actes} de
+    l'expérience, bouton \btn{Annuler}, pour une date ou toutes les dates
+    restant à faire).
   \item En fin de journée, à l'heure fixée par l'administrateur (18:00 par
     défaut), les administrateurs reçoivent la liste des cages non vues.
   \item Les jours passés se consultent en lecture seule.
@@ -436,6 +537,47 @@ registre} sur la fiche et dans le dossier BEA.
 \end{trace}
 \capture[0.8\linewidth]{u_registre_animal}{Cadre « Registre des entrées et sorties » d’un animal, avec une correction de sortie.}
 
+\subsection{Arbre généalogique}\label{sec:arbre}
+Sur la fiche d'un animal, cadre \btn{Filiation}, bouton \btn{Arbre
+généalogique}. L'arbre est construit à partir de la filiation enregistrée au
+sevrage (père et mère de chaque portée) ; un animal acheté ou importé n'a pas
+de parents enregistrés (« Inconnu / origine externe »).
+\begin{itemize}
+  \item \textbf{Ascendance} : l'animal, puis son père (en haut) et sa mère
+    (en bas), sur 2, 3 ou 4 générations (\btn{Générations}). Chaque carte
+    donne la lignée, la date de naissance, la cage ou la sortie ; le numéro
+    ouvre l'arbre de cet animal, \btn{fiche} sa fiche.
+  \item \textbf{Ancêtres présents plusieurs fois} : ils portent la même
+    couleur et un badge (\btn{×2}) : c'est le signe d'une consanguinité.
+  \item \textbf{Coefficient de consanguinité} : probabilité que les deux
+    copies d'un gène de l'animal proviennent du même ancêtre (25~\% pour un
+    croisement frère × sœur, 12,5~\% pour des demi-frère et sœur). Il est
+    calculé sur la filiation connue (jusqu'à 6 générations) ; un parent
+    inconnu compte comme non apparenté, c'est donc une valeur minimale.
+  \item \textbf{Part de chaque ascendant (taux de dilution)} : part
+    attendue du génome d'un ascendant chez l'animal. Un parent en transmet
+    la moitié, chaque génération au-dessus la divise encore par deux (1/2,
+    1/4, 1/8…) ; un ascendant atteint par plusieurs chemins additionne la
+    part de chacun. Le tableau donne, pour chaque ascendant connu, la ou les
+    générations qui le séparent de l'animal, le nombre de chemins et la part
+    (en pourcentage et en fraction). Chaque carte de l'arbre l'indique aussi :
+    \btn{Part chez …} pour un ascendant, \btn{Part de …} pour un descendant.
+    Utile pour suivre un rétrocroisement : après $n$ générations de
+    croisement en retour, la lignée donneuse ne représente plus en moyenne
+    que $1/2^n$ du génome. C'est une moyenne : la part réelle varie avec la
+    recombinaison.
+  \item \textbf{Descendance} : les portées de l'animal, avec l'autre parent
+    et les petits, puis la descendance de chacun (deux générations). Une
+    portée de deux frère et sœur n'apparaît qu'une fois.
+  \item \btn{Imprimer / PDF} imprime l'arbre sans les boutons.
+\end{itemize}
+\capture[0.9\linewidth]{u_arbre}{Arbre d’un animal issu d’un croisement frère × sœur : ses grands-parents apparaissent deux fois (consanguinité de 25~\%) et représentent chacun 50~\% de son génome (deux chemins de 25~\%).}
+\capture[0.9\linewidth]{u_arbre_descendance}{Descendance d’un reproducteur : sa portée, puis la portée de deux de ses petits.}
+\begin{regle}
+Avant de former un couple, ouvrez l'arbre des deux reproducteurs : un ancêtre
+commun signale une consanguinité de leur descendance.
+\end{regle}
+
 \subsection{Planifier les utilisations}
 \menu{Animaux > Planification des utilisations} : pour un animal, notez
 l'utilisation prévue (par exemple « prélèvement J28 »), la date prévue, puis la
@@ -459,10 +601,21 @@ une cage en expérimentation, fait passer cette cage en expérimentation.
   \item Indiquez la date et les circonstances, puis confirmez.
 \end{enumerate}
 \end{procedure}
-La fiche de l'animal reste consultable indéfiniment. Ses inclusions en cours
-sont clôturées et ses actions de point limite en attente sont soldées. Une
-sortie erronée ne peut être corrigée que par un administrateur, avec un
-motif.
+Après la sortie, la fiche de l'animal et son historique (filiation, cages,
+expériences, santé, traitements) restent consultables. Ses inclusions en
+cours sont clôturées et ses actions de point limite en attente sont soldées.
+Une sortie erronée ne peut être corrigée que par un administrateur, avec un
+motif. \textbf{Pour une mort ou un départ, utilisez toujours une sortie avec
+son code} : la suppression définitive est réservée aux animaux créés par
+erreur (section~\ref{sec:conservation}).
+\begin{regle}
+La mise à mort (codes « mis à mort », « euthanasie », « atteinte de point
+limite ») relève de la fonction « Mise à mort des animaux ». Si elle n'est
+pas validée dans votre livret, le formulaire demande l'\btn{Encadrant
+présent} : une personne compétente de l'établissement, ou une autre personne
+dont vous tapez le nom (section~\ref{sec:livret-procedures}).
+\end{regle}
+\capture[0.5\linewidth]{u_sortie_encadrant}{Sortie par euthanasie d’une personne non formée à la mise à mort : encadrant demandé.}
 
 \subsection{Signaler un problème sanitaire}
 \begin{procedure}{Signalement et suivi}
@@ -678,11 +831,15 @@ La page d'un protocole regroupe ses expériences.
   \item Depuis l'expérience, bouton \btn{Suivi quotidien} de l'animal. Pour
     toute une cage, depuis la tournée : bouton \btn{Suivi expérimental
     (x/y)} de la cage (animaux déjà suivis / à suivre) ; le bouton
-    \btn{n acte(s)} mène directement aux actes du jour.
+    \btn{n acte(s)} mène directement aux actes à traiter (du jour et en
+    retard).
   \item Notez chaque item de la grille clinique (le total devient le score
     clinique), le poids et les observations.
-  \item Confirmez les \textbf{actes expérimentaux} du jour : réalisé, ou non
-    réalisé avec son motif.
+  \item Traitez les \textbf{actes expérimentaux} échus, ceux du jour et
+    ceux en retard : réalisé, ou non réalisé avec son motif. Un acte qui
+    n'a plus lieu d'être s'annule depuis la page \btn{Actes} de
+    l'expérience. Tant qu'un acte échu reste à faire, la cage n'est pas
+    « vue » dans la tournée.
   \item Enregistrez. Les points limites sont évalués aussitôt. Si un critère
     est atteint, une \textbf{action requise} est ouverte et les
     administrateurs sont prévenus.
@@ -983,10 +1140,11 @@ possible. Une capture hors expérimentation reste possible en cochant
 Le compte est verrouillé. & Trop de mots de passe ou de codes erronés : attendez 15 minutes, ou utilisez \btn{Mot de passe oublié}.\\
 J'ai perdu mon téléphone de double authentification. & Utilisez un code de secours ; sinon, un administrateur réinitialise la double authentification.\\
 Je ne reçois pas les rappels d'une cage. & Vous n'êtes pas parmi ses utilisateurs : demandez à un administrateur de vous y ajouter (changement de propriété).\\
-Une cage d'expérimentation ne peut pas être validée \btn{RAS}. & Normal : saisissez le suivi du jour de ses animaux en expérience et confirmez ses actes ; la cage passe alors « vue ».\\
+Une cage d'expérimentation ne peut pas être validée \btn{RAS}, ou ne passe pas « vue ». & Normal : saisissez le suivi du jour de ses animaux en expérience et traitez tous ses actes échus, y compris ceux en retard (réalisés, non réalisés avec motif, ou annulés) ; la cage passe alors « vue ».\\
 L'inclusion d'un animal est refusée. & Autorisation de projet expirée ou pas encore valide, espèce non autorisée, animal sans lignée ou quota atteint : prévenez l'administrateur.\\
 Le sevrage est refusé. & Les petits sevrés ne correspondent pas aux vivants : corrigez les nombres, ou expliquez les petits non sevrés.\\
-L'acte demande un \btn{Encadrant présent}. & Votre compétence n'est pas encore validée : indiquez la personne compétente qui vous encadre (section~\ref{sec:livret}).\\
+Un acte, une sortie ou un retrait de cage demande un \btn{Encadrant présent}. & Votre livret ne valide pas la compétence requise (application des procédures, mise à mort) : indiquez la personne compétente qui vous encadre (section~\ref{sec:livret-procedures}).\\
+Je veux retirer une cage qui contient encore des animaux. & Donnez un devenir à chacun (déplacement ou sortie) sur la page \btn{Retirer la cage} (section~\ref{sec:retrait}).\\
 Le lot voulu n'apparaît pas. & Il est périmé, vide, ou ce n'est pas un lot du médicament prescrit : choisissez un autre lot ou faites recevoir un nouveau lot.\\
 Un animal n'apparaît plus dans les administrations. & Toutes ses administrations prévues sont faites, l'ordonnance est terminée ou l'animal est sorti. Une administration annulée le remet à traiter.\\
 La capture pour une expérience est refusée. & Le terrarium est en délai d'attente après un traitement : attendez la date indiquée.\\
@@ -999,14 +1157,45 @@ J'ai fait une erreur de saisie. & Voir le tableau suivant : chaque donnée a sa 
 \section{Les règles de traçabilité en bref}
 \begin{trace}
 \begin{itemize}
-  \item Rien n'est effacé : registres sanitaire, des entrées et sorties, des
-    stupéfiants, mouvements, journaux d'activité.
+  \item Les registres (sanitaire, des entrées et sorties, des stupéfiants),
+    les mouvements, les révisions et les journaux d'activité ne se modifient
+    ni ne se suppriment depuis l'application, et la base de données refuse
+    de les réécrire. Une seule exception existe, décrite ci-dessous.
   \item Toute correction d'une donnée réglementaire demande un motif et
     conserve la valeur d'origine.
   \item Chaque saisie porte son auteur, sa date et son heure : travaillez
     avec votre propre compte, ne partagez jamais vos identifiants.
 \end{itemize}
 \end{trace}
+\subsection{Conservation des données}\label{sec:conservation}
+Un animal qui meurt, est mis à mort ou quitte l'établissement est enregistré
+par une \textbf{sortie avec son code} : il n'est pas supprimé. Sa fiche, son
+historique et ses lignes de registre restent consultables, sous réserve des
+sauvegardes et des durées de conservation fixées par l'établissement.
+
+\begin{regle}
+\textbf{Exception : suppression définitive d'un animal créé par erreur.}
+Seul un administrateur peut la faire, après avoir retapé le numéro de
+l'animal. L'opération est \textbf{irréversible} et inscrite au journal
+d'activité avant la suppression. Elle n'est possible que pour un animal
+\textbf{sans historique réglementaire} : rien d'enregistré depuis sa
+création. Elle est refusée, par l'application et par la base de données, dès
+que l'animal a :
+\begin{itemize}
+  \item une sortie enregistrée, une inclusion en expérience, un signalement
+    sanitaire, une ordonnance ou une administration ;
+  \item un rôle de reproducteur, une portée ou des descendants, ou une
+    naissance issue d'une portée sevrée dans l'établissement ;
+  \item un transfert vers une autre cage, une correction de son entrée au
+    registre, une capture dans une population, ou des événements dans son
+    historique (actes, alertes, changements de statut).
+\end{itemize}
+La page de suppression liste alors les raisons du refus, et le bouton n'est
+pas proposé sur la fiche. Un animal supprimé emporte sa création (mouvement
+initial, événement de création, note, utilisations planifiées) ; si sa cage
+se trouve vidée, elle est retirée.
+\end{regle}
+
 \begin{center}
 \small
 \rowcolors{2}{gray!8}{white}
@@ -1041,7 +1230,7 @@ envoient un e-mail.
 \midrule
 Chaque matin & Lire les notifications : actes du jour, sevrages, alertes & Cloche, \menu{Accueil}\\
 Chaque jour & Voir chaque cage (\btn{RAS} ou signalement) & \menu{Animaux > Tournée quotidienne}, QR code\\
-Chaque jour & Suivi des animaux en expérience, actes du jour & Tournée : \btn{Suivi expérimental}, \btn{n acte(s)}\\
+Chaque jour & Suivi des animaux en expérience ; actes du jour et en retard (réalisés, non réalisés avec motif ou annulés) & Tournée : \btn{Suivi expérimental}, \btn{n acte(s)}\\
 Chaque jour & Administrations prévues & Tournée : bouton seringue\\
 À chaque naissance & Noter au crayon puis enregistrer & QR code de la cage : \btn{Enregistrer une naissance}\\
 Au sevrage & Sevrer et étiqueter les nouvelles cages & \btn{Portées en cours} : \btn{Sevrer / mettre à jour}\\
@@ -1075,6 +1264,11 @@ Après une formation & Entrée et attestation & \menu{Paramètres > Mon livret d
   \item[Essai, plan / protocole, expérience] Les trois niveaux d'un projet :
     l'essai relève d'une autorisation de projet, le protocole fixe la grille
     et les points limites, l'expérience regroupe les animaux inclus.
+  \item[Taux de dilution] Part attendue du génome d'un ascendant chez un
+    descendant : 1/2 par génération, additionnée sur chaque chemin.
+  \item[Coefficient de consanguinité] Probabilité que les deux copies d'un
+    gène viennent du même ancêtre (25~\% pour frère × sœur), calculée dans
+    l'arbre généalogique.
   \item[Grille d'évaluation clinique] Items notés chaque jour (posture,
     pelage…) dont le total forme le score clinique.
   \item[Lignée] Code (par exemple RSD) qui forme le numéro des animaux.
@@ -1085,6 +1279,8 @@ Après une formation & Entrée et attestation & \menu{Paramètres > Mon livret d
   \item[RAS] « Rien à signaler » : la cage a été vue et tout va bien.
   \item[Registre des entrées et sorties] Registre réglementaire de la
     provenance et du devenir de chaque animal.
+  \item[Retrait d'une cage] Mise hors service d'une cage, une fois chacun de
+    ses animaux vivants déplacé ou sorti.
   \item[Responsable (PI)] Chercheur responsable d'une cage ou d'un projet.
   \item[Sévérité] Classe de contrainte d'une procédure (sans réveil,
     légère, modérée, sévère) : attendue dans le protocole, réelle à la fin.

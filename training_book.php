@@ -280,6 +280,35 @@ require 'header.php';
                     <?php endforeach; ?>
                 </ol>
             </div>
+            <div class="card mb-3" id="procedures">
+                <div class="card-header"><strong><i class="fas fa-tasks"></i> <?= $isOwnBook ? trh('What my training record allows me to do') : trh('What this training record allows') ?></strong>
+                    <small class="text-muted"> — <?= trh('each procedure of the application and the function it needs') ?></small></div>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead class="table-light"><tr><th><?= trh('Procedure') ?></th><th><?= trh('Function needed') ?></th><th><?= trh('Situation') ?></th><th class="no-print"></th></tr></thead>
+                        <tbody>
+                            <?php foreach (training_procedures() as $procCode => $proc) :
+                                $fn = $status['functions'][$proc['function']]; ?>
+                                <tr class="procedure-<?= $fn['state'] ?>">
+                                    <td><a href="<?= htmlspecialchars($proc['url']) ?>" class="no-print"><?= htmlspecialchars($proc['label']) ?></a><span class="d-none d-print-inline"><?= htmlspecialchars($proc['label']) ?></span>
+                                        <br><small class="text-muted"><?= htmlspecialchars($proc['detail']) ?></small></td>
+                                    <td class="small"><?= htmlspecialchars(training_functions()[$proc['function']]) ?></td>
+                                    <td><?php if ($fn['state'] === 'competent') : ?><span class="badge bg-success"><?= trh('Alone') ?></span>
+                                        <?php elseif ($fn['state'] === 'supervised') : ?><span class="badge bg-warning text-dark"><?= trh('Under supervision') ?></span>
+                                        <?php else : ?><span class="badge bg-secondary"><?= trh('Not trained: under supervision only') ?></span><?php endif; ?></td>
+                                    <td class="no-print text-end">
+                                        <?php if ($fn['state'] !== 'competent') : ?>
+                                            <button type="button" class="btn btn-sm btn-outline-primary text-nowrap path-add" data-category="<?= $fn['state'] === 'supervised' ? 'competence' : 'initial' ?>" data-function="<?= $proc['function'] ?>">
+                                                <i class="fas fa-plus"></i> <?= $fn['state'] === 'supervised' ? trh('Record the competence') : trh('Record the training') ?></button>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-body py-2 small text-muted"><?= trh('Under supervision, the application asks for the competent person present when it matters: experimental acts, killing of animals (exit or retiring a cage). The pages of the other procedures recall it.') ?></div>
+            </div>
             <div class="collapse no-print <?= !$records ? 'show' : '' ?>" id="addEntry">
                 <form method="POST" enctype="multipart/form-data" class="card card-body mb-3 border-primary">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">

@@ -16,6 +16,7 @@ require_once 'session_config.php';
 // Include the database connection file
 require 'dbcon.php';
 require 'animal_lib.php';
+require_once 'training_lib.php';
 
 // Check if the user is not logged in, redirect them to index.php with the current URL for redirection after login
 if (!isset($_SESSION['username'])) {
@@ -487,6 +488,7 @@ require 'header.php';
         <h4><?= trh('Add New Breeding Cage') ?></h4>
 
         <?php include('message.php'); ?>
+        <?= training_procedure_banner($con, 'breeding') ?>
 
         <p class="warning-text"><?= tr('Fields marked with {asterisk} are required.', ['asterisk' => '<span class="required-asterisk">*</span>']) ?></p>
         <p class="text-muted">L’identifiant de cage est généré automatiquement. Les reproducteurs sont sélectionnés parmi les animaux actifs d’autres cages et transférés avec leur historique complet.</p>

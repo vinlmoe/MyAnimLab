@@ -22,6 +22,7 @@ require_once APP_ROOT . '/db_lib.php';
 require_once APP_ROOT . '/animal_lib.php';
 require_once APP_ROOT . '/experiment_acts_lib.php';
 require_once APP_ROOT . '/medication_lib.php';
+require_once APP_ROOT . '/pedigree_lib.php';
 require_once APP_ROOT . '/training_lib.php';
 require_once APP_ROOT . '/followup_lib.php';
 require_once APP_ROOT . '/corrections_lib.php';

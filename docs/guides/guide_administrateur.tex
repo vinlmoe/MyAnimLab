@@ -257,10 +257,20 @@ est marqué « corrigé » dans le registre.
     \btn{Remettre en service}. La raison est inscrite dans l'historique de
     la cage et le journal d'activité. Une cage vide ne peut pas être remise
     en service.
-  \item \textbf{Suppression définitive d'un animal} : réservée aux erreurs de
-    saisie manifestes (animal créé par erreur). Elle demande de retaper le
-    numéro de l'animal. Elle est journalisée avant la suppression. Préférez
-    toujours une sortie avec son code.
+  \item \textbf{Suppression définitive d'un animal} : réservée à un animal
+    créé par erreur, sans historique réglementaire. Pour une mort ou un
+    départ, enregistrez une sortie avec son code ; pour une provenance
+    erronée, corrigez l'entrée au registre. La suppression demande de retaper
+    le numéro de l'animal ; elle est \textbf{irréversible} et inscrite au
+    journal d'activité avant d'être exécutée. Elle est refusée par
+    l'application et par la base de données (migration 037) dès que l'animal
+    a une sortie, une inclusion en expérience, un signalement sanitaire, une
+    ordonnance ou une administration, un rôle de reproducteur, une portée ou
+    des descendants, une naissance issue d'une portée, un transfert, une
+    correction de registre, une capture ou des événements dans son
+    historique : la page en donne les raisons et le bouton n'est pas proposé
+    sur la fiche. Les données ainsi protégées ne peuvent plus disparaître par
+    la suppression en cascade.
 \end{itemize}
 
 \section{Volet BEA}
@@ -320,9 +330,16 @@ le livret côté personne : parcours, saisie des entrées, attestations.
     validée aussitôt.
   \item Ils peuvent joindre une attestation manquante et supprimer une
     entrée erronée, même validée ; ces actions sont journalisées.
-  \item Le système refuse qu'une personne dont la compétence « application
-    des procédures » n'est pas validée confirme seule un acte réalisé : elle
-    doit indiquer l'encadrant présent.
+  \item Chaque procédure de l'application est rattachée à une fonction
+    (tableau « Ce que mon livret me permet de faire » du livret, détaillé dans
+    le guide utilisateur). Sans compétence validée, la page de la procédure
+    le rappelle.
+  \item Le système refuse qu'une personne dont la compétence n'est pas
+    validée confirme seule un acte réalisé (application des procédures) ou
+    enregistre seule une mise à mort, par une sortie ou au retrait d'une cage
+    (mise à mort des animaux) : elle doit indiquer l'encadrant présent. Pour
+    une mise à mort, la mention « sous l'encadrement de … » figure au
+    registre des entrées et sorties.
   \item Chaque jour, les administrateurs et responsables BEA sont prévenus
     des entrées en attente de validation ; chaque personne, de l'échéance de
     sa formation continue.

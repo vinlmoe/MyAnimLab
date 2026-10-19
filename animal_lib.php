@@ -814,6 +814,38 @@ function move_animals(mysqli $con, array $animalIds, string $toCageId, ?string $
 // ANIMAL_EXIT_CODES; an export needs the destination facility). The animal
 // keeps its last cage_id for traceability and its open experiment
 // enrollments are closed. Retires the cage if it is left empty unless
+/**
+ * What makes an animal part of the regulatory record, as a list of reasons
+ * (empty for an animal created by mistake, with nothing recorded after its
+ * creation). An animal with a history is never deleted, only given an exit;
+ * the database enforces the same rule (trigger mice_no_delete_with_history).
+ */
+function animal_regulatory_history(mysqli $con, int $animalId): array
+{
+    $exists = fn(string $sql, string $types, array $params): bool => db_value($con, "SELECT EXISTS ($sql)", $types, $params) == 1;
+    $one = [$animalId];
+    $checks = [
+        tr('an exit is recorded') => ["SELECT 1 FROM mice WHERE id = ? AND status <> 'active'", 'i', $one],
+        tr('included in an experiment') => ['SELECT 1 FROM experiment_animals WHERE animal_id = ?', 'i', $one],
+        tr('health report') => ['SELECT 1 FROM health_reports WHERE animal_id = ?', 'i', $one],
+        tr('prescription or administration of a medication') => ['SELECT 1 FROM prescription_animals WHERE animal_id = ? UNION SELECT 1 FROM medication_administrations WHERE animal_id = ?', 'ii', [$animalId, $animalId]],
+        tr('breeder') => ['SELECT 1 FROM breeding_animals WHERE animal_id = ?', 'i', $one],
+        tr('parent of a litter or of other animals') => ['SELECT 1 FROM litters WHERE sire_id = ? OR dam_id = ? UNION SELECT 1 FROM animal_parentage WHERE sire_id = ? OR dam_id = ?', 'iiii', [$animalId, $animalId, $animalId, $animalId]],
+        tr('born from a litter weaned in the facility') => ['SELECT 1 FROM animal_parentage WHERE animal_id = ? AND litter_id IS NOT NULL', 'i', $one],
+        tr('moved to another cage') => ['SELECT 1 FROM animal_movements WHERE animal_id = ? AND from_cage_id IS NOT NULL', 'i', $one],
+        tr('register entry corrected') => ["SELECT 1 FROM record_corrections WHERE entity_type = 'animal' AND entity_id = ?", 'i', $one],
+        tr('captured from a population') => ['SELECT 1 FROM terrarium_capture_animals WHERE animal_id = ?', 'i', $one],
+        tr('events in its history (acts, alerts, status changes…)') => ["SELECT 1 FROM animal_events WHERE animal_id = ? AND event_type NOT IN ('created', 'note')", 'i', $one],
+    ];
+    $reasons = [];
+    foreach ($checks as $label => [$sql, $types, $params]) {
+        if ($exists($sql, $types, $params)) {
+            $reasons[] = $label;
+        }
+    }
+    return $reasons;
+}
+
 // $retireEmptyCage is false. Returns the cage id when it was retired.
 function exit_animal(mysqli $con, int $animalId, string $code, string $date, string $reason, ?string $destination, ?int $userId, ?string $userName, bool $retireEmptyCage = true): ?string
 {
