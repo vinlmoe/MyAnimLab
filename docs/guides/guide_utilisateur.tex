@@ -239,7 +239,10 @@ Conception des essais et protocoles & Conception des procédures et des projets 
       \item \btn{Autre formation} : toute formation utile non réglementaire.
     \end{itemize}
   \item \btn{N° d’attestation} et \btn{Attestation (PDF)} : joignez le
-    scan de l'attestation signée (PDF, 20~Mo au plus).
+    scan de l'attestation signée, en PDF. Avec la configuration fournie
+    (\f{.htaccess}, \f{.user.ini}, \f{Dockerfile.local}), un fichier ne peut
+    pas dépasser 10~Mo ; cette limite dépend de la configuration PHP du
+    serveur (l'application elle-même accepte jusqu'à 20~Mo).
   \item \btn{Enregistrer l’entrée}. Elle apparaît \btn{À valider} (sur fond
     jaune) et ne compte qu'une fois validée.
 \end{enumerate}
@@ -452,7 +455,8 @@ une cage active : la cage ne peut donc être retirée qu'une fois que
     et figure au registre des entrées et sorties avec son code et ses
     circonstances (« Cage … retirée : raison »). Ses inclusions en cours sont
     clôturées et ses actions de point limite en attente soldées. Sa fiche
-    reste consultable indéfiniment.
+    et son historique restent consultables
+    (section~\ref{sec:conservation}).
   \item \textbf{Tout ou rien} : si un seul devenir est impossible (cage de
     destination manquante, export sans destination, encadrant manquant…),
     rien n'est enregistré : aucun animal n'est déplacé ni sorti, et la cage
@@ -479,6 +483,10 @@ Chaque cage en service doit être vue au moins une fois par jour.
     salle.
   \item Pour chaque cage : \btn{RAS} (une à une ou en groupe), ou
     signalement d'un problème sanitaire sur l'un de ses animaux.
+  \item Pour une cage en expérimentation : \btn{Suivi expérimental (x/y)},
+    saisissez le suivi du jour de chaque animal en expérience et traitez
+    \textbf{tous les actes échus}, ceux du jour comme ceux en retard
+    (bouton \btn{n acte(s)}).
   \item Sur téléphone : \menu{Animaux > Scanner le QR de cage}, scannez
     l'étiquette, puis validez la cage en un geste ou signalez un problème.
 \end{enumerate}
@@ -491,7 +499,12 @@ Chaque cage en service doit être vue au moins une fois par jour.
     sanitaire, scan QR) apparaît comme vue.
   \item Une \textbf{cage en expérimentation} ne peut pas être validée
     \btn{RAS}. Elle n'est validée qu'une fois saisi le suivi du jour de
-    chacun de ses animaux en expérience, et confirmés ses actes du jour.
+    chacun de ses animaux en expérience \textbf{et} traités tous ses actes
+    échus, y compris ceux en retard des jours précédents. Un acte est traité
+    quand il est confirmé réalisé, confirmé non réalisé avec son motif (dans
+    le suivi de l'animal ou de la cage), ou annulé (page \btn{Actes} de
+    l'expérience, bouton \btn{Annuler}, pour une date ou toutes les dates
+    restant à faire).
   \item En fin de journée, à l'heure fixée par l'administrateur (18:00 par
     défaut), les administrateurs reçoivent la liste des cages non vues.
   \item Les jours passés se consultent en lecture seule.
@@ -547,10 +560,13 @@ une cage en expérimentation, fait passer cette cage en expérimentation.
   \item Indiquez la date et les circonstances, puis confirmez.
 \end{enumerate}
 \end{procedure}
-La fiche de l'animal reste consultable indéfiniment. Ses inclusions en cours
-sont clôturées et ses actions de point limite en attente sont soldées. Une
-sortie erronée ne peut être corrigée que par un administrateur, avec un
-motif.
+Après la sortie, la fiche de l'animal et son historique (filiation, cages,
+expériences, santé, traitements) restent consultables. Ses inclusions en
+cours sont clôturées et ses actions de point limite en attente sont soldées.
+Une sortie erronée ne peut être corrigée que par un administrateur, avec un
+motif. \textbf{Pour une mort ou un départ, utilisez toujours une sortie avec
+son code} : la suppression définitive est réservée aux animaux créés par
+erreur (section~\ref{sec:conservation}).
 \begin{regle}
 La mise à mort (codes « mis à mort », « euthanasie », « atteinte de point
 limite ») relève de la fonction « Mise à mort des animaux ». Si elle n'est
@@ -774,11 +790,15 @@ La page d'un protocole regroupe ses expériences.
   \item Depuis l'expérience, bouton \btn{Suivi quotidien} de l'animal. Pour
     toute une cage, depuis la tournée : bouton \btn{Suivi expérimental
     (x/y)} de la cage (animaux déjà suivis / à suivre) ; le bouton
-    \btn{n acte(s)} mène directement aux actes du jour.
+    \btn{n acte(s)} mène directement aux actes à traiter (du jour et en
+    retard).
   \item Notez chaque item de la grille clinique (le total devient le score
     clinique), le poids et les observations.
-  \item Confirmez les \textbf{actes expérimentaux} du jour : réalisé, ou non
-    réalisé avec son motif.
+  \item Traitez les \textbf{actes expérimentaux} échus, ceux du jour et
+    ceux en retard : réalisé, ou non réalisé avec son motif. Un acte qui
+    n'a plus lieu d'être s'annule depuis la page \btn{Actes} de
+    l'expérience. Tant qu'un acte échu reste à faire, la cage n'est pas
+    « vue » dans la tournée.
   \item Enregistrez. Les points limites sont évalués aussitôt. Si un critère
     est atteint, une \textbf{action requise} est ouverte et les
     administrateurs sont prévenus.
@@ -1079,7 +1099,7 @@ possible. Une capture hors expérimentation reste possible en cochant
 Le compte est verrouillé. & Trop de mots de passe ou de codes erronés : attendez 15 minutes, ou utilisez \btn{Mot de passe oublié}.\\
 J'ai perdu mon téléphone de double authentification. & Utilisez un code de secours ; sinon, un administrateur réinitialise la double authentification.\\
 Je ne reçois pas les rappels d'une cage. & Vous n'êtes pas parmi ses utilisateurs : demandez à un administrateur de vous y ajouter (changement de propriété).\\
-Une cage d'expérimentation ne peut pas être validée \btn{RAS}. & Normal : saisissez le suivi du jour de ses animaux en expérience et confirmez ses actes ; la cage passe alors « vue ».\\
+Une cage d'expérimentation ne peut pas être validée \btn{RAS}, ou ne passe pas « vue ». & Normal : saisissez le suivi du jour de ses animaux en expérience et traitez tous ses actes échus, y compris ceux en retard (réalisés, non réalisés avec motif, ou annulés) ; la cage passe alors « vue ».\\
 L'inclusion d'un animal est refusée. & Autorisation de projet expirée ou pas encore valide, espèce non autorisée, animal sans lignée ou quota atteint : prévenez l'administrateur.\\
 Le sevrage est refusé. & Les petits sevrés ne correspondent pas aux vivants : corrigez les nombres, ou expliquez les petits non sevrés.\\
 Un acte, une sortie ou un retrait de cage demande un \btn{Encadrant présent}. & Votre livret ne valide pas la compétence requise (application des procédures, mise à mort) : indiquez la personne compétente qui vous encadre (section~\ref{sec:livret-procedures}).\\
@@ -1096,14 +1116,37 @@ J'ai fait une erreur de saisie. & Voir le tableau suivant : chaque donnée a sa 
 \section{Les règles de traçabilité en bref}
 \begin{trace}
 \begin{itemize}
-  \item Rien n'est effacé : registres sanitaire, des entrées et sorties, des
-    stupéfiants, mouvements, journaux d'activité.
+  \item Les registres (sanitaire, des entrées et sorties, des stupéfiants),
+    les mouvements, les révisions et les journaux d'activité ne se modifient
+    ni ne se suppriment depuis l'application, et la base de données refuse
+    de les réécrire. Une seule exception existe, décrite ci-dessous.
   \item Toute correction d'une donnée réglementaire demande un motif et
     conserve la valeur d'origine.
   \item Chaque saisie porte son auteur, sa date et son heure : travaillez
     avec votre propre compte, ne partagez jamais vos identifiants.
 \end{itemize}
 \end{trace}
+\subsection{Conservation des données}\label{sec:conservation}
+Un animal qui meurt, est mis à mort ou quitte l'établissement est enregistré
+par une \textbf{sortie avec son code} : il n'est pas supprimé. Sa fiche, son
+historique et ses lignes de registre restent consultables, sous réserve des
+sauvegardes et des durées de conservation fixées par l'établissement.
+
+\begin{regle}
+\textbf{Exception : suppression définitive d'un animal créé par erreur.}
+Seul un administrateur peut la faire, après avoir retapé le numéro de
+l'animal. L'opération est \textbf{irréversible}. Elle est inscrite au journal
+d'activité avant la suppression, puis supprime aussi, en cascade, les données
+rattachées à l'animal : ses mouvements, son journal d'événements, sa
+filiation, sa place de reproducteur, ses utilisations planifiées, son lien de
+capture, ses inclusions en expérience avec leurs suivis journaliers, scores,
+corrections de suivi, actions de point limite et actes. Chez ses
+descendants, la mère ou le père supprimé devient « inconnu ». Elle est
+refusée si l'animal a une ordonnance ou une administration de médicament.
+Ses signalements sanitaires restent, avec son numéro. Si la cage se trouve
+vidée, elle est retirée.
+\end{regle}
+
 \begin{center}
 \small
 \rowcolors{2}{gray!8}{white}
@@ -1138,7 +1181,7 @@ envoient un e-mail.
 \midrule
 Chaque matin & Lire les notifications : actes du jour, sevrages, alertes & Cloche, \menu{Accueil}\\
 Chaque jour & Voir chaque cage (\btn{RAS} ou signalement) & \menu{Animaux > Tournée quotidienne}, QR code\\
-Chaque jour & Suivi des animaux en expérience, actes du jour & Tournée : \btn{Suivi expérimental}, \btn{n acte(s)}\\
+Chaque jour & Suivi des animaux en expérience ; actes du jour et en retard (réalisés, non réalisés avec motif ou annulés) & Tournée : \btn{Suivi expérimental}, \btn{n acte(s)}\\
 Chaque jour & Administrations prévues & Tournée : bouton seringue\\
 À chaque naissance & Noter au crayon puis enregistrer & QR code de la cage : \btn{Enregistrer une naissance}\\
 Au sevrage & Sevrer et étiqueter les nouvelles cages & \btn{Portées en cours} : \btn{Sevrer / mettre à jour}\\

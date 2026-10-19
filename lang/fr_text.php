@@ -2422,4 +2422,12 @@ return [
     'Under supervision, the application asks for the competent person present when it matters: experimental acts, killing of animals (exit or retiring a cage). The pages of the other procedures recall it.' => 'Sous encadrement, l’application demande la personne compétente présente là où c’est requis : actes expérimentaux, mise à mort (sortie ou retrait d’une cage). Les pages des autres procédures le rappellent.',
     'under the supervision of {name}' => 'sous l’encadrement de {name}',
     'Euthanasia and killing' => 'Euthanasie et mise à mort',
+    'Animal facility management: cages, animals, experiments and regulatory traceability' => 'Gestion d’animalerie : cages, animaux, expérimentation et traçabilité réglementaire',
+    'Daily work' => 'Le travail de chaque jour',
+    'Daily round room by room, cage check by scanning its QR code, litters and weaning, health reports and treatments on prescription.' => 'Tournée quotidienne salle par salle, contrôle d’une cage en scannant son QR code, portées et sevrages, signalements sanitaires et traitements sur ordonnance.',
+    'Supervised experiments' => 'Une expérimentation encadrée',
+    'Trials linked to their project authorizations, daily clinical follow-up with scoring grids and endpoints, planned acts, and the training record of each person.' => 'Essais rattachés à leur autorisation de projet, suivi clinique journalier avec grilles d’évaluation et points limites, actes planifiés, et livret de formation de chaque personne.',
+    'Traceability' => 'Une traçabilité vérifiable',
+    'Entry and exit register, health register and narcotics register. Each entry records its author and date; a correction needs a reason and keeps the original value.' => 'Registre des entrées et sorties, registre sanitaire et registre des stupéfiants. Chaque saisie porte son auteur et sa date ; une correction exige un motif et conserve la valeur d’origine.',
+    'No account yet? Accounts are created by the administrator of the animal facility.' => 'Pas encore de compte ? Les comptes sont créés par l’administrateur de l’animalerie.',
 ];

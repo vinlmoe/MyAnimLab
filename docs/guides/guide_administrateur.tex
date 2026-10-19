@@ -258,9 +258,18 @@ est marqué « corrigé » dans le registre.
     la cage et le journal d'activité. Une cage vide ne peut pas être remise
     en service.
   \item \textbf{Suppression définitive d'un animal} : réservée aux erreurs de
-    saisie manifestes (animal créé par erreur). Elle demande de retaper le
-    numéro de l'animal. Elle est journalisée avant la suppression. Préférez
-    toujours une sortie avec son code.
+    saisie manifestes (animal créé par erreur). Pour une mort ou un départ,
+    enregistrez toujours une sortie avec son code. La suppression demande
+    de retaper le numéro de l'animal ; elle est \textbf{irréversible} et
+    inscrite au journal d'activité avant d'être exécutée. Elle supprime en
+    cascade les mouvements, événements, filiation, place de reproducteur,
+    utilisations planifiées, lien de capture et les inclusions en expérience
+    de l'animal, avec leurs suivis, scores, corrections de suivi, actions de
+    point limite et actes, y compris des lignes que l'application interdit
+    sinon de supprimer. Chez les descendants, le parent supprimé devient
+    inconnu ; les signalements sanitaires restent avec son numéro. Elle est
+    refusée si l'animal a une ordonnance ou une administration. Une cage
+    vidée est retirée.
 \end{itemize}
 
 \section{Volet BEA}
