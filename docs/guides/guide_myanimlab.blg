@@ -1,0 +1,5 @@
+[0] Config.pm:308> INFO - This is Biber 2.20
+[0] Config.pm:311> INFO - Logfile is 'guide_myanimlab.blg'
+[42] biber-darwin:340> INFO - === Mon Oct 19, 2026, 17:44:03
+[131] Utils.pm:410> ERROR - Cannot find 'guide_myanimlab.bcf'!
+[132] Biber.pm:136> INFO - ERRORS: 1

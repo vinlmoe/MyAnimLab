@@ -1,0 +1,84 @@
+\babel@toc {french}{}\relax 
+\contentsline {paragraph}{Origine de MyAnimLab.}{1}{section*.2}%
+\contentsline {part}{I\hspace {1em}Utilisation au quotidien}{6}{part.1}%
+\contentsline {section}{\numberline {1}Premiers pas}{6}{section.1}%
+\contentsline {subsection}{\numberline {1.1}Votre première semaine}{6}{subsection.1.1}%
+\contentsline {subsection}{\numberline {1.2}Se connecter}{6}{subsection.1.2}%
+\contentsline {subsection}{\numberline {1.3}Double authentification}{7}{subsection.1.3}%
+\contentsline {subsection}{\numberline {1.4}Se repérer}{7}{subsection.1.4}%
+\contentsline {section}{\numberline {2}Formation et livret de compétences}{9}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Lire son livret}{9}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}Le parcours de formation}{9}{subsection.2.2}%
+\contentsline {subsection}{\numberline {2.3}Le livret et les procédures de l'application}{10}{subsection.2.3}%
+\contentsline {subsection}{\numberline {2.4}Enregistrer une entrée}{11}{subsection.2.4}%
+\contentsline {subsection}{\numberline {2.5}Les attestations (certification)}{12}{subsection.2.5}%
+\contentsline {subsection}{\numberline {2.6}Travailler sous encadrement}{12}{subsection.2.6}%
+\contentsline {subsection}{\numberline {2.7}Validation et rappels}{12}{subsection.2.7}%
+\contentsline {section}{\numberline {3}Les cages}{13}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Tableaux de bord et fiche de cage}{13}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Créer des cages et des animaux}{14}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}Entretien, notes et capteurs}{14}{subsection.3.3}%
+\contentsline {subsection}{\numberline {3.4}Étiquettes et QR codes}{14}{subsection.3.4}%
+\contentsline {subsection}{\numberline {3.5}Fichiers joints à une cage}{16}{subsection.3.5}%
+\contentsline {subsection}{\numberline {3.6}Retirer une cage}{16}{subsection.3.6}%
+\contentsline {paragraph}{Ce que deviennent les animaux.}{17}{section*.8}%
+\contentsline {paragraph}{Ce que devient la cage.}{17}{section*.9}%
+\contentsline {section}{\numberline {4}La tournée quotidienne}{17}{section.4}%
+\contentsline {section}{\numberline {5}Les animaux}{19}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Trouver un animal}{19}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}La fiche animal}{19}{subsection.5.2}%
+\contentsline {subsection}{\numberline {5.3}Arbre généalogique}{20}{subsection.5.3}%
+\contentsline {subsection}{\numberline {5.4}Planifier les utilisations}{21}{subsection.5.4}%
+\contentsline {subsection}{\numberline {5.5}Transférer un animal}{22}{subsection.5.5}%
+\contentsline {subsection}{\numberline {5.6}Enregistrer une sortie}{22}{subsection.5.6}%
+\contentsline {subsection}{\numberline {5.7}Signaler un problème sanitaire}{23}{subsection.5.7}%
+\contentsline {section}{\numberline {6}La reproduction}{23}{section.6}%
+\contentsline {subsection}{\numberline {6.1}Mettre des animaux en accouplement}{23}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6.2}Portées en cours}{24}{subsection.6.2}%
+\contentsline {subsection}{\numberline {6.3}Enregistrer une naissance}{24}{subsection.6.3}%
+\contentsline {subsection}{\numberline {6.4}Pendant l'allaitement}{25}{subsection.6.4}%
+\contentsline {subsection}{\numberline {6.5}Sevrer une portée}{25}{subsection.6.5}%
+\contentsline {section}{\numberline {7}L'expérimentation}{26}{section.7}%
+\contentsline {subsection}{\numberline {7.1}Organisation}{26}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7.2}La page des expériences}{27}{subsection.7.2}%
+\contentsline {subsection}{\numberline {7.3}Le suivi journalier}{28}{subsection.7.3}%
+\contentsline {subsection}{\numberline {7.4}Les actes expérimentaux}{29}{subsection.7.4}%
+\contentsline {section}{\numberline {8}Pharmacie et traitements}{31}{section.8}%
+\contentsline {subsection}{\numberline {8.1}Le stock de médicaments}{31}{subsection.8.1}%
+\contentsline {subsection}{\numberline {8.2}Les ordonnances}{32}{subsection.8.2}%
+\contentsline {subsection}{\numberline {8.3}Les administrations}{32}{subsection.8.3}%
+\contentsline {section}{\numberline {9}Terrariums et populations}{33}{section.9}%
+\contentsline {subsection}{\numberline {9.1}Recensements et journal}{34}{subsection.9.1}%
+\contentsline {subsection}{\numberline {9.2}Traitements de la population}{34}{subsection.9.2}%
+\contentsline {subsection}{\numberline {9.3}Suivi sanitaire}{35}{subsection.9.3}%
+\contentsline {subsection}{\numberline {9.4}Captures}{35}{subsection.9.4}%
+\contentsline {section}{\numberline {10}Que faire si…}{37}{section.10}%
+\contentsline {section}{\numberline {11}Les règles de traçabilité en bref}{37}{section.11}%
+\contentsline {subsection}{\numberline {11.1}Conservation des données}{37}{subsection.11.1}%
+\contentsline {section}{\numberline {12}Tâches et rappels}{38}{section.12}%
+\contentsline {part}{II\hspace {1em}Administration}{38}{part.2}%
+\contentsline {section}{\numberline {13}Rôles}{38}{section.13}%
+\contentsline {section}{\numberline {14}Installation et mises à jour}{39}{section.14}%
+\contentsline {subsection}{\numberline {14.1}Installation}{39}{subsection.14.1}%
+\contentsline {subsection}{\numberline {14.2}Mettre à jour l'application}{39}{subsection.14.2}%
+\contentsline {subsection}{\numberline {14.3}Reprise de données et base de démonstration}{39}{subsection.14.3}%
+\contentsline {subsection}{\numberline {14.4}Sauvegardes}{39}{subsection.14.4}%
+\contentsline {section}{\numberline {15}Paramétrer le laboratoire}{39}{section.15}%
+\contentsline {section}{\numberline {16}Comptes utilisateurs}{40}{section.16}%
+\contentsline {section}{\numberline {17}Propriété des cages}{41}{section.17}%
+\contentsline {section}{\numberline {18}Référentiels}{42}{section.18}%
+\contentsline {subsection}{\numberline {18.1}Lignées et souches}{42}{subsection.18.1}%
+\contentsline {subsection}{\numberline {18.2}Autorisations de projet}{42}{subsection.18.2}%
+\contentsline {subsection}{\numberline {18.3}Grilles d'évaluation clinique}{43}{subsection.18.3}%
+\contentsline {section}{\numberline {19}Supervision quotidienne}{43}{section.19}%
+\contentsline {section}{\numberline {20}Corrections réglementaires}{43}{section.20}%
+\contentsline {section}{\numberline {21}Volet BEA}{44}{section.21}%
+\contentsline {subsection}{\numberline {21.1}Analyse rétrospective}{45}{subsection.21.1}%
+\contentsline {section}{\numberline {22}Livrets de formation du personnel}{47}{section.22}%
+\contentsline {section}{\numberline {23}Pharmacie et stupéfiants}{48}{section.23}%
+\contentsline {section}{\numberline {24}Terrariums}{50}{section.24}%
+\contentsline {section}{\numberline {25}Exports, audit et inspection}{51}{section.25}%
+\contentsline {section}{\numberline {26}Sécurité et exploitation}{51}{section.26}%
+\contentsline {part}{Annexes}{52}{part*.11}%
+\contentsline {section}{\numberline {A}Aide-mémoire}{52}{appendix.A}%
+\contentsline {section}{\numberline {B}Glossaire}{52}{appendix.B}%
