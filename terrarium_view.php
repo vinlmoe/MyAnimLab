@@ -12,6 +12,7 @@
 require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
+require_once 'training_lib.php';
 require_once 'ethics_lib.php';
 require_once 'terrarium_lib.php';
 
@@ -213,6 +214,7 @@ require 'header.php';
         </p>
         <?php if ($t['description']) : ?><p class="small"><?= nl2br(htmlspecialchars($t['description'])) ?></p><?php endif; ?>
         <?php include 'message.php'; ?>
+        <?= training_procedure_banner($con, 'terrarium') ?>
 
         <div class="row g-3 mb-3">
             <div class="col-md-3">

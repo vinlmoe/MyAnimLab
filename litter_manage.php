@@ -17,6 +17,7 @@
 require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
+require_once 'training_lib.php';
 
 if (!isset($_SESSION['username'])) {
     $currentUrl = urlencode($_SERVER['REQUEST_URI']);
@@ -294,6 +295,7 @@ require 'header.php';
         <?php if (!$litter) : ?>
             <h4 class="mt-2"><?= trh('Litters of cage {cage}', ['cage' => $cageId]); ?> <small class="text-muted"><?= htmlspecialchars($cage['cross'] ?? ''); ?></small></h4>
             <?php include('message.php'); ?>
+            <?= training_procedure_banner($con, 'breeding') ?>
 
             <table class="table table-sm align-middle" id="litterList">
                 <thead class="table-light">
@@ -359,6 +361,7 @@ require 'header.php';
                 <span class="badge bg-<?= $statusBadge[$litter['status']]; ?>" id="litterStatus"><?= trh($litter['status']); ?></span>
             </h4>
             <?php include('message.php'); ?>
+            <?= training_procedure_banner($con, 'breeding') ?>
 
             <div class="card card-body mb-3" id="litterSummary">
                 <div class="row">

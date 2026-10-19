@@ -377,29 +377,28 @@ mysqli_close($con);
                 </div>
             </div>
 
-            <!-- New Row for Unique Features -->
+            <!-- What the application is for -->
             <div class="row mt-4">
                 <div class="col-md-12">
-                    <h2 class="text-center"><?= trh('Welcome to the {lab}', ['lab' => $labName]); ?></h2>
-                    <p class="text-center italic"><?= trh('Elevate Your Research with IoT-Enhanced Colony Management') ?></p>
+                    <h2 class="text-center"><?= htmlspecialchars($labName); ?></h2>
+                    <p class="text-center italic"><?= trh('Animal facility management: cages, animals, experiments and regulatory traceability') ?></p>
 
-                    <!-- Feature Box 1 -->
                     <div class="col-md-6 mb-6 mx-auto feature-box text-center">
-                        <h3><?= trh('Real-Time Environmental Monitoring') ?></h3>
-                        <p><?= trh('Gain unparalleled insights into the conditions of your vivarium. Our IoT sensors continuously track temperature and humidity levels, ensuring a stable and controlled environment for your research animals.') ?></p>
+                        <h3><?= trh('Daily work') ?></h3>
+                        <p><?= trh('Daily round room by room, cage check by scanning its QR code, litters and weaning, health reports and treatments on prescription.') ?></p>
                     </div>
 
-                    <!-- Feature Box 2 -->
                     <div class="col-md-6 mb-6 mx-auto feature-box text-center">
-                        <h3><?= trh('Effortless Cage and Mouse Tracking') ?></h3>
-                        <p><?= trh('Seamlessly monitor every cage and mouse in your facility. No more manual record-keeping or confusion.') ?></p>
+                        <h3><?= trh('Supervised experiments') ?></h3>
+                        <p><?= trh('Trials linked to their project authorizations, daily clinical follow-up with scoring grids and endpoints, planned acts, and the training record of each person.') ?></p>
                     </div>
 
-                    <!-- Feature Box 3 -->
                     <div class="col-md-6 mb-6 mx-auto feature-box text-center">
-                        <h3><?= trh('Security and Compliance') ?></h3>
-                        <p><?= trh('Rest easy knowing your data is secure and compliant with industry regulations. We prioritize data integrity and confidentiality.') ?></p>
+                        <h3><?= trh('Traceability') ?></h3>
+                        <p><?= trh('Entry and exit register, health register and narcotics register. Each entry records its author and date; a correction needs a reason and keeps the original value.') ?></p>
                     </div>
+
+                    <p class="text-center text-muted small"><?= trh('No account yet? Accounts are created by the administrator of the animal facility.') ?></p>
                 </div>
             </div>
         </div>

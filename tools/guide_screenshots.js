@@ -131,6 +131,14 @@ async function shot(page, name, url, opts = {}) {
     before: async p => { await p.click('.path-add[data-category="competence"]'); await p.waitForTimeout(600); },
     element: '#addEntry form',
   });
+  await shot(u, 'u_livret_procedures', 'training_book.php', { element: '#procedures' });
+  await shot(u, 'u_sortie_encadrant', 'animal_exit.php?code=euthanasie&id=' + ids.sickAnimal, { element: '.content' });
+  await shot(u, 'u_retrait_cage', 'cage_retire.php?id=' + ids.holding[0], {
+    before: async p => { await p.selectOption('#allFate', 'euthanasie'); await p.click('#applyAll'); await p.waitForTimeout(200); },
+    element: '.content',
+  });
+  await shot(u, 'u_arbre', 'animal_pedigree.php?id=' + ids.inbred, { element: '.ped-wrapper' });
+  await shot(u, 'u_arbre_descendance', 'animal_pedigree.php?id=' + ids.founder, { element: '#descendants' });
   await shot(u, 'u_naissance', 'litter_manage.php?cage_id=' + ids.breeding, { element: '#birthForm' });
   await shot(u, 'u_sevrage', 'litter_manage.php?litter_id=' + ids.overdueLitter, { element: '#weanForm' });
   await shot(u, 'u_terrarium', 'terrarium_view.php?id=' + ids.terrarium);
