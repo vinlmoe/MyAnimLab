@@ -31,6 +31,7 @@ const RAW_LOGS = [
     'animal_events' => ['Animal events', 'animal_events', 'created_at'],
     'animal_movements' => ['Animal movements between cages', 'animal_movements', 'moved_at'],
     'cage_checks' => ['Cage checks (daily round, QR, follow-ups)', 'cage_checks', 'checked_at'],
+    'room_temperatures' => ['Room temperatures (daily round)', 'room_temperatures', 'recorded_at'],
     'cage_lifecycle' => ['Cage lifecycle (creation, retirement, restoration)', 'cage_lifecycle', 'event_at'],
     'litter_events' => ['Litter events', 'litter_events', 'created_at'],
     'health_report_updates' => ['Health registry follow-up entries', 'health_report_updates', 'created_at'],

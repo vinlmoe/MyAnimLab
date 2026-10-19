@@ -1,11 +1,15 @@
 \documentclass[11pt,a4paper]{article}
 \input{guide-style}
 \lhead{\logomark\ \wordmark\ --- Guide}
-\rhead{Version du 19 octobre 2026}
-\hypersetup{pdftitle={Guide de MyAnimLab},pdfauthor={Sébastien Lefebvre}}
+% Version du guide : à incrémenter, avec une ligne dans l'historique des
+% versions, à chaque modification.
+\newcommand{\versionguide}{1.6}
+\newcommand{\dateguide}{19 octobre 2026}
+\rhead{Version \versionguide{} du \dateguide}
+\hypersetup{pdftitle={Guide de MyAnimLab},pdfauthor={Sébastien Lefebvre},pdfsubject={Version \versionguide}}
 
 \begin{document}
-\pagetitre{Guide de MyAnimLab}{Utilisateurs, administrateurs et responsables du bien-être animal (BEA)}{Sébastien Lefebvre}{19 octobre 2026}
+\pagetitre{Guide de MyAnimLab}{Utilisateurs, administrateurs et responsables du bien-être animal (BEA)}{Sébastien Lefebvre}{\versionguide{} du \dateguide}
 
 \section*{Comment utiliser ce guide}
 Ce guide réunit en un seul document l'usage quotidien de MyAnimLab et son
@@ -16,6 +20,19 @@ formation. La partie~\ref{part:admin} décrit ce qui est réservé aux
 administrateurs et aux responsables BEA : installation et mises à jour,
 paramétrage, comptes, référentiels, supervision quotidienne, corrections
 réglementaires, volet BEA et préparation d'une inspection.
+
+\paragraph{Origine de MyAnimLab.} MyAnimLab est un \textbf{fork} (une
+version dérivée) de \href{https://github.com/myvivarium/MyVivarium}{MyVivarium}
+(\url{https://github.com/myvivarium/MyVivarium}), plateforme libre de gestion
+d'animalerie distribuée sous licence LGPL. Il en reprend la base (comptes,
+cages d'hébergement et d'accouplement, tableaux de bord, tâches et rappels,
+notes, capteurs IoT, étiquettes de cages) et l'adapte à la réglementation
+européenne et française de l'expérimentation animale (directive 2010/63/UE) :
+traduction française, tournée quotidienne, registre des entrées et sorties,
+autorisations de projet, essais et expériences avec grilles cliniques et
+points limites, actes expérimentaux, pharmacie et stupéfiants, livrets de
+formation, volet BEA et terrariums. MyAnimLab reste sous licence LGPL, comme
+MyVivarium.
 
 \begin{center}
 \rowcolors{2}{gray!8}{white}
@@ -45,6 +62,29 @@ Une règle appliquée par le logiciel : ce qui est refusé, ce qui est notifié.
 \begin{trace}
 Ce qui est conservé pour le registre et l'inspection, et comment corriger.
 \end{trace}
+
+\subsection*{Historique des versions}
+\begin{center}
+\small
+\rowcolors{2}{gray!8}{white}
+\begin{tabularx}{\textwidth}{@{}llX@{}}
+\toprule
+\textbf{Version} & \textbf{Date} & \textbf{Modifications}\\
+\midrule
+1.0 & 19 octobre 2026 & Fusion du guide de l'utilisateur et du guide de l'administrateur en un seul guide. Mise en œuvre des actions de point limite (réalisation ou commentaire) et retrait d'un point limite par la correction d'un suivi.\\
+1.1 & 19 octobre 2026 & Âge au sevrage par espèce et par lignée (sections~\ref{sec:portees} et~\ref{sec:lignees}).\\
+1.2 & 19 octobre 2026 & Suivi des portées sur l'étiquette d'une cage d'accouplement, avec un exemple complété au crayon (section~\ref{sec:etiquettes}). Analyse rétrospective BEA détaillée pas à pas, avec captures (section~\ref{sec:retrospective}).\\
+1.3 & 19 octobre 2026 & Licences : le guide sous CC BY-SA 4.0, le logiciel sous LGPLv3.\\
+1.4 & 19 octobre 2026 & Plan de l'application : menus, pages et pages qu'elles ouvrent (section~\ref{sec:premiers}).\\
+1.5 & 19 octobre 2026 & Température des salles relevée à la tournée : minimum et maximum de la journée, ou température actuelle, au choix dans les paramètres (section~\ref{sec:tournee}).\\
+1.6 & 19 octobre 2026 & Origine de MyAnimLab, fork de MyVivarium, dans l'introduction.\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection*{Licences}
+\noindent © 2026 Sébastien Lefebvre.\par\smallskip
+\noindent\licences
 
 \newpage
 \tableofcontents
@@ -114,6 +154,8 @@ téléphone et des codes de secours, demandez une réinitialisation à un
 administrateur.
 
 \subsection{Se repérer}
+Le \textbf{plan de l'application} (page~\pageref{plan}) montre d'un coup
+d'œil les menus, leurs pages et les pages qu'elles ouvrent.
 \begin{itemize}
   \item \menu{Accueil} : statistiques des cages, alertes du jour (actions
     de point limite, portées à sevrer, en rouge si le sevrage est en retard,
@@ -131,6 +173,16 @@ administrateur.
     profil.
 \end{itemize}
 \capture[0.85\linewidth]{u_accueil}{Accueil : action de point limite requise, portée dont le sevrage est en retard, avancement de la tournée.}
+
+\begin{landscape}
+\subsubsection*{Plan de l'application}\label{plan}
+\begin{center}
+\resizebox{\linewidth}{!}{\input{plan_navigation}}
+\end{center}
+{\small Selon le rôle, certaines pages n'apparaissent pas dans le menu : celles
+des responsables BEA et des administrateurs, et les capteurs IoT tant
+qu'ils ne sont pas configurés.}
+\end{landscape}
 
 \section{Formation et livret de compétences}\label{sec:livret}
 Toute personne qui travaille avec les animaux tient son \textbf{livret de
@@ -388,24 +440,61 @@ voir la section~\ref{sec:accouplement}.
 catégories). Le QR code de l'étiquette ouvre le contrôle de la cage
 (section~\ref{sec:tournee}).
 
+\subsubsection*{Le suivi des portées sur l'étiquette d'accouplement}
 L'étiquette d'une cage d'accouplement porte les reproducteurs et un tableau
-\textbf{Portées --- à compléter au crayon}. Les portées en allaitement y sont
-imprimées : date de naissance, nés vivants, morts déjà saisies, sevrage
-prévu. Les lignes vides servent aux événements qui surviennent après
-l'impression.
+\textbf{Portées --- à compléter au crayon}. Elle sert de registre de cage :
+ce qui arrive aux portées entre deux impressions s'y écrit au crayon, puis
+se reporte dans MyAnimLab. On n'a donc pas besoin de réimprimer l'étiquette
+à chaque événement.
+
+\begin{center}
+\small
+\rowcolors{2}{gray!8}{white}
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+\textbf{Colonne} & \textbf{Contenu}\\
+\midrule
+Née le & Date de naissance de la portée.\\
+Nés vivants & Petits vivants à la naissance.\\
+Morts (date : nb) & Décès des petits : imprimé « $n$ saisi(s) » pour ceux déjà enregistrés, puis au crayon la date et le nombre de chaque nouveau décès.\\
+Sevrage prévu & Date de naissance plus l'âge au sevrage de la lignée de la mère, rappelé sous le tableau (section~\ref{sec:lignees}).\\
+Sevrée le & Date du sevrage, écrite au crayon le jour venu.\\
+Saisi & Coché quand tout ce qui est écrit sur la ligne est enregistré dans MyAnimLab.\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+À l'impression, les portées en allaitement (trois au plus) sont imprimées en
+gras avec leurs décès déjà enregistrés et leur sevrage prévu, et leur case
+\btn{Saisi} est déjà cochée. Les lignes vides, avec une case à cocher,
+reçoivent les naissances qui surviennent après l'impression.
+
 \begin{procedure}{Garder la fiche de cage à jour sans la réimprimer}
 \begin{enumerate}
-  \item Notez au crayon sur la fiche chaque naissance, mort (date et nombre)
-    et sevrage. Le sevrage prévu est égal à la date de naissance plus l'âge
-    au sevrage imprimé sur la fiche.
-  \item Scannez le QR code : la page de la cage propose \btn{Enregistrer une
-    naissance} et, pour chaque portée, \btn{Décès / sevrage}. Enregistrez ce
-    que vous venez de noter.
-  \item Cochez la case \btn{Saisi} de la ligne. Une ligne non cochée signale
-    une donnée encore absente du logiciel.
+  \item \textbf{Naissance} : sur une ligne vide, notez au crayon la date de
+    naissance et le nombre de nés vivants, puis calculez le sevrage prévu
+    (naissance plus l'âge imprimé sous le tableau).
+  \item \textbf{Décès} : dans la colonne \btn{Morts} de la portée, ajoutez
+    au crayon la date et le nombre (par exemple « 16/10 : 1 »).
+  \item \textbf{Sevrage} : notez la date dans \btn{Sevrée le}.
+  \item Scannez le QR code de l'étiquette. La page de la cage propose
+    \btn{Enregistrer une naissance} et, pour chaque portée,
+    \btn{Décès / sevrage} : enregistrez ce que vous venez de noter.
+  \item Cochez au crayon la case \btn{Saisi} de la ligne. Une ligne écrite
+    au crayon dont la case n'est pas cochée signale une donnée encore absente
+    du logiciel, à reporter au plus vite.
+  \item Réimprimez l'étiquette quand toutes ses lignes sont remplies, ou
+    quand elle devient difficile à lire : la nouvelle étiquette reprend les
+    portées en cours telles qu'elles sont enregistrées.
 \end{enumerate}
 \end{procedure}
-\captures{u_etiquette}{0.4\linewidth}{Étiquette d'une cage d'accouplement : tableau des portées à compléter au crayon.}{u_qr_accouplement}{0.27\linewidth}{Page ouverte par le QR code : report des portées.}
+\capture[0.75\linewidth]{u_etiquette_crayon}{Tableau des portées complété au crayon (exemple) : en gras, ce qui était imprimé ; en gris, ce qui a été écrit à la main. Le décès du 16/10 et le sevrage du 17/10 de la première portée, puis la naissance du 18/10, ont été enregistrés et cochés « Saisi ».}
+\captures{u_etiquette}{0.4\linewidth}{Étiquette d'une cage d'accouplement telle qu'imprimée.}{u_qr_accouplement}{0.27\linewidth}{Page ouverte par le QR code : report des portées.}
+\begin{regle}
+L'étiquette n'est qu'un support de terrain : seules les données enregistrées
+dans MyAnimLab comptent pour le registre, les rappels de sevrage et la
+filiation des petits. Reportez chaque note le jour même.
+\end{regle}
 
 \subsection{Fichiers joints à une cage}
 \begin{procedure}{Ajouter un fichier}
@@ -487,6 +576,8 @@ Chaque cage en service doit être vue au moins une fois par jour.
 \begin{enumerate}
   \item \menu{Animaux > Tournée quotidienne} : les cages sont classées par
     salle.
+  \item Relevez la \textbf{température de chaque salle} dans l'encadré
+    \btn{Températures des salles} (voir ci-dessous).
   \item Pour chaque cage : \btn{RAS} (une à une ou en groupe), ou
     signalement d'un problème sanitaire sur l'un de ses animaux.
   \item Pour une cage en expérimentation : \btn{Suivi expérimental (x/y)},
@@ -497,7 +588,37 @@ Chaque cage en service doit être vue au moins une fois par jour.
     l'étiquette, puis validez la cage en un geste ou signalez un problème.
 \end{enumerate}
 \end{procedure}
-\capture[0.9\linewidth]{u_tournee}{Tournée quotidienne : avancement par salle, cages vues, bouton RAS.}
+\capture[0.9\linewidth]{u_tournee}{Tournée quotidienne : avancement et température par salle, températures à relever, cages vues, bouton RAS.}
+
+\subsection*{La température des salles}
+L'administrateur choisit ce qui se relève pour toutes les salles
+(\menu{Paramètres > Gérer le laboratoire}, réglage \btn{Température des
+salles à la tournée}) :
+\begin{itemize}
+  \item \textbf{Minimum et maximum de la journée} (par défaut) : les valeurs
+    du thermomètre mini / maxi de la salle ;
+  \item \textbf{Température actuelle} : la température lue au moment de la
+    tournée.
+\end{itemize}
+\begin{procedure}{Relever la température d'une salle}
+\begin{enumerate}
+  \item Dans l'encadré \btn{Températures des salles} de la tournée, sur la
+    ligne de la salle, saisissez \btn{min °C} et \btn{max °C} (ou la
+    température actuelle). La virgule est acceptée (19,5).
+  \item \btn{Enregistrer}. Le relevé s'affiche avec l'heure et son auteur,
+    et la température apparaît sur la carte de la salle.
+  \item Une erreur de saisie se rectifie par \btn{Corriger} : un nouveau
+    relevé remplace le précédent pour la journée.
+\end{enumerate}
+\end{procedure}
+\capture[0.85\linewidth]{u_temperatures}{Températures des salles : la salle A1 est relevée, les salles A2 et B2 restent à relever.}
+\begin{trace}
+Chaque relevé est conservé tel que saisi, avec son heure et son auteur, et
+ne peut être ni modifié ni supprimé : une correction s'ajoute aux relevés
+précédents et c'est le dernier de la journée qui compte. Les jours passés se
+consultent en lecture seule (une salle non relevée y est signalée en rouge).
+Les relevés figurent dans l'export des journaux bruts.
+\end{trace}
 
 \begin{regle}
 \begin{itemize}
@@ -511,6 +632,9 @@ Chaque cage en service doit être vue au moins une fois par jour.
     le suivi de l'animal ou de la cage), ou annulé (page \btn{Actes} de
     l'expérience, bouton \btn{Annuler}, pour une date ou toutes les dates
     restant à faire).
+  \item La température d'une salle se relève le jour même : les valeurs
+    doivent être comprises entre -30 et 60~°C, et le minimum ne peut pas
+    dépasser le maximum.
   \item En fin de journée, à l'heure fixée par l'administrateur (18:00 par
     défaut), les administrateurs reçoivent la liste des cages non vues.
   \item Les jours passés se consultent en lecture seule.
@@ -692,8 +816,10 @@ dans \btn{Portées précédentes}.
     parmi les reproducteurs de la cage, \btn{Petits nés vivants},
     \btn{Petits nés morts} et \btn{Remarques}.
   \item \btn{Enregistrer la naissance}. La date de sevrage prévue est
-    calculée automatiquement (âge réglé par l'administrateur, 21 jours par
-    défaut), et la portée apparaît dans l'encadré \btn{Portées en cours}.
+    calculée automatiquement : date de naissance plus l'âge au sevrage de la
+    lignée de la mère (à défaut, du père), sinon de son espèce, sinon du
+    laboratoire (21 jours par défaut). Le formulaire rappelle l'âge qui
+    s'appliquera. La portée apparaît dans l'encadré \btn{Portées en cours}.
   \item Reportez aussi la portée au crayon sur l'étiquette de la cage.
 \end{enumerate}
 \end{procedure}
@@ -1359,7 +1485,8 @@ fois par an : les registres réglementaires dépendent de ces sauvegardes.
 Nom, URL & --- & Affichés sur les pages, les étiquettes et dans les e-mails.\\
 Fuseau horaire & Europe/Paris & Définit le « jour » de la tournée, des suivis et des rappels.\\
 Alerte de la tournée & 18:00 & Heure après laquelle les administrateurs reçoivent la liste des cages non vues.\\
-Âge au sevrage & 21 jours & Sert au calcul de la date de sevrage prévue de chaque portée.\\
+Température des salles & min / max & Ce qui se relève pour chaque salle à la tournée : minimum et maximum de la journée, ou température actuelle.\\
+Âge au sevrage & 21 jours & Sert au calcul de la date de sevrage prévue des portées dont l'espèce et la lignée n'ont pas leur propre âge (section~\ref{sec:lignees}).\\
 Rappels du matin & 07:30 & Heure des rappels d'actes expérimentaux et de sevrage.\\
 Déconnexion & 30 min & Inactivité tolérée avant fermeture de la session (5 à 720 minutes).\\
 Double authentification & obligatoire & Exigée des administrateurs et responsables BEA.\\
@@ -1417,11 +1544,34 @@ choisis} sur toutes ses cages, puis désactivez son compte.
 
 \section{Référentiels}
 
-\subsection{Lignées et souches}
+\subsection{Lignées et souches}\label{sec:lignees}
 \menu{Paramètres > Gérer les lignées animales} : code et espèce de chaque
 lignée. Le code forme le numéro des animaux (\texttt{RSD-0002}). Une espèce
 sans lignée ne peut pas être incluse en expérimentation.
 \menu{Paramètres > Gérer les souches} : souches et références (RRID).
+
+\begin{procedure}{Régler l'âge au sevrage par espèce ou par lignée}
+\begin{enumerate}
+  \item \menu{Paramètres > Gérer les lignées animales}.
+  \item \textbf{Par espèce} : dans le tableau \btn{Âge au sevrage par
+    espèce} (une ligne par espèce des lignées), saisissez le nombre de jours
+    puis \btn{Enregistrer}. Laissez vide pour revenir à la valeur du
+    laboratoire.
+  \item \textbf{Par lignée} : bouton de modification de la lignée, champ
+    \btn{Âge au sevrage (jours)}, puis \btn{Mettre à jour la lignée}. Laissez
+    vide pour utiliser l'âge de l'espèce.
+  \item La colonne \btn{Âge au sevrage} du tableau des lignées indique l'âge
+    appliqué à chaque lignée et sa provenance (lignée, espèce ou
+    laboratoire).
+\end{enumerate}
+\end{procedure}
+\begin{regle}
+L'âge au sevrage d'une portée est celui de la lignée de la mère (à défaut,
+du père), sinon celui de son espèce, sinon celui du laboratoire
+(\menu{Paramètres > Gérer le laboratoire}). Un changement s'applique aux
+portées enregistrées ensuite : la date prévue des portées en cours ne change
+pas. Chaque changement d'âge d'une espèce est journalisé.
+\end{regle}
 
 \subsection{Autorisations de projet}
 \menu{Paramètres > Autorisations de projet (n° éthique)}.
@@ -1531,17 +1681,62 @@ est marqué « corrigé » dans le registre.
 
 \section{Volet BEA}\label{sec:bea}
 \begin{itemize}
-  \item \menu{Paramètres > Analyse rétrospective BEA} : parcours par essai,
-    plan, puis expérience. Les sévérités réelles (sans réveil, légère,
-    modérée, sévère) sont classées en regard de la sévérité attendue du
-    plan. Le dossier complet de chaque animal est imprimable.
+  \item \menu{Paramètres > Analyse rétrospective BEA} : classement de la
+    sévérité réelle de chaque animal (section~\ref{sec:retrospective}).
   \item \menu{Paramètres > Bilan annuel d'utilisation des animaux} :
     effectifs, procédures terminées par sévérité réelle, utilisation par
     autorisation, sorties, animaux non utilisés. Export CSV ou ZIP.
   \item \menu{Paramètres > Livrets de formation du personnel} : voir la
     section~\ref{sec:livrets}.
 \end{itemize}
-\capture[0.85\linewidth]{a_retrospective}{Analyse rétrospective BEA d’une expérience.}
+
+\subsection{Analyse rétrospective}\label{sec:retrospective}
+Une fois la participation d'un animal clôturée (sortie de l'animal, ou
+bouton \btn{Clôturer} de l'expérience), le responsable BEA classe la
+\textbf{sévérité réelle} de ce qu'il a vécu : sans réveil, légère, modérée ou
+sévère. Ce classement alimente le bilan annuel. L'accès est réservé aux
+responsables BEA et aux administrateurs.
+
+\begin{procedure}{Classer les animaux d'une expérience}
+\begin{enumerate}
+  \item \menu{Paramètres > Analyse rétrospective BEA}. Descendez par
+    essai, puis par plan / protocole : chaque niveau indique, par
+    expérience, les participations, celles qui sont clôturées et celles qui
+    sont déjà classées. Un badge jaune \btn{$n$ à classer} signale le
+    travail en attente.
+  \item \btn{Ouvrir} l'expérience. La page rappelle l'essai, l'autorisation
+    de projet et la \textbf{sévérité attendue} du protocole. Chaque animal
+    clôturé y figure avec le déroulement de sa participation : dates
+    d'inclusion et de sortie, motif de sortie, nombre de suivis, score
+    clinique maximal, perte de poids maximale, points limites atteints et
+    actions ouvertes, signalements sanitaires, actes et traitements.
+  \item Au besoin, ouvrez le \btn{Dossier complet} de l'animal (nouvel
+    onglet, imprimable) : suivis jour par jour, actions de point limite,
+    signalements, traitements et mouvements de cage, la période de
+    participation étant mise en évidence.
+  \item Pour chaque animal, choisissez la classification et rédigez la
+    justification (déroulement, 3R, points à améliorer). Pour plusieurs
+    animaux au même déroulement, \btn{Même classification pour plusieurs
+    animaux} remplit la classification et la justification de tous les
+    animaux non classés, ou de tous.
+  \item \btn{Valider les classifications de l’expérience} : la page est
+    enregistrée en une seule fois, et chaque animal doit être classé et
+    justifié.
+\end{enumerate}
+\end{procedure}
+\capture[0.85\linewidth]{a_retro_navigation}{Analyse rétrospective d’un plan / protocole : une expérience terminée avec 2 animaux à classer, une expérience en cours.}
+\capture[0.95\linewidth]{a_retrospective}{Classement d’une expérience : l’animal sorti au point limite est classé « Sévère », au-dessus de la sévérité attendue ; les deux autres restent à classer.}
+\capture[0.85\linewidth]{a_dossier}{Dossier complet d’un animal : participation, sortie et classification BEA, puis suivis journaliers et actions de point limite.}
+\begin{regle}
+\begin{itemize}
+  \item Seules les participations clôturées se classent. Les animaux encore
+    en expérimentation sont listés à part.
+  \item Une sévérité réelle supérieure à la sévérité attendue du protocole
+    est signalée par le badge rouge \btn{Supérieure à l’attendu}.
+  \item Une classification se modifie en revenant sur la page de
+    l'expérience. Elle porte le nom de son auteur et sa date.
+\end{itemize}
+\end{regle}
 
 \section{Livrets de formation du personnel}\label{sec:livrets}
 Les administrateurs et les responsables BEA suivent la formation de chaque

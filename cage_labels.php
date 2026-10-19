@@ -45,7 +45,6 @@ if ($baseUrl === '') {
     $baseUrl = 'https://' . $baseUrl;
 }
 $baseUrl = rtrim($baseUrl, '/');
-$weaningDays = weaning_age_days($con); // printed on breeding labels for pencil entries
 
 $labelData = [];
 foreach ($ids as $id) {
@@ -91,12 +90,15 @@ foreach ($ids as $id) {
     $cage['breeders'] = [];
     $cage['litters'] = [];
     if ($cage['kind'] === 'breeding') {
-        $breedersStmt = $con->prepare("SELECT m.animal_uid, m.sex FROM breeding b JOIN breeding_animals ba ON ba.breeding_id = b.id
+        $breedersStmt = $con->prepare("SELECT m.animal_uid, m.sex, m.line_id FROM breeding b JOIN breeding_animals ba ON ba.breeding_id = b.id
             JOIN mice m ON m.id = ba.animal_id WHERE b.cage_id = ? AND m.status = 'active' ORDER BY ba.sex, m.animal_uid");
         $breedersStmt->bind_param('s', $id);
         $breedersStmt->execute();
         $cage['breeders'] = $breedersStmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $breedersStmt->close();
+        // Printed for pencil entries: the weaning age of the dams' line.
+        $dam = array_values(array_filter($cage['breeders'], fn($b) => $b['sex'] === 'female'))[0] ?? null;
+        $cage['weaning_days'] = weaning_age_days($con, $dam && $dam['line_id'] ? (int) $dam['line_id'] : null);
         // Nursing litters with the deaths already recorded (printed on the
         // pencil table; what happens after printing is written by hand).
         $cage['litters'] = db_rows(
@@ -223,7 +225,7 @@ foreach ($ids as $id) {
                                     <?php endfor; ?>
                                 </tbody>
                             </table>
-                            <div class="hint">Notez au crayon chaque naissance, mort et sevrage, <strong>puis enregistrez-le aussi dans MyAnimLab</strong> (scanner le QR → Portées) et cochez « Saisi ». Sevrage prévu = naissance + <?= (int) $weaningDays ?> jours. La fiche reste juste sans réimpression.</div>
+                            <div class="hint">Notez au crayon chaque naissance, mort et sevrage, <strong>puis enregistrez-le aussi dans MyAnimLab</strong> (scanner le QR → Portées) et cochez « Saisi ». Sevrage prévu = naissance + <?= (int) $cage['weaning_days'] ?> jours. La fiche reste juste sans réimpression.</div>
                         </div>
                     <?php endif; ?>
                     <?php if ($cage['experiments']) : ?>

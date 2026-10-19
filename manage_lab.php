@@ -39,6 +39,7 @@ $defaultLabData = [
     'timezone' => '',
     'round_alert_time' => '18:00',
     'weaning_age_days' => '21',
+    'room_temperature_mode' => 'min_max',
     'session_timeout_minutes' => (string) SESSION_TIMEOUT_DEFAULT_MINUTES,
     'acts_reminder_time' => '07:30',
     'require_2fa_privileged' => '1',
@@ -66,13 +67,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_lab'])) {
     }
 
     // Sanitize and fetch form inputs
-    $inputFields = ['lab_name', 'url', 'timezone', 'round_alert_time', 'weaning_age_days', 'session_timeout_minutes', 'acts_reminder_time', 'require_2fa_privileged', 'r1_temp', 'r1_humi', 'r1_illu', 'r1_pres', 'r2_temp', 'r2_humi', 'r2_illu', 'r2_pres', 'cf-turnstile-secretKey', 'cf-turnstile-sitekey'];
+    $inputFields = ['lab_name', 'url', 'timezone', 'round_alert_time', 'weaning_age_days', 'room_temperature_mode', 'session_timeout_minutes', 'acts_reminder_time', 'require_2fa_privileged', 'r1_temp', 'r1_humi', 'r1_illu', 'r1_pres', 'r2_temp', 'r2_humi', 'r2_illu', 'r2_pres', 'cf-turnstile-secretKey', 'cf-turnstile-sitekey'];
     $inputData = [];
     foreach ($inputFields as $field) {
         // Stored as typed (every output escapes it); FILTER_SANITIZE_STRING is deprecated.
         $inputData[$field] = trim(strip_tags((string) ($_POST[$field] ?? '')));
     }
     $inputData['acts_reminder_time'] = preg_match('/^\d{2}:\d{2}$/', $inputData['acts_reminder_time']) ? $inputData['acts_reminder_time'] : '07:30';
+    $inputData['room_temperature_mode'] = isset(ROOM_TEMPERATURE_MODES[$inputData['room_temperature_mode']]) ? $inputData['room_temperature_mode'] : 'min_max';
+    if ($inputData['room_temperature_mode'] !== $labData['room_temperature_mode']) {
+        log_activity($con, 'settings_changed', 'settings', 'room_temperature_mode', $labData['room_temperature_mode'] . ' → ' . $inputData['room_temperature_mode'], $_SESSION['user_id'] ?? null);
+    }
     $inputData['require_2fa_privileged'] = !empty($_POST['require_2fa_privileged']) ? '1' : '0';
     if ($inputData['require_2fa_privileged'] !== $labData['require_2fa_privileged']) {
         log_activity($con, 'settings_changed', 'settings', 'require_2fa_privileged', $labData['require_2fa_privileged'] . ' → ' . $inputData['require_2fa_privileged'], $_SESSION['user_id'] ?? null);
@@ -200,6 +205,15 @@ require 'header.php';
                 <input type="time" class="form-control" id="round_alert_time" name="round_alert_time" value="<?php echo htmlspecialchars($labData['round_alert_time']); ?>">
             </div>
             <div class="form-group">
+                <label for="room_temperature_mode"><?= trh('Room temperature on the daily round') ?></label>
+                <small class="form-text text-muted d-block"><?= trh('What is entered for each room on the daily round: the minimum and maximum of the day (min / max thermometer), or the temperature read at the time of the round.') ?></small>
+                <select class="form-control" id="room_temperature_mode" name="room_temperature_mode">
+                    <?php foreach (ROOM_TEMPERATURE_MODES as $value => $text) : ?>
+                        <option value="<?= $value ?>" <?= $labData['room_temperature_mode'] === $value ? 'selected' : '' ?>><?= trh($text) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="form-group">
                 <label for="session_timeout_minutes"><?= trh('Sign-out after inactivity (minutes)') ?></label>
                 <small class="form-text text-muted d-block"><?= trh('A user who does nothing for this time is signed out and must sign in again ({min} to {max} minutes; default {default}).', ['min' => SESSION_TIMEOUT_MIN_MINUTES, 'max' => SESSION_TIMEOUT_MAX_MINUTES, 'default' => SESSION_TIMEOUT_DEFAULT_MINUTES]) ?></small>
                 <input type="number" min="<?= SESSION_TIMEOUT_MIN_MINUTES ?>" max="<?= SESSION_TIMEOUT_MAX_MINUTES ?>" step="1" class="form-control" id="session_timeout_minutes" name="session_timeout_minutes" value="<?php echo htmlspecialchars($labData['session_timeout_minutes']); ?>" required>
@@ -217,7 +231,7 @@ require 'header.php';
             </div>
             <div class="form-group">
                 <label for="weaning_age_days"><?= trh('Weaning age (days)') ?></label>
-                <small class="form-text text-muted d-block"><?= trh('Used to compute each litter’s expected weaning date from its date of birth.') ?></small>
+                <small class="form-text text-muted d-block"><?= trh('Default used to compute each litter’s expected weaning date from its date of birth, for the species and lines without their own weaning age (Manage Animal Lines).') ?></small>
                 <input type="number" min="1" class="form-control" id="weaning_age_days" name="weaning_age_days" value="<?php echo htmlspecialchars($labData['weaning_age_days']); ?>">
             </div>
             <div class="form-group">

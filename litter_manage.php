@@ -61,7 +61,16 @@ $breeders->execute();
 $breeders = $breeders->get_result()->fetch_all(MYSQLI_ASSOC);
 $breederById = array_column($breeders, null, 'id');
 
-$weaningAge = weaning_age_days($con);
+// Weaning age of the pups: their line's (the dam's, else the sire's), else
+// the species', else the laboratory's.
+$weaningSources = ['line' => tr('line'), 'species' => tr('species'), 'lab' => tr('laboratory')];
+$weaningHints = [];
+foreach ($breeders as $b) {
+    if ($b['sex'] === 'female') {
+        [$days, $source] = weaning_age_source($con, $b['line_id'] ? (int) $b['line_id'] : null);
+        $weaningHints[$days . $source] = tr('{n} days ({source})', ['n' => $days, 'source' => $weaningSources[$source]]);
+    }
+}
 $selfUrl = $litter ? "litter_manage.php?litter_id={$litter['id']}" : "litter_manage.php?cage_id=" . rawurlencode($cageId);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -99,6 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($sireId && ($breederById[$sireId]['sex'] ?? '') !== 'male') {
                 throw new Exception(tr('The sire must be one of the cage’s males.'));
             }
+            $weaningAge = weaning_age_days($con, litter_line_id($con, $damId, $sireId));
             $expected = date('Y-m-d', strtotime("$dob +$weaningAge days"));
             $ins = $con->prepare("INSERT INTO litters (cage_id, dom, litter_dob, pups_alive, pups_dead, remarks, sire_id, dam_id, status, expected_weaning_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'nursing', ?)");
             $ins->bind_param("sssiisiis", $cageId, $dom, $dob, $alive, $dead, $remarks, $sireId, $damId, $expected);
@@ -350,7 +360,7 @@ require 'header.php';
                             <div class="col-md-3"><label class="form-label"><?= trh('Pups born dead') ?></label><input type="number" class="form-control" name="pups_dead" min="0" value="0"></div>
                             <div class="col-md-6"><label class="form-label"><?= trh('Remarks') ?></label><input type="text" class="form-control" name="remarks"></div>
                         </div>
-                        <p class="text-muted small mt-2 mb-2"><?= trh('Expected weaning: date of birth + {n} days (Manage Lab).', ['n' => $weaningAge]); ?></p>
+                        <p class="text-muted small mt-2 mb-2"><?= trh('Expected weaning: date of birth + the weaning age of the line, else of the species, else of the laboratory ({ages}).', ['ages' => implode(', ', $weaningHints) ?: tr('{n} days ({source})', ['n' => weaning_age_days($con), 'source' => $weaningSources['lab']])]); ?></p>
                         <button name="action" value="birth" class="btn btn-primary"><?= trh('Record birth') ?></button>
                     </form>
                 </div>

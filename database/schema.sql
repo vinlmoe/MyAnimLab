@@ -187,8 +187,17 @@ CREATE TABLE `animal_lines` (
   `species` varchar(100) NOT NULL,
   `name` varchar(255) NOT NULL,
   `notes` text DEFAULT NULL,
+  `weaning_age_days` int DEFAULT NULL,
   `next_seq` int NOT NULL DEFAULT 1,
   PRIMARY KEY (`id`)
+);
+
+-- Weaning age of a species, used by its lines that have none of their own
+-- (weaning_age_days() in animal_lib.php; else the laboratory setting).
+CREATE TABLE `species_weaning_ages` (
+  `species` varchar(100) NOT NULL,
+  `weaning_age_days` int NOT NULL,
+  PRIMARY KEY (`species`)
 );
 
 -- Singleton counter used to auto-generate every cage_id (P-00001, P-00002, ...).
@@ -1380,6 +1389,31 @@ CREATE TRIGGER `endpoint_action_comments_no_update` BEFORE UPDATE ON `endpoint_a
 CREATE TRIGGER `endpoint_action_comments_no_delete` BEFORE DELETE ON `endpoint_action_comments`
   FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Endpoint action comments are append-only';
 
+-- Temperature of each room, entered on the daily round: the minimum and
+-- maximum of the day, or the current temperature (setting
+-- room_temperature_mode: 'min_max' by default, or 'current'). Readings are
+-- kept as entered (append-only): the latest one of the day is shown, a new
+-- entry corrects it.
+CREATE TABLE `room_temperatures` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `room` varchar(255) NOT NULL,
+  `reading_date` date NOT NULL,
+  `mode` ENUM('min_max','current') NOT NULL,
+  `temp_min` decimal(4,1) DEFAULT NULL,
+  `temp_max` decimal(4,1) DEFAULT NULL,
+  `temp_current` decimal(4,1) DEFAULT NULL,
+  `recorded_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `recorded_by` int DEFAULT NULL,
+  `recorded_by_name` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_room_temperatures_date` (`reading_date`, `room`),
+  FOREIGN KEY (`recorded_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+);
+CREATE TRIGGER `room_temperatures_no_update` BEFORE UPDATE ON `room_temperatures`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Room temperatures are append-only';
+CREATE TRIGGER `room_temperatures_no_delete` BEFORE DELETE ON `room_temperatures`
+  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Room temperatures are append-only';
+
 -- Migrations already included in this schema (tools/migrate.php applies the
 -- later ones). Keep this list in step with database/migrations.
 CREATE TABLE `schema_migrations` (
@@ -1425,4 +1459,6 @@ INSERT INTO `schema_migrations` (`version`) VALUES
   ('035_followup_revisions_append_only_logs.sql'),
   ('036_register_corrections_prescriptions_protected.sql'),
   ('037_animal_hard_delete_guard.sql'),
-  ('038_endpoint_withdrawal_and_comments.sql');
+  ('038_endpoint_withdrawal_and_comments.sql'),
+  ('039_weaning_age_by_species_and_line.sql'),
+  ('040_room_temperatures.sql');

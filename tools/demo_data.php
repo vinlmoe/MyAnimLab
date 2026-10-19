@@ -238,6 +238,40 @@ $con->begin_transaction();
 $con->commit();
 db_execute($con, "UPDATE experiment_act_animals SET status = 'done', done_at = ?, done_by = ?, done_by_name = ? WHERE act_id = ? AND planned_date = ?", 'sisis', [$at(-1, '09:10'), $sophie, $names[$sophie], $act, $day(-1)]);
 
+// ----- a finished experiment, for the BEA retrospective review -----
+// Three rats of a vehicle group: one euthanized at an endpoint, two killed at
+// the end of the protocol; one classification already recorded.
+$doneCage = create_holding_cage($con, $admin, 'B2', 'R2', $day(-90), [$sophie], 'Arrivage Janvier Labs', $sophie, $names[$sophie]);
+db_execute($con, 'UPDATE cages SET is_experimental = 1 WHERE cage_id = ?', 's', [$doneCage]);
+db_execute($con, "INSERT INTO experiments (protocol_id, experiment_number, title, start_date, end_date, status) VALUES (?, 'EXP-2026-009', 'Lot 0 — véhicule (témoin)', ?, ?, 'completed')", 'iss', [$protocol, $day(-40), $day(-12)]);
+$doneExperiment = (int) $con->insert_id;
+$doneEnrollments = [];
+foreach ([0, 1, 2] as $i) {
+    $animalId = create_animal($con, $doneCage, $rsd, 'male', $day(-90), null, 'Arrivage Janvier Labs', $sophie, $janvier + ['entry_date' => $day(-55)]);
+    db_execute($con, 'INSERT INTO experiment_animals (experiment_id, animal_id, baseline_weight_g, enrolled_at) VALUES (?, ?, ?, ?)', 'iids', [$doneExperiment, $animalId, 315 + 6 * $i, $at(-35, '08:00')]);
+    $doneEnrollments[$i] = [(int) $con->insert_id, $animalId];
+}
+$doneWeights = [[315, 296, 250, 0], [321, 312, 318, 326], [327, 318, 322, 331]];
+foreach ($doneEnrollments as $i => [$enrollment]) {
+    foreach ([-34, -30, -26, -22] as $k => $offset) {
+        if ($i === 0 && $offset === -22) {
+            break;
+        }
+        $bad = $i === 0 && $offset === -26;
+        $scores = $bad ? ['Posture' => 2, 'Pelage' => 1, 'Activité' => 2, 'Plaie opératoire' => 1] : ['Posture' => $k < 1 ? 1 : 0, 'Pelage' => 0, 'Activité' => 0, 'Plaie opératoire' => $k < 2 ? 1 : 0];
+        $fid = $followup($enrollment, $offset, $doneWeights[$i][$k], $scores, 'Sophie Leroy', $bad ? 'Amaigri, prostré' : '');
+        if ($bad) {
+            $thresholdEuth = (int) db_value($con, "SELECT id FROM protocol_endpoint_thresholds WHERE protocol_id = ? AND required_action = 'euthanasia'", 'i', [$protocol]);
+            db_execute($con, "INSERT INTO endpoint_actions (experiment_animal_id, followup_id, threshold_id, required_action, message, measured_value, created_at) VALUES (?, ?, ?, 'euthanasia', 'Perte de poids d’au moins 20 % (Perte de poids % >= 20, mesuré : 20.6)', 20.6, ?)", 'iiis', [$enrollment, $fid, $thresholdEuth, $at(-26, '10:20')]);
+        }
+    }
+}
+exit_animal($con, $doneEnrollments[0][1], 'point_limite', $day(-26), 'Score clinique 6, amaigrissement : point limite atteint', null, $sophie, $names[$sophie], false);
+exit_animal($con, $doneEnrollments[1][1], 'mam_experimentation', $day(-12), 'Fin du protocole : prélèvements terminaux', null, $sophie, $names[$sophie], false);
+exit_animal($con, $doneEnrollments[2][1], 'mam_experimentation', $day(-12), 'Fin du protocole : prélèvements terminaux', null, $sophie, $names[$sophie]);
+db_execute($con, "INSERT INTO experiment_retrospective_assessments (experiment_animal_id, severity_classification, assessment_notes, assessed_by, assessed_by_name) VALUES (?, 'severe', 'Point limite atteint à J+9 malgré l’analgésie : avancer le contrôle du poids à J+5 dans le prochain lot.', ?, ?)",
+    'iis', [$doneEnrollments[0][0], $sophie, $names[$sophie]]);
+
 // ----- health report on a holding animal -----
 $sick = (int) db_value($con, 'SELECT id FROM mice WHERE cage_id = ? ORDER BY id DESC LIMIT 1', 's', [$holding[1]]);
 db_execute($con, "INSERT INTO health_reports (animal_id, animal_uid, cage_id, line_code, observed_at, category, severity, description, reported_by, reported_by_name) VALUES (?, ?, ?, 'RSD', ?, 'skin_fur', 'moderate', 'Alopécie et croûtes sur le dos, grattage fréquent.', ?, ?)",
@@ -325,6 +359,10 @@ foreach (['male', 'male', 'female', 'female'] as $sex) {
     $f2[] = create_animal($con, $f1Cage, $rsd, $sex, $day(-30), ['litter_id' => $f2Litter, 'sire_id' => $f1Male, 'dam_id' => $f1Female], 'Sevrage', $julien);
 }
 
+// ----- room temperatures of the round: one room entered today, corrected once -----
+db_execute($con, "INSERT INTO room_temperatures (room, reading_date, mode, temp_min, temp_max, recorded_at, recorded_by, recorded_by_name) VALUES ('A1', ?, 'min_max', 19.2, 22.6, ?, ?, ?), ('A1', ?, 'min_max', 19.6, 22.6, ?, ?, ?), ('B2', ?, 'min_max', 20.1, 23.0, ?, ?, ?)",
+    'ssisssisssis', [$day(-1), $at(-1, '08:40'), $julien, $names[$julien], $day(0), $at(0, '08:35'), $julien, $names[$julien], $day(-1), $at(-1, '08:50'), $julien, $names[$julien]]);
+
 // ----- notifications for the screenshots of the bell -----
 create_notification($con, $julien, '1 portée(s) : sevrage en retard', "Sevrage en retard :\n• cage $breedCage", "litter_manage.php?cage_id=$breedCage", 'reminder');
 
@@ -334,7 +372,7 @@ if (!empty($opt['ids'])) {
         'holding' => $holding, 'experimental' => $expCage, 'breeding' => $breedCage,
         'overdueLitter' => $overdue, 'exitedAnimal' => $exited, 'sickAnimal' => $sick, 'healthReport' => $report,
         'enrollmentAlert' => $enrollments[2], 'enrollmentCorrected' => $enrollments[0], 'correctedFollowup' => $correctedFollowup,
-        'experiment' => $experiment, 'protocol' => $protocol, 'trial' => $trial, 'act' => $act,
+        'experiment' => $experiment, 'doneExperiment' => $doneExperiment, 'doneEnrollment' => $doneEnrollments[0][0], 'protocol' => $protocol, 'trial' => $trial, 'act' => $act,
         'terrarium' => $terrarium, 'recentLitter' => $recent, 'narcotic' => $ketamine, 'julien' => $julien, 'sophie' => $sophie, 'inbred' => $f2[0], 'founder' => $sire,
     ], JSON_PRETTY_PRINT));
 }
