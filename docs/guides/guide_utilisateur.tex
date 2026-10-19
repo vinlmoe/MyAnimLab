@@ -554,12 +554,24 @@ de parents enregistrés (« Inconnu / origine externe »).
     croisement frère × sœur, 12,5~\% pour des demi-frère et sœur). Il est
     calculé sur la filiation connue (jusqu'à 6 générations) ; un parent
     inconnu compte comme non apparenté, c'est donc une valeur minimale.
+  \item \textbf{Part de chaque ascendant (taux de dilution)} : part
+    attendue du génome d'un ascendant chez l'animal. Un parent en transmet
+    la moitié, chaque génération au-dessus la divise encore par deux (1/2,
+    1/4, 1/8…) ; un ascendant atteint par plusieurs chemins additionne la
+    part de chacun. Le tableau donne, pour chaque ascendant connu, la ou les
+    générations qui le séparent de l'animal, le nombre de chemins et la part
+    (en pourcentage et en fraction). Chaque carte de l'arbre l'indique aussi :
+    \btn{Part chez …} pour un ascendant, \btn{Part de …} pour un descendant.
+    Utile pour suivre un rétrocroisement : après $n$ générations de
+    croisement en retour, la lignée donneuse ne représente plus en moyenne
+    que $1/2^n$ du génome. C'est une moyenne : la part réelle varie avec la
+    recombinaison.
   \item \textbf{Descendance} : les portées de l'animal, avec l'autre parent
     et les petits, puis la descendance de chacun (deux générations). Une
     portée de deux frère et sœur n'apparaît qu'une fois.
   \item \btn{Imprimer / PDF} imprime l'arbre sans les boutons.
 \end{itemize}
-\capture[0.9\linewidth]{u_arbre}{Arbre d’un animal issu d’un croisement frère × sœur : ses grands-parents apparaissent deux fois, consanguinité de 25~\%.}
+\capture[0.9\linewidth]{u_arbre}{Arbre d’un animal issu d’un croisement frère × sœur : ses grands-parents apparaissent deux fois (consanguinité de 25~\%) et représentent chacun 50~\% de son génome (deux chemins de 25~\%).}
 \capture[0.9\linewidth]{u_arbre_descendance}{Descendance d’un reproducteur : sa portée, puis la portée de deux de ses petits.}
 \begin{regle}
 Avant de former un couple, ouvrez l'arbre des deux reproducteurs : un ancêtre
@@ -1252,6 +1264,8 @@ Après une formation & Entrée et attestation & \menu{Paramètres > Mon livret d
   \item[Essai, plan / protocole, expérience] Les trois niveaux d'un projet :
     l'essai relève d'une autorisation de projet, le protocole fixe la grille
     et les points limites, l'expérience regroupe les animaux inclus.
+  \item[Taux de dilution] Part attendue du génome d'un ascendant chez un
+    descendant : 1/2 par génération, additionnée sur chaque chemin.
   \item[Coefficient de consanguinité] Probabilité que les deux copies d'un
     gène viennent du même ancêtre (25~\% pour frère × sœur), calculée dans
     l'arbre généalogique.

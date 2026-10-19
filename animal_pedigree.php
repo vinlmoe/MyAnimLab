@@ -25,7 +25,16 @@ $tree = pedigree_ancestor_tree($parents, $animalId, $generations);
 $repeated = pedigree_repeated_ancestors(pedigree_ancestor_tree($parents, $animalId, PEDIGREE_MAX_GENERATIONS));
 $inbreeding = pedigree_inbreeding($parents, $animalId);
 $descendants = pedigree_descendants($con, $animalId, 2);
-$animals = pedigree_animals($con, array_merge([$animalId], array_keys($parents), pedigree_descendant_ids($descendants)));
+$descendantIds = pedigree_descendant_ids($descendants);
+$animals = pedigree_animals($con, array_merge([$animalId], array_keys($parents), $descendantIds));
+// Dilution rates: share of each ancestor in the animal, and of the animal in
+// each of its descendants.
+$ancestorShares = pedigree_ancestor_shares($parents, $animalId);
+$descendantParents = pedigree_parent_map($con, $descendantIds, 3);
+$descendantShares = [];
+foreach ($descendantIds as $d) {
+    $descendantShares[$d] = pedigree_dilution($descendantParents, $animalId, $d);
+}
 $animal = $animals[$animalId] ?? null;
 
 require 'header.php';
@@ -54,7 +63,7 @@ foreach (array_keys($repeated) as $i => $id) {
 }
 
 /** Card of one animal in the tree; $role: 'Sire' / 'Dam' / ''. */
-$card = function (?int $id, string $role = '', bool $root = false) use ($animals, $label, $repeated, $repeatColor, $generations): string {
+$card = function (?int $id, string $role = '', bool $root = false) use ($animals, $label, $repeated, $repeatColor, $generations, $ancestorShares, $descendantShares, $animalId): string {
     if ($id === null || !isset($animals[$id])) {
         return '<div class="ped-card ped-unknown">' . ($role ? '<div class="ped-role">' . htmlspecialchars(tr($role)) . '</div>' : '')
             . '<span class="text-muted">' . trh('Unknown / external origin') . '</span></div>';
@@ -72,6 +81,11 @@ $card = function (?int $id, string $role = '', bool $root = false) use ($animals
             ? htmlspecialchars(tr('cage {cage}', ['cage' => $a['cage_id'] ?? '—']))
             : '<span class="badge bg-secondary">' . trh('left the facility') . '</span> ' . htmlspecialchars((string) $a['exit_date']))
         . ' · <a href="animal_view.php?id=' . $id . '">' . trh('record') . '</a></div>'
+        . (isset($ancestorShares[$id])
+            ? '<div class="ped-share" title="' . trh('Expected share of this ancestor in the genome of the animal') . '">' . trh('Share in {animal}: {share}', ['animal' => $label($animals[$animalId]), 'share' => pedigree_percent($ancestorShares[$id]['share'])]) . '</div>'
+            : (!empty($descendantShares[$id])
+                ? '<div class="ped-share" title="' . trh('Expected share of the animal in the genome of this descendant') . '">' . trh('Share of {animal}: {share}', ['animal' => $label($animals[$animalId]), 'share' => pedigree_percent($descendantShares[$id])]) . '</div>'
+                : ''))
         . '</div>';
 };
 
@@ -123,7 +137,7 @@ $offspring = function (array $groups) use (&$offspring, $card, $animals, $label)
     }
     return $html;
 };
-$pct = rtrim(rtrim(number_format($inbreeding * 100, 2, ',', ''), '0'), ',');
+$pct = pedigree_percent($inbreeding);
 ?>
 <!doctype html>
 <html lang="<?= htmlspecialchars(current_locale()) ?>">
@@ -146,6 +160,7 @@ $pct = rtrim(rtrim(number_format($inbreeding * 100, 2, ',', ''), '0'), ',');
         .ped-role { font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; color: #6c7a86; }
         .ped-uid { font-weight: 600; font-size: .95rem; }
         .ped-meta { color: #55626d; }
+        .ped-share { margin-top: 3px; font-size: .78rem; font-weight: 600; color: #0f6f68; }
         .ped-litter { border-left: 3px solid #17a398; padding: 4px 0 4px 12px; margin: 10px 0; }
         .ped-litter-title { font-weight: 600; margin-bottom: 6px; }
         .ped-children { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
@@ -179,7 +194,7 @@ $pct = rtrim(rtrim(number_format($inbreeding * 100, 2, ',', ''), '0'), ',');
         </div>
 
         <div class="alert <?= $inbreeding > 0 ? 'alert-warning' : 'alert-light border' ?> py-2" id="inbreeding">
-            <strong><?= trh('Inbreeding coefficient:') ?> <?= $pct ?> %</strong>
+            <strong><?= trh('Inbreeding coefficient:') ?> <?= $pct ?></strong>
             — <?= $knownGenerations
                 ? trh('computed on {n} known generation(s); an unknown parent counts as unrelated, so it is a minimum.', ['n' => min($knownGenerations, PEDIGREE_MAX_GENERATIONS)])
                 : trh('no known parent: the coefficient cannot be assessed.') ?>
@@ -193,6 +208,29 @@ $pct = rtrim(rtrim(number_format($inbreeding * 100, 2, ',', ''), '0'), ',');
 
         <h5><?= trh('Ancestry') ?></h5>
         <div class="ped-scroll mb-4" id="ancestry"><?= $branch($tree, '', true) ?></div>
+
+        <h5><?= trh('Share of each ancestor (dilution rate)') ?></h5>
+        <?php if ($ancestorShares) : ?>
+            <div class="table-responsive" id="dilution">
+                <table class="table table-sm table-bordered align-middle" style="max-width: 760px">
+                    <thead class="table-light"><tr><th><?= trh('Ancestor') ?></th><th><?= trh('Generation(s) above') ?></th><th><?= trh('Paths') ?></th><th class="text-end"><?= trh('Share in the genome') ?></th></tr></thead>
+                    <tbody>
+                        <?php foreach ($ancestorShares as $id => $sh) : ?>
+                            <tr<?= isset($repeatColor[$id]) ? ' style="background:' . $repeatColor[$id] . '"' : '' ?>>
+                                <td><a href="animal_pedigree.php?id=<?= $id ?>&amp;g=<?= $generations ?>"><?= htmlspecialchars(isset($animals[$id]) ? $label($animals[$id]) : '#' . $id) ?></a>
+                                    <?= isset($animals[$id]) ? ($animals[$id]['sex'] === 'male' ? '♂' : ($animals[$id]['sex'] === 'female' ? '♀' : '')) : '' ?></td>
+                                <td><?= htmlspecialchars(implode(', ', $sh['generations'])) ?></td>
+                                <td><?= $sh['paths'] ?></td>
+                                <td class="text-end"><strong><?= pedigree_percent($sh['share']) ?></strong> <span class="text-muted small"><?= pedigree_fraction($sh['share']) ?></span></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <p class="small text-muted"><?= trh('Expected share of each ancestor in the genome of the animal: a parent gives half, each generation above halves it again (1/2, 1/4, 1/8…); an ancestor reached by several paths adds the share of each path. It is an average: the actual share varies with recombination.') ?></p>
+        <?php else : ?>
+            <p class="text-muted"><?= trh('No known ancestor.') ?></p>
+        <?php endif; ?>
 
         <h5><?= trh('Descendants') ?></h5>
         <div id="descendants">
