@@ -1,0 +1,8 @@
+{
+  "env": {
+    "GIT_AUTHOR_NAME": "vinlmoe",
+    "GIT_AUTHOR_EMAIL": "sebastien.lefebvre@vetbrain.fr",
+    "GIT_COMMITTER_NAME": "vinlmoe",
+    "GIT_COMMITTER_EMAIL": "sebastien.lefebvre@vetbrain.fr"
+  }
+}
