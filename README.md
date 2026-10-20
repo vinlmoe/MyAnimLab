@@ -2,17 +2,20 @@
 
 # MyAnimLab
 
-*Application dérivée de [MyVivarium](https://github.com/myvivarium/MyVivarium).*
+*Application dérivée de [MyVivarium](https://github.com/myvivarium/MyVivarium) ([site du projet d’origine](https://myvivarium.online)).*
 
 ![Statut du projet](https://img.shields.io/badge/status-active-brightgreen) [![Licence LGPL](https://img.shields.io/badge/License-LGPL--3.0-blue.svg)](https://choosealicense.com/licenses/lgpl-3.0/)
 
-[![Visiter le site de démonstration](https://img.shields.io/badge/Visit-Demo%20Site-blue?style=for-the-badge)](https://demo.myvivarium.online)
+[![Démonstration de MyVivarium](https://img.shields.io/badge/MyVivarium-Demo%20Site-blue?style=for-the-badge)](https://demo.myvivarium.online)
 
 ![PHP](https://img.shields.io/badge/php-%23777BB4.svg?&style=for-the-badge&logo=php&logoColor=white) ![HTML](https://img.shields.io/badge/html5-%23E34F26.svg?&style=for-the-badge&logo=html5&logoColor=white) ![CSS](https://img.shields.io/badge/css3-%231572B6.svg?&style=for-the-badge&logo=css3&logoColor=white) ![JavaScript](https://img.shields.io/badge/javascript-%23F7DF1E.svg?&style=for-the-badge&logo=javascript&logoColor=black) ![Font Awesome](https://img.shields.io/badge/font%20awesome-%23339AF0.svg?&style=for-the-badge&logo=font-awesome&logoColor=white) ![Bootstrap](https://img.shields.io/badge/bootstrap-%23563D7C.svg?&style=for-the-badge&logo=bootstrap&logoColor=white)
 
-MyVivarium est une plateforme en ligne pour gérer efficacement votre animalerie. Elle propose notamment l’inscription des utilisateurs, la gestion des profils et du laboratoire, ainsi que la surveillance environnementale en temps réel grâce à des capteurs IoT.
+MyAnimLab est une application web de gestion d’animalerie de laboratoire, centrée sur la traçabilité réglementaire : cages, animaux et registre des entrées et sorties, reproduction et sevrage, expérimentation (essais, plans, suivis, points limites, analyse rétrospective BEA), pharmacie et stupéfiants, terrariums, formation du personnel et tournée quotidienne. Elle est en français par défaut et disponible en anglais.
+
+Elle est dérivée de [MyVivarium](https://github.com/myvivarium/MyVivarium), développé par Robinson Vidva et ses collègues (voir [Origine du projet](#origine-du-projet)).
 
 ## Sommaire
+- [Origine du projet](#origine-du-projet)
 - [Fonctionnalités](#fonctionnalités)
 - [Guides](#guides)
 - [Langue de l’interface](#langue-de-linterface)
@@ -20,18 +23,26 @@ MyVivarium est une plateforme en ligne pour gérer efficacement votre animalerie
 - [Installation](#installation)
 - [Utilisation](#utilisation)
 - [Rôle de chaque fichier](#rôle-de-chaque-fichier)
-- [Citer ce travail](#citer-ce-travail)
+- [Site de démonstration de MyVivarium](#site-de-démonstration-de-myvivarium)
+- [Citer MyVivarium](#citer-myvivarium)
 - [Contribuer](#contribuer)
 - [Licence](#licence)
 
+## Origine du projet
+
+MyAnimLab est un fork de [MyVivarium](https://github.com/myvivarium/MyVivarium) ([myvivarium.online](https://myvivarium.online)), plateforme de gestion de colonies d’animaux de laboratoire publiée sous licence LGPL par Robinson Vidva et ses collègues. Le projet d’origine reste la référence pour sa version d’origine, son site de démonstration et sa publication scientifique ; MyAnimLab en reprend la base et l’adapte aux besoins d’un établissement français (traçabilité réglementaire, BEA, formation du personnel, interface en français).
+
 ## Fonctionnalités
-- Connexion des utilisateurs avec vérification de l’adresse e-mail.
+- Connexion des utilisateurs avec vérification de l’adresse e-mail et double authentification.
 - Gestion du profil utilisateur et réinitialisation du mot de passe.
 - Fonctions d’administration pour gérer les utilisateurs et le laboratoire.
-- Surveillance environnementale en temps réel par capteurs IoT. Pour plus de détails, consultez le [dépôt RPi-IoT](https://github.com/myvivarium/RPi-IoT).
-- Gestion des données sécurisée et conforme.
-
-![image](https://myvivarium.online/images/illustration.jpg)
+- Cages d’hébergement, d’accouplement et d’expérimentation, étiquettes à QR code, tournée quotidienne.
+- Registre des entrées et sorties des animaux, généalogie, portées et sevrage.
+- Essais, protocoles et expériences avec suivis, points limites et analyse rétrospective BEA.
+- Pharmacie, ordonnances, administrations et registre des stupéfiants.
+- Terrariums et populations non identifiées.
+- Surveillance environnementale en temps réel par capteurs IoT. Pour plus de détails, consultez le [dépôt RPi-IoT](https://github.com/myvivarium/RPi-IoT) de MyVivarium.
+- Journaux en ajout seul et gestion des données sécurisée.
 
 ## Guides
 
@@ -117,7 +128,7 @@ Arrêtez la session avec `docker compose down`. Pour effacer toutes les données
    - Indiquez l’e-mail, le nom de domaine, le mot de passe de la base de données et les paramètres SMTP pour terminer l’installation et la configuration.
 
 8. **Finalisez l’installation** :
-   - Une fois la configuration DNS propagée (si vous utilisez un domaine), le site est accessible et vous pouvez commencer à utiliser MyVivarium.
+   - Une fois la configuration DNS propagée (si vous utilisez un domaine), le site est accessible et vous pouvez commencer à utiliser MyAnimLab.
 
 ### 2. Installation personnalisée
 
@@ -206,7 +217,7 @@ SMTP_USERNAME=username
 SMTP_PASSWORD=password
 SMTP_ENCRYPTION=tls
 SENDER_EMAIL=sender@example.com
-SENDER_NAME=MyVivarium
+SENDER_NAME=MyAnimLab
 ```
 
 ##### Configuration de la base de données
@@ -313,13 +324,11 @@ Pour la configuration initiale, utilisez les identifiants administrateur par dé
 - `daily_round.php` : tournée quotidienne par salle. Chaque salle reçoit aussi son relevé de température : minimum et maximum de la journée, ou température actuelle, au choix dans Gérer le laboratoire (réglage `room_temperature_mode`). Les relevés sont conservés tels que saisis (une correction ajoute un relevé, le dernier de la journée compte) et figurent dans l’export des journaux bruts (migration `040_room_temperatures.sql`).
 - `daily_round_alert.php` : alerte de fin de journée envoyée aux administrateurs avec les cages non vues lors de la tournée quotidienne ; à lancer par cron toutes les quelques minutes (par ex. `*/5 * * * * php /chemin/vers/daily_round_alert.php`). Elle n’est envoyée qu’une fois par jour, après l’heure définie dans Gérer le laboratoire.
 
-## Site de démonstration
+## Site de démonstration de MyVivarium
 
-### Découvrir MyVivarium
+MyAnimLab n’a pas de site de démonstration public ; pour une session de test locale, voir [Installation](#installation). Le projet d’origine, [MyVivarium](https://myvivarium.online), propose le sien pour en découvrir les fonctionnalités (interface en anglais, sans les ajouts propres à MyAnimLab) :
 
-Un site de démonstration est disponible pour découvrir les fonctionnalités de MyVivarium. Cliquez sur le bouton ci-dessous pour y accéder :
-
-[![Visiter le site de démonstration](https://img.shields.io/badge/Visit-Demo%20Site-blue?style=for-the-badge)](https://demo.myvivarium.online)
+[![Démonstration de MyVivarium](https://img.shields.io/badge/MyVivarium-Demo%20Site-blue?style=for-the-badge)](https://demo.myvivarium.online)
 
 ### Identifiants d’accès
 
@@ -338,13 +347,13 @@ Pour vous connecter et découvrir les fonctionnalités, utilisez les identifiant
 
 **Avertissement** : ce site de démonstration permet de découvrir les fonctionnalités. Toutes les données sont effacées périodiquement. N’y saisissez aucune information sensible ou critique.
 
-N’hésitez pas à explorer, tester et nous faire part de vos retours. Bonne découverte de MyVivarium !
+N’hésitez pas à explorer et tester ce site de démonstration.
 
 ---
 
-## Citer ce travail
+## Citer MyVivarium
 
-Si vous utilisez ce code, merci de citer l’article suivant :
+MyAnimLab repose sur le travail de MyVivarium. Si vous utilisez ce code, merci de citer l’article du projet d’origine :
 
 Vidva, R., Raza, M. A., Prabhakaran, J., Sheikh, A., Sharp, A., Ott, H., Moore, A., Fleisher, C., Pitychoutis, P. M., Nguyen, T. V., & Sathyanesan, A. (2024). MyVivarium: A cloud-based lab animal colony management application with near-realtime ambient sensing. *bioRxiv*. https://doi.org/10.1101/2024.08.10.607395
 
@@ -365,7 +374,7 @@ Vidva, R., Raza, M. A., Prabhakaran, J., Sheikh, A., Sharp, A., Ott, H., Moore, 
 ```
 
 ## Contribuer
-Les contributions pour améliorer MyVivarium sont les bienvenues. Pour contribuer :
+Les contributions pour améliorer MyAnimLab sont les bienvenues. Pour contribuer :
 
 1. Forkez le dépôt.
 2. Créez une branche : `git checkout -b feature/nom-de-votre-fonctionnalite`
