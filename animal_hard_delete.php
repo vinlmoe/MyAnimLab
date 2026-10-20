@@ -9,7 +9,7 @@
  * trail survives even though the row itself won't.
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 
@@ -24,15 +24,11 @@ if (($_SESSION['role'] ?? '') !== 'admin') {
     exit;
 }
 
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-
 $currentUserId = $_SESSION['user_id'] ?? null;
 $animalId = (int) ($_GET['id'] ?? $_POST['animal_id'] ?? 0);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
 
@@ -50,6 +46,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // An animal with a regulatory history is never deleted (also refused by
+    // the database): it is given an exit, or its register entry corrected.
+    $history = animal_regulatory_history($con, $animalId);
+    if ($history) {
+        $_SESSION['message'] = tr('Animal {uid} has a regulatory history ({reasons}): it cannot be deleted. Record its exit instead.', ['uid' => $animal['animal_uid'], 'reasons' => implode(', ', $history)]);
+        header("Location: animal_hard_delete.php?id=$animalId");
+        exit;
+    }
     if ($confirmUid !== $animal['animal_uid']) {
         $_SESSION['message'] = tr('Confirmation text did not match the animal ID. Nothing was deleted.');
         header("Location: animal_hard_delete.php?id=$animalId");
@@ -73,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             . ($retired ? " Cage {$animal['cage_id']} is now empty and was retired automatically." : '');
     } catch (Exception $e) {
         mysqli_rollback($con);
-        $_SESSION['message'] = tr('Error deleting animal: {error}', ['error' => $e->getMessage()]);
+        $_SESSION['message'] = tr('Error deleting animal: {error}', ['error' => error_message($e)]);
     }
 
     header("Location: home.php");
@@ -113,6 +117,17 @@ if (!$animal) {
 
         <?php include('message.php'); ?>
 
+        <?php $history = animal_regulatory_history($con, (int) $animal['id']); ?>
+        <?php if ($history) : ?>
+            <div class="alert alert-secondary" id="deleteRefused">
+                <strong><?= trh('This animal cannot be deleted: it has a regulatory history.') ?></strong>
+                <ul class="mb-2">
+                    <?php foreach ($history as $reason) : ?><li><?= htmlspecialchars($reason) ?></li><?php endforeach; ?>
+                </ul>
+                <?= trh('Only an animal created by mistake, with nothing recorded since its creation, can be deleted. For a death or a departure, record an exit with its code; for a wrong entry, correct the register entry from the animal record.') ?>
+            </div>
+            <a href="animal_view.php?id=<?= (int) $animal['id']; ?>" class="btn btn-secondary"><?= trh('Back to the animal record') ?></a>
+        <?php else : ?>
         <form method="POST">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
             <input type="hidden" name="animal_id" value="<?= (int) $animal['id']; ?>">
@@ -123,6 +138,7 @@ if (!$animal) {
             <button type="submit" class="btn btn-danger" onclick="return confirm(<?= htmlspecialchars(trj('This is permanent. Continue?')) ?>);"><?= trh('Permanently Delete') ?></button>
             <a href="animal_view.php?id=<?= (int) $animal['id']; ?>" class="btn btn-secondary"><?= trh('Cancel') ?></a>
         </form>
+        <?php endif; ?>
     </div>
 
     <br>

@@ -18,7 +18,7 @@ $labQuery = "SELECT value FROM settings WHERE name = 'lab_name' LIMIT 1";
 $labResult = mysqli_query($con, $labQuery);
 
 // Default value if the query fails or returns no result
-$labName = "My Vivarium";
+$labName = "MyAnimLab";
 if ($row = mysqli_fetch_assoc($labResult)) {
     $labName = $row['value'];
 }
@@ -87,6 +87,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
     <title><?= trh('Reset Password') ?> | <?php echo htmlspecialchars($labName); ?></title>
 
     <!-- Favicon and icons for different devices -->
+    <link rel="icon" type="image/svg+xml" href="images/logo-mark.svg">
     <link rel="icon" href="/icons/favicon.ico" type="image/x-icon">
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
@@ -98,7 +99,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
     <!-- Bootstrap CSS -->
     <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
     <!-- Google Font: Poppins -->
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;700&display=swap" rel="stylesheet">
 
     <style>
         .container {
@@ -138,64 +139,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
             border-radius: 5px;
         }
 
-        .header {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            align-items: center;
-            background-color: #343a40;
-            color: white;
-            padding: 1rem;
-            text-align: center;
-            margin: 0;
-        }
 
-        .header .logo-container {
-            padding: 0;
-            margin: 0;
-        }
 
-        .header img.header-logo {
-            width: 300px;
-            height: auto;
-            display: block;
-            margin: 0;
-        }
 
-        .header h2 {
-            margin-left: 15px;
-            margin-bottom: 0;
-            margin-top: 12px;
-            font-size: 3.5rem;
-            white-space: nowrap;
-            font-family: 'Poppins', sans-serif;
-            font-weight: 500;
-        }
 
-        @media (max-width: 576px) {
-            .header h2 {
-                font-size: 1.8rem;
-                margin-bottom: 5px;
-            }
-
-            .header img.header-logo {
-                width: 150px;
-            }
-        }
     </style>
 </head>
 
 <body>
     <!-- Header Section -->
     <?php if ($demo === "yes") include('demo/demo-banner.php'); ?>
-    <div class="header">
-        <div class="logo-container">
-            <a href="home.php">
-                <img src="images/logo1.jpg" alt="Logo" class="header-logo">
-            </a>
-        </div>
-        <h2><?php echo htmlspecialchars($labName); ?></h2>
-    </div>
+    <?php require 'brand_banner.php'; ?>
     <br>
     <br>
     <div class="container content">
@@ -203,7 +157,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
         <br>
         <form method="POST" action="">
             <!-- Hidden field for the token -->
-            <input type="hidden" id="token" name="token" value="<?= htmlspecialchars($_GET['token']); ?>">
+            <input type="hidden" id="token" name="token" value="<?= htmlspecialchars($_GET['token'] ?? ''); ?>">
 
             <!-- New Password Field -->
             <div class="form-group">

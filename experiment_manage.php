@@ -6,18 +6,15 @@
  * calculations during daily follow-up).
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 require 'ethics_lib.php';
+require_once 'followup_lib.php';
 
 if (!isset($_SESSION['username'])) {
     header("Location: index.php");
     exit;
-}
-
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
 $currentUserId = $_SESSION['user_id'] ?? null;
@@ -38,13 +35,14 @@ if (!$protocol) {
 $trial = ['trial_number' => $protocol['trial_number'], 'start_date' => $protocol['trial_start'], 'end_date' => $protocol['trial_end']];
 $auth = load_authorization($con, $protocol['iacuc_id']);
 $enrollmentBlock = trial_enrollment_block($trial, $auth);
+$quotas = authorization_quotas($con, $protocol['iacuc_id']);
 // Experiments must fit in the protocol period, or in the trial period when the protocol has no dates.
 $experimentFrame = ($protocol['start_date'] || $protocol['end_date'])
     ? ['protocol_number' => $protocol['protocol_number'], 'start_date' => $protocol['start_date'], 'end_date' => $protocol['end_date']]
     : $trial;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
 
@@ -69,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['message'] = "Expérience $experimentNumber créée.";
             } catch (Exception $e) {
                 mysqli_rollback($con);
-                $_SESSION['message'] = 'Impossible de créer l’expérience : ' . $e->getMessage();
+                $_SESSION['message'] = 'Impossible de créer l’expérience : ' . error_message($e);
             }
         }
     } elseif (isset($_POST['enroll_animals'])) {
@@ -82,10 +80,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $valid = $validExperiment->get_result()->num_rows === 1;
         $validExperiment->close();
         $added = $skipped = 0;
+        $quotaError = $valid && $animalIds ? quota_enrollment_error($con, $protocol['iacuc_id'], $animalIds) : null;
         if ($enrollmentBlock) {
             $_SESSION['message'] = $enrollmentBlock;
         } elseif (!$valid || !$animalIds) {
             $_SESSION['message'] = 'Sélectionnez au moins un animal et une expérience valide.';
+        } elseif ($quotaError) {
+            // Animals authorized per species: nobody is enrolled beyond the authorization.
+            $_SESSION['message'] = tr('Not enrolled — {error}', ['error' => $quotaError]);
         } else {
             $activeCheck = $con->prepare("SELECT id FROM mice WHERE id = ? AND status = 'active'");
             $insert = $con->prepare("INSERT INTO experiment_animals (experiment_id, animal_id, baseline_weight_g) VALUES (?, ?, ?)");
@@ -107,6 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $insert->close();
             // Their cages become experimental cages (same cage number).
             $newExperimentalCages = mark_cages_experimental_for_animals($con, $animalIds, $currentUserId);
+            quota_send_alerts($con, $protocol['iacuc_id']);
             $_SESSION['message'] = "$added animal(s) ajouté(s) à l’expérience" . ($skipped ? "; $skipped déjà inclus ou inactif(s)." : '.')
                 . ($newExperimentalCages ? ' Cage(s) passée(s) en expérimentation : ' . implode(', ', $newExperimentalCages) . '.' : '');
         }
@@ -164,7 +167,7 @@ $stmt->bind_param("i", $protocolId);
 $stmt->execute();
 $pendingActions = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
-$stmt = $con->prepare($endpointFields . $endpointBase . " AND a.status = 'done' AND a.done_at >= NOW() - INTERVAL 30 DAY ORDER BY a.done_at DESC");
+$stmt = $con->prepare($endpointFields . $endpointBase . " AND a.status IN ('done', 'withdrawn') AND a.done_at >= NOW() - INTERVAL 30 DAY ORDER BY a.done_at DESC");
 $stmt->bind_param("i", $protocolId);
 $stmt->execute();
 $resolvedActions = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -183,6 +186,7 @@ $stmt->bind_param("i", $protocolId);
 $stmt->execute();
 $alertOnlyFollowups = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
+$actionComments = endpoint_action_comments($con, array_column($pendingActions, 'id'));
 $pendingByEnrollment = array_count_values(array_map('intval', array_column($pendingActions, 'experiment_animal_id')));
 $followupLink = fn(int $enrollmentId): string => 'experiment_followup.php?' . http_build_query(['experiment_animal_id' => $enrollmentId, 'return' => 'experiment_manage.php?protocol_id=' . $protocolId]);
 
@@ -190,6 +194,21 @@ $experiments = $con->prepare("SELECT * FROM experiments WHERE protocol_id = ? OR
 $experiments->bind_param("i", $protocolId);
 $experiments->execute();
 $experiments = $experiments->get_result()->fetch_all(MYSQLI_ASSOC);
+
+// Experimental acts of each experiment: how many are planned, and how many are
+// still to do up to today (overdue included).
+$actCounts = [];
+$actStmt = $con->prepare(
+    "SELECT a.experiment_id, COUNT(DISTINCT a.id) AS acts, SUM(aa.status = 'planned' AND aa.planned_date <= CURDATE()) AS due
+     FROM experiment_acts a JOIN experiments e ON e.id = a.experiment_id LEFT JOIN experiment_act_animals aa ON aa.act_id = a.id
+     WHERE e.protocol_id = ? GROUP BY a.experiment_id"
+);
+$actStmt->bind_param("i", $protocolId);
+$actStmt->execute();
+foreach ($actStmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
+    $actCounts[(int) $row['experiment_id']] = ['acts' => (int) $row['acts'], 'due' => (int) $row['due']];
+}
+$actStmt->close();
 
 // Enrollments of every experiment of the protocol, grouped by experiment.
 $enrolledByExperiment = [];
@@ -322,6 +341,12 @@ require 'header.php';
                                 <?= authorization_badge(null); ?>
                             <?php endif; ?>
                         </div>
+                        <?php if ($auth) : ?>
+                            <div class="small mt-1" id="authorizationQuotas">
+                                <strong><?= trh('Animals authorized') ?> :</strong>
+                                <?= $quotas ? quota_badges($quotas) : '<span class="text-muted">' . trh('no number recorded for this authorization') . '</span>' ?>
+                            </div>
+                        <?php endif; ?>
                     </div>
                     <div class="text-nowrap">
                         <a class="btn btn-sm btn-outline-secondary" href="protocol_manage.php?trial_id=<?= (int) $protocol['trial_id']; ?>#protocol<?= $protocolId; ?>"><i class="fas fa-cog"></i> <?= trh('Protocol settings') ?></a>
@@ -362,9 +387,13 @@ require 'header.php';
                                             <?= trh('Raised on {date}', ['date' => substr($pa['created_at'], 0, 16)]); ?>
                                             <?php if ($pa['observed_at']) : ?> · <?= trh('follow-up of {date}: weight {weight} g, score {score}', ['date' => $pa['observed_at'], 'weight' => $pa['weight_g'] ?? '—', 'score' => $pa['clinical_score'] ?? '—']); ?><?php endif; ?>
                                         </div>
+                                        <?php foreach ($actionComments[(int) $pa['id']] ?? [] as $c) : ?>
+                                            <div class="small"><i class="fas fa-comment text-warning"></i> <?= trh('Not done at once: {comment}', ['comment' => $c['comment']]); ?> <span class="text-muted">— <?= htmlspecialchars(($c['created_by_name'] ?? '') . ', ' . substr($c['created_at'], 0, 16)); ?></span></div>
+                                        <?php endforeach; ?>
                                     </div>
                                     <div class="text-nowrap">
                                         <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars($followupLink((int) $pa['experiment_animal_id'])); ?>"><i class="fas fa-clipboard-check"></i> <?= trh('Follow-up') ?></a>
+                                        <a class="btn btn-sm btn-outline-danger" href="endpoint_action.php?<?= htmlspecialchars(http_build_query(['experiment_animal_id' => $pa['experiment_animal_id'], 'return' => 'experiment_manage.php?protocol_id=' . (int) $protocolId . '#endpointManagement'])); ?>"><i class="fas fa-comment"></i> <?= trh('Carry out or comment') ?></a>
                                         <?php if ($alive) : ?>
                                             <a class="btn btn-sm btn-danger" href="animal_exit.php?<?= htmlspecialchars(http_build_query(['id' => $pa['animal_id'], 'code' => 'point_limite', 'return' => 'experiment_manage.php?protocol_id=' . (int) $protocolId . '#endpointManagement'])); ?>"><i class="fas fa-sign-out-alt"></i> <?= trh('Record the euthanasia') ?></a>
                                         <?php endif; ?>
@@ -411,7 +440,7 @@ require 'header.php';
                                             <td><?= htmlspecialchars($ra['animal_uid']); ?> <span class="text-muted">(<?= htmlspecialchars($ra['experiment_number']); ?>)</span></td>
                                             <td><?= htmlspecialchars(endpoint_required_actions()[$ra['required_action']] ?? $ra['required_action']); ?></td>
                                             <td><?= htmlspecialchars(substr($ra['created_at'], 0, 16)); ?></td>
-                                            <td><?= htmlspecialchars(substr((string) $ra['done_at'], 0, 16) . ' — ' . ($ra['done_by_name'] ?? '') . ' : ' . ($ra['done_note'] ?? '')); ?></td>
+                                            <td><?= $ra['status'] === 'withdrawn' ? '<span class="badge bg-secondary">' . trh('Withdrawn') . '</span> ' : ''; ?><?= htmlspecialchars(substr((string) $ra['done_at'], 0, 16) . ' — ' . ($ra['done_by_name'] ?? '') . ' : ' . ($ra['done_note'] ?? '')); ?></td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
@@ -474,6 +503,9 @@ require 'header.php';
                         <?php if (!$enrollmentBlock) : ?>
                             <button class="btn btn-sm btn-success" type="button" data-bs-toggle="collapse" data-bs-target="#enroll<?= $eid; ?>"><i class="fas fa-user-plus"></i> Ajouter des animaux</button>
                         <?php endif; ?>
+                        <a class="btn btn-sm btn-outline-primary" href="experiment_acts.php?experiment_id=<?= $eid; ?>" title="<?= trh('Injections, gavages, baits, anaesthesia... planned on the animals') ?>"><i class="fas fa-syringe"></i> <?= trh('Acts') ?>
+                            <?php if (!empty($actCounts[$eid]['acts'])) : ?><span class="badge bg-secondary"><?= $actCounts[$eid]['acts']; ?></span><?php endif; ?>
+                            <?php if (!empty($actCounts[$eid]['due'])) : ?><span class="badge bg-warning text-dark" title="<?= trh('{n} act(s) to confirm up to today', ['n' => $actCounts[$eid]['due']]); ?>"><?= $actCounts[$eid]['due']; ?> !</span><?php endif; ?></a>
                         <a class="btn btn-sm btn-outline-dark" href="experiment_report.php?experiment_id=<?= $eid; ?>"><i class="fas fa-file-alt"></i> <?= trh('Report (with grids)') ?></a>
                     </div>
                 </div>

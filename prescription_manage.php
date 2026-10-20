@@ -1,13 +1,12 @@
 <?php
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 
 if (!isset($_SESSION['username'])) { header('Location:index.php'); exit; }
-if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'] ?? '')) die('CSRF token validation failed');
+    if (!csrf_valid()) die('CSRF token validation failed');
 
     $animalIds = array_values(array_unique(array_filter(array_map('intval', (array) ($_POST['animal_ids'] ?? [])))));
     $productId = (int) ($_POST['product_id'] ?? 0);
@@ -56,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['message'] = 'Ordonnance enregistrée pour ' . count($animalIds) . ' animal(aux), avec ' . $planned . ' administration(s) prévue(s) par animal.';
     } catch (Exception $e) {
         @mysqli_rollback($con);
-        $_SESSION['message'] = 'Erreur : ' . $e->getMessage();
+        $_SESSION['message'] = 'Erreur : ' . error_message($e);
     }
     header('Location:prescription_manage.php'); exit;
 }

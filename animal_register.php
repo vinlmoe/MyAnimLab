@@ -9,9 +9,10 @@
  * and PDF; every export is recorded in the activity log. Animals whose
  * origin is still to be completed are listed separately.
  */
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
+require_once 'corrections_lib.php';
 require 'pdf_lib.php';
 
 if (!isset($_SESSION['username'])) {
@@ -75,6 +76,7 @@ if ($movement !== 'entries') {
         $lines[] = ['date' => $a['exit_date'], 'kind' => 'exit'] + $a;
     }
 }
+$correctedAnimals = animal_correction_counts($con, array_column($lines, 'id'));
 usort($lines, fn($x, $y) => [$x['date'], $x['kind'] === 'exit', $x['animal_uid'] ?? '', $x['id']] <=> [$y['date'], $y['kind'] === 'exit', $y['animal_uid'] ?? '', $y['id']]);
 
 // Animals present at the start and at the end of the period.
@@ -117,7 +119,7 @@ $periodText = tr('Period: {from} to {to}', ['from' => $from, 'to' => $to])
 
 if ($format === 'csv' || $format === 'pdf') {
     // The header (which loads the lab name) is not included for a download.
-    $labName = $con->query("SELECT value FROM settings WHERE name = 'lab_name'")->fetch_row()[0] ?? 'My Vivarium';
+    $labName = $con->query("SELECT value FROM settings WHERE name = 'lab_name'")->fetch_row()[0] ?? 'MyAnimLab';
     log_activity($con, 'export', 'animal_register', null, strtoupper($format) . " $from → $to ($movement" . ($species !== '' ? ", $species" : '') . ($lineId ? ", line $lineId" : '') . ')', $_SESSION['user_id'] ?? null);
     $filename = 'registre_entrees_sorties_' . $from . '_' . $to . '.' . $format;
     if ($format === 'csv') {
@@ -256,7 +258,7 @@ require 'header.php';
                             <td class="text-muted small"><?= $i + 1 ?></td>
                             <td class="text-nowrap"><?= htmlspecialchars($l['date']) ?></td>
                             <td><?= $l['kind'] === 'entry' ? '<span class="badge bg-success"><i class="fas fa-sign-in-alt"></i> ' . trh('Entry') . '</span>' : '<span class="badge bg-danger"><i class="fas fa-sign-out-alt"></i> ' . trh('Exit') . '</span>' ?></td>
-                            <td class="text-nowrap"><a href="animal_view.php?id=<?= (int) $l['id'] ?>#register"><?= htmlspecialchars($labelOf($l)) ?></a></td>
+                            <td class="text-nowrap"><a href="animal_view.php?id=<?= (int) $l['id'] ?>#register"><?= htmlspecialchars($labelOf($l)) ?></a><?php if (!empty($correctedAnimals[(int) $l['id']])) : ?> <span class="badge bg-warning text-dark" title="<?= trh('Corrected after recording: see the corrections on the animal\'s record') ?>"><?= trh('corrected') ?></span><?php endif; ?></td>
                             <td><?= htmlspecialchars($l['species'] ?? '') ?></td>
                             <td class="small"><?= htmlspecialchars($lineOf($l)) ?></td>
                             <td class="text-center"><?= htmlspecialchars($sexOf($l['sex'])) ?></td>

@@ -8,7 +8,7 @@
  * to another one without re-creating it, and keeps a full movement history.
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 
@@ -18,14 +18,10 @@ if (!isset($_SESSION['username'])) {
     exit;
 }
 
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-
 $currentUserId = $_SESSION['user_id'] ?? null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
 
@@ -41,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['message'] = "{$result['count']} animal(s) transferred to $toCageId. Empty source cages were retired automatically.";
     } catch (Exception $e) {
         mysqli_rollback($con);
-        $_SESSION['message'] = tr('Transfer failed: {error}', ['error' => $e->getMessage()]);
+        $_SESSION['message'] = tr('Transfer failed: {error}', ['error' => error_message($e)]);
     }
 
     header("Location: animal_transfer.php");

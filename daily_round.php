@@ -8,20 +8,20 @@
  * report on one of its animals. Cages already seen today through the
  * experimental daily follow-up, a health report or a QR scan show as seen.
  * Past days can be reviewed (read-only) to spot missed cages.
+ * The temperature of each room is entered on the round: the minimum and
+ * maximum of the day, or the current temperature (Manage Lab).
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
+require_once 'training_lib.php';
+require 'experiment_acts_lib.php';
 
 if (!isset($_SESSION['username'])) {
     $currentUrl = urlencode($_SERVER['REQUEST_URI']);
     header("Location: index.php?redirect=$currentUrl");
     exit;
-}
-
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
 $today = date('Y-m-d');
@@ -34,8 +34,21 @@ $room = $_GET['room'] ?? $_POST['room'] ?? '';
 $hideSeen = !empty($_GET['hide_seen']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
+    }
+
+    // Temperature of a room (today only, like the checks).
+    if (isset($_POST['room_temperature'])) {
+        try {
+            $tempRoom = trim((string) ($_POST['temp_room'] ?? ''));
+            record_room_temperature($con, $tempRoom, room_temperature_mode($con), ['min' => $_POST['temp_min'] ?? '', 'max' => $_POST['temp_max'] ?? '', 'current' => $_POST['temp_current'] ?? ''], $_SESSION['user_id'] ?? null, $_SESSION['name'] ?? null);
+            $_SESSION['message'] = tr('Temperature of room {room} recorded.', ['room' => $tempRoom]);
+        } catch (Exception $e) {
+            $_SESSION['message'] = tr('Temperature not recorded: {error}', ['error' => error_message($e)]);
+        }
+        header("Location: daily_round.php?" . http_build_query(['room' => $room, 'hide_seen' => $_POST['hide_seen'] ?? null]) . '#roomTemperatures');
+        exit;
     }
 
     // Checks can only be recorded for today: the log is a real-time record.
@@ -54,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         log_activity($con, 'daily_check', 'cage', implode(',', $cageIds), tr('{n} cage(s) checked OK on the round', ['n' => count($cageIds)]), $_SESSION['user_id'] ?? null);
     }
     $_SESSION['message'] = ($cageIds ? tr('{n} cage(s) marked as checked OK.', ['n' => count($cageIds)]) : ($underExperiment ? '' : tr('No cage selected.')))
-        . ($underExperiment ? ' ' . tr('Cage(s) under experiment not validated: {cages} — enter the follow-up of each animal.', ['cages' => implode(', ', $underExperiment)]) : '');
+        . ($underExperiment ? ' ' . tr('Cage(s) under experiment not validated: {cages} — enter the follow-up of each animal and confirm the acts due.', ['cages' => implode(', ', $underExperiment)]) : '');
 
     header("Location: daily_round.php?" . http_build_query(['room' => $room, 'hide_seen' => $_POST['hide_seen'] ?? null]));
     exit;
@@ -83,10 +96,12 @@ $treatmentRows = $con->query(
      FROM prescription_animals pa
      JOIN prescriptions pr ON pr.id=pa.prescription_id AND pr.status='active'
      JOIN mice m ON m.id=pa.animal_id AND m.status='active'
-     WHERE pa.planned_administrations > (SELECT COUNT(*) FROM medication_administrations ma WHERE ma.prescription_id=pa.prescription_id AND ma.animal_id=pa.animal_id)
+     WHERE pa.planned_administrations > (SELECT COUNT(*) FROM medication_administrations ma WHERE ma.prescription_id=pa.prescription_id AND ma.animal_id=pa.animal_id AND ma.cancelled_at IS NULL)
      GROUP BY m.cage_id"
 )->fetch_all(MYSQLI_ASSOC);
 foreach ($treatmentRows as $treatment) $treatmentsByCage[$treatment['cage_id']] = (int) $treatment['pending_count'];
+// Experimental acts to confirm today (or overdue), per cage.
+$actsDueByCage = acts_due_by_cage($con, date('Y-m-d'));
 
 // Room summary (cages with no room are grouped under "").
 $rooms = [];
@@ -102,6 +117,15 @@ foreach ($cages as $c) {
     }
 }
 $totalCages = count($cages);
+// Room temperatures of the day: the last reading of each room counts.
+$temperatureMode = room_temperature_mode($con);
+$temperatures = room_temperatures_for_date($con, $date);
+$temperatureRooms = array_values(array_filter(array_keys($rooms), fn($r) => $r !== '' && ($room === '' || $room === $r)));
+foreach (array_keys($temperatures) as $r) {
+    if (($room === '' || $room === $r) && !in_array($r, $temperatureRooms, true)) {
+        $temperatureRooms[] = $r; // a room emptied since the reading
+    }
+}
 $totalSeen = array_sum(array_column($rooms, 'seen'));
 $roomLabel = fn($r) => $r === '' ? tr('No room assigned') : tr('Room {room}', ['room' => $r]);
 
@@ -149,9 +173,10 @@ require 'header.php';
                 </form>
             </div>
         </div>
-        <p class="text-muted"><?= trh('Every active cage must be seen at least once a day. A cage counts as seen when it is ticked on this round, validated from its QR code, or has a health report on one of its animals. A cage under experiment is validated only once every one of its animals has its experimental follow-up for the day.') ?></p>
+        <p class="text-muted"><?= trh('Every active cage must be seen at least once a day. A cage counts as seen when it is ticked on this round, validated from its QR code, or has a health report on one of its animals. A cage under experiment is validated only once every one of its animals has its experimental follow-up for the day and every experimental act due on them is confirmed.') ?></p>
 
         <?php include('message.php'); ?>
+        <?= training_procedure_banner($con, 'round') ?>
 
         <div class="alert <?= $totalSeen === $totalCages ? 'alert-success' : ($isToday ? 'alert-warning' : 'alert-danger'); ?>">
             <?= tr($isToday ? '{count} cage(s) seen so far today.' : '{count} cage(s) seen on {date}.', ['count' => '<strong>' . $totalSeen . ' / ' . $totalCages . '</strong>', 'date' => htmlspecialchars($date)]); ?>
@@ -182,6 +207,7 @@ require 'header.php';
                                 <strong><?= htmlspecialchars($roomLabel($r)); ?></strong><br>
                                 <span class="badge bg-<?= $done ? 'success' : 'warning text-dark'; ?>"><?= trh('{seen} / {total} seen', ['seen' => $st['seen'], 'total' => $st['total']]); ?></span>
                                 <?php if ($st['issues']) : ?><span class="badge bg-danger"><?= trh('{n} issue(s)', ['n' => $st['issues']]); ?></span><?php endif; ?>
+                                <?php if (!empty($temperatures[$r])) : ?><br><small class="text-muted"><i class="fas fa-thermometer-half"></i> <?= htmlspecialchars(room_temperature_text(end($temperatures[$r]))); ?></small><?php endif; ?>
                             </div>
                         </div>
                     </a>
@@ -196,6 +222,47 @@ require 'header.php';
                 <?php else : ?>
                     <a href="<?= htmlspecialchars('daily_round.php?' . http_build_query(['room' => $room, 'hide_seen' => 1])); ?>" class="btn btn-sm btn-outline-secondary"><?= trh('Show only cages still to check') ?></a>
                 <?php endif; ?>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($temperatureRooms) : ?>
+            <div class="card mb-3" id="roomTemperatures">
+                <div class="card-body py-2">
+                    <h6 class="mb-2"><i class="fas fa-thermometer-half"></i> <?= trh('Room temperatures') ?>
+                        <small class="text-muted fw-normal">— <?= trh(ROOM_TEMPERATURE_MODES[$temperatureMode]) ?></small></h6>
+                    <?php foreach ($temperatureRooms as $r) :
+                        $readings = $temperatures[$r] ?? [];
+                        $last = $readings ? end($readings) : null; ?>
+                        <div class="row g-2 align-items-center mb-1 room-temperature" data-room="<?= htmlspecialchars($r); ?>">
+                            <div class="col-md-2"><strong><?= htmlspecialchars($roomLabel($r)); ?></strong></div>
+                            <div class="col-md-4">
+                                <?php if ($last) : ?>
+                                    <span class="badge bg-light text-dark border"><?= htmlspecialchars(room_temperature_text($last)); ?></span>
+                                    <small class="text-muted"><?= htmlspecialchars(substr($last['recorded_at'], 11, 5) . ' · ' . ($last['recorded_by_name'] ?? '')); ?><?= count($readings) > 1 ? ' · ' . trh('{n} readings', ['n' => count($readings)]) : ''; ?></small>
+                                <?php else : ?>
+                                    <span class="text-<?= $isToday ? 'warning' : 'danger'; ?>"><?= trh($isToday ? 'Not entered yet' : 'Not entered'); ?></span>
+                                <?php endif; ?>
+                            </div>
+                            <?php if ($isToday) : ?>
+                                <div class="col-md-6">
+                                    <form method="POST" class="d-flex gap-1 align-items-center">
+                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                        <input type="hidden" name="room" value="<?= htmlspecialchars($room); ?>">
+                                        <input type="hidden" name="hide_seen" value="<?= $hideSeen ? 1 : ''; ?>">
+                                        <input type="hidden" name="temp_room" value="<?= htmlspecialchars($r); ?>">
+                                        <?php if ($temperatureMode === 'current') : ?>
+                                            <input type="text" inputmode="decimal" class="form-control form-control-sm" style="max-width: 7em" name="temp_current" required placeholder="<?= trh('°C now') ?>" aria-label="<?= trh('Current temperature (°C)') ?>">
+                                        <?php else : ?>
+                                            <input type="text" inputmode="decimal" class="form-control form-control-sm" style="max-width: 7em" name="temp_min" required placeholder="<?= trh('min °C') ?>" aria-label="<?= trh('Minimum temperature (°C)') ?>">
+                                            <input type="text" inputmode="decimal" class="form-control form-control-sm" style="max-width: 7em" name="temp_max" required placeholder="<?= trh('max °C') ?>" aria-label="<?= trh('Maximum temperature (°C)') ?>">
+                                        <?php endif; ?>
+                                        <button type="submit" name="room_temperature" class="btn btn-sm btn-outline-primary text-nowrap"><?= trh($last ? 'Correct' : 'Save') ?></button>
+                                    </form>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
             </div>
         <?php endif; ?>
 
@@ -260,15 +327,18 @@ require 'header.php';
                                 <td>
                                     <?php foreach ($cageChecks as $chk) echo cage_check_badge($chk); ?>
                                     <?php if (!$cageChecks) : ?><span class="badge bg-<?= $isToday ? 'secondary' : 'danger'; ?>"><?= trh($isToday ? 'not yet' : 'MISSED'); ?></span><?php endif; ?>
-                                    <?php if ($progress) : ?><div class="small <?= $progress['done'] < $progress['total'] ? 'text-danger' : 'text-success'; ?>"><?= trh('{done}/{total} animal(s) evaluated', ['done' => $progress['done'], 'total' => $progress['total']]); ?></div><?php endif; ?>
+                                    <?php if ($progress) : ?><div class="small <?= $progress['done'] < $progress['total'] ? 'text-danger' : 'text-success'; ?>"><?= trh('{done}/{total} animal(s) evaluated', ['done' => $progress['done'], 'total' => $progress['total']]); ?></div><?php if ($progress['acts_pending']) : ?><div class="small text-danger"><?= trh('{n} experimental act(s) to confirm', ['n' => $progress['acts_pending']]); ?></div><?php endif; ?><?php endif; ?>
                                 </td>
                                 <?php if ($isToday) : ?>
                                     <td class="text-end">
                                         <?php if (!empty($treatmentsByCage[$cid])) : ?>
                                             <a href="medication_administration.php?cage_id=<?= rawurlencode($cid); ?>" class="btn btn-outline-primary btn-sm" title="Administrations actives"><i class="fas fa-syringe"></i> <?= $treatmentsByCage[$cid]; ?></a>
                                         <?php endif; ?>
+                                        <?php if (!empty($actsDueByCage[$cid])) : ?>
+                                            <a href="experiment_cage_followup.php?<?= htmlspecialchars(http_build_query(['cage_id' => $cid])); ?>#cageActs" class="btn btn-warning btn-sm" title="<?= trh('{n} experimental act(s) to confirm', ['n' => $actsDueByCage[$cid]]); ?>"><i class="fas fa-syringe"></i> <?= trh('{n} act(s)', ['n' => $actsDueByCage[$cid]]); ?></a>
+                                        <?php endif; ?>
                                         <?php if ($progress) : ?>
-                                            <a href="experiment_cage_followup.php?<?= htmlspecialchars(http_build_query(['cage_id' => $cid])); ?>" class="btn btn-<?= $progress['done'] < $progress['total'] ? 'primary' : 'outline-success'; ?> btn-sm"><i class="fas fa-flask"></i> <?= trh('Experimental follow-up ({done}/{total})', ['done' => $progress['done'], 'total' => $progress['total']]); ?></a>
+                                            <a href="experiment_cage_followup.php?<?= htmlspecialchars(http_build_query(['cage_id' => $cid])); ?>" class="btn btn-<?= experimental_cage_complete($progress) ? 'outline-success' : 'primary'; ?> btn-sm"><i class="fas fa-flask"></i> <?= trh('Experimental follow-up ({done}/{total})', ['done' => $progress['done'], 'total' => $progress['total']]); ?></a>
                                         <?php else : ?>
                                             <button type="submit" name="cage_ids[]" value="<?= htmlspecialchars($cid); ?>" formnovalidate class="btn btn-success btn-sm single-ok"><?= trh('All OK') ?></button>
                                         <?php endif; ?>

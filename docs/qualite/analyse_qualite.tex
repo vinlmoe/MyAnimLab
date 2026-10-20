@@ -1,0 +1,429 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[french]{babel}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{booktabs,longtable,array,tabularx}
+\usepackage[table]{xcolor}
+\usepackage{enumitem}
+\usepackage{xurl}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+
+\definecolor{crit}{HTML}{B3261E}
+\definecolor{maj}{HTML}{C76A00}
+\definecolor{min}{HTML}{3A6EA5}
+\definecolor{ok}{HTML}{2E7D32}
+\newcommand{\crit}{\textcolor{crit}{\textbf{Critique}}}
+\newcommand{\maj}{\textcolor{maj}{\textbf{Majeur}}}
+\newcommand{\mineur}{\textcolor{min}{\textbf{Mineur}}}
+\newcommand{\f}[1]{\nolinkurl{#1}}
+\sloppy
+
+\newenvironment{constat}[3]{%
+  \subsection*{#1 --- #2}\noindent\textit{Gravité :} #3\par\smallskip
+  \begin{description}[leftmargin=2.6cm,style=nextline,itemsep=2pt]}{\end{description}}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{MyAnimLab --- Analyse assurance qualité}
+\rhead{18 octobre 2026}
+\cfoot{\thepage}
+
+\title{\textbf{MyAnimLab}\\[4pt]\large Analyse d'assurance qualité du logiciel}
+\author{Revue initiale : commit \f{a2b130b}\\ Suivi après fusion : \f{4bcdec1} --- Corrections : \f{ae02007}, \f{2de62b3}}
+\date{18 octobre 2026}
+
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+
+\section{Objet, périmètre et méthode}
+
+MyAnimLab est une application web PHP/MySQL (dérivée de MyVivarium) de gestion
+d'animalerie : registre d'entrées et de sorties, cages, lignées, essais,
+protocoles et expérimentations, grilles cliniques et points limites,
+autorisations éthiques, pharmacie et rapport annuel d'utilisation des animaux.
+Ces données relèvent de la directive 2010/63/UE et de sa transposition française
+(articles R.214-87 et suivants du Code rural, arrêtés du 1\textsuperscript{er}
+février 2013). Leur exactitude et leur traçabilité sont donc une exigence
+réglementaire, au-delà de la simple qualité logicielle.
+
+\paragraph{Périmètre.} 101 scripts PHP à la racine, \f{lang/}, \f{tools/},
+\f{setup/}, \f{docker/}, le schéma \f{database/schema.sql} et 26 migrations
+(environ 26\,400 lignes PHP et 1\,900 lignes SQL).
+
+\paragraph{Méthode.} Revue statique du code et de la configuration, contrôle
+syntaxique (\texttt{php -l}) de tous les fichiers, recherches ciblées (requêtes SQL
+construites par concaténation, contrôles d'authentification et de jeton CSRF,
+téléversements, journalisation), vérification de la cohérence entre le schéma et
+les migrations, mesure de la couverture du catalogue de traduction. L'application
+n'a pas été exécutée : il n'y a pas eu de test dynamique ni de test d'intrusion.
+
+\section{Synthèse}
+
+\begin{center}
+\rowcolors{2}{gray!8}{white}
+\begin{tabularx}{\textwidth}{@{}lXc@{}}
+\toprule
+\textbf{Domaine} & \textbf{Constat principal} & \textbf{Évaluation}\\
+\midrule
+Sécurité & Fichier \f{.env} et téléversements servis par Apache ; quatre points d'entrée sans authentification & \textcolor{crit}{Insuffisant}\\
+Intégrité des données & Modifier un suivi expérimental écrase les valeurs précédentes sans en garder trace & \textcolor{maj}{À renforcer}\\
+Vérification & Aucun test automatisé, aucune intégration continue & \textcolor{crit}{Insuffisant}\\
+Gestion de configuration & Migrations sans outil d'application ; la procédure d'installation déploie le dépôt amont & \textcolor{maj}{À renforcer}\\
+Maintenabilité & Fichiers monolithiques, doublons \f{hc_*}/\f{bc_*}, contrôle CSRF recopié dans chaque page & \textcolor{maj}{À renforcer}\\
+Accès aux données SQL & 357 requêtes préparées ; les rares interpolations portent sur des entiers & \textcolor{ok}{Satisfaisant}\\
+Authentification & bcrypt, verrouillage après 3 échecs, régénération de l'identifiant de session & \textcolor{ok}{Satisfaisant}\\
+Internationalisation & 1\,495 entrées ; tous les libellés \f{tr()} sont traduits & \textcolor{ok}{Satisfaisant}\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\noindent Bilan : 3 constats critiques, 6 majeurs et 5 mineurs. Les constats
+critiques sont des failles de sécurité exploitables dès le déploiement par
+\f{setup/setup.sh}. Ils doivent être corrigés avant toute mise en production.
+
+\section{\texorpdfstring{Suivi après fusion (\f{main}, commit \f{4bcdec1})}{Suivi après fusion (main, commit 4bcdec1)}}
+
+Ce suivi porte sur les commits fusionnés depuis la revue initiale, en
+particulier \f{25a28f6} (corrections de contrôle d'accès, de CSRF, de SQL et de
+XSS) et \f{fb5877e} (tests automatisés et généralisation de
+\f{session_config.php}). Chaque constat a été vérifié de nouveau dans le code.
+Les 149 tests unitaires passent en local. Les 45 tests d'intégration et HTTP
+nécessitent une base de données : ils ont été ignorés en local mais s'exécutent
+dans la CI, qui est verte sur \f{main}.
+
+\begin{center}
+\rowcolors{2}{gray!8}{white}
+\begin{tabularx}{\textwidth}{@{}lp{2.1cm}X@{}}
+\toprule
+\textbf{Constat} & \textbf{Statut} & \textbf{Constat de vérification}\\
+\midrule
+QA-01 & \textcolor{crit}{Ouvert} & Toujours aucun \f{.htaccess} ; \f{DocumentRoot} reste la racine du dépôt, donc \f{.env} reste servi.\\
+QA-02 & \textcolor{ok}{Corrigé} & \f{notes_lib.php} exige une session, une requête POST, le jeton CSRF et l'auteur de la note ou un administrateur. \f{get_task.php} et \f{get_reminder.php} exigent une session ; une tâche n'est renvoyée qu'aux personnes concernées. \f{manage_strain.php} et \f{manage_animal_lines.php}, qui étaient eux aussi ouverts, sont désormais réservés aux administrateurs.\\
+QA-03 & \textcolor{maj}{Partiel} & Le SVG est refusé. En revanche, les fichiers restent servis depuis \f{uploads/} sous leur nom d'origine, sans contrôle d'accès, avec les droits \f{0777} et sans contrôle du type MIME.\\
+QA-04 & \textcolor{maj}{Partiel} & Les corrections d'actes expérimentaux conservent la valeur initiale et exigent un motif (bonne pratique). Le suivi quotidien est en revanche toujours écrasé (\f{experiment_followup.php}, l.~247--274).\\
+QA-05 & \textcolor{crit}{Ouvert} & Aucun changement ; \f{setup.sh} accorde toujours \texttt{GRANT ALL} au compte de l'application.\\
+QA-06 & \textcolor{ok}{Largement corrigé} & PHPUnit 11 : 194 tests unitaires, d'intégration et HTTP, avec une CI GitHub Actions sur MariaDB. Il reste à ajouter l'analyse statique et \texttt{composer audit}.\\
+QA-07 & \textcolor{maj}{Partiel} & Un test vérifie que les migrations (désormais 34) sont numérotées sans trou. Il n'y a toujours pas d'outil pour les appliquer, et \f{REPO_URL} pointe toujours vers le dépôt amont.\\
+QA-08 & \textcolor{crit}{Ouvert} & \f{process_reminders.php} n'a toujours pas de garde CLI.\\
+QA-09 & \textcolor{crit}{Ouvert} & \f{export_for_v2.php} exporte toujours la table \f{users} entière.\\
+QA-10 & \textcolor{maj}{Partiel} & Les contrôles des notes sont centralisés dans \f{notes_lib.php}, mais le contrôle CSRF reste recopié dans chaque page.\\
+QA-11 & \textcolor{crit}{Ouvert} & \f{nt_add.php} et \f{nt_rmv.php} renvoient toujours le texte de l'erreur SQL au client.\\
+QA-12 & \textcolor{maj}{Stable} & Les SQL de \f{manage_tasks.php} sont désormais paramétrés, mais le nouveau code ajoute des interpolations (\f{terrarium_lib.php}, \f{terrarium_view.php}). Toutes restent converties en entiers (28 occurrences).\\
+QA-13 & \textcolor{crit}{Ouvert} & \f{America/New_York} est toujours la valeur par défaut, désormais aussi dans \f{manage_tasks.php}.\\
+QA-14 & \textcolor{maj}{Partiel} & \f{.phpunit.cache} est ignoré et \f{require-dev} est déclaré. \f{images/.DS_Store} et \f{uploads/} ne sont toujours pas traités, et la version de PHP n'est pas déclarée.\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\paragraph{Nouveaux points positifs.} Double authentification TOTP
+(\f{auth_lib.php}, \f{login_2fa.php}) avec protection contre le rejeu
+(\f{totp_last_step}), limite de 5 essais suivie d'un verrouillage de
+15 minutes, codes de secours, et obligation de configuration appliquée par
+\f{session_config.php}. Toutes les pages ouvrent désormais la session par
+\f{session_config.php}, avec une durée d'inactivité réglable, et un test
+automatique le vérifie. Le registre des stupéfiants et le livret de formation
+renforcent la traçabilité réglementaire.
+
+\paragraph{Bilan du suivi.} Sur les 3 constats critiques, 1 est corrigé
+(QA-02), 1 est partiel (QA-03) et 1 reste ouvert (QA-01, le plus grave). Le
+socle de vérification (QA-06) est désormais en place. Les priorités restantes
+sont : QA-01, la fin de QA-03, QA-08, puis le versionnement des suivis
+quotidiens (QA-04).
+
+\section{\texorpdfstring{Corrections (commit \f{ae02007})}{Corrections (commit ae02007)}}
+
+Les constats restés ouverts ou partiels après la fusion ont été corrigés sur
+la branche \f{ccr-e82b7497-x6tqzs}. La suite de tests passe désormais de 194 à
+222 tests, tous exécutés et réussis sur MariaDB (unitaires, intégration et
+HTTP). Le parcours a aussi été vérifié sous Apache avec le \f{.htaccess} :
+toutes les pages répondent sans erreur 5xx ni erreur PHP, \f{/.env} et les
+dossiers internes répondent 403 ou 404, et un fichier de cage déposé n'est
+accessible qu'à un utilisateur connecté.
+
+\begin{center}
+\rowcolors{2}{gray!8}{white}
+\begin{tabularx}{\textwidth}{@{}lp{2.1cm}X@{}}
+\toprule
+\textbf{Constat} & \textbf{Statut} & \textbf{Correction}\\
+\midrule
+QA-01 & \textcolor{ok}{Corrigé} & \f{.htaccess} racine : fichiers cachés, configuration, SQL, scripts et bibliothèques refusés ; \f{vendor/}, \f{database/}, \f{tools/}, \f{uploads/}, etc. répondent 404. \f{AllowOverride} est activé dans l'image Docker, \f{.env} passe en 640 et le README indique de copier les fichiers cachés.\\
+QA-03 & \textcolor{ok}{Corrigé} & \f{cage_files_lib.php} : nom aléatoire, contenu réel contrôlé (un SVG, ou un HTML renommé en image ou en PDF, est refusé), droits 0750/0640. \f{file_download.php} sert les fichiers aux seuls utilisateurs connectés, en pièce jointe (\texttt{nosniff}, CSP \texttt{sandbox}).\\
+QA-04 & \textcolor{ok}{Corrigé} & Modifier un suivi quotidien est une correction : motif obligatoire, valeurs remplacées conservées dans \f{experiment_followup_revisions}, affichées dans la consultation du suivi, signalées dans l'historique et journalisées.\\
+QA-05 & \textcolor{ok}{Corrigé} & Triggers d'ajout seul sur 8 tables de traçabilité (dont \f{activity_log}). Le compte de l'application n'a plus que les droits sur les données : il ne peut plus supprimer les triggers.\\
+QA-06 & \textcolor{ok}{Corrigé} & \texttt{composer audit} et PHPStan (niveau 0, sans erreur ni baseline) ajoutés à la CI ; 28 tests supplémentaires.\\
+QA-07 & \textcolor{ok}{Corrigé} & \f{tools/migrate.php} avec la table \f{schema_migrations} (\texttt{--status}, \texttt{--baseline}) ; \f{schema.sql} enregistre ses migrations, et un test le vérifie. \f{setup.sh} et le README pointent vers ce dépôt.\\
+QA-08 & \textcolor{ok}{Corrigé} & Garde CLI dans \f{process_reminders.php} et \f{send_email.php} ; ces scripts sont aussi refusés par le \f{.htaccess}.\\
+QA-09 & \textcolor{ok}{Corrigé} & Les hachés de mots de passe, les jetons, les secrets TOTP et les corps d'e-mails sont exclus de l'export ; chaque export est journalisé.\\
+QA-10 & \textcolor{ok}{Corrigé} & \f{csrf_token()} et \f{csrf_valid()} remplacent 50 contrôles recopiés (certains comparaient avec \texttt{!==}) ; helpers SQL ajoutés. \f{hc_edit.php} et \f{bc_edit.php} étaient déjà retirés (redirection immédiate) : leurs quelque 2\,000 lignes inatteignables sont supprimées (commit \f{2de62b3}).\\
+QA-11 & \textcolor{ok}{Corrigé} & \f{db_error_message()} et \f{error_message()} : l'erreur SQL va au journal du serveur, l'utilisateur voit un message générique.\\
+QA-12 & \textcolor{ok}{Corrigé} & Toutes les requêtes passent par des paramètres liés (\f{db_lib.php}), soit environ 35 requêtes converties. Un test refuse toute nouvelle requête construite avec une valeur.\\
+QA-13 & \textcolor{ok}{Corrigé} & Fuseau horaire par défaut \f{Europe/Paris}.\\
+QA-14 & \textcolor{ok}{Corrigé} & \f{.DS_Store} supprimé, \f{uploads/} ignoré ; PHP $\geq$ 8.1 et extensions déclarés dans \f{composer.json} (\texttt{zip} ajouté à l'image Docker).\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\paragraph{Compléments (commit \f{2de62b3}).}
+\begin{itemize}[nosep]
+  \item \textbf{Registre des entrées et sorties.} Corriger l'entrée d'un
+    animal (provenance, fournisseur, référence, date) écrasait l'ancienne
+    valeur, et une sortie ne pouvait pas être corrigée du tout. Les deux se
+    font désormais par un administrateur, avec un motif obligatoire. Les
+    valeurs remplacées et les nouvelles sont conservées dans
+    \f{record_corrections} (ajout seul) et affichées sur la fiche et le dossier
+    BEA. L'animal est signalé « corrigé » dans le registre. Les inclusions
+    clôturées par la sortie suivent sa date.
+  \item \textbf{Prescriptions.} L'application ne permet pas de les modifier.
+    Des triggers interdisent désormais toute modification ou suppression des
+    prescriptions et de leurs animaux (seul le statut peut évoluer). Ils
+    interdisent aussi toute modification d'une administration, sauf une
+    annulation unique.
+  \item \textbf{Précision sur QA-03.} Le dépôt de fichiers analysé dans
+    \f{hc_edit.php}/\f{bc_edit.php} se trouvait dans des pages déjà retirées,
+    sans effet en production. Le risque réel tenait aux fichiers existants de
+    \f{uploads/}, servis sans contrôle : il est corrigé (\f{.htaccess},
+    \f{file_download.php}). Le dépôt est rétabli sur la fiche de la cage
+    (\f{file_upload.php}) : réservé aux utilisateurs de la cage et aux
+    administrateurs, contenu réel contrôlé, 10 Mo au plus, ajout et
+    suppression tracés.
+\end{itemize}
+
+\paragraph{Points restant à traiter.}
+\begin{itemize}[nosep]
+  \item Monter PHPStan au niveau 1. Il signale aujourd'hui 905 variables
+    « peut-être non définies », presque toutes la connexion \f{$con} fournie
+    par les fichiers inclus : il faudrait la passer explicitement aux pages.
+  \item Les installations existantes doivent être mises à jour une fois :
+    \texttt{php tools/migrate.php --baseline=034}, puis
+    \texttt{php tools/migrate.php} avec un compte administrateur de la base
+    (migrations 035 et 036).
+\end{itemize}
+
+\section{Constats détaillés (revue initiale)}
+
+\subsection{Constats critiques}
+
+\begin{constat}{QA-01}{Secrets et fichiers internes servis par le serveur web}{\crit}
+\item[Preuve] \f{setup/setup.sh:149} définit \f{DocumentRoot} sur la racine du
+  dépôt et le README demande d'y copier \f{.env}. Le dépôt ne contient aucun
+  \f{.htaccess}, et la configuration Apache par défaut ne protège que les
+  fichiers \f{.ht*}.
+\item[Risque] Une simple requête \texttt{GET /.env} renvoie les identifiants MySQL et
+  SMTP. \f{database/schema.sql}, \f{composer.lock}, \f{tools/} et \f{docs/} sont
+  eux aussi publics.
+\item[Action] Placer la racine web dans un sous-dossier \f{public/}, ou à défaut
+  ajouter un \f{.htaccess} racine qui refuse \f{.env}, \f{*.sql}, \f{composer.*},
+  \f{tools/}, \f{database/}, \f{setup/} et \f{vendor/}. Vérifier ensuite chaque
+  déploiement avec \texttt{curl -I https://}\textit{<hôte>}\texttt{/.env}, qui doit répondre 403 ou 404.
+\end{constat}
+
+\begin{constat}{QA-02}{Points d'entrée sans authentification}{\crit}
+\item[Preuve] \f{nt_edit.php} n'ouvre pas de session et modifie n'importe quelle
+  note à partir de son identifiant. \f{nt_rmv.php} supprime n'importe quelle note
+  sans vérifier la session ni l'auteur, alors que son en-tête affirme le
+  contraire. \f{get_task.php} et \f{get_reminder.php} renvoient des données en
+  JSON sans vérifier la session.
+\item[Risque] Un visiteur anonyme peut altérer ou détruire des notes de cage
+  (perte de traçabilité) et énumérer les tâches et rappels.
+\item[Action] Créer un garde commun (\f{require_login()}, rôle et propriétaire),
+  l'appliquer à ces quatre fichiers et ajouter le contrôle CSRF aux deux points
+  d'entrée qui écrivent.
+\end{constat}
+
+\begin{constat}{QA-03}{Téléversements de cage publics et SVG accepté}{\crit}
+\item[Preuve] \f{hc_edit.php}, l.~341--372 et \f{bc_edit.php}, l.~258--291 écrivent dans
+  \f{uploads/}\textit{<cage>}\f{/}\textit{<nom d'origine>}, créé avec les droits \f{0777}. Les fichiers
+  sont servis directement (\f{hc_view.php:507}). L'extension \f{svg} est
+  autorisée et le type MIME réel n'est pas contrôlé.
+\item[Risque] Un SVG contenant du JavaScript s'exécute dans l'origine de
+  l'application (XSS stockée, vol de session). Comme les chemins sont
+  prévisibles, les documents sont accessibles sans être connecté.
+\item[Action] Reprendre le modèle de \f{ethics_lib.php} : stockage hors de la
+  racine web ou derrière un \texttt{Require all denied}, nom aléatoire, contrôle par
+  \f{finfo}, téléchargement par un script qui vérifie les droits. Retirer
+  \f{svg} de la liste et passer les droits à \f{0750}.
+\end{constat}
+
+\subsection{Constats majeurs}
+
+\begin{constat}{QA-04}{Écrasement silencieux des suivis expérimentaux}{\maj}
+\item[Preuve] \f{experiment_followup.php}, l.~215--242 : une modification fait un
+  \texttt{ON DUPLICATE KEY UPDATE} sur \f{experiment_followups}, puis un
+  \f{DELETE} et une réinsertion des scores et des observations. L'ancienne valeur
+  n'est conservée nulle part et la modification n'est pas journalisée.
+\item[Risque] Les principes ALCOA+ (données attribuables, originales, durables)
+  ne sont plus respectés. Lors d'une inspection DDPP ou d'une revue de comité
+  d'éthique, on ne peut pas reconstituer le score clinique qui a motivé, ou non,
+  l'application d'un point limite.
+\item[Action] Versionner les suivis (table d'historique, ou ligne \og
+  remplacée\fg{} avec un \f{superseded_by}), exiger un motif de modification et
+  journaliser l'avant et l'après dans \f{activity_log}. Appliquer le même
+  principe aux autres écrans de modification des données réglementaires
+  (registre, sorties, prescriptions).
+\end{constat}
+
+\begin{constat}{QA-05}{Journal d'audit modifiable et incomplet}{\maj}
+\item[Preuve] La table \f{activity_log} (\f{schema.sql:792}) n'enregistre que du
+  texte libre, sans valeurs avant ni après. Le compte MySQL de l'application peut
+  y faire \f{UPDATE} et \f{DELETE}.
+\item[Action] Créer un compte MySQL limité à \f{INSERT} et \f{SELECT} sur les
+  tables d'audit, ajouter des champs structurés (\f{old_value},
+  \f{new_value}, motif) et, si besoin, un chaînage par empreinte des
+  enregistrements pour rendre toute altération détectable.
+\end{constat}
+
+\begin{constat}{QA-06}{Aucune vérification automatisée}{\maj}
+\item[Preuve] Le dépôt ne contient ni répertoire de tests, ni PHPUnit dans
+  \f{composer.json}, ni workflow dans \f{.github/}, ni outil d'analyse statique.
+  Les 112 commits (dont 64 générés par un assistant) ont été intégrés sans
+  contrôle automatique, et seules 2 pull requests ont été fusionnées.
+\item[Action] Mettre en place un socle minimal :
+  \begin{enumerate}[nosep]
+    \item une CI GitHub Actions avec \texttt{php -l}, PHPStan (niveau 5 au départ),
+      \texttt{composer audit} et le chargement de \f{schema.sql} dans MySQL~8 ;
+    \item des tests PHPUnit des fonctions métier de \f{animal_lib.php} et
+      \f{ethics_lib.php} (validité des autorisations, sévérité, calcul du
+      rapport annuel) ;
+    \item quelques tests de bout en bout Playwright sur les parcours réglementaires
+      (entrée d'un animal, suivi, point limite, sortie, rapport annuel) ;
+    \item une règle de protection de branche avec revue humaine obligatoire.
+  \end{enumerate}
+\end{constat}
+
+\begin{constat}{QA-07}{Gestion du schéma et du déploiement}{\maj}
+\item[Preuve] Les 26 migrations de \f{database/migrations/} n'ont ni outil
+  d'application ni table de version, et \f{schema.sql} est tenu à jour à la main
+  en parallèle (il est cohérent à ce jour). Par ailleurs, \f{setup/setup.sh:4}
+  et le README clonent \f{myvivarium/MyVivarium}, c'est-à-dire le dépôt amont et
+  non ce fork.
+\item[Risque] Une installation \og en un clic\fg{} déploie une autre version du
+  logiciel, et les mises à jour en production risquent d'oublier ou de rejouer
+  des migrations.
+\item[Action] Ajouter une table \f{schema_migrations} et un script
+  \f{tools/migrate.php} idempotent. En CI, vérifier que l'application des
+  migrations à partir de \f{001} produit le même schéma que \f{schema.sql}.
+  Corriger les URL du README et de \f{setup.sh}.
+\end{constat}
+
+\begin{constat}{QA-08}{Scripts cron accessibles par HTTP}{\maj}
+\item[Preuve] \f{process_reminders.php} ne vérifie pas \f{PHP_SAPI}, alors que
+  \f{daily_round_alert.php:14} le fait. Il suffit donc d'appeler son URL pour
+  générer des tâches et remplir la file d'e-mails.
+\item[Action] Ajouter le même garde CLI et, plus largement, sortir les scripts
+  cron de la racine web.
+\end{constat}
+
+\begin{constat}{QA-09}{Export complet contenant des secrets}{\maj}
+\item[Preuve] \f{export_for_v2.php} exporte en JSON la table \f{users} entière,
+  y compris les hachés de mots de passe et les jetons de réinitialisation.
+  L'export est réservé aux administrateurs.
+\item[Action] Exclure les colonnes sensibles, journaliser chaque export et
+  limiter la durée de vie de la fonction à la période de migration.
+\end{constat}
+
+\subsection{Constats mineurs}
+
+\begin{constat}{QA-10}{Maintenabilité}{\mineur}
+\item[Preuve] Plusieurs fichiers dépassent 1\,000 lignes (\f{hc_edit.php},
+  \f{bc_edit.php}) et les couples \f{hc_*} / \f{bc_*} sont presque identiques.
+  Logique métier, SQL et HTML sont mêlés dans les mêmes fichiers. Le contrôle
+  CSRF est recopié dans 44 fichiers sans fonction commune.
+\item[Action] Factoriser progressivement : fonctions \f{csrf_field()} et
+  \f{csrf_verify()}, repositories par entité, un seul écran paramétré pour les
+  deux catégories de cages.
+\end{constat}
+
+\begin{constat}{QA-11}{Fuite d'informations techniques}{\mineur}
+\item[Preuve] \f{nt_add.php} et \f{nt_rmv.php} renvoient \f{$con->error} et
+  \f{$stmt->error} au client.
+\item[Action] Journaliser l'erreur côté serveur et renvoyer un message générique.
+\end{constat}
+
+\begin{constat}{QA-12}{Requêtes SQL interpolées}{\mineur}
+\item[Preuve] Une dizaine de requêtes interpolent des listes d'identifiants
+  (\f{experiment_report.php:63}, \f{litter_manage.php:170}, etc.). Toutes les
+  valeurs sont converties en entiers, donc sans risque aujourd'hui.
+\item[Action] Utiliser partout des requêtes préparées, pour qu'une évolution
+  future ne puisse pas introduire d'injection.
+\end{constat}
+
+\begin{constat}{QA-13}{Valeurs par défaut inadaptées}{\mineur}
+\item[Preuve] Le fuseau horaire par défaut de \f{process_reminders.php} est
+  \f{America/New_York}. Si le paramètre \f{timezone} est absent, les rappels et
+  les tâches sont décalés.
+\item[Action] Utiliser \f{Europe/Paris} par défaut, ou refuser de s'exécuter
+  tant que le paramètre n'est pas défini.
+\end{constat}
+
+\begin{constat}{QA-14}{Hygiène du dépôt}{\mineur}
+\item[Preuve] \f{images/.DS_Store} est versionné et \f{uploads/} n'est pas exclu
+  dans \f{.gitignore}. Les contraintes de version de PHP et des extensions
+  (\f{mysqli}, \f{fileinfo}) ne sont pas déclarées dans \f{composer.json}.
+\item[Action] Nettoyer le dépôt, compléter \f{.gitignore}, déclarer
+  \texttt{"php": ">=8.1"} et \f{ext-*} dans \f{composer.json}.
+\end{constat}
+
+\section{Points forts}
+
+\begin{itemize}[nosep]
+  \item 357 requêtes préparées. Aucune injection SQL n'a été trouvée.
+  \item Mots de passe hachés avec bcrypt, compte verrouillé 15 minutes après
+    3 échecs, identifiant de session régénéré à la connexion, cookies
+    \f{HttpOnly}, \f{Secure} et \f{SameSite=Strict}.
+  \item Documents d'éthique bien protégés (\f{ethics_lib.php}) : contrôle MIME,
+    nom aléatoire, accès direct refusé, taille limitée.
+  \item Suppression définitive d'un animal réservée aux administrateurs,
+    confirmée par saisie de l'identifiant et journalisée avant suppression.
+  \item Journaux métier spécialisés (événements et mouvements d'animaux, cycle de
+    vie des cages, portées), transactions dans 18 scripts, 74 clés étrangères.
+  \item Contrôle syntaxique réussi sur 100\,\% des fichiers PHP, catalogue de
+    traduction complet, environnement Docker local isolé de la production.
+\end{itemize}
+
+\section{Plan d'action priorisé}
+
+\begin{center}
+\rowcolors{2}{gray!8}{white}
+\begin{tabularx}{\textwidth}{@{}clXl@{}}
+\toprule
+\textbf{Priorité} & \textbf{Constats} & \textbf{Action} & \textbf{Effort}\\
+\midrule
+P0 & QA-01, 02, 03, 08 & Racine web dans \f{public/}, garde d'authentification commun, téléversements protégés, garde CLI & 2--3 j\\
+P1 & QA-04, 05 & Versionnement des suivis, motif obligatoire, audit avant et après non modifiable & 3--5 j\\
+P1 & QA-06 & CI (lint, PHPStan, \texttt{composer audit}, schéma), premiers tests PHPUnit, protection de branche & 3 j\\
+P2 & QA-07, 09 & Outil de migrations, URL du dépôt, export sans secrets & 2 j\\
+P3 & QA-10 à 14 & Factorisation, nettoyage, valeurs par défaut & continu\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\noindent Pour un usage réglementaire, nous recommandons aussi de rédiger une
+courte documentation de validation : exigences, matrice de traçabilité entre
+exigences et tests, et procédure de gestion des changements. Elle sert de
+preuve de maîtrise du logiciel lors des inspections.
+
+\appendix
+\section{Métriques relevées}
+
+\begin{center}
+\begin{tabular}{@{}lr@{}}
+\toprule
+Scripts PHP (racine) & 101\\
+Lignes PHP (y compris \f{lang/} et \f{tools/}) & $\approx 26\,400$\\
+Lignes SQL (schéma et migrations) & $\approx 1\,900$\\
+Tables du schéma / clés étrangères & 55 / 74\\
+Migrations & 26\\
+Requêtes préparées & 357\\
+Fichiers avec contrôle CSRF & 44\\
+Entrées du catalogue français / libellés manquants & 1\,495 / 0\\
+Tests automatisés / workflows CI & 0 / 0\\
+Erreurs de syntaxe (\texttt{php -l}) & 0\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\end{document}

@@ -10,7 +10,7 @@
  */
 
 // Start the session to use session variables
-session_start();
+require_once 'session_config.php';
 
 // Include the database connection file
 include 'dbcon.php';
@@ -40,12 +40,14 @@ if ($_SESSION['role'] != 'admin') {
 function exportTableToCSV($con, $tableName)
 {
     // Define a specific query for the 'users' table; otherwise, select all columns
-    $query = ($tableName == 'users') ? "SELECT id, name, username, position, role, status FROM `$tableName`" : "SELECT * FROM `$tableName`";
+    // Table names come from SHOW TABLES (identifiers cannot be bound): quoted.
+    $table = '`' . str_replace('`', '``', $tableName) . '`';
+    $query = ($tableName == 'users') ? "SELECT id, name, username, position, role, status FROM $table" : "SELECT * FROM $table";
     $result = $con->query($query);
 
     // Check if the query execution was successful
     if (!$result) {
-        echo htmlspecialchars(tr('Failed to retrieve data from {table}: {error}', ['table' => $tableName, 'error' => $con->error]));
+        echo htmlspecialchars(db_error_message($con->error));
         return '';
     }
 
@@ -82,7 +84,7 @@ $tableResult = $con->query($tableQuery);
 
 // Check if the table names retrieval was successful
 if (!$tableResult) {
-    die(htmlspecialchars(tr('Error retrieving tables: {error}', ['error' => $con->error])));
+    die(htmlspecialchars(db_error_message($con->error)));
 }
 
 // Set headers to prompt the browser to download the ZIP file
@@ -92,7 +94,7 @@ header('Content-Disposition: attachment;filename="exported_data.zip"');
 // Create a new ZIP archive
 $zip = new ZipArchive();
 $zipFilename = tempnam(sys_get_temp_dir(), 'zip');
-$zip->open($zipFilename, ZipArchive::CREATE);
+$zip->open($zipFilename, ZipArchive::OVERWRITE);
 
 // Loop through each table and add the corresponding CSV to the ZIP archive
 while ($tableRow = $tableResult->fetch_row()) {

@@ -226,10 +226,68 @@ function record_cage_check(mysqli $con, string $cageId, string $type, string $re
     $stmt->close();
 }
 
+// Room temperatures of the daily round: the minimum and maximum of the day,
+// or the current temperature, as chosen in Manage Lab.
+const ROOM_TEMPERATURE_MODES = ['min_max' => 'Minimum and maximum of the day', 'current' => 'Current temperature'];
+
+function room_temperature_mode(mysqli $con): string
+{
+    $mode = (string) db_value($con, "SELECT value FROM settings WHERE name = 'room_temperature_mode'");
+    return isset(ROOM_TEMPERATURE_MODES[$mode]) ? $mode : 'min_max';
+}
+
+// Record a reading (today only); $values: ['min' => .., 'max' => ..] or ['current' => ..], as typed.
+function record_room_temperature(mysqli $con, string $room, string $mode, array $values, ?int $userId, ?string $userName): void
+{
+    if ($room === '') {
+        throw new Exception(tr('Choose a room.'));
+    }
+    $read = function (string $key) use ($values): float {
+        $value = parse_number($values[$key] ?? '');
+        if ($value === null || $value < -30 || $value > 60) {
+            throw new Exception(tr('Give a temperature between -30 and 60 °C.'));
+        }
+        return round($value, 1);
+    };
+    if ($mode === 'current') {
+        $current = $read('current');
+        $min = $max = null;
+    } else {
+        $mode = 'min_max';
+        [$min, $max, $current] = [$read('min'), $read('max'), null];
+        if ($min > $max) {
+            throw new Exception(tr('The minimum temperature cannot be above the maximum.'));
+        }
+    }
+    db_execute($con, "INSERT INTO room_temperatures (room, reading_date, mode, temp_min, temp_max, temp_current, recorded_by, recorded_by_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        'sssdddis', [$room, date('Y-m-d'), $mode, $min, $max, $current, $userId, $userName]);
+    log_activity($con, 'room_temperature', 'room', $room, room_temperature_text(['mode' => $mode, 'temp_min' => $min, 'temp_max' => $max, 'temp_current' => $current]), $userId);
+}
+
+// Readings of a day by room, oldest first (the last one is the day's value).
+function room_temperatures_for_date(mysqli $con, string $date): array
+{
+    $byRoom = [];
+    foreach (db_rows($con, "SELECT * FROM room_temperatures WHERE reading_date = ? ORDER BY recorded_at, id", 's', [$date]) as $row) {
+        $byRoom[$row['room']][] = $row;
+    }
+    return $byRoom;
+}
+
+// "min 19.5 °C · max 22.0 °C", or "21.0 °C" for a current temperature.
+function room_temperature_text(array $reading): string
+{
+    $deg = fn($v): string => number_format((float) $v, 1, ',', '') . ' °C';
+    return $reading['mode'] === 'current'
+        ? $deg($reading['temp_current'])
+        : tr('min {min} · max {max}', ['min' => $deg($reading['temp_min']), 'max' => $deg($reading['temp_max'])]);
+}
+
 // All checks of the given day, grouped by cage_id.
 //
 // A cage holding animals under experiment (cage "en essai") is only seen once
-// every one of those animals has its experimental follow-up for the day: its
+// every one of those animals has its experimental follow-up for the day and
+// every experimental act due on them is confirmed: its
 // other checks (round, QR, health report) do not count, and the cage shows as
 // not seen until the last follow-up is entered. The rule applies from the
 // date stored in the experimental_round_since setting (migration 024), so
@@ -249,7 +307,7 @@ function cage_checks_for_date(mysqli $con, string $date): array
         return $byCage;
     }
     foreach (experimental_followup_by_cage($con, $date) as $cageId => $progress) {
-        if ($progress['done'] < $progress['total']) {
+        if (!experimental_cage_complete($progress)) {
             unset($byCage[$cageId]);
             continue;
         }
@@ -277,11 +335,12 @@ function experimental_round_since(mysqli $con): string
     return $since;
 }
 
-// Animals under experiment per cage on $date and how many have their
-// follow-up that day: [cage_id => [total, done, issues, last_at]]. Only
-// cages holding such animals are returned. Today uses the current cages and
-// ongoing experiments; a past day uses the enrollments open that day and the
-// cage each animal was in at the end of that day.
+// Animals under experiment per cage on $date, how many have their follow-up
+// that day, and how many experimental acts planned up to that day were still
+// unconfirmed at its end: [cage_id => [total, done, issues, last_at,
+// acts_pending]]. Only cages holding such animals are returned. Today uses
+// the current cages and ongoing experiments; a past day uses the enrollments
+// open that day and the cage each animal was in at the end of that day.
 function experimental_followup_by_cage(mysqli $con, string $date, ?string $onlyCage = null): array
 {
     $isToday = $date >= date('Y-m-d');
@@ -290,9 +349,13 @@ function experimental_followup_by_cage(mysqli $con, string $date, ?string $onlyC
     $openOnDate = $isToday
         ? "m.status = 'active' AND ea.removed_at IS NULL AND e.status IN ('planned', 'active')"
         : "ea.enrolled_at < ? + INTERVAL 1 DAY AND (ea.removed_at IS NULL OR ea.removed_at >= ? + INTERVAL 1 DAY)";
+    // An act counts as pending that day if it was planned up to then and not
+    // confirmed (done, not done or cancelled) before the end of the day.
+    $actsExpr = "(SELECT COUNT(*) FROM experiment_act_animals aa WHERE aa.experiment_animal_id = ea.id AND aa.planned_date <= ?
+                  AND (aa.status = 'planned' OR aa.done_at >= ? + INTERVAL 1 DAY))";
     $sql = "SELECT cage_id, COUNT(*) AS total, SUM(followup_id IS NOT NULL) AS done,
-                   SUM(COALESCE(endpoint_reached, 0)) AS issues, MAX(followup_at) AS last_at
-            FROM (SELECT $cageExpr AS cage_id, f.id AS followup_id, f.endpoint_reached, f.created_at AS followup_at
+                   SUM(COALESCE(endpoint_reached, 0)) AS issues, MAX(followup_at) AS last_at, SUM(acts_pending) AS acts_pending
+            FROM (SELECT $cageExpr AS cage_id, f.id AS followup_id, f.endpoint_reached, f.created_at AS followup_at, $actsExpr AS acts_pending
                   FROM experiment_animals ea
                   JOIN mice m ON m.id = ea.animal_id
                   JOIN experiments e ON e.id = ea.experiment_id
@@ -300,7 +363,7 @@ function experimental_followup_by_cage(mysqli $con, string $date, ?string $onlyC
                   WHERE $openOnDate) x
             WHERE cage_id IS NOT NULL" . ($onlyCage !== null ? ' AND cage_id = ?' : '') . "
             GROUP BY cage_id";
-    $params = $isToday ? [$date] : [$date, $date, $date, $date];
+    $params = $isToday ? [$date, $date, $date] : [$date, $date, $date, $date, $date, $date];
     if ($onlyCage !== null) {
         $params[] = $onlyCage;
     }
@@ -309,10 +372,17 @@ function experimental_followup_by_cage(mysqli $con, string $date, ?string $onlyC
     $stmt->execute();
     $byCage = [];
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
-        $byCage[$row['cage_id']] = ['total' => (int) $row['total'], 'done' => (int) $row['done'], 'issues' => (int) $row['issues'], 'last_at' => $row['last_at']];
+        $byCage[$row['cage_id']] = ['total' => (int) $row['total'], 'done' => (int) $row['done'], 'issues' => (int) $row['issues'], 'last_at' => $row['last_at'], 'acts_pending' => (int) $row['acts_pending']];
     }
     $stmt->close();
     return $byCage;
+}
+
+// A cage under experiment is validated for the day once every animal has its
+// follow-up and every experimental act due (overdue included) is confirmed.
+function experimental_cage_complete(array $progress): bool
+{
+    return $progress['done'] >= $progress['total'] && $progress['acts_pending'] === 0;
 }
 
 // Follow-up progress of one cage today, or null when it holds no animal under experiment.
@@ -321,12 +391,13 @@ function cage_experimental_progress(mysqli $con, string $cageId): ?array
     return experimental_followup_by_cage($con, date('Y-m-d'), $cageId)[$cageId] ?? null;
 }
 
-// Once every animal under experiment in the cage has today's follow-up,
-// record the cage's daily check (once a day, by whoever completed it).
+// Once every animal under experiment in the cage has today's follow-up and
+// every act due is confirmed, record the cage's daily check (once a day, by
+// whoever completed it).
 function record_experimental_cage_check_if_complete(mysqli $con, string $cageId, ?int $userId, ?string $userName): bool
 {
     $progress = cage_experimental_progress($con, $cageId);
-    if (!$progress || $progress['done'] < $progress['total']) {
+    if (!$progress || !experimental_cage_complete($progress)) {
         return false;
     }
     $today = date('Y-m-d');
@@ -513,6 +584,31 @@ function retire_cage(mysqli $con, string $cageId, string $reason, ?int $userId =
     return true;
 }
 
+// Put an archived cage back in service (administrators). Only a cage that
+// still houses active animals can be restored, e.g. after an exit recorded
+// by mistake was corrected; the reason is kept in the cage lifecycle and the
+// activity log.
+function restore_cage(mysqli $con, string $cageId, string $reason, ?int $userId = null, ?string $userName = null): void
+{
+    $reason = trim($reason);
+    if ($reason === '') {
+        throw new Exception(tr('Give the reason for putting the cage back in service.'));
+    }
+    if (cage_active_animal_count($con, $cageId) === 0) {
+        throw new Exception(tr('Cage {id} has no active animal: an empty cage cannot be put back in service.', ['id' => $cageId]));
+    }
+    $stmt = $con->prepare("UPDATE cages SET status = 'active' WHERE cage_id = ? AND status = 'archived'");
+    $stmt->bind_param("s", $cageId);
+    $stmt->execute();
+    $restored = $stmt->affected_rows === 1;
+    $stmt->close();
+    if (!$restored) {
+        throw new Exception(tr('Cage {id} is not archived; nothing to restore.', ['id' => $cageId]));
+    }
+    log_cage_lifecycle($con, $cageId, 'restored', $reason, $userId, $userName);
+    log_activity($con, 'restore', 'cage', $cageId, tr('Cage restored from archive.') . ' ' . $reason, $userId);
+}
+
 // Cages due on $date that have not been seen, grouped by room ('' = no room).
 function unseen_cages_by_room(mysqli $con, string $date): array
 {
@@ -545,6 +641,8 @@ const ANIMAL_ORIGINS = [
     'supplier' => 'Supplier / authorised breeder',
     'other_facility' => 'Other user establishment',
     'other' => 'Other origin',
+    // Set only by a capture in a population (terrarium_view.php).
+    'population_capture' => 'Captured from a facility population',
 ];
 
 // ANIMAL_ORIGINS in the interface language.
@@ -567,7 +665,7 @@ function origin_from_input(array $in, ?string $dob): array
         'origin_reference' => trim((string) ($in['origin_reference'] ?? '')) ?: null,
         'entry_date' => trim((string) ($in['entry_date'] ?? '')) ?: ($type === 'internal_birth' && $dob ? $dob : date('Y-m-d')),
     ];
-    if (!isset(ANIMAL_ORIGINS[$type])) {
+    if (!isset(ANIMAL_ORIGINS[$type]) || $type === 'population_capture') {
         return [tr('Choose the origin of the animal(s).'), $origin];
     }
     if ($type !== 'internal_birth' && $origin['origin_detail'] === null) {
@@ -612,7 +710,7 @@ function animal_origin_fields(array $values = [], bool $allowInternal = false): 
     $type = $values['origin_type'] ?? '';
     $options = '<option value="" ' . ($type === '' ? 'selected' : '') . ' disabled>' . trh('Choose…') . '</option>';
     foreach (animal_origins() as $key => $label) {
-        if ($key === 'internal_birth' && !$allowInternal) {
+        if (($key === 'internal_birth' && !$allowInternal) || $key === 'population_capture') {
             continue;
         }
         $options .= '<option value="' . $key . '"' . ($type === $key ? ' selected' : '') . '>' . htmlspecialchars($label) . '</option>';
@@ -773,6 +871,38 @@ function move_animals(mysqli $con, array $animalIds, string $toCageId, ?string $
 // ANIMAL_EXIT_CODES; an export needs the destination facility). The animal
 // keeps its last cage_id for traceability and its open experiment
 // enrollments are closed. Retires the cage if it is left empty unless
+/**
+ * What makes an animal part of the regulatory record, as a list of reasons
+ * (empty for an animal created by mistake, with nothing recorded after its
+ * creation). An animal with a history is never deleted, only given an exit;
+ * the database enforces the same rule (trigger mice_no_delete_with_history).
+ */
+function animal_regulatory_history(mysqli $con, int $animalId): array
+{
+    $exists = fn(string $sql, string $types, array $params): bool => db_value($con, "SELECT EXISTS ($sql)", $types, $params) == 1;
+    $one = [$animalId];
+    $checks = [
+        tr('an exit is recorded') => ["SELECT 1 FROM mice WHERE id = ? AND status <> 'active'", 'i', $one],
+        tr('included in an experiment') => ['SELECT 1 FROM experiment_animals WHERE animal_id = ?', 'i', $one],
+        tr('health report') => ['SELECT 1 FROM health_reports WHERE animal_id = ?', 'i', $one],
+        tr('prescription or administration of a medication') => ['SELECT 1 FROM prescription_animals WHERE animal_id = ? UNION SELECT 1 FROM medication_administrations WHERE animal_id = ?', 'ii', [$animalId, $animalId]],
+        tr('breeder') => ['SELECT 1 FROM breeding_animals WHERE animal_id = ?', 'i', $one],
+        tr('parent of a litter or of other animals') => ['SELECT 1 FROM litters WHERE sire_id = ? OR dam_id = ? UNION SELECT 1 FROM animal_parentage WHERE sire_id = ? OR dam_id = ?', 'iiii', [$animalId, $animalId, $animalId, $animalId]],
+        tr('born from a litter weaned in the facility') => ['SELECT 1 FROM animal_parentage WHERE animal_id = ? AND litter_id IS NOT NULL', 'i', $one],
+        tr('moved to another cage') => ['SELECT 1 FROM animal_movements WHERE animal_id = ? AND from_cage_id IS NOT NULL', 'i', $one],
+        tr('register entry corrected') => ["SELECT 1 FROM record_corrections WHERE entity_type = 'animal' AND entity_id = ?", 'i', $one],
+        tr('captured from a population') => ['SELECT 1 FROM terrarium_capture_animals WHERE animal_id = ?', 'i', $one],
+        tr('events in its history (acts, alerts, status changes…)') => ["SELECT 1 FROM animal_events WHERE animal_id = ? AND event_type NOT IN ('created', 'note')", 'i', $one],
+    ];
+    $reasons = [];
+    foreach ($checks as $label => [$sql, $types, $params]) {
+        if ($exists($sql, $types, $params)) {
+            $reasons[] = $label;
+        }
+    }
+    return $reasons;
+}
+
 // $retireEmptyCage is false. Returns the cage id when it was retired.
 function exit_animal(mysqli $con, int $animalId, string $code, string $date, string $reason, ?string $destination, ?int $userId, ?string $userName, bool $retireEmptyCage = true): ?string
 {
@@ -960,11 +1090,45 @@ function threshold_target_label(array $t, ?array $grid, array $obsFields): ?stri
 // Litters (portées): birth -> nursing -> weaning.
 
 // Weaning age in days (Manage Lab setting, default 21).
-function weaning_age_days(mysqli $con): int
+function weaning_age_days(mysqli $con, ?int $lineId = null): int
 {
+    return weaning_age_source($con, $lineId)[0];
+}
+
+// Weaning age of a line and where it comes from: [days, 'line' | 'species' |
+// 'lab']. The line's own age, else its species', else the laboratory's.
+function weaning_age_source(mysqli $con, ?int $lineId = null): array
+{
+    if ($lineId) {
+        $row = db_row(
+            $con,
+            "SELECT l.weaning_age_days AS line_days, s.weaning_age_days AS species_days
+             FROM animal_lines l LEFT JOIN species_weaning_ages s ON s.species = l.species WHERE l.id = ?",
+            'i',
+            [$lineId]
+        );
+        if ((int) ($row['line_days'] ?? 0) > 0) {
+            return [(int) $row['line_days'], 'line'];
+        }
+        if ((int) ($row['species_days'] ?? 0) > 0) {
+            return [(int) $row['species_days'], 'species'];
+        }
+    }
     $row = $con->query("SELECT value FROM settings WHERE name = 'weaning_age_days'")->fetch_assoc();
     $days = (int) ($row['value'] ?? 0);
-    return $days > 0 ? $days : 21;
+    return [$days > 0 ? $days : 21, 'lab'];
+}
+
+// Line of a litter's pups for its weaning age: the dam's, else the sire's.
+function litter_line_id(mysqli $con, ?int $damId, ?int $sireId): ?int
+{
+    foreach ([$damId, $sireId] as $parentId) {
+        $line = $parentId ? db_value($con, "SELECT line_id FROM mice WHERE id = ?", 'i', [$parentId]) : null;
+        if ($line) {
+            return (int) $line;
+        }
+    }
+    return null;
 }
 
 // Pups of a litter still alive: born alive minus the deaths recorded since.
@@ -998,6 +1162,96 @@ function cage_nursing_litters(mysqli $con, string $cageId): int
     $stmt->fetch();
     $stmt->close();
     return (int) $n;
+}
+
+/**
+ * Weaning reminders (called by process_reminders.php, once a day after the
+ * morning reminder time of Manage Lab, 07:30 by default):
+ *  - litters to wean today or tomorrow: to the users of their cage (to the
+ *    administrators when the cage has none);
+ *  - litters whose weaning is overdue: to the users of their cage and to
+ *    the administrators and BEA responsibles.
+ * One notification and one e-mail per person. Returns the number of people
+ * notified.
+ */
+function litters_send_weaning_reminders(mysqli $con, ?string $now = null): int
+{
+    $now ??= date('Y-m-d H:i');
+    $today = substr($now, 0, 10);
+    $time = (string) (db_value($con, "SELECT value FROM settings WHERE name = 'acts_reminder_time'") ?? '07:30');
+    if (!preg_match('/^\d{2}:\d{2}$/', $time)) {
+        $time = '07:30';
+    }
+    $last = (string) (db_value($con, "SELECT value FROM settings WHERE name = 'weaning_reminders_last'") ?? '');
+    if ($last === $today || substr($now, 11, 5) < $time) {
+        return 0;
+    }
+    db_execute($con, "INSERT INTO settings (name, value) VALUES ('weaning_reminders_last', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)", 's', [$today]);
+
+    $tomorrow = date('Y-m-d', strtotime($today . ' +1 day'));
+    $litters = db_rows(
+        $con,
+        "SELECT l.id, l.cage_id, l.litter_dob, l.expected_weaning_date FROM litters l JOIN cages c ON c.cage_id = l.cage_id
+         WHERE l.status = 'nursing' AND l.expected_weaning_date IS NOT NULL AND l.expected_weaning_date <= ? AND c.status = 'active'
+         ORDER BY l.expected_weaning_date, l.cage_id",
+        's',
+        [$tomorrow]
+    );
+    if (!$litters) {
+        return 0;
+    }
+    $cageUsers = [];
+    foreach (db_rows($con, 'SELECT cu.cage_id, cu.user_id FROM cage_users cu JOIN users u ON u.id = cu.user_id WHERE u.status = ?', 's', ['approved']) as $cu) {
+        $cageUsers[$cu['cage_id']][] = (int) $cu['user_id'];
+    }
+    $admins = array_map('intval', array_column(db_rows($con, "SELECT id FROM users WHERE status = 'approved' AND role = 'admin'"), 'id'));
+    $privileged = array_map('intval', array_column(db_rows($con, "SELECT id FROM users WHERE status = 'approved' AND (role = 'admin' OR is_bea_responsible = 1)"), 'id'));
+
+    // [user id => ['due' => [lines], 'overdue' => [lines], 'cages' => [cage ids]]]
+    $byUser = [];
+    foreach ($litters as $l) {
+        $kind = $l['expected_weaning_date'] < $today ? 'overdue' : 'due';
+        $line = tr('cage {cage}, born {dob}, weaning expected {date}', ['cage' => $l['cage_id'], 'dob' => $l['litter_dob'] ?? '?', 'date' => $l['expected_weaning_date']]);
+        $recipients = $cageUsers[$l['cage_id']] ?? [];
+        if ($kind === 'overdue') {
+            $recipients = array_merge($recipients, $privileged);
+        } elseif (!$recipients) {
+            $recipients = $admins;
+        }
+        foreach (array_unique($recipients) as $userId) {
+            $byUser[$userId][$kind][] = $line;
+            $byUser[$userId]['cages'][$l['cage_id']] = true;
+        }
+    }
+
+    $emails = array_column(db_rows($con, "SELECT id, username FROM users WHERE status = 'approved'"), 'username', 'id');
+    $notified = 0;
+    foreach ($byUser as $userId => $kinds) {
+        if (!isset($emails[$userId])) {
+            continue;
+        }
+        $nDue = count($kinds['due'] ?? []);
+        $nOverdue = count($kinds['overdue'] ?? []);
+        $title = $nOverdue
+            ? tr('{n} litter(s): weaning overdue', ['n' => $nOverdue]) . ($nDue ? ' · ' . tr('{n} to wean today or tomorrow', ['n' => $nDue]) : '')
+            : tr('{n} litter(s) to wean today or tomorrow', ['n' => $nDue]);
+        $lines = [];
+        foreach (['overdue' => tr('Weaning overdue'), 'due' => tr('To wean today or tomorrow')] as $kind => $heading) {
+            if (!empty($kinds[$kind])) {
+                $lines[] = $heading . ' :';
+                foreach ($kinds[$kind] as $line) {
+                    $lines[] = '• ' . $line;
+                }
+            }
+        }
+        $cages = array_keys($kinds['cages']);
+        $link = count($cages) === 1 ? 'litter_manage.php?cage_id=' . rawurlencode((string) $cages[0]) : 'home.php#littersToWean';
+        create_notification($con, (int) $userId, $title, implode("\n", array_slice($lines, 0, 12)), $link, 'reminder');
+        $body = nl2br(htmlspecialchars(implode("\n", $lines))) . '<br><br>' . htmlspecialchars(tr('Record the weaning on the litter page (breeding cage → Litters: birth → weaning).'));
+        db_execute($con, 'INSERT INTO outbox (recipient, subject, body, scheduled_at) VALUES (?, ?, ?, NOW())', 'sss', [$emails[$userId], $title, $body]);
+        $notified++;
+    }
+    return $notified;
 }
 
 // Create an active holding cage (auto cage_id) with its lifecycle, users and
@@ -1109,6 +1363,84 @@ function move_cages_to_room(mysqli $con, array $cageIds, string $room, ?string $
     }
     $select->close();
     $update->close();
+    return $changed;
+}
+
+/**
+ * Change the ownership of active cages (administrators, from the cage
+ * dashboards' group selection): their responsible (PI) and/or their users.
+ *  - $piId: new responsible, null to leave it unchanged;
+ *  - $userIds with $usersMode: 'add' (added to the current users),
+ *    'replace' (become the only users), 'remove' (taken off), 'keep'.
+ * The responsible must be an approved user with the Principal Investigator
+ * position; the users must be approved. Each changed cage is logged with
+ * its responsible and users before and after. Returns the number of cages
+ * changed. Throws on invalid input.
+ */
+function set_cages_ownership(mysqli $con, array $cageIds, ?int $piId, array $userIds, string $usersMode, ?int $byUserId): int
+{
+    if (!in_array($usersMode, ['keep', 'add', 'replace', 'remove'], true)) {
+        throw new Exception(tr('Unknown action.'));
+    }
+    $userIds = array_values(array_unique(array_filter(array_map('intval', $userIds))));
+    if ($usersMode !== 'keep' && $usersMode !== 'replace' && !$userIds) {
+        throw new Exception(tr('Choose the users to add or remove.'));
+    }
+    if ($piId === null && $usersMode === 'keep') {
+        throw new Exception(tr('Choose a new responsible or the users to change.'));
+    }
+    if ($piId !== null && !db_value($con, "SELECT 1 FROM users WHERE id = ? AND status = 'approved' AND position = 'Principal Investigator'", 'i', [$piId])) {
+        throw new Exception(tr('The responsible must be an approved user with the Principal Investigator position.'));
+    }
+    if ($userIds) {
+        $valid = array_map('intval', array_column(db_rows($con, "SELECT id FROM users WHERE status = 'approved' AND id IN (" . db_placeholders(count($userIds)) . ")", str_repeat('i', count($userIds)), $userIds), 'id'));
+        if (count($valid) !== count($userIds)) {
+            throw new Exception(tr('Only approved users can be assigned to a cage.'));
+        }
+    }
+    $names = array_column(db_rows($con, 'SELECT id, name FROM users'), 'name', 'id');
+    $describe = function (?int $pi, array $users) use ($names): string {
+        sort($users);
+        return tr('responsible: {pi}; users: {users}', [
+            'pi' => $pi ? ($names[$pi] ?? "#$pi") : '—',
+            'users' => $users ? implode(', ', array_map(fn($u) => $names[$u] ?? "#$u", $users)) : '—',
+        ]);
+    };
+
+    $changed = 0;
+    foreach (array_unique($cageIds) as $cageId) {
+        $cage = db_row($con, "SELECT pi_name FROM cages WHERE cage_id = ? AND status = 'active' FOR UPDATE", 's', [$cageId]);
+        if (!$cage) {
+            continue;
+        }
+        $oldPi = $cage['pi_name'] !== null ? (int) $cage['pi_name'] : null;
+        $oldUsers = array_map('intval', array_column(db_rows($con, 'SELECT user_id FROM cage_users WHERE cage_id = ?', 's', [$cageId]), 'user_id'));
+        $newPi = $piId ?? $oldPi;
+        $newUsers = match ($usersMode) {
+            'add' => array_values(array_unique(array_merge($oldUsers, $userIds))),
+            'replace' => $userIds,
+            'remove' => array_values(array_diff($oldUsers, $userIds)),
+            default => $oldUsers,
+        };
+        $sortedOld = $oldUsers;
+        $sortedNew = $newUsers;
+        sort($sortedOld);
+        sort($sortedNew);
+        if ($newPi === $oldPi && $sortedOld === $sortedNew) {
+            continue;
+        }
+        if ($newPi !== $oldPi) {
+            db_execute($con, 'UPDATE cages SET pi_name = ? WHERE cage_id = ?', 'is', [$newPi, $cageId]);
+        }
+        foreach (array_diff($oldUsers, $newUsers) as $u) {
+            db_execute($con, 'DELETE FROM cage_users WHERE cage_id = ? AND user_id = ?', 'si', [$cageId, $u]);
+        }
+        foreach (array_diff($newUsers, $oldUsers) as $u) {
+            db_execute($con, 'INSERT INTO cage_users (cage_id, user_id) VALUES (?, ?)', 'si', [$cageId, $u]);
+        }
+        log_activity($con, 'cage_ownership', 'cage', $cageId, $describe($oldPi, $oldUsers) . ' → ' . $describe($newPi, $newUsers), $byUserId);
+        $changed++;
+    }
     return $changed;
 }
 

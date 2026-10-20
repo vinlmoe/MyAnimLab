@@ -10,19 +10,24 @@
  * An endpoint that requires an action (euthanasia, calling the vet...) opens
  * a pending action shown to the experimenter until it is done: euthanasia is
  * completed by recording the animal's exit, other actions by a written note.
+ * Saving a follow-up that raises an action leads to endpoint_action.php, to
+ * carry it out or say why it is not done at once. A correction that no
+ * longer reaches an endpoint withdraws the action it had raised.
+ * The experimental acts planned for the animal up to the chosen day are
+ * confirmed here too (done / not done, with the information they ask for and,
+ * for a medication of the stock, the lot used).
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
+require 'experiment_acts_lib.php';
+require_once 'training_lib.php';
+require_once 'followup_lib.php';
 
 if (!isset($_SESSION['username'])) {
     header("Location: index.php");
     exit;
-}
-
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
 $currentUserId = $_SESSION['user_id'] ?? null;
@@ -76,8 +81,28 @@ $experimentUrl = 'experiment_manage.php?protocol_id=' . (int) $ea['protocol_id']
 $backUrl = $returnUrl ?: $experimentUrl;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
+    }
+
+    // Correcting a confirmed act: what was recorded is kept with the reason,
+    // a medication given is cancelled and re-credited, the act is to do again.
+    if (isset($_POST['correct_act'])) {
+        mysqli_begin_transaction($con);
+        try {
+            $actAnimalId = (int) ($_POST['act_animal_id'] ?? 0);
+            $reason = trim((string) ($_POST['correction_reason'] ?? ''));
+            $animalId = correct_experiment_act($con, $actAnimalId, $reason, $currentUserId, $currentUserName, ($_SESSION['role'] ?? '') === 'admin', $experimentAnimalId);
+            log_animal_event($con, $animalId, 'experiment_act', ['act_animal_id' => $actAnimalId, 'status' => 'corrected', 'reason' => $reason], $currentUserId);
+            log_activity($con, 'experiment_act_corrected', 'animal', (string) $animalId, tr('Act #{id}: {reason}', ['id' => $actAnimalId, 'reason' => $reason]), $currentUserId);
+            mysqli_commit($con);
+            $_SESSION['message'] = tr('Confirmation cancelled: the act is to do again (the correction is kept in the history).');
+        } catch (Exception $e) {
+            mysqli_rollback($con);
+            $_SESSION['message'] = tr('Act not corrected: {error}', ['error' => error_message($e)]);
+        }
+        header("Location: $selfUrl#actsHistory");
+        exit;
     }
 
     // Completing a pending endpoint action (other than euthanasia) with a note.
@@ -87,14 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($note === '') {
             $_SESSION['message'] = tr('Describe what was done (e.g. vet called, decision taken).');
         } else {
-            $stmt = $con->prepare(
-                "UPDATE endpoint_actions SET status = 'done', done_at = NOW(), done_by = ?, done_by_name = ?, done_note = ?
-                 WHERE id = ? AND experiment_animal_id = ? AND status = 'pending' AND required_action <> 'euthanasia'"
-            );
-            $stmt->bind_param("issii", $currentUserId, $currentUserName, $note, $actionId, $experimentAnimalId);
-            $stmt->execute();
-            $done = $stmt->affected_rows === 1;
-            $stmt->close();
+            $done = complete_endpoint_action($con, $actionId, $experimentAnimalId, $note, $currentUserId, $currentUserName);
             if ($done) {
                 log_activity($con, 'endpoint_action_done', 'animal', (string) $ea['animal_id'], tr('Action #{id}: {note}', ['id' => $actionId, 'note' => $note]), $currentUserId);
             }
@@ -207,8 +225,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $endpointReached = $breaches ? 1 : 0;
     $breachedMessages = array_column($breaches, 'text');
 
+    // Experimental acts confirmed with this entry (left empty: still to do).
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $observedAt) || $observedAt > date('Y-m-d')) {
+        $fail(tr('Invalid date.'));
+    }
+    $actConfirmations = posted_act_confirmations($_POST, $observedAt);
+    $confirmedActs = [];
+
+    // Saving a day already entered corrects it: the reason is required and
+    // the values it replaces are kept (followup_lib.php).
+    $existingStmt = $con->prepare("SELECT id FROM experiment_followups WHERE experiment_animal_id = ? AND observed_at = ?");
+    $existingStmt->bind_param("is", $experimentAnimalId, $observedAt);
+    $existingStmt->execute();
+    $existingId = (int) ($existingStmt->get_result()->fetch_assoc()['id'] ?? 0);
+    $existingStmt->close();
+    $revisionReason = trim((string) ($_POST['revision_reason'] ?? ''));
+    if ($existingId && $revisionReason === '') {
+        $fail(tr('The follow-up of {date} was already entered: give the reason for the correction.', ['date' => $observedAt]));
+    }
+
     mysqli_begin_transaction($con);
     try {
+        $previous = $existingId ? followup_snapshot($con, $existingId) : null;
         $stmt = $con->prepare(
             "INSERT INTO experiment_followups (experiment_animal_id, observed_at, weight_g, clinical_score, observations, endpoint_reached, recorded_by)
              VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -225,7 +263,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $followupId = (int) $fid->get_result()->fetch_assoc()['id'];
         $fid->close();
 
-        // One entry per day: re-saving the day replaces its grid scores.
+        // One entry per day: re-saving the day replaces its grid scores (the previous ones are in the revision).
         $del = $con->prepare("DELETE FROM experiment_followup_scores WHERE followup_id = ?");
         $del->bind_param("i", $followupId);
         $del->execute();
@@ -250,6 +288,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ins->close();
         }
 
+        if ($previous !== null) {
+            record_followup_revision($con, $followupId, $previous, $revisionReason, $currentUserId, $currentUserName);
+            log_activity($con, 'followup_corrected', 'animal', (string) $ea['animal_id'], tr('Follow-up of {date} corrected: {reason}', ['date' => $observedAt, 'reason' => $revisionReason]), $currentUserId);
+        }
+
         // Endpoints requiring an action open a pending action (one per endpoint at a time).
         $newActions = [];
         foreach ($breaches as $b) {
@@ -270,6 +313,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ins->execute();
             $ins->close();
             $newActions[] = endpoint_required_actions()[$t['required_action']];
+        }
+
+        // A correction that no longer reaches an endpoint withdraws the action it had raised.
+        $withdrawn = ['withdrawn' => [], 'kept' => []];
+        if ($previous !== null) {
+            $withdrawn = withdraw_endpoint_actions_no_longer_reached($con, $followupId, array_map(fn($b) => (int) $b['threshold']['id'], $breaches), $revisionReason, $currentUserId, $currentUserName);
+            foreach ($withdrawn['withdrawn'] as $w) {
+                log_activity($con, 'endpoint_action_withdrawn', 'animal', (string) $ea['animal_id'], tr('Action #{id} withdrawn: {reason}', ['id' => $w['id'], 'reason' => $revisionReason]), $currentUserId);
+            }
+            if (!empty($previous['endpoint_reached']) && !$endpointReached) {
+                log_animal_event($con, (int) $ea['animal_id'], 'endpoint_withdrawn', [
+                    'experiment_animal_id' => $experimentAnimalId,
+                    'observed_at' => $observedAt,
+                    'reason' => $revisionReason,
+                    'withdrawn_actions' => array_map(fn($w) => endpoint_required_actions()[$w['required_action']], $withdrawn['withdrawn']),
+                ], $currentUserId);
+                notify_admins(
+                    $con,
+                    tr('Endpoint withdrawn: {animal}', ['animal' => $ea['animal_uid']]),
+                    tr('Experiment {number} ({protocol}): ', ['number' => $ea['experiment_number'], 'protocol' => $ea['protocol_number']])
+                        . tr('the correction of the follow-up of {date} no longer reaches the endpoint ({reason}).', ['date' => $observedAt, 'reason' => $revisionReason]),
+                    $selfUrl,
+                    'endpoint_alert'
+                );
+            }
+        }
+
+        foreach ($actConfirmations as $actAnimalId => $raw) {
+            confirm_experiment_act($con, $actAnimalId, $raw, $followupId, $currentUserId, $currentUserName, $experimentAnimalId);
+            $confirmedActs[$actAnimalId] = $raw['status'];
         }
 
         // The cage's daily check is recorded once every animal under experiment in it has today's follow-up.
@@ -298,10 +371,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'endpoint_alert'
             );
         }
+        foreach ($confirmedActs as $actAnimalId => $status) {
+            log_animal_event($con, (int) $ea['animal_id'], 'experiment_act', ['act_animal_id' => $actAnimalId, 'status' => $status, 'experiment_animal_id' => $experimentAnimalId], $currentUserId);
+        }
         mysqli_commit($con);
     } catch (Exception $e) {
         mysqli_rollback($con);
-        $_SESSION['message'] = tr('Follow-up not saved: {error}', ['error' => $e->getMessage()]);
+        $_SESSION['message'] = tr('Follow-up not saved: {error}', ['error' => error_message($e)]);
         header("Location: $selfUrl");
         exit;
     }
@@ -309,26 +385,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $_SESSION['message'] = $endpointReached
         ? tr('Saved. ENDPOINT REACHED: {details}', ['details' => implode(' | ', $breachedMessages)]) . ($newActions ? ' — ' . tr('ACTION REQUIRED: {actions}', ['actions' => implode(', ', $newActions)]) : '')
         : tr('Follow-up saved.') . ($hasGrid ? ' ' . tr('Clinical score: {score} / {max}.', ['score' => $clinicalScore, 'max' => $grid['max_total']]) : '');
+    if ($confirmedActs) {
+        $_SESSION['message'] .= ' ' . tr('{n} act(s) confirmed.', ['n' => count($confirmedActs)]);
+    }
+    if ($withdrawn['withdrawn']) {
+        $_SESSION['message'] .= ' ' . tr('Endpoint no longer reached: action(s) withdrawn ({actions}).', ['actions' => implode(', ', array_map(fn($w) => endpoint_required_actions()[$w['required_action']], $withdrawn['withdrawn']))]);
+    }
+    if ($withdrawn['kept']) {
+        $_SESSION['message'] .= ' ' . tr('Action(s) kept: a later follow-up still reaches an endpoint ({actions}).', ['actions' => implode(', ', array_map(fn($w) => endpoint_required_actions()[$w['required_action']], $withdrawn['kept']))]);
+    }
 
+    // An action raised now is carried out, or commented, on its own page.
+    if ($newActions) {
+        header('Location: endpoint_action.php?' . http_build_query(['experiment_animal_id' => $experimentAnimalId, 'followup_id' => $followupId, 'return' => $returnUrl ?? $selfUrl]));
+        exit();
+    }
     header("Location: " . ($returnUrl ?? $selfUrl));
     exit();
 }
 
 $history = $con->prepare(
-    "SELECT f.*, u.name AS recorded_by_name FROM experiment_followups f
+    "SELECT f.*, u.name AS recorded_by_name,
+            COALESCE((SELECT MAX(r.revised_at) FROM experiment_followup_revisions r WHERE r.followup_id = f.id), f.created_at) AS entered_at
+     FROM experiment_followups f
      LEFT JOIN users u ON u.id = f.recorded_by
      WHERE f.experiment_animal_id = ? ORDER BY f.observed_at DESC"
 );
 $history->bind_param("i", $experimentAnimalId);
 $history->execute();
 $history = $history->get_result()->fetch_all(MYSQLI_ASSOC);
+$revisionCounts = followup_revision_counts($con, array_column($history, 'id'));
 
 // Item scores of the history, keyed by follow-up then item label (snapshots).
 $scoresByFollowup = [];
 $historyLabels = [];
 if ($history) {
-    $ids = implode(',', array_map('intval', array_column($history, 'id')));
-    foreach ($con->query("SELECT followup_id, item_label, score FROM experiment_followup_scores WHERE followup_id IN ($ids) ORDER BY id") as $sc) {
+    $ids = array_map('intval', array_column($history, 'id'));
+    $in = db_placeholders(count($ids));
+    $idTypes = str_repeat('i', count($ids));
+    foreach (db_rows($con, "SELECT followup_id, item_label, score FROM experiment_followup_scores WHERE followup_id IN ($in) ORDER BY id", $idTypes, $ids) as $sc) {
         $scoresByFollowup[$sc['followup_id']][$sc['item_label']] = $sc['score'];
         $historyLabels[$sc['item_label']] = true;
     }
@@ -340,7 +435,7 @@ $historyLabels = array_keys($historyLabels);
 $obsByFollowup = [];
 $obsColumns = array_map(fn($f) => $f['label'], $obsFields);
 if ($history) {
-    foreach ($con->query("SELECT * FROM experiment_followup_observations WHERE followup_id IN ($ids) ORDER BY id") as $o) {
+    foreach (db_rows($con, "SELECT * FROM experiment_followup_observations WHERE followup_id IN ($in) ORDER BY id", $idTypes, $ids) as $o) {
         if ($o['field_id'] !== null) {
             $obsByFollowup[$o['followup_id']]['fields'][$o['label']] = $o;
             if (!in_array($o['label'], $obsColumns, true)) {
@@ -362,7 +457,7 @@ foreach ($history as $h) {
         'clinical_score' => $h['clinical_score'] === null ? '' : (string) $h['clinical_score'],
         'observations' => (string) ($h['observations'] ?? ''),
         'by' => (string) ($h['recorded_by_name'] ?? ''),
-        'at' => substr((string) $h['created_at'], 0, 16),
+        'at' => substr((string) $h['entered_at'], 0, 16), // last correction, or creation
         'endpoint' => (bool) $h['endpoint_reached'],
         'scores' => new stdClass(),
         'fields' => new stdClass(),
@@ -371,10 +466,10 @@ foreach ($history as $h) {
 }
 if ($history) {
     $idToDate = array_column($history, 'observed_at', 'id');
-    foreach ($con->query("SELECT followup_id, grid_item_id, score FROM experiment_followup_scores WHERE followup_id IN ($ids) AND grid_item_id IS NOT NULL") as $sc) {
+    foreach (db_rows($con, "SELECT followup_id, grid_item_id, score FROM experiment_followup_scores WHERE followup_id IN ($in) AND grid_item_id IS NOT NULL", $idTypes, $ids) as $sc) {
         $entriesByDate[$idToDate[$sc['followup_id']]]['scores']->{$sc['grid_item_id']} = (int) $sc['score'];
     }
-    foreach ($con->query("SELECT * FROM experiment_followup_observations WHERE followup_id IN ($ids) ORDER BY id") as $o) {
+    foreach (db_rows($con, "SELECT * FROM experiment_followup_observations WHERE followup_id IN ($in) ORDER BY id", $idTypes, $ids) as $o) {
         $value = $o['value_type'] === 'number' ? $trimNumber($o['value_number']) : (string) $o['value_text'];
         if ($o['field_id'] !== null) {
             $entriesByDate[$idToDate[$o['followup_id']]]['fields']->{$o['field_id']} = $value;
@@ -389,8 +484,24 @@ $actions->bind_param("i", $experimentAnimalId);
 $actions->execute();
 $actions = $actions->get_result()->fetch_all(MYSQLI_ASSOC);
 $pendingActions = array_filter($actions, fn($a) => $a['status'] === 'pending');
+$actionComments = endpoint_action_comments($con, array_column($pendingActions, 'id'));
+$endpointActionUrl = 'endpoint_action.php?' . http_build_query(['experiment_animal_id' => $experimentAnimalId, 'return' => $selfUrl]);
 
 $isFollowed = $ea['animal_status'] === 'active' && $ea['removed_at'] === null;
+
+// Experimental acts: still to do up to today, and those already confirmed.
+$acts = enrollment_acts($con, $experimentAnimalId, date('Y-m-d'));
+$actFields = experiment_act_fields($con, array_column($acts, 'act_id'));
+$actValues = experiment_act_values($con, array_column(array_filter($acts, fn($a) => $a['status'] === 'done'), 'id'));
+$lotsByProduct = array_filter(array_column($acts, 'product_id')) ? usable_lots_by_product($con) : [];
+$plannedActs = array_filter($acts, fn($a) => $a['status'] === 'planned');
+$confirmedActList = array_reverse(array_filter($acts, fn($a) => $a['status'] !== 'planned'));
+$isAdmin = ($_SESSION['role'] ?? '') === 'admin';
+$allActRowIds = db_rows($con, 'SELECT id FROM experiment_act_animals WHERE experiment_animal_id = ?', 'i', [$experimentAnimalId]);
+$actCorrections = experiment_act_corrections($con, array_column($allActRowIds, 'id'));
+// Weight used to suggest the volume of a dose by weight: the one typed in the
+// form, else the latest known weight.
+$latestWeight = enrollment_latest_weights($con, [$experimentAnimalId])[$experimentAnimalId] ?? null;
 
 // Render the shared header only after request handling. Including it before the
 // POST redirect sends HTML output and prevents PHP from modifying headers.
@@ -426,11 +537,17 @@ require 'header.php';
         </div>
 
         <?php include('message.php'); ?>
+        <?= training_warning_banner($con) ?>
 
         <?php foreach ($pendingActions as $a) : ?>
             <div class="alert alert-danger" id="pendingAction<?= (int) $a['id']; ?>">
                 <h5 class="alert-heading"><i class="fas fa-exclamation-triangle"></i> <?= trh('ACTION REQUIRED: {actions}', ['actions' => endpoint_required_actions()[$a['required_action']]]); ?></h5>
                 <p class="mb-2"><?= htmlspecialchars($a['message'] ?? ''); ?> — <?= trh('since {date}', ['date' => $a['created_at']]); ?></p>
+                <?php $comments = $actionComments[(int) $a['id']] ?? [];
+                if ($lastComment = $comments ? end($comments) : null) : ?>
+                    <p class="mb-2 small"><i class="fas fa-comment"></i> <?= trh('Not done at once: {comment}', ['comment' => $lastComment['comment']]); ?> <span class="text-muted">— <?= htmlspecialchars(($lastComment['created_by_name'] ?? '') . ', ' . substr($lastComment['created_at'], 0, 16)); ?></span></p>
+                <?php endif; ?>
+                <p class="mb-2"><a href="<?= htmlspecialchars($endpointActionUrl); ?>" class="alert-link"><?= trh('Carry out or comment this action') ?></a></p>
                 <?php if ($a['required_action'] === 'euthanasia') : ?>
                     <a href="animal_exit.php?<?= htmlspecialchars(http_build_query(['id' => $ea['animal_id'], 'code' => 'point_limite', 'return' => $backUrl])); ?>" class="btn btn-danger"><?= trh('Record the euthanasia (exit: endpoint reached)') ?></a>
                 <?php else : ?>
@@ -545,9 +662,87 @@ require 'header.php';
                             </div>
                         </template>
 
+                        <?php if ($plannedActs || $confirmedActList) : ?>
+                            <div id="actsSection" class="mb-3">
+                                <h6><i class="fas fa-syringe"></i> <?= trh('Experimental acts') ?> <small class="text-muted">(<?= trh('tick each act done; leave “later” if it is not done yet') ?>)</small></h6>
+                                <?php if ($plannedActs) : ?><?= training_supervisor_field($con) ?><?php endif; ?>
+                                <?php foreach ($plannedActs as $act) :
+                                    $aid = (int) $act['id'];
+                                    $fields = $actFields[(int) $act['act_id']] ?? []; ?>
+                                    <div class="border rounded p-2 mb-2 act-row" data-date="<?= htmlspecialchars($act['planned_date']) ?>" data-status="planned">
+                                        <div class="d-flex justify-content-between flex-wrap gap-2">
+                                            <div>
+                                                <span class="badge bg-primary"><?= htmlspecialchars(experiment_act_types()[$act['act_type']] ?? $act['act_type']) ?></span>
+                                                <strong><?= htmlspecialchars($act['label']) ?></strong>
+                                                <?php if ($summary = experiment_act_summary($act)) : ?><span class="text-muted">— <?= htmlspecialchars($summary) ?></span><?php endif; ?>
+                                                <span class="badge bg-warning text-dark act-overdue d-none"><?= trh('planned on {date}', ['date' => $act['planned_date']]) ?></span>
+                                                <?php if ($act['instructions']) : ?><div class="small"><i class="fas fa-info-circle"></i> <?= htmlspecialchars($act['instructions']) ?></div><?php endif; ?>
+                                            </div>
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                <input type="radio" class="btn-check act-status" name="act_status[<?= $aid ?>]" id="act<?= $aid ?>_later" value="" checked>
+                                                <label class="btn btn-outline-secondary" for="act<?= $aid ?>_later"><?= trh('Later') ?></label>
+                                                <input type="radio" class="btn-check act-status" name="act_status[<?= $aid ?>]" id="act<?= $aid ?>_done" value="done">
+                                                <label class="btn btn-outline-success" for="act<?= $aid ?>_done"><i class="fas fa-check"></i> <?= trh('Act done') ?></label>
+                                                <input type="radio" class="btn-check act-status" name="act_status[<?= $aid ?>]" id="act<?= $aid ?>_not" value="not_done">
+                                                <label class="btn btn-outline-danger" for="act<?= $aid ?>_not"><?= trh('Not done') ?></label>
+                                            </div>
+                                        </div>
+                                        <div class="row g-2 mt-1 act-details d-none">
+                                            <div class="col-md-2">
+                                                <label class="form-label small mb-0"><?= trh('Time') ?></label>
+                                                <input type="time" class="form-control form-control-sm" name="act_time[<?= $aid ?>]" value="<?= date('H:i') ?>">
+                                            </div>
+                                            <?php foreach ($fields as $fieldId => $f) : ?>
+                                                <div class="col-md-3 act-done-only">
+                                                    <label class="form-label small mb-0"><?= htmlspecialchars($f['label']) ?><?= $f['unit'] ? ' (' . htmlspecialchars($f['unit']) . ')' : '' ?><?= $f['required'] ? ' *' : '' ?></label>
+                                                    <input type="text" class="form-control form-control-sm" name="act_value[<?= $aid ?>][<?= (int) $fieldId ?>]" <?= $f['value_type'] === 'number' ? 'inputmode="decimal" pattern="-?[0-9]+([.,][0-9]+)?"' : '' ?> data-required="<?= (int) $f['required'] ?>">
+                                                </div>
+                                            <?php endforeach; ?>
+                                            <?php if ($act['product_id']) : ?>
+                                                <div class="col-md-4 act-done-only">
+                                                    <label class="form-label small mb-0"><?= trh('Lot of {product}', ['product' => $act['product_name']]) ?> *</label>
+                                                    <select class="form-select form-select-sm" name="act_lot[<?= $aid ?>]" data-required="1"><?= act_lot_options($lotsByProduct, (int) $act['product_id'], isset($lotsByProduct[(int) $act['product_id']]) ? (int) $lotsByProduct[(int) $act['product_id']][0]['id'] : null) ?></select>
+                                                </div>
+                                                <div class="col-md-2 act-done-only">
+                                                    <label class="form-label small mb-0"><?= trh('Quantity ({unit})', ['unit' => $act['product_unit']]) ?> *</label>
+                                                    <?php $perGram = act_quantity_per_gram($act);
+                                                    $suggested = $perGram ? act_suggested_quantity($act, $latestWeight['weight'] ?? null) : null; ?>
+                                                    <input type="text" class="form-control form-control-sm act-qty" name="act_qty[<?= $aid ?>]" inputmode="decimal" pattern="[0-9]+([.,][0-9]+)?" value="<?= htmlspecialchars($suggested !== null ? act_number((string) $suggested) : act_number($act['quantity_per_animal'])) ?>" data-required="1"<?= $perGram ? ' data-per-gram="' . htmlspecialchars((string) $perGram[0]) . '"' : '' ?>>
+                                                </div>
+                                                <?php if ($perGram) : ?>
+                                                    <div class="col-12 act-done-only small text-success act-weight-hint" data-formula="<?= htmlspecialchars($perGram[1]) ?>" data-latest="<?= htmlspecialchars($latestWeight ? act_number((string) $latestWeight['weight']) : '') ?>" data-latest-date="<?= htmlspecialchars($latestWeight['date'] ?? tr('baseline')) ?>"></div>
+                                                <?php endif; ?>
+                                            <?php endif; ?>
+                                            <div class="<?= $fields || $act['product_id'] ? 'col-12' : 'col' ?>">
+                                                <label class="form-label small mb-0 act-note-label" data-done="<?= trh('Note') ?>" data-not="<?= trh('Reason why it was not done') ?> *"><?= trh('Note') ?></label>
+                                                <input type="text" class="form-control form-control-sm act-note" name="act_note[<?= $aid ?>]">
+                                            </div>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                                <?php foreach ($confirmedActList as $act) : ?>
+                                    <div class="border rounded p-2 mb-2 act-row <?= $act['status'] === 'done' ? 'border-success' : 'border-danger' ?>" data-date="<?= htmlspecialchars($act['planned_date']) ?>" data-status="<?= htmlspecialchars($act['status']) ?>">
+                                        <span class="badge bg-<?= $act['status'] === 'done' ? 'success' : 'danger' ?>"><?= htmlspecialchars(experiment_act_statuses()[$act['status']]) ?></span>
+                                        <strong><?= htmlspecialchars($act['label']) ?></strong>
+                                        <?php if ($summary = experiment_act_summary($act)) : ?><span class="text-muted">— <?= htmlspecialchars($summary) ?></span><?php endif; ?>
+                                        <span class="small text-muted">· <?= htmlspecialchars(substr((string) $act['done_at'], 0, 16) . ' — ' . act_done_by_text($act)) ?></span>
+                                        <div class="small">
+                                            <?php if ($act['medication_lot_id']) : ?><?= trh('{qty} {unit}, lot {lot}', ['qty' => act_number($act['quantity_used']), 'unit' => $act['product_unit'], 'lot' => $act['lot_number']]) ?> · <?php endif; ?>
+                                            <?= implode(' · ', array_map(fn($v) => htmlspecialchars($v['label'] . ' : ' . observation_value($v)), $actValues[(int) $act['id']] ?? [])) ?>
+                                            <?= $act['note'] ? '<em>' . htmlspecialchars($act['note']) . '</em>' : '' ?>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+
                         <div class="mb-3">
                             <label class="form-label"><?= trh('General observations') ?></label>
                             <textarea class="form-control" name="observations" id="general_observations"></textarea>
+                        </div>
+                        <div class="mb-3 d-none" id="revisionReasonGroup">
+                            <label class="form-label" for="revision_reason"><?= trh('Reason for the correction') ?> *</label>
+                            <input type="text" class="form-control" name="revision_reason" id="revision_reason" maxlength="1000" placeholder="<?= trh('e.g. wrong animal weighed, score entered on the wrong item') ?>">
                         </div>
                         <button type="submit" class="btn btn-primary" id="followupSubmit"><?= trh('Save Follow-up') ?></button>
                     </form>
@@ -578,7 +773,8 @@ require 'header.php';
                 <tbody>
                     <?php foreach ($history as $h) : ?>
                         <tr class="<?= $h['endpoint_reached'] ? 'table-danger' : ''; ?>">
-                            <td class="text-nowrap"><a href="<?= htmlspecialchars('experiment_followup_view.php?' . http_build_query(['id' => $h['id'], 'return' => $selfUrl])); ?>" title="<?= trh('Read the full evaluation') ?>"><?= htmlspecialchars($h['observed_at']); ?> <i class="fas fa-search small"></i></a></td>
+                            <td class="text-nowrap"><a href="<?= htmlspecialchars('experiment_followup_view.php?' . http_build_query(['id' => $h['id'], 'return' => $selfUrl])); ?>" title="<?= trh('Read the full evaluation') ?>"><?= htmlspecialchars($h['observed_at']); ?> <i class="fas fa-search small"></i></a>
+                                <?php if (!empty($revisionCounts[(int) $h['id']])) : ?><span class="badge bg-warning text-dark" title="<?= trh('Corrections kept with their reason: see the full evaluation') ?>"><?= trh('corrected ({n})', ['n' => $revisionCounts[(int) $h['id']]]) ?></span><?php endif; ?></td>
                             <td><?= htmlspecialchars($h['weight_g'] ?? '-'); ?></td>
                             <td><?= ($h['weight_g'] !== null && !empty($ea['baseline_weight_g'])) ? round(($ea['baseline_weight_g'] - $h['weight_g']) / $ea['baseline_weight_g'] * 100, 1) : '-'; ?></td>
                             <?php foreach ($historyLabels as $label) : ?><td><?= htmlspecialchars((string) ($scoresByFollowup[$h['id']][$label] ?? '-')); ?></td><?php endforeach; ?>
@@ -596,6 +792,54 @@ require 'header.php';
                 </tbody>
             </table>
         </div>
+
+        <?php if ($confirmedActList) : ?>
+            <h5 id="actsHistory"><?= trh('Experimental acts confirmed') ?></h5>
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead>
+                        <tr><th><?= trh('Planned') ?></th><th><?= trh('Act') ?></th><th><?= trh('Status') ?></th><th><?= trh('Done on') ?></th><th><?= trh('Medication') ?></th><th><?= trh('Information') ?></th><th><?= trh('By') ?></th><th></th></tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($confirmedActList as $act) : $canCorrect = $isAdmin || (int) $act['done_by'] === (int) $currentUserId; ?>
+                            <tr class="<?= $act['status'] === 'not_done' ? 'table-danger' : '' ?>">
+                                <td class="text-nowrap"><?= htmlspecialchars($act['planned_date']) ?></td>
+                                <td><?= htmlspecialchars($act['label']) ?><?php if ($summary = experiment_act_summary($act)) : ?> <small class="text-muted">(<?= htmlspecialchars($summary) ?>)</small><?php endif; ?></td>
+                                <td><?= htmlspecialchars(experiment_act_statuses()[$act['status']]) ?></td>
+                                <td class="text-nowrap"><?= htmlspecialchars(substr((string) $act['done_at'], 0, 16)) ?></td>
+                                <td><?= $act['medication_lot_id'] ? trh('{qty} {unit}, lot {lot}', ['qty' => act_number($act['quantity_used']), 'unit' => $act['product_unit'], 'lot' => $act['lot_number']]) : '' ?></td>
+                                <td><?= implode('<br>', array_map(fn($v) => htmlspecialchars($v['label'] . ' : ' . observation_value($v)), $actValues[(int) $act['id']] ?? [])) ?><?= $act['note'] ? ' <em>' . htmlspecialchars($act['note']) . '</em>' : '' ?></td>
+                                <td><?= htmlspecialchars(act_done_by_text($act)) ?></td>
+                                <td class="text-nowrap">
+                                    <?php if ($canCorrect) : ?>
+                                        <details>
+                                            <summary class="btn btn-sm btn-outline-secondary"><i class="fas fa-undo"></i> <?= trh('Correct') ?></summary>
+                                            <form method="POST" class="mt-1" style="min-width: 18rem" onsubmit="return confirm(<?= htmlspecialchars(trj('Cancel this confirmation? The act will be to do again; a medication given is re-credited to its lot.')) ?>)">
+                                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+                                                <input type="hidden" name="experiment_animal_id" value="<?= $experimentAnimalId ?>">
+                                                <input type="hidden" name="return" value="<?= htmlspecialchars($returnUrl ?? '') ?>">
+                                                <input type="hidden" name="act_animal_id" value="<?= (int) $act['id'] ?>">
+                                                <input type="text" class="form-control form-control-sm mb-1" name="correction_reason" required placeholder="<?= trh('Reason of the correction (e.g. wrong animal, wrong volume)') ?>">
+                                                <button class="btn btn-sm btn-warning" name="correct_act"><?= trh('Cancel the confirmation') ?></button>
+                                            </form>
+                                        </details>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($actCorrections) : ?>
+            <h6><?= trh('Corrections of act confirmations') ?></h6>
+            <ul class="small">
+                <?php foreach ($actCorrections as $actAnimalId => $list) : foreach ($list as $c) : ?>
+                    <li><?= trh('Act #{id}', ['id' => $actAnimalId]) ?> — <?= htmlspecialchars(act_correction_text($c)) ?></li>
+                <?php endforeach; endforeach; ?>
+            </ul>
+        <?php endif; ?>
 
         <?php if ($actions) : ?>
             <h5><?= trh('Endpoint actions') ?></h5>
@@ -615,7 +859,7 @@ require 'header.php';
                             <td><?= htmlspecialchars($a['created_at']); ?></td>
                             <td><?= htmlspecialchars(endpoint_required_actions()[$a['required_action']]); ?></td>
                             <td><?= htmlspecialchars($a['message'] ?? ''); ?></td>
-                            <td><span class="badge bg-<?= $a['status'] === 'pending' ? 'danger' : 'success'; ?>"><?= trh($a['status']); ?></span></td>
+                            <td><span class="badge bg-<?= ['pending' => 'danger', 'done' => 'success'][$a['status']] ?? 'secondary'; ?>"><?= trh($a['status']); ?></span></td>
                             <td><?= $a['done_at'] ? htmlspecialchars($a['done_at'] . ' — ' . ($a['done_by_name'] ?? '') . ': ' . ($a['done_note'] ?? '')) : ''; ?></td>
                         </tr>
                     <?php endforeach; ?>
@@ -669,6 +913,84 @@ require 'header.php';
             window.updateGridTotal = update;
         })();
 
+        // Dose by weight: the quantity follows the weight typed in the form (or
+        // the latest known weight) until it is changed by hand.
+        (function() {
+            const weightInput = document.getElementById('weight_g');
+            const qtys = [...document.querySelectorAll('.act-qty[data-per-gram]')];
+            if (!qtys.length) return;
+            const texts = {
+                typed: <?= trj('{formula} = {qty} {unit} for {weight} g (weight entered)') ?>,
+                latest: <?= trj('{formula} = {qty} {unit} for {weight} g (weight of {date})') ?>,
+                none: <?= trj('{formula}: enter the weight to calculate the volume.') ?>
+            };
+            const unit = 'mL';
+            qtys.forEach(q => q.addEventListener('input', () => q.dataset.manual = '1'));
+            const sync = () => {
+                const typed = parseFloat((weightInput && weightInput.value || '').replace(',', '.'));
+                qtys.forEach(q => {
+                    const row = q.closest('.act-details');
+                    const hint = row.querySelector('.act-weight-hint');
+                    const latest = parseFloat(hint.dataset.latest);
+                    const weight = typed > 0 ? typed : (latest > 0 ? latest : null);
+                    if (!weight) { hint.textContent = texts.none.replace('{formula}', hint.dataset.formula); return; }
+                    const qty = Math.round(parseFloat(q.dataset.perGram) * weight * 1000) / 1000;
+                    if (!q.dataset.manual) q.value = qty;
+                    hint.textContent = (typed > 0 ? texts.typed : texts.latest.replace('{date}', hint.dataset.latestDate))
+                        .replace('{formula}', hint.dataset.formula).replace('{qty}', qty).replace('{unit}', unit).replace('{weight}', weight);
+                });
+            };
+            if (weightInput) weightInput.addEventListener('input', sync);
+            document.getElementById('observed_at')?.addEventListener('change', () => setTimeout(sync));
+            document.querySelectorAll('[data-edit-date]').forEach(a => a.addEventListener('click', () => setTimeout(sync)));
+            setTimeout(sync);
+        })();
+
+        // Experimental acts: the ones still to do up to the chosen day (overdue
+        // flagged) and the ones confirmed for that day; details once ticked.
+        (function() {
+            const section = document.getElementById('actsSection');
+            const dateInput = document.getElementById('observed_at');
+            if (!section || !dateInput) return;
+            const rows = [...section.querySelectorAll('.act-row')];
+            const syncRow = row => {
+                const visible = !row.hidden;
+                const checked = row.querySelector('.act-status:checked');
+                const status = checked ? checked.value : '';
+                const details = row.querySelector('.act-details');
+                if (!details) return;
+                details.classList.toggle('d-none', !visible || status === '');
+                details.querySelectorAll('.act-done-only').forEach(el => el.classList.toggle('d-none', status !== 'done'));
+                details.querySelectorAll('input, select').forEach(el => {
+                    const inDone = el.closest('.act-done-only');
+                    el.disabled = !visible || status === '' || (inDone && status !== 'done');
+                    el.required = !el.disabled && el.dataset.required === '1';
+                });
+                const note = row.querySelector('.act-note');
+                const label = row.querySelector('.act-note-label');
+                note.required = visible && status === 'not_done';
+                label.textContent = status === 'not_done' ? label.dataset.not : label.dataset.done;
+                row.querySelectorAll('.act-status').forEach(r => r.disabled = !visible);
+            };
+            const sync = () => {
+                const date = dateInput.value;
+                let shown = 0;
+                rows.forEach(row => {
+                    const planned = row.dataset.status === 'planned';
+                    row.hidden = planned ? row.dataset.date > date : row.dataset.date !== date;
+                    const overdue = row.querySelector('.act-overdue');
+                    if (overdue) overdue.classList.toggle('d-none', row.dataset.date >= date);
+                    if (!row.hidden) shown++;
+                    syncRow(row);
+                });
+                section.hidden = shown === 0;
+            };
+            section.querySelectorAll('.act-status').forEach(r => r.addEventListener('change', () => syncRow(r.closest('.act-row'))));
+            dateInput.addEventListener('change', sync);
+            document.querySelectorAll('[data-edit-date]').forEach(a => a.addEventListener('click', () => setTimeout(sync)));
+            sync();
+        })();
+
         // Choosing a date already entered loads that day's current values (the
         // form then updates it); another date starts from an empty form.
         (function() {
@@ -678,8 +1000,10 @@ require 'header.php';
             const dateInput = document.getElementById('observed_at');
             const mode = document.getElementById('entryMode');
             const submit = document.getElementById('followupSubmit');
+            const reasonGroup = document.getElementById('revisionReasonGroup');
+            const reason = document.getElementById('revision_reason');
             const texts = {
-                edit: <?= trj('Editing the follow-up of {date}, entered by {user} on {at}: its current values are loaded; saving replaces them.') ?>,
+                edit: <?= trj('Correcting the follow-up of {date}, entered by {user} on {at}: its current values are loaded; give the reason for the correction, the values replaced are kept in its history.') ?>,
                 endpoint: <?= trj('An endpoint was reached on that day.') ?>,
                 create: <?= trj('New follow-up for {date}.') ?>,
                 saveEdit: <?= trj('Save the changes') ?>,
@@ -704,6 +1028,9 @@ require 'header.php';
                 if (entry && window.addExtraObsRow) entry.free.forEach(o => window.addExtraObsRow(o, false));
                 if (window.updateGridTotal) window.updateGridTotal();
                 mode.classList.remove('d-none', 'alert-info', 'alert-warning');
+                reasonGroup.classList.toggle('d-none', !entry);
+                reason.required = !!entry;
+                reason.value = '';
                 if (entry) {
                     mode.classList.add('alert-warning');
                     mode.textContent = texts.edit.replace('{date}', date).replace('{user}', entry.by || '—').replace('{at}', entry.at)

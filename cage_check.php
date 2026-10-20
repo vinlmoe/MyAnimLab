@@ -6,7 +6,7 @@
  * cage "all OK" in one tap, or opens a health report on one of its animals.
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 
@@ -14,10 +14,6 @@ if (!isset($_SESSION['username'])) {
     $currentUrl = urlencode($_SERVER['REQUEST_URI']);
     header("Location: index.php?redirect=$currentUrl");
     exit;
-}
-
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
 $cageId = trim($_GET['id'] ?? $_POST['cage_id'] ?? '');
@@ -33,14 +29,14 @@ $stmt->close();
 // follow-up of every animal, entered on the cage's grouped follow-up page.
 if ($cage && $cage['status'] === 'active' && cage_experimental_progress($con, $cageId)) {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $_SESSION['message'] = tr('Cage {cage} is under experiment: it is validated once every animal has its follow-up for the day.', ['cage' => $cageId]);
+        $_SESSION['message'] = tr('Cage {cage} is under experiment: it is validated once every animal has its follow-up for the day and every act due is confirmed.', ['cage' => $cageId]);
     }
     header('Location: experiment_cage_followup.php?' . http_build_query(['cage_id' => $cageId]));
     exit;
 }
 
 if ($cage && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
     if ($cage['status'] !== 'active') {
@@ -120,6 +116,24 @@ $roomKey = ($cage['room'] ?? '') === '' ? '__none' : $cage['room'];
                 <input type="text" name="note" class="form-control mb-2" placeholder="<?= trh('Optional note (water, food, bedding...)') ?>">
                 <button type="submit" class="btn btn-success w-100 big-btn"><i class="fas fa-check"></i> <?= trh('All OK for this cage') ?></button>
             </form>
+
+            <?php if ($cage['kind'] === 'breeding') :
+                // Litters noted in pencil on the cage card are recorded here too.
+                $nursing = db_rows($con, "SELECT * FROM litters WHERE cage_id = ? AND status = 'nursing' ORDER BY litter_dob", 's', [$cageId]); ?>
+                <h5><?= trh('Litters — record what is noted on the cage card') ?></h5>
+                <div class="list-group mb-2" id="checkLitters">
+                    <?php foreach ($nursing as $l) :
+                        $overdue = $l['expected_weaning_date'] !== null && $l['expected_weaning_date'] < date('Y-m-d'); ?>
+                        <div class="list-group-item d-flex justify-content-between align-items-center <?= $overdue ? 'list-group-item-danger' : '' ?>">
+                            <span><?= trh('Born {dob}: {n} alive', ['dob' => $l['litter_dob'] ?? '?', 'n' => litter_alive_now($con, $l)]) ?>
+                                <br><small><?= trh('weaning expected {date}', ['date' => $l['expected_weaning_date'] ?? '?']) ?></small></span>
+                            <a href="litter_manage.php?litter_id=<?= (int) $l['id'] ?>" class="btn btn-outline-success btn-sm"><?= trh('Deaths / weaning') ?></a>
+                        </div>
+                    <?php endforeach; ?>
+                    <?php if (!$nursing) : ?><div class="list-group-item text-muted"><?= trh('No litter being nursed in this cage.') ?></div><?php endif; ?>
+                </div>
+                <a href="litter_manage.php?cage_id=<?= rawurlencode($cageId) ?>#birth" class="btn btn-success w-100 mb-3"><i class="fas fa-baby"></i> <?= trh('Record a birth') ?></a>
+            <?php endif; ?>
 
             <h5><?= trh('Animals — report a health issue') ?></h5>
             <div class="list-group mb-3">

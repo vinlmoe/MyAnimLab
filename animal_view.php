@@ -9,9 +9,10 @@
  * the row itself is never deleted).
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
+require_once 'corrections_lib.php';
 
 if (!isset($_SESSION['username'])) {
     $currentUrl = urlencode($_SERVER['REQUEST_URI']);
@@ -22,10 +23,6 @@ if (!isset($_SESSION['username'])) {
 require 'header.php';
 
 $animalId = (int) ($_GET['id'] ?? 0);
-
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 
 $stmt = $con->prepare(
     "SELECT m.*, al.code AS line_code, al.name AS line_name, al.species
@@ -137,7 +134,8 @@ $statusBadge = [
                 <a href="health_report.php?animal_id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-warning"><?= trh('Report Health Issue') ?></a>
                 <a href="animal_exit.php?id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-danger"><?= trh('Exit (sacrifice / death / export)') ?></a>
             <?php endif; ?>
-            <?php if (($_SESSION['role'] ?? '') === 'admin') : ?>
+            <?php // Deletion is only offered for an animal created by mistake (no regulatory history). ?>
+            <?php if (($_SESSION['role'] ?? '') === 'admin' && !animal_regulatory_history($con, (int) $animal['id'])) : ?>
                 <a href="animal_hard_delete.php?id=<?= (int) $animal['id']; ?>" class="btn btn-sm btn-outline-dark"><?= trh('Permanently Delete (admin)') ?></a>
             <?php endif; ?>
         </h4>
@@ -185,7 +183,22 @@ $statusBadge = [
             </div>
         </div>
 
-        <?php $originText = origin_label($animal); $canEditOrigin = !$animal['origin_type'] || ($_SESSION['role'] ?? '') === 'admin'; ?>
+        <?php
+        $isAdmin = ($_SESSION['role'] ?? '') === 'admin';
+        $originText = origin_label($animal);
+        $canEditOrigin = !$animal['origin_type'] || $isAdmin;
+        $registerCorrections = record_corrections($con, 'animal', (int) $animal['id']);
+        ?>
+        <?php
+        $capture = null;
+        if ($animal['origin_type'] === 'population_capture') {
+            $cs = $con->prepare('SELECT ca.weight_g, ev.event_date, ev.terrarium_id, t.code FROM terrarium_capture_animals ca JOIN terrarium_events ev ON ev.id = ca.event_id JOIN terrariums t ON t.id = ev.terrarium_id WHERE ca.animal_id = ?');
+            $cs->bind_param('i', $animal['id']);
+            $cs->execute();
+            $capture = $cs->get_result()->fetch_assoc();
+            $cs->close();
+        }
+        ?>
         <div class="card <?= $originText ? '' : 'border-warning'; ?>" id="register">
             <div class="card-body">
                 <h5 class="card-title d-flex justify-content-between flex-wrap gap-2"><span><i class="fas fa-book"></i> <?= trh('Entry / exit register') ?></span>
@@ -196,6 +209,9 @@ $statusBadge = [
                         <p class="mb-1"><strong><?= trh('Origin:') ?></strong>
                             <?php if ($originText) : ?><?= htmlspecialchars($originText); ?>
                             <?php else : ?><span class="badge bg-warning text-dark"><?= trh('To complete') ?></span><?php endif; ?></p>
+                        <?php if ($capture) : ?>
+                            <p class="mb-1"><strong><?= trh('Capture:') ?></strong> <a href="terrarium_view.php?id=<?= (int) $capture['terrarium_id'] ?>#captures"><?= htmlspecialchars($capture['code']) ?></a>, <?= htmlspecialchars($capture['event_date']) ?><?= $capture['weight_g'] !== null ? ' — ' . trh('weight at capture {w} g', ['w' => rtrim(rtrim(number_format((float) $capture['weight_g'], 2, '.', ''), '0'), '.')]) : '' ?></p>
+                        <?php endif; ?>
                     </div>
                     <div class="col-md-6">
                         <?php if ($animal['status'] !== 'active') : ?>
@@ -213,16 +229,72 @@ $statusBadge = [
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>">
                             <input type="hidden" name="animal_id" value="<?= (int) $animal['id']; ?>">
                             <?= animal_origin_fields($animal, true); ?>
+                            <?php if ($originText) : ?>
+                                <div class="mb-2">
+                                    <label class="form-label" for="entry_correction_reason"><?= trh('Reason for the correction') ?> *</label>
+                                    <input type="text" class="form-control" id="entry_correction_reason" name="correction_reason" maxlength="1000" required placeholder="<?= trh('e.g. wrong delivery note, date entered by mistake') ?>">
+                                </div>
+                            <?php endif; ?>
                             <button type="submit" class="btn btn-sm btn-primary"><?= trh('Save the entry') ?></button>
                         </form>
                     </details>
+                <?php endif; ?>
+                <?php if ($isAdmin && $animal['status'] !== 'active') : ?>
+                    <details class="mt-2">
+                        <summary class="small"><?= trh('Correct the exit (administrator)') ?></summary>
+                        <form method="POST" action="animal_exit.php" class="mt-2" id="exitCorrectionForm">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()); ?>">
+                            <input type="hidden" name="animal_id" value="<?= (int) $animal['id']; ?>">
+                            <input type="hidden" name="correct_exit" value="1">
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label class="form-label" for="corr_exit_code"><?= trh('Exit code') ?></label>
+                                    <select class="form-select" id="corr_exit_code" name="exit_code" required>
+                                        <?php foreach (ANIMAL_EXIT_CODES as $key => [$text]) : ?>
+                                            <option value="<?= $key; ?>" <?= $key === ($animal['exit_code'] ?? '') ? 'selected' : ''; ?>><?= htmlspecialchars($text); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="corr_exit_date"><?= trh('Exit date') ?></label>
+                                    <input type="date" class="form-control" id="corr_exit_date" name="exit_date" required max="<?= date('Y-m-d'); ?>" value="<?= htmlspecialchars($animal['exit_date'] ?? ''); ?>">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="corr_destination"><?= trh('Destination facility (for an export)') ?></label>
+                                    <input type="text" class="form-control" id="corr_destination" name="destination" value="<?= htmlspecialchars($animal['exit_destination'] ?? ''); ?>">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="corr_exit_reason"><?= trh('Reason / circumstances') ?></label>
+                                    <textarea class="form-control" id="corr_exit_reason" name="reason" required><?= htmlspecialchars($animal['exit_reason'] ?? ''); ?></textarea>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="exit_correction_reason"><?= trh('Reason for the correction') ?> *</label>
+                                    <input type="text" class="form-control" id="exit_correction_reason" name="correction_reason" maxlength="1000" required placeholder="<?= trh('e.g. wrong exit code, date entered by mistake') ?>">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-sm btn-primary mt-2"><?= trh('Save the corrected exit') ?></button>
+                        </form>
+                    </details>
+                <?php endif; ?>
+                <?php if ($registerCorrections) : ?>
+                    <h6 class="mt-3"><?= trh('Corrections of the register') ?></h6>
+                    <ul class="list-group list-group-flush small" id="registerCorrections">
+                        <?php foreach ($registerCorrections as $c) : ?>
+                            <li class="list-group-item px-0">
+                                <strong><?= htmlspecialchars(substr((string) $c['corrected_at'], 0, 16) . ' — ' . ($c['corrected_by_name'] ?? '') . ' — ' . (correction_records()[$c['record']] ?? $c['record'])) ?></strong> :
+                                <?= htmlspecialchars($c['reason']) ?>
+                                <div class="text-muted"><?= htmlspecialchars(correction_changes_text($c)) ?></div>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
                 <?php endif; ?>
             </div>
         </div>
 
         <div class="card">
             <div class="card-body">
-                <h5 class="card-title"><?= trh('Parentage') ?></h5>
+                <h5 class="card-title d-flex justify-content-between align-items-center"><?= trh('Parentage') ?>
+                    <a class="btn btn-sm btn-outline-primary" href="animal_pedigree.php?id=<?= (int) $animal['id']; ?>"><i class="fas fa-sitemap"></i> <?= trh('Family tree') ?></a></h5>
                 <?php if ($parentage) : ?>
                     <p><strong><?= trh('Sire:') ?></strong> <?= htmlspecialchars($parentage['sire_uid'] ?? tr('Unknown/external')); ?></p>
                     <p><strong><?= trh('Dam:') ?></strong> <?= htmlspecialchars($parentage['dam_uid'] ?? tr('Unknown/external')); ?></p>

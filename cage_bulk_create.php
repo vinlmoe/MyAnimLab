@@ -1,7 +1,7 @@
 <?php
 // Create a batch of identified animals and distribute it over the minimum
 // number of holding cages required by the requested capacity.
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 
@@ -9,12 +9,9 @@ if (!isset($_SESSION['username'])) {
     header('Location: index.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
     exit;
 }
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'] ?? '')) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
 
@@ -76,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         } catch (Exception $e) {
             mysqli_rollback($con);
-            $_SESSION['message'] = tr('Bulk cage creation failed: {error}', ['error' => $e->getMessage()]);
+            $_SESSION['message'] = tr('Bulk cage creation failed: {error}', ['error' => error_message($e)]);
         }
     }
 }

@@ -9,7 +9,7 @@
  */
 
 // Start a new session or resume the existing session
-session_start();
+require_once 'session_config.php';
 
 // Include the database connection file
 require 'dbcon.php';
@@ -23,9 +23,6 @@ if (!isset($_SESSION['username'])) {
 }
 
 // Generate a CSRF token if it doesn't exist
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 
 // Query to retrieve users with initials and names
 $userQuery = "SELECT id, initials, name FROM users WHERE status = 'approved'";
@@ -75,7 +72,7 @@ sort($strainOptions, SORT_STRING);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Validate CSRF token
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
 
@@ -467,7 +464,7 @@ require 'header.php';
                     // Populate the dropdown with options from the database
                     while ($userRow = $userResult->fetch_assoc()) {
                         $user_id = htmlspecialchars($userRow['id']);
-                        $initials = htmlspecialchars($userRow['initials']);
+                        $initials = htmlspecialchars($userRow['initials'] ?? '');
                         $name = htmlspecialchars($userRow['name']);
                         echo "<option value='$user_id'>$initials [$name]</option>";
                     }

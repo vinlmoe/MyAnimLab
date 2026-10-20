@@ -9,9 +9,10 @@
  * trial is created or changed.
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
+require_once 'training_lib.php';
 require 'ethics_lib.php';
 
 if (!isset($_SESSION['username'])) {
@@ -19,15 +20,11 @@ if (!isset($_SESSION['username'])) {
     exit;
 }
 
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-
 $currentUserId = $_SESSION['user_id'] ?? null;
 const TRIAL_STATUSES = ['planned', 'active', 'completed', 'cancelled'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
 
@@ -149,6 +146,7 @@ require 'header.php';
         <p class="text-muted mt-1"><?= trh('Trial → protocol(s) → experiment(s). The period of a trial must lie within the validity of its authorization.') ?></p>
 
         <?php include('message.php'); ?>
+        <?= training_procedure_banner($con, 'design') ?>
 
         <?php if ($showForm) : ?>
             <div class="card mb-4 border-primary" id="trialForm">

@@ -8,10 +8,12 @@
  * their follow-up notes, treatments, cage movements and exit. Printable.
  * Access: admin or BEA responsible.
  */
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 require 'ethics_lib.php';
+require 'experiment_acts_lib.php';
+require_once 'corrections_lib.php';
 
 if (!isset($_SESSION['username'])) {
     header('Location: index.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
@@ -90,13 +92,17 @@ if ($reports) {
 $treatments = $rows(
     "SELECT ma.*, mp.name AS product_name, ml.lot_number, pr.prescriber_name, pr.prescription_reference
      FROM medication_administrations ma
-     JOIN prescriptions pr ON pr.id = ma.prescription_id
-     JOIN medication_products mp ON mp.id = pr.product_id
+     LEFT JOIN prescriptions pr ON pr.id = ma.prescription_id
      JOIN medication_lots ml ON ml.id = ma.medication_lot_id
+     JOIN medication_products mp ON mp.id = ml.product_id
      WHERE ma.animal_id = ? ORDER BY ma.administered_at",
     'i',
     $animalId
 );
+// Experimental acts of the participation (all, cancelled excepted).
+$expActs = array_values(array_filter(enrollment_acts($con, $enrollmentId, '9999-12-31'), fn($a) => $a['status'] !== 'cancelled'));
+$expActValues = experiment_act_values($con, array_column($expActs, 'id'));
+$expActCorrections = experiment_act_corrections($con, array_column($rows('SELECT id FROM experiment_act_animals WHERE experiment_animal_id = ?', 'i', $enrollmentId), 'id'));
 $movements = $rows("SELECT mv.*, u.name AS moved_by_name FROM animal_movements mv LEFT JOIN users u ON u.id = mv.moved_by WHERE mv.animal_id = ? ORDER BY mv.moved_at, mv.id", 'i', $animalId);
 $otherParticipations = $rows(
     "SELECT ea.id, ea.enrolled_at, ea.removed_at, e.experiment_number, e.title FROM experiment_animals ea JOIN experiments e ON e.id = ea.experiment_id
@@ -111,6 +117,7 @@ $lossPct = fn($w): ?float => ($baseline > 0 && $w !== null) ? ($baseline - (floa
 $fmt = fn(?float $n, int $d = 1): string => $n === null ? '—' : number_format($n, $d, ',', ' ');
 $classes = retrospective_severities();
 $actionLabels = endpoint_required_actions();
+$registerCorrections = record_corrections($con, 'animal', (int) $animalId);
 $categories = health_categories();
 
 require 'header.php';
@@ -139,6 +146,7 @@ require 'header.php';
                 <a href="#followups"><?= trh('Daily follow-ups') ?> (<?= count($followups) ?>)</a> ·
                 <a href="#endpoints"><?= trh('Endpoint actions') ?> (<?= count($actions) ?>)</a> ·
                 <a href="#health"><?= trh('Health reports') ?> (<?= count($reports) ?>)</a> ·
+                <a href="#acts"><?= trh('Experimental acts') ?> (<?= count($expActs) ?>)</a> ·
                 <a href="#treatments"><?= trh('Treatments given') ?> (<?= count($treatments) ?>)</a> ·
                 <a href="#movements"><?= trh('Cage movements') ?> (<?= count($movements) ?>)</a>
             </nav>
@@ -254,8 +262,8 @@ require 'header.php';
                             <td class="text-nowrap small"><?= htmlspecialchars(substr($a['created_at'], 0, 16)) ?><?= $a['observed_at'] ? '<br>' . trh('follow-up of {date}', ['date' => $a['observed_at']]) : '' ?></td>
                             <td><?= htmlspecialchars($actionLabels[$a['required_action']] ?? $a['required_action']) ?></td>
                             <td class="small"><?= htmlspecialchars($a['message'] ?? '') ?></td>
-                            <td><?= $a['status'] === 'done' ? '<span class="badge bg-success">' . trh('Done') . '</span>' : '<span class="badge bg-danger">' . trh('Pending') . '</span>' ?></td>
-                            <td class="small"><?php if ($a['status'] === 'done') : ?><?= htmlspecialchars(substr((string) $a['done_at'], 0, 16)) ?> · <?= htmlspecialchars($a['done_by_name'] ?? '') ?><?= $a['done_note'] ? '<br>' . nl2br(htmlspecialchars($a['done_note'])) : '' ?><?php endif; ?></td>
+                            <td><?= ['done' => '<span class="badge bg-success">' . trh('Done') . '</span>', 'withdrawn' => '<span class="badge bg-secondary">' . trh('Withdrawn') . '</span>'][$a['status']] ?? '<span class="badge bg-danger">' . trh('Pending') . '</span>' ?></td>
+                            <td class="small"><?php if ($a['status'] !== 'pending') : ?><?= htmlspecialchars(substr((string) $a['done_at'], 0, 16)) ?> · <?= htmlspecialchars($a['done_by_name'] ?? '') ?><?= $a['done_note'] ? '<br>' . nl2br(htmlspecialchars($a['done_note'])) : '' ?><?php endif; ?></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
@@ -288,6 +296,34 @@ require 'header.php';
             <?php endforeach; ?>
         <?php endif; ?>
 
+        <h5 id="acts"><i class="fas fa-syringe"></i> <?= trh('Experimental acts') ?></h5>
+        <?php if (!$expActs) : ?>
+            <p class="text-muted"><?= trh('No experimental act planned.') ?></p>
+        <?php else : ?>
+            <table class="table table-sm table-bordered">
+                <thead class="table-light"><tr><th><?= trh('Planned') ?></th><th><?= trh('Act') ?></th><th><?= trh('Status') ?></th><th><?= trh('Done on') ?></th><th><?= trh('Medication') ?></th><th><?= trh('Information') ?></th><th><?= trh('By') ?></th></tr></thead>
+                <tbody>
+                    <?php foreach ($expActs as $xa) : ?>
+                        <tr class="<?= $xa['status'] === 'not_done' ? 'table-danger' : ($xa['status'] === 'planned' ? 'text-muted' : '') ?>">
+                            <td class="text-nowrap"><?= htmlspecialchars($xa['planned_date']) ?></td>
+                            <td><?= htmlspecialchars((experiment_act_types()[$xa['act_type']] ?? $xa['act_type']) . ' — ' . $xa['label']) ?><?php if ($summary = experiment_act_summary($xa)) : ?> <small class="text-muted">(<?= htmlspecialchars($summary) ?>)</small><?php endif; ?></td>
+                            <td><?= htmlspecialchars(experiment_act_statuses()[$xa['status']]) ?></td>
+                            <td class="text-nowrap"><?= htmlspecialchars(substr((string) $xa['done_at'], 0, 16)) ?></td>
+                            <td><?= $xa['medication_lot_id'] ? trh('{qty} {unit}, lot {lot}', ['qty' => act_number($xa['quantity_used']), 'unit' => $xa['product_unit'], 'lot' => $xa['lot_number']]) : '' ?></td>
+                            <td class="small"><?= implode('<br>', array_map(fn($v) => htmlspecialchars($v['label'] . ' : ' . observation_value($v)), $expActValues[(int) $xa['id']] ?? [])) ?><?= $xa['note'] ? ' <em>' . htmlspecialchars($xa['note']) . '</em>' : '' ?></td>
+                            <td class="small"><?= htmlspecialchars(act_done_by_text($xa)) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+        <?php if ($expActCorrections) : ?>
+            <p class="small mb-1"><strong><?= trh('Corrections of act confirmations') ?></strong></p>
+            <ul class="small">
+                <?php foreach ($expActCorrections as $list) : foreach ($list as $c) : ?><li><?= htmlspecialchars(act_correction_text($c)) ?></li><?php endforeach; endforeach; ?>
+            </ul>
+        <?php endif; ?>
+
         <h5 id="treatments"><i class="fas fa-syringe"></i> <?= trh('Treatments given') ?></h5>
         <?php if (!$treatments) : ?>
             <p class="text-muted"><?= trh('No treatment given.') ?></p>
@@ -296,14 +332,32 @@ require 'header.php';
                 <thead class="table-light"><tr><th><?= trh('Date') ?></th><th><?= trh('Medication') ?></th><th><?= trh('Quantity') ?></th><th><?= trh('Administration route') ?></th><th><?= trh('Prescriber') ?></th><th><?= trh('Notes') ?></th><th><?= trh('By') ?></th></tr></thead>
                 <tbody>
                     <?php foreach ($treatments as $tm) : ?>
-                        <tr class="<?= $inWindow($tm['administered_at']) ? 'table-primary' : '' ?>">
+                        <tr class="<?= $tm['cancelled_at'] ? 'text-decoration-line-through text-muted' : ($inWindow($tm['administered_at']) ? 'table-primary' : '') ?>" title="<?= $tm['cancelled_at'] ? htmlspecialchars(tr('Cancelled on {date} by {user}: {reason} (quantity re-credited)', ['date' => substr($tm['cancelled_at'], 0, 16), 'user' => $tm['cancelled_by_name'] ?? '', 'reason' => $tm['cancel_reason'] ?? ''])) : '' ?>">
                             <td class="text-nowrap"><?= htmlspecialchars(substr($tm['administered_at'], 0, 16)) ?></td>
                             <td><?= htmlspecialchars($tm['product_name']) ?> <small class="text-muted">(<?= trh('lot {lot}', ['lot' => $tm['lot_number']]) ?>)</small></td>
                             <td><?= htmlspecialchars(rtrim(rtrim((string) $tm['quantity_used'], '0'), '.') . ' ' . $tm['unit']) ?></td>
                             <td><?= htmlspecialchars($tm['route'] ?? '—') ?></td>
-                            <td><?= htmlspecialchars($tm['prescriber_name']) ?><?= $tm['prescription_reference'] ? ' · ' . htmlspecialchars($tm['prescription_reference']) : '' ?></td>
+                            <td><?= $tm['experiment_act_animal_id'] ? trh('Experimental act (no prescription)') : htmlspecialchars($tm['prescriber_name'] ?? '') ?><?= $tm['prescription_reference'] ? ' · ' . htmlspecialchars($tm['prescription_reference']) : '' ?></td>
                             <td class="small"><?= htmlspecialchars($tm['notes'] ?? '') ?></td>
                             <td class="small"><?= htmlspecialchars($tm['administered_by_name'] ?? '') ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+
+        <?php if ($registerCorrections) : ?>
+            <h5 id="registerCorrections"><i class="fas fa-book"></i> <?= trh('Corrections of the register') ?></h5>
+            <table class="table table-sm table-bordered">
+                <thead class="table-light"><tr><th><?= trh('Date') ?></th><th><?= trh('Movement') ?></th><th><?= trh('Changes') ?></th><th><?= trh('Reason') ?></th><th><?= trh('By') ?></th></tr></thead>
+                <tbody>
+                    <?php foreach ($registerCorrections as $c) : ?>
+                        <tr>
+                            <td class="text-nowrap"><?= htmlspecialchars(substr((string) $c['corrected_at'], 0, 16)) ?></td>
+                            <td><?= htmlspecialchars(correction_records()[$c['record']] ?? $c['record']) ?></td>
+                            <td class="small"><?= htmlspecialchars(correction_changes_text($c)) ?></td>
+                            <td class="small"><?= htmlspecialchars($c['reason']) ?></td>
+                            <td class="small"><?= htmlspecialchars($c['corrected_by_name'] ?? '') ?></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>

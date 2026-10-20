@@ -1,0 +1,106 @@
+% Mise en page du guide MyAnimLab (guide_myanimlab.tex).
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[french]{babel}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{enumitem,tabularx,booktabs,array}
+\usepackage[table]{xcolor}
+\usepackage{xurl}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[most]{tcolorbox}
+\usepackage{graphicx,amssymb}
+\usepackage{tikz,pdflscape}
+\usetikzlibrary{shapes.symbols,arrows.meta}
+\graphicspath{{img/}}
+\sloppy
+
+\definecolor{accent}{HTML}{1F5F8B}
+\definecolor{ok}{HTML}{2E7D32}
+\definecolor{warn}{HTML}{C76A00}
+\definecolor{brandnavy}{HTML}{123B57}
+\definecolor{brandteal}{HTML}{17A398}
+
+% Chemin de menu : \menu{Animaux > Tournée quotidienne}
+\newcommand{\menu}[1]{\textsf{\textbf{\color{accent}#1}}}
+% Bouton ou libellé de l'interface
+\newcommand{\btn}[1]{\textsf{«~#1~»}}
+% Page ou fichier technique
+\newcommand{\f}[1]{\nolinkurl{#1}}
+
+% Procédure pas à pas
+\newtcolorbox{procedure}[1]{colback=accent!4,colframe=accent,fonttitle=\bfseries\sffamily,
+  title={#1},left=2mm,right=2mm,top=1mm,bottom=1mm,breakable}
+% Règle à connaître
+\newtcolorbox{regle}{colback=warn!6,colframe=warn,fonttitle=\bfseries\sffamily,
+  title={À savoir},left=2mm,right=2mm,top=1mm,bottom=1mm,breakable}
+% Traçabilité réglementaire
+\newtcolorbox{trace}{colback=ok!6,colframe=ok,fonttitle=\bfseries\sffamily,
+  title={Traçabilité},left=2mm,right=2mm,top=1mm,bottom=1mm,breakable}
+
+\setlist[enumerate]{nosep,leftmargin=*}
+\setlist[itemize]{nosep,leftmargin=*}
+
+\pagestyle{fancy}
+\fancyhf{}
+% Logo MyAnimLab (images/logo-mark.svg converti en PDF).
+\newcommand{\logomark}[1][1em]{\raisebox{-0.2\height}{\includegraphics[height=#1]{logo-mark}}}
+\newcommand{\wordmark}{\textsf{\color{brandnavy}My\textbf{Anim}\textbf{\color{brandteal}Lab}}}
+\setlength{\headheight}{14pt}
+\cfoot{\thepage}
+
+% Capture d'écran centrée avec sa légende : \capture[largeur]{fichier}{légende}
+\newcommand{\capture}[3][\linewidth]{%
+  \par\begin{center}\begin{minipage}{#1}\centering
+  \fcolorbox{gray!50}{white}{\includegraphics[width=\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax]{#2}}\\[2pt]
+  {\small\itshape #3}\end{minipage}\end{center}}
+% Deux captures côte à côte : \captures{f1}{l1}{légende1}{f2}{l2}{légende2}
+\newcommand{\captures}[6]{%
+  \par\begin{center}
+  \begin{minipage}[t]{#2}\centering\fcolorbox{gray!50}{white}{\includegraphics[width=\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax]{#1}}\\[2pt]{\small\itshape #3}\end{minipage}\hspace{6mm}%
+  \begin{minipage}[t]{#5}\centering\fcolorbox{gray!50}{white}{\includegraphics[width=\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax]{#4}}\\[2pt]{\small\itshape #6}\end{minipage}
+  \end{center}}
+% Les captures proviennent de la base de démonstration (tools/demo_data.php,
+% tools/guide_screenshots.js).
+
+% Page de titre : \pagetitre{Guide de …}{public}{auteur}{version et date}
+\newcommand{\pagetitre}[4]{%
+  \begin{titlepage}
+  \thispagestyle{empty}
+  \noindent\begin{tcolorbox}[enhanced,colback=brandnavy,colframe=brandnavy,arc=0mm,
+    left=8mm,right=8mm,top=10mm,bottom=10mm,
+    interior style={left color=brandnavy,right color=brandteal!85!brandnavy}]
+    \raisebox{-0.3\height}{\includegraphics[height=17mm]{logo-mark}}\hspace{5mm}%
+    {\fontsize{30}{34}\selectfont\textsf{\color{white}My\textbf{Anim}\textbf{\color{brandteal!55!white}Lab}}}\\[8mm]
+    {\Large\sffamily\color{white} Gestion d'animalerie et traçabilité réglementaire}
+  \end{tcolorbox}
+  \vspace*{30mm}
+  \begin{center}
+    {\fontsize{28}{32}\selectfont\sffamily\bfseries\color{brandnavy} #1}\\[8mm]
+    {\large\sffamily #2}\\[25mm]
+    {\Large\sffamily #3}\\[6mm]
+    {\sffamily\color{gray} Version #4}
+  \end{center}
+  \vfill
+  \noindent\licences\par\medskip
+  \noindent{\small\color{gray} Les captures d'écran proviennent de la base de
+  démonstration : les personnes, animaux et numéros sont fictifs.}
+  \end{titlepage}}
+
+% Licences : le guide sous CC BY-SA 4.0 (logo officiel, img/cc-by-sa.pdf,
+% tiré du paquet doclicense), le logiciel sous LGPLv3. Le logo LGPLv3 de la
+% FSF (https://www.gnu.org/graphics/lgplv3-147x51.png, converti en
+% img/lgplv3.pdf ou .png) s'affiche s'il est présent dans img/.
+\newcommand{\logolgpl}{\IfFileExists{img/lgplv3.pdf}{\includegraphics[height=9mm]{lgplv3}}%
+  {\IfFileExists{img/lgplv3.png}{\includegraphics[height=9mm]{lgplv3}}{}}}
+\newcommand{\licences}{%
+  {\small\renewcommand{\arraystretch}{1.6}%
+  \begin{tabularx}{\linewidth}{@{}m{24mm}X@{}}
+    \href{https://creativecommons.org/licenses/by-sa/4.0/deed.fr}{\includegraphics[height=8mm]{cc-by-sa}} &
+    Ce guide est publié sous licence \href{https://creativecommons.org/licenses/by-sa/4.0/deed.fr}{Creative
+    Commons Attribution -- Partage dans les mêmes conditions 4.0 International (CC BY-SA 4.0)}.\\
+    \logolgpl &
+    Le logiciel MyAnimLab est distribué sous licence
+    \href{https://www.gnu.org/licenses/lgpl-3.0.html}{GNU LGPL version 3 (LGPLv3)}.
+  \end{tabularx}}}

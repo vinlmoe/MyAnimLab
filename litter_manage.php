@@ -14,18 +14,15 @@
  * litter is read-only.
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
+require_once 'training_lib.php';
 
 if (!isset($_SESSION['username'])) {
     $currentUrl = urlencode($_SERVER['REQUEST_URI']);
     header("Location: index.php?redirect=$currentUrl");
     exit;
-}
-
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
 $userId = $_SESSION['user_id'] ?? null;
@@ -64,11 +61,20 @@ $breeders->execute();
 $breeders = $breeders->get_result()->fetch_all(MYSQLI_ASSOC);
 $breederById = array_column($breeders, null, 'id');
 
-$weaningAge = weaning_age_days($con);
+// Weaning age of the pups: their line's (the dam's, else the sire's), else
+// the species', else the laboratory's.
+$weaningSources = ['line' => tr('line'), 'species' => tr('species'), 'lab' => tr('laboratory')];
+$weaningHints = [];
+foreach ($breeders as $b) {
+    if ($b['sex'] === 'female') {
+        [$days, $source] = weaning_age_source($con, $b['line_id'] ? (int) $b['line_id'] : null);
+        $weaningHints[$days . $source] = tr('{n} days ({source})', ['n' => $days, 'source' => $weaningSources[$source]]);
+    }
+}
 $selfUrl = $litter ? "litter_manage.php?litter_id={$litter['id']}" : "litter_manage.php?cage_id=" . rawurlencode($cageId);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
     $action = $_POST['action'] ?? '';
@@ -102,6 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($sireId && ($breederById[$sireId]['sex'] ?? '') !== 'male') {
                 throw new Exception(tr('The sire must be one of the cage’s males.'));
             }
+            $weaningAge = weaning_age_days($con, litter_line_id($con, $damId, $sireId));
             $expected = date('Y-m-d', strtotime("$dob +$weaningAge days"));
             $ins = $con->prepare("INSERT INTO litters (cage_id, dom, litter_dob, pups_alive, pups_dead, remarks, sire_id, dam_id, status, expected_weaning_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'nursing', ?)");
             $ins->bind_param("sssiisiis", $cageId, $dom, $dob, $alive, $dead, $remarks, $sireId, $damId, $expected);
@@ -167,7 +174,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['message'] = tr('Litter closed without weaning.');
             } else { // wean
                 $lineId = (int) ($_POST['line_id'] ?? 0);
-                $lineOk = $con->query("SELECT COUNT(*) FROM animal_lines WHERE id = $lineId")->fetch_row()[0];
+                $lineOk = (int) db_value($con, "SELECT COUNT(*) FROM animal_lines WHERE id = ?", 'i', [$lineId]);
                 if (!$lineOk) {
                     throw new Exception(tr('Choose the line of the weaned animals.'));
                 }
@@ -224,7 +231,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $uids = [];
                     for ($k = 0; $k < $g['count']; $k++) {
                         $aid = create_animal($con, $dest, $lineId, $g['sex'], $litter['litter_dob'], $parentage, $why, $userId);
-                        $uids[] = $con->query("SELECT animal_uid FROM mice WHERE id = $aid")->fetch_row()[0];
+                        $uids[] = db_value($con, "SELECT animal_uid FROM mice WHERE id = ?", 'i', [$aid]);
                     }
                     $summary[] = tr('{n} {sex}(s) → {cage}', ['n' => $g['count'], 'sex' => tr($g['sex']), 'cage' => $dest]) . ' (' . reset($uids) . ($g['count'] > 1 ? '…' . end($uids) : '') . ")";
                     $g['sex'] === 'male' ? $males += $g['count'] : $females += $g['count'];
@@ -247,7 +254,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         mysqli_commit($con);
     } catch (Exception $e) {
         mysqli_rollback($con);
-        $_SESSION['message'] = tr('Not saved: {error}', ['error' => $e->getMessage()]);
+        $_SESSION['message'] = tr('Not saved: {error}', ['error' => error_message($e)]);
     }
     header("Location: $selfUrl");
     exit;
@@ -269,7 +276,7 @@ if ($litter) {
     $offspring->bind_param("i", $litter['id']);
     $offspring->execute();
     $offspring = $offspring->get_result()->fetch_all(MYSQLI_ASSOC);
-    $damLine = $litter['dam_id'] ? $con->query("SELECT line_id FROM mice WHERE id = " . (int) $litter['dam_id'])->fetch_row()[0] : null;
+    $damLine = $litter['dam_id'] ? db_value($con, "SELECT line_id FROM mice WHERE id = ?", 'i', [(int) $litter['dam_id']]) : null;
     $lines = $con->query("SELECT id, code, name FROM animal_lines ORDER BY code")->fetch_all(MYSQLI_ASSOC);
     $destCages = $con->query("SELECT cage_id, room FROM cages c WHERE status = 'active' AND NOT EXISTS (SELECT 1 FROM breeding b WHERE b.cage_id = c.cage_id) ORDER BY room, cage_id")->fetch_all(MYSQLI_ASSOC);
 }
@@ -298,6 +305,7 @@ require 'header.php';
         <?php if (!$litter) : ?>
             <h4 class="mt-2"><?= trh('Litters of cage {cage}', ['cage' => $cageId]); ?> <small class="text-muted"><?= htmlspecialchars($cage['cross'] ?? ''); ?></small></h4>
             <?php include('message.php'); ?>
+            <?= training_procedure_banner($con, 'breeding') ?>
 
             <table class="table table-sm align-middle" id="litterList">
                 <thead class="table-light">
@@ -324,7 +332,7 @@ require 'header.php';
 
             <?php if ($cage['status'] === 'active') : ?>
                 <div class="card card-body">
-                    <h5><?= trh('Record a birth') ?></h5>
+                    <h5 id="birth"><?= trh('Record a birth') ?></h5>
                     <form method="POST" id="birthForm">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>">
                         <input type="hidden" name="cage_id" value="<?= htmlspecialchars($cageId); ?>">
@@ -352,7 +360,7 @@ require 'header.php';
                             <div class="col-md-3"><label class="form-label"><?= trh('Pups born dead') ?></label><input type="number" class="form-control" name="pups_dead" min="0" value="0"></div>
                             <div class="col-md-6"><label class="form-label"><?= trh('Remarks') ?></label><input type="text" class="form-control" name="remarks"></div>
                         </div>
-                        <p class="text-muted small mt-2 mb-2"><?= trh('Expected weaning: date of birth + {n} days (Manage Lab).', ['n' => $weaningAge]); ?></p>
+                        <p class="text-muted small mt-2 mb-2"><?= trh('Expected weaning: date of birth + the weaning age of the line, else of the species, else of the laboratory ({ages}).', ['ages' => implode(', ', $weaningHints) ?: tr('{n} days ({source})', ['n' => weaning_age_days($con), 'source' => $weaningSources['lab']])]); ?></p>
                         <button name="action" value="birth" class="btn btn-primary"><?= trh('Record birth') ?></button>
                     </form>
                 </div>
@@ -363,6 +371,7 @@ require 'header.php';
                 <span class="badge bg-<?= $statusBadge[$litter['status']]; ?>" id="litterStatus"><?= trh($litter['status']); ?></span>
             </h4>
             <?php include('message.php'); ?>
+            <?= training_procedure_banner($con, 'breeding') ?>
 
             <div class="card card-body mb-3" id="litterSummary">
                 <div class="row">

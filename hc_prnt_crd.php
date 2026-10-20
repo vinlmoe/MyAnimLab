@@ -15,7 +15,7 @@ exit;
  */
 
 // Start a new session or resume the existing session
-session_start();
+require_once 'session_config.php';
 
 // Include the database connection file
 require 'dbcon.php';
@@ -205,7 +205,7 @@ if (isset($_GET['id'])) {
                         <tr>
                             <td colspan="3" style="width: 100%; text-align:center;">
                                 <span style="font-weight: bold; font-size: 10pt; text-transform: uppercase; padding:3px;">
-                                    <?= trh('Holding Cage') ?> - # <?= $holdingcage["cage_id"] ?> </span>
+                                    <?= trh('Holding Cage') ?> - # <?= htmlspecialchars($holdingcage["cage_id"]) ?> </span>
                             </td>
                         </tr>
                         <tr>

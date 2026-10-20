@@ -9,16 +9,13 @@
  * room/rack as a group or to switch holding <-> experimental category.
  * hc_dash.php, bc_dash.php and ec_dash.php open this page on their category.
  */
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 
 if (!isset($_SESSION['username'])) {
     header('Location: index.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
     exit;
-}
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
 $type = $cageDashType ?? ($_GET['type'] ?? 'holding');
@@ -238,6 +235,41 @@ require 'header.php';
                     <?php if ($type === 'experimental' || $type === 'all') : ?>
                         <div class="col-auto"><button type="submit" name="location_action" value="holding" class="btn btn-outline-secondary btn-sm group-action">Classer en hébergement</button></div>
                     <?php endif; ?>
+                    <?php if ($isAdmin) :
+                        $ownerPis = db_rows($con, "SELECT id, name FROM users WHERE status = 'approved' AND position = 'Principal Investigator' ORDER BY name");
+                        $ownerUsers = db_rows($con, "SELECT id, name FROM users WHERE status = 'approved' ORDER BY name"); ?>
+                        <details class="col-12" id="ownershipPanel">
+                            <summary class="small fw-bold"><i class="fas fa-user-tag"></i> <?= trh('Change the ownership of the selected cages (administrator)') ?></summary>
+                            <div class="row g-2 align-items-end mt-1">
+                                <div class="col-md-3">
+                                    <label class="form-label mb-0" for="ownerPi"><?= trh('Responsible') ?></label>
+                                    <select class="form-select form-select-sm" id="ownerPi" name="owner_pi">
+                                        <option value=""><?= trh('— unchanged —') ?></option>
+                                        <?php foreach ($ownerPis as $u) : ?><option value="<?= (int) $u['id'] ?>"><?= htmlspecialchars($u['name']) ?></option><?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label mb-0" for="ownerUsersMode"><?= trh('Users of the cages') ?></label>
+                                    <select class="form-select form-select-sm" id="ownerUsersMode" name="owner_users_mode">
+                                        <option value="keep"><?= trh('unchanged') ?></option>
+                                        <option value="add"><?= trh('add the users chosen') ?></option>
+                                        <option value="replace"><?= trh('replace by the users chosen') ?></option>
+                                        <option value="remove"><?= trh('remove the users chosen') ?></option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label mb-0" for="ownerUsers"><?= trh('Users chosen') ?></label>
+                                    <select class="form-select form-select-sm" id="ownerUsers" name="owner_users[]" multiple size="4">
+                                        <?php foreach ($ownerUsers as $u) : ?><option value="<?= (int) $u['id'] ?>"><?= htmlspecialchars($u['name']) ?></option><?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <button type="submit" name="location_action" value="ownership" class="btn btn-dark btn-sm group-action"><?= trh('Change the ownership') ?></button>
+                                </div>
+                            </div>
+                            <div class="form-text"><?= trh('The users of a cage receive its reminders (weaning, acts) and manage its files. Every change is recorded in the activity log.') ?></div>
+                        </details>
+                    <?php endif; ?>
                 </div>
             <?php endif; ?>
             <datalist id="roomList">
@@ -264,6 +296,8 @@ require 'header.php';
             } else if (btn.value === 'move' && !document.getElementById('bulkRoom').value.trim()) {
                 e.preventDefault();
                 alert('Indiquez la nouvelle salle.');
+            } else if (btn.value === 'ownership' && !confirm(<?= trj('Change the ownership of the selected cages?') ?>)) {
+                e.preventDefault();
             }
         }));
     </script>

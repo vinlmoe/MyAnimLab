@@ -4,7 +4,7 @@
  * Mark one (or all) of the current user's notifications as read.
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 
 header('Content-Type: application/json');

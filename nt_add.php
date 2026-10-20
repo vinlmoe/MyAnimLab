@@ -8,19 +8,13 @@
  * 
  */
 
+require_once __DIR__ . '/session_config.php';
 // Include the database connection file
 include_once("dbcon.php");
+require 'notes_lib.php';
 
-// Start or resume the session if not already started
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
-// Check if the user is logged in
-if (!isset($_SESSION['username'])) {
-    echo json_encode(['success' => false, 'message' => tr('You must be logged in to add a note.')]);
-    exit;
-}
+// Signed-in user, POST request and CSRF token.
+note_request_user();
 
 // Handle form submission
 $response = ['success' => false, 'message' => tr('Invalid request.')];
@@ -33,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['note_text'])) {
     $sql = "INSERT INTO notes (user_id, note_text, cage_id) VALUES (?, ?, ?)";
     $stmt = $con->prepare($sql);
     if ($stmt === false) {
-        $response['message'] = tr('Prepare failed: {error}', ['error' => htmlspecialchars($con->error)]);
+        $response['message'] = db_error_message($con->error);
         echo json_encode($response);
         exit;
     }
@@ -46,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['note_text'])) {
         $response['success'] = true;
         $response['message'] = tr('Note added successfully.');
     } else {
-        $response['message'] = tr('Execute failed: {error}', ['error' => htmlspecialchars($stmt->error)]);
+        $response['message'] = db_error_message($stmt->error);
     }
 
     // Close the statement

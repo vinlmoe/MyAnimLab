@@ -9,18 +9,15 @@
  * animal later moves or is deleted. Admins are notified.
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
+require_once 'training_lib.php';
 
 if (!isset($_SESSION['username'])) {
     $currentUrl = urlencode($_SERVER['REQUEST_URI']);
     header("Location: index.php?redirect=$currentUrl");
     exit;
-}
-
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
 $currentUserId = $_SESSION['user_id'] ?? null;
@@ -31,7 +28,7 @@ $via = in_array($_GET['via'] ?? $_POST['via'] ?? '', ['round', 'qr', 'cage_page'
 $returnUrl = safe_check_return($_GET['return'] ?? $_POST['return'] ?? null);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
 
@@ -153,6 +150,7 @@ require 'header.php';
         <p class="text-muted"><?= tr('The report is stored permanently in the {link}health registry{/link}; it can be followed up but never edited or deleted.', ['link' => '<a href="health_registry.php">', '/link' => '</a>']) ?></p>
 
         <?php include('message.php'); ?>
+        <?= training_procedure_banner($con, 'health') ?>
 
         <form method="POST" class="card card-body">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>">

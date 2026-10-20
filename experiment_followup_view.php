@@ -6,9 +6,11 @@
  * observations, endpoint and the actions it raised. Previous / next day of
  * the same participation are one click away.
  */
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
+require 'experiment_acts_lib.php';
+require_once 'followup_lib.php';
 
 if (!isset($_SESSION['username'])) {
     header('Location: index.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
@@ -56,8 +58,7 @@ $scores = $fetchAll("SELECT * FROM experiment_followup_scores WHERE followup_id 
 $levelsByItem = [];
 $itemIds = array_values(array_filter(array_map(fn($s) => (int) $s['grid_item_id'], $scores)));
 if ($itemIds) {
-    $in = implode(',', $itemIds);
-    foreach ($con->query("SELECT item_id, score, description FROM clinical_grid_levels WHERE item_id IN ($in) ORDER BY item_id, score") as $level) {
+    foreach (db_rows($con, "SELECT item_id, score, description FROM clinical_grid_levels WHERE item_id IN (" . db_placeholders(count($itemIds)) . ") ORDER BY item_id, score", str_repeat('i', count($itemIds)), $itemIds) as $level) {
         $levelsByItem[(int) $level['item_id']][] = $level;
     }
 }
@@ -65,6 +66,12 @@ $itemMax = fn(array $s): ?int => !empty($levelsByItem[(int) $s['grid_item_id']])
 $gridMax = array_sum(array_map(fn($s) => (int) $itemMax($s), $scores));
 $observations = $fetchAll("SELECT * FROM experiment_followup_observations WHERE followup_id = ? ORDER BY field_id IS NULL, id", $followupId);
 $actions = $fetchAll("SELECT * FROM endpoint_actions WHERE followup_id = ? ORDER BY id", $followupId);
+// Experimental acts confirmed that day for this participation.
+$dayActs = array_values(array_filter(
+    enrollment_acts($con, (int) $f['experiment_animal_id'], $f['observed_at']),
+    fn($a) => $a['status'] !== 'planned' && substr((string) $a['done_at'], 0, 10) === $f['observed_at']
+));
+$dayActValues = experiment_act_values($con, array_column($dayActs, 'id'));
 
 // Previous / next follow-ups of the same participation.
 $neighbours = $fetchAll("SELECT id, observed_at FROM experiment_followups WHERE experiment_animal_id = ? ORDER BY observed_at", (int) $f['experiment_animal_id']);
@@ -172,6 +179,25 @@ require 'header.php';
             </table>
         <?php endif; ?>
 
+        <?php if ($dayActs) : ?>
+            <h5><?= trh('Experimental acts of the day') ?></h5>
+            <table class="table table-sm table-bordered">
+                <tbody>
+                    <?php foreach ($dayActs as $xa) : ?>
+                        <tr class="<?= $xa['status'] === 'not_done' ? 'table-danger' : '' ?>">
+                            <th style="width: 30%"><?= htmlspecialchars($xa['label']) ?><?php if ($summary = experiment_act_summary($xa)) : ?><br><small class="text-muted fw-normal"><?= htmlspecialchars($summary) ?></small><?php endif; ?></th>
+                            <td>
+                                <strong><?= htmlspecialchars(experiment_act_statuses()[$xa['status']]) ?></strong> — <?= htmlspecialchars(substr((string) $xa['done_at'], 11, 5) . ' · ' . act_done_by_text($xa)) ?>
+                                <?php if ($xa['medication_lot_id']) : ?><br><?= trh('{qty} {unit}, lot {lot}', ['qty' => act_number($xa['quantity_used']), 'unit' => $xa['product_unit'], 'lot' => $xa['lot_number']]) ?><?php endif; ?>
+                                <?php foreach ($dayActValues[(int) $xa['id']] ?? [] as $v) : ?><br><?= htmlspecialchars($v['label'] . ' : ' . observation_value($v)) ?><?php endforeach; ?>
+                                <?php if ($xa['note']) : ?><br><em><?= htmlspecialchars($xa['note']) ?></em><?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+
         <?php if ($observations || $f['observations']) : ?>
             <h5><?= trh('Observations') ?></h5>
             <table class="table table-sm table-bordered">
@@ -184,14 +210,28 @@ require 'header.php';
             </table>
         <?php endif; ?>
 
+        <?php if ($revisions = followup_revisions($con, $followupId)) : ?>
+            <h5><?= trh('Corrections of this follow-up') ?></h5>
+            <p class="small text-muted"><?= trh('The values shown above are the current ones; each correction keeps the values it replaced.') ?></p>
+            <ul class="list-group mb-3" id="followupRevisions">
+                <?php foreach ($revisions as $r) : ?>
+                    <li class="list-group-item">
+                        <strong><?= htmlspecialchars(substr((string) $r['revised_at'], 0, 16) . ' — ' . ($r['revised_by_name'] ?? '')) ?></strong> :
+                        <?= htmlspecialchars($r['reason']) ?>
+                        <div class="small text-muted"><?= trh('Replaced values: {values}', ['values' => followup_revision_summary($r['previous'])]) ?></div>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+
         <?php if ($actions) : ?>
             <h5><?= trh('Endpoint actions raised by this follow-up') ?></h5>
             <ul class="list-group mb-3">
                 <?php foreach ($actions as $a) : ?>
                     <li class="list-group-item">
-                        <span class="badge bg-<?= $a['status'] === 'pending' ? 'danger' : 'success' ?>"><?= trh($a['status'] === 'pending' ? 'Pending' : 'Done') ?></span>
+                        <span class="badge bg-<?= ['pending' => 'danger', 'done' => 'success'][$a['status']] ?? 'secondary' ?>"><?= ['pending' => trh('Pending'), 'done' => trh('Done')][$a['status']] ?? trh('Withdrawn') ?></span>
                         <strong><?= htmlspecialchars($actionLabels[$a['required_action']] ?? $a['required_action']) ?></strong> — <?= htmlspecialchars($a['message'] ?? '') ?>
-                        <?php if ($a['status'] === 'done') : ?><div class="small text-muted"><?= htmlspecialchars(substr((string) $a['done_at'], 0, 16) . ' · ' . ($a['done_by_name'] ?? '')) ?><?= $a['done_note'] ? ' — ' . htmlspecialchars($a['done_note']) : '' ?></div><?php endif; ?>
+                        <?php if ($a['status'] !== 'pending') : ?><div class="small text-muted"><?= htmlspecialchars(substr((string) $a['done_at'], 0, 16) . ' · ' . ($a['done_by_name'] ?? '')) ?><?= $a['done_note'] ? ' — ' . htmlspecialchars($a['done_note']) : '' ?></div><?php endif; ?>
                     </li>
                 <?php endforeach; ?>
             </ul>

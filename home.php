@@ -10,7 +10,7 @@
  */
 
 // Start a new session or resume the existing session
-session_start();
+require_once 'session_config.php';
 
 // Include the database connection file
 require 'dbcon.php';
@@ -134,7 +134,7 @@ require 'header.php';
                 <i class="fas fa-exclamation-triangle"></i> <strong><?= trh('{n} endpoint action(s) required', ['n' => count($pendingEndpointActions)]); ?></strong>
                 <ul class="mb-0">
                     <?php foreach ($pendingEndpointActions as $pa) : ?>
-                        <li><a href="experiment_followup.php?experiment_animal_id=<?= (int) $pa['experiment_animal_id']; ?>"><?= htmlspecialchars($pa['animal_uid']); ?></a>
+                        <li><a href="endpoint_action.php?<?= htmlspecialchars(http_build_query(['experiment_animal_id' => $pa['experiment_animal_id'], 'return' => 'home.php'])); ?>"><?= htmlspecialchars($pa['animal_uid']); ?></a>
                             (<?= htmlspecialchars($pa['experiment_number']); ?>): <strong><?= htmlspecialchars(endpoint_required_actions()[$pa['required_action']]); ?></strong>
                             — <?= htmlspecialchars($pa['message'] ?? ''); ?> <small>(<?= trh('since {date}', ['date' => $pa['created_at']]); ?>)</small></li>
                     <?php endforeach; ?>
@@ -182,7 +182,7 @@ require 'header.php';
             <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
                 <h2><?= trh('Welcome, {name}', ['name' => $_SESSION['name']]); ?>
                     <span style="font-size: smaller; color: #555; border-bottom: 2px solid #ccc; padding: 0 5px;">
-                        [<?php echo htmlspecialchars(tr($_SESSION['position'])); ?>]
+                        [<?php echo htmlspecialchars(tr((string) ($_SESSION['position'] ?? ''))); ?>]
                     </span>
                 </h2>
             </div>

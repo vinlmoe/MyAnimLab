@@ -8,7 +8,7 @@
  * cages, ongoing experiments for any cage), then the animals' identities.
  * Accepts id[] (or cage_ids[] from the cage dashboards' selection).
  */
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 
@@ -90,17 +90,25 @@ foreach ($ids as $id) {
     $cage['breeders'] = [];
     $cage['litters'] = [];
     if ($cage['kind'] === 'breeding') {
-        $breedersStmt = $con->prepare("SELECT m.animal_uid, m.sex FROM breeding b JOIN breeding_animals ba ON ba.breeding_id = b.id
+        $breedersStmt = $con->prepare("SELECT m.animal_uid, m.sex, m.line_id FROM breeding b JOIN breeding_animals ba ON ba.breeding_id = b.id
             JOIN mice m ON m.id = ba.animal_id WHERE b.cage_id = ? AND m.status = 'active' ORDER BY ba.sex, m.animal_uid");
         $breedersStmt->bind_param('s', $id);
         $breedersStmt->execute();
         $cage['breeders'] = $breedersStmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $breedersStmt->close();
-        $littersStmt = $con->prepare("SELECT litter_dob, pups_alive, expected_weaning_date FROM litters WHERE cage_id = ? AND status = 'nursing' ORDER BY litter_dob");
-        $littersStmt->bind_param('s', $id);
-        $littersStmt->execute();
-        $cage['litters'] = $littersStmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        $littersStmt->close();
+        // Printed for pencil entries: the weaning age of the dams' line.
+        $dam = array_values(array_filter($cage['breeders'], fn($b) => $b['sex'] === 'female'))[0] ?? null;
+        $cage['weaning_days'] = weaning_age_days($con, $dam && $dam['line_id'] ? (int) $dam['line_id'] : null);
+        // Nursing litters with the deaths already recorded (printed on the
+        // pencil table; what happens after printing is written by hand).
+        $cage['litters'] = db_rows(
+            $con,
+            "SELECT l.litter_dob, l.pups_alive, l.expected_weaning_date,
+                    (SELECT COALESCE(SUM(e.count), 0) FROM litter_events e WHERE e.litter_id = l.id AND e.event = 'death') AS deaths
+             FROM litters l WHERE l.cage_id = ? AND l.status = 'nursing' ORDER BY l.litter_dob",
+            's',
+            [$id]
+        );
     }
 
     // Summary computed from the living animals, identical for every category.
@@ -152,6 +160,13 @@ foreach ($ids as $id) {
         .animals li { break-inside: avoid; white-space: nowrap; }
         .animal-sex { font-weight: bold; }
         .empty { font-size: 7pt; font-style: italic; margin-top: 2mm; }
+        .litters { border: .4mm solid #111; padding: 1.2mm; font-size: 6.5pt; }
+        .litters table { width: 100%; border-collapse: collapse; margin-top: .8mm; }
+        .litters th, .litters td { border: .2mm solid #111; padding: .4mm .8mm; height: 5.2mm; text-align: center; }
+        .litters th { font-size: 5.5pt; text-transform: uppercase; background: #eee; height: auto; }
+        .litters td.printed { font-weight: bold; }
+        .litters .box { display: inline-block; width: 3mm; height: 3mm; border: .25mm solid #111; vertical-align: middle; }
+        .litters .hint { font-size: 5.8pt; margin-top: .8mm; line-height: 1.2; }
         @media print {
             body { background: white; }
             .print-toolbar { display: none; }
@@ -183,14 +198,34 @@ foreach ($ids as $id) {
                         <div><strong><?= $cage['kind'] === 'breeding' ? 'Croisement' : 'Lignée(s)' ?></strong><br><?= htmlspecialchars($cage['line_summary']) ?></div>
                         <div><strong>Responsable</strong><br><?= htmlspecialchars($cage['pi_name'] ?: '—') ?></div>
                     </div>
-                    <?php if ($cage['breeders'] || $cage['litters']) : ?>
-                        <div class="experiments"><span class="section-title">Accouplement</span><br>
-                            <?php if ($cage['breeders']) : ?>
-                                Reproducteurs : <?= htmlspecialchars(implode(', ', array_map(fn($b) => $b['animal_uid'] . ' (' . ($b['sex'] === 'male' ? 'M' : 'F') . ')', $cage['breeders']))) ?><br>
-                            <?php endif; ?>
-                            <?php foreach ($cage['litters'] as $litter) : ?>
-                                Portée née le <?= htmlspecialchars($litter['litter_dob'] ? date('d/m/Y', strtotime($litter['litter_dob'])) : '?') ?> — <?= (int) $litter['pups_alive'] ?> vivant(s)<?= $litter['expected_weaning_date'] ? ', sevrage prévu le ' . htmlspecialchars(date('d/m/Y', strtotime($litter['expected_weaning_date']))) : '' ?><br>
-                            <?php endforeach; ?>
+                    <?php if ($cage['kind'] === 'breeding') : ?>
+                        <?php if ($cage['breeders']) : ?>
+                            <div class="experiments"><span class="section-title">Reproducteurs</span><br>
+                                <?= htmlspecialchars(implode(', ', array_map(fn($b) => $b['animal_uid'] . ' (' . ($b['sex'] === 'male' ? 'M' : 'F') . ')', $cage['breeders']))) ?>
+                            </div>
+                        <?php endif; ?>
+                        <?php // Pencil table: printed litters, then empty rows (at least 2, 5 rows in all). ?>
+                        <div class="litters">
+                            <span class="section-title">Portées — à compléter au crayon ✎</span>
+                            <table>
+                                <thead><tr><th>Née le</th><th>Nés vivants</th><th>Morts (date : nb)</th><th>Sevrage prévu</th><th>Sevrée le</th><th>Saisi</th></tr></thead>
+                                <tbody>
+                                    <?php foreach (array_slice($cage['litters'], 0, 3) as $litter) : ?>
+                                        <tr>
+                                            <td class="printed"><?= htmlspecialchars($litter['litter_dob'] ? date('d/m/y', strtotime($litter['litter_dob'])) : '?') ?></td>
+                                            <td class="printed"><?= (int) $litter['pups_alive'] ?></td>
+                                            <td class="printed" style="text-align:left"><?= (int) $litter['deaths'] ? (int) $litter['deaths'] . ' saisi(s) · ' : '' ?></td>
+                                            <td class="printed"><?= $litter['expected_weaning_date'] ? htmlspecialchars(date('d/m/y', strtotime($litter['expected_weaning_date']))) : '' ?></td>
+                                            <td></td>
+                                            <td>✓</td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                    <?php for ($row = min(3, count($cage['litters'])); $row < 5; $row++) : ?>
+                                        <tr><td></td><td></td><td></td><td></td><td></td><td><span class="box"></span></td></tr>
+                                    <?php endfor; ?>
+                                </tbody>
+                            </table>
+                            <div class="hint">Notez au crayon chaque naissance, mort et sevrage, <strong>puis enregistrez-le aussi dans MyAnimLab</strong> (scanner le QR → Portées) et cochez « Saisi ». Sevrage prévu = naissance + <?= (int) $cage['weaning_days'] ?> jours. La fiche reste juste sans réimpression.</div>
                         </div>
                     <?php endif; ?>
                     <?php if ($cage['experiments']) : ?>

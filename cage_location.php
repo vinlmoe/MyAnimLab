@@ -7,9 +7,11 @@
  *   - move:         move the cages to a room (and rack; empty keeps the rack)
  *   - experimental: classify holding cages as experimental cages
  *   - holding:      classify experimental cages back as holding cages
+ *   - ownership:    (administrators) change the responsible and/or the
+ *                   users of the cages (set_cages_ownership)
  * Then returns to the page that sent the form.
  */
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 
@@ -17,7 +19,7 @@ if (!isset($_SESSION['username'])) {
     header('Location: index.php');
     exit;
 }
-if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !hash_equals($_SESSION['csrf_token'] ?? '', (string) ($_POST['csrf_token'] ?? ''))) {
+if (!csrf_valid()) {
     http_response_code(400);
     exit('Requête invalide.');
 }
@@ -51,6 +53,23 @@ if (!$cageIds) {
     $con->commit();
     $_SESSION['message'] = "$n cage(s) classée(s) en " . ($action === 'experimental' ? 'cages d’expérimentation' : 'cages d’hébergement')
         . ($n < count($cageIds) ? ' (les cages d’accouplement et celles déjà classées sont ignorées)' : '') . '.';
+} elseif ($action === 'ownership') {
+    if (($_SESSION['role'] ?? '') !== 'admin') {
+        $_SESSION['message'] = tr('Only an administrator can change the ownership of cages.');
+    } else {
+        $piId = (int) ($_POST['owner_pi'] ?? 0) ?: null;
+        $usersMode = (string) ($_POST['owner_users_mode'] ?? 'keep');
+        $con->begin_transaction();
+        try {
+            $n = set_cages_ownership($con, $cageIds, $piId, (array) ($_POST['owner_users'] ?? []), $usersMode, $userId);
+            $con->commit();
+            $_SESSION['message'] = tr('Ownership changed for {n} cage(s).', ['n' => $n])
+                . ($n < count($cageIds) ? ' ' . tr('Retired cages and cages already set this way are left as they are.') : '');
+        } catch (Exception $e) {
+            $con->rollback();
+            $_SESSION['message'] = tr('Ownership not changed: {error}', ['error' => error_message($e)]);
+        }
+    }
 } else {
     $_SESSION['message'] = 'Action inconnue.';
 }

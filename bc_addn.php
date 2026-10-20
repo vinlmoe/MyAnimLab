@@ -11,11 +11,12 @@
  */
 
 // Start a new session or resume the existing session
-session_start();
+require_once 'session_config.php';
 
 // Include the database connection file
 require 'dbcon.php';
 require 'animal_lib.php';
+require_once 'training_lib.php';
 
 // Check if the user is not logged in, redirect them to index.php with the current URL for redirection after login
 if (!isset($_SESSION['username'])) {
@@ -25,9 +26,6 @@ if (!isset($_SESSION['username'])) {
 }
 
 // Generate CSRF token if not already set
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 
 // Query to retrieve users with initials and names
 $userQuery = "SELECT id, initials, name FROM users WHERE status = 'approved'";
@@ -70,7 +68,7 @@ function eligible_breeders(mysqli $con, string $sex): array
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Validate CSRF token
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
 
@@ -189,8 +187,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $litter_remarks = $_POST['remarks_litter'];
 
                 // Loop through each litter entry and insert into the database
+                $weaningAge = weaning_age_days($con, litter_line_id($con, $femaleIds[0] ?? null, $maleIds[0] ?? null));
                 for ($i = 0; $i < count($dom); $i++) {
-                    $expected = $litter_dob[$i] ? date('Y-m-d', strtotime($litter_dob[$i] . ' +' . weaning_age_days($con) . ' days')) : null;
+                    $expected = $litter_dob[$i] ? date('Y-m-d', strtotime($litter_dob[$i] . ' +' . $weaningAge . ' days')) : null;
                     $insert_litter_query = $con->prepare("INSERT INTO litters (`cage_id`, `dom`, `litter_dob`, `pups_alive`, `pups_dead`, `pups_male`, `pups_female`, `remarks`, `expected_weaning_date`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
                     $insert_litter_query->bind_param("sssssssss", $cage_id, $dom[$i], $litter_dob[$i], $pups_alive[$i], $pups_dead[$i], $pups_male[$i], $pups_female[$i], $litter_remarks[$i], $expected);
 
@@ -200,7 +199,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $_SESSION['message'] .= ' ' . tr('Litter data added successfully.');
                     } else {
                         // Append error message for litter data
-                        $_SESSION['message'] .= ' ' . tr('Failed to add litter data: {error}', ['error' => $insert_litter_query->error]);
+                        $_SESSION['message'] .= ' ' . db_error_message($insert_litter_query->error);
                     }
 
                     // Close the prepared statement for litter data
@@ -214,7 +213,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $insert_breeding_query->close();
         } catch (Exception $e) {
             mysqli_rollback($con);
-            $_SESSION['message'] = tr('Failed to add new breeding cage: {error}', ['error' => $e->getMessage()]);
+            $_SESSION['message'] = tr('Failed to add new breeding cage: {error}', ['error' => error_message($e)]);
         }
     }
 
@@ -490,6 +489,7 @@ require 'header.php';
         <h4><?= trh('Add New Breeding Cage') ?></h4>
 
         <?php include('message.php'); ?>
+        <?= training_procedure_banner($con, 'breeding') ?>
 
         <p class="warning-text"><?= tr('Fields marked with {asterisk} are required.', ['asterisk' => '<span class="required-asterisk">*</span>']) ?></p>
         <p class="text-muted">L’identifiant de cage est généré automatiquement. Les reproducteurs sont sélectionnés parmi les animaux actifs d’autres cages et transférés avec leur historique complet.</p>
@@ -543,7 +543,7 @@ require 'header.php';
                     // Populate the dropdown with options from the database
                     while ($userRow = $userResult->fetch_assoc()) {
                         $user_id = htmlspecialchars($userRow['id']);
-                        $initials = htmlspecialchars($userRow['initials']);
+                        $initials = htmlspecialchars($userRow['initials'] ?? '');
                         $name = htmlspecialchars($userRow['name']);
                         echo "<option value='$user_id'>$initials [$name]</option>";
                     }

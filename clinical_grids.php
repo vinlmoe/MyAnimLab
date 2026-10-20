@@ -9,7 +9,7 @@
  * follow-up or an endpoint uses it, it is read-only: duplicate it to change.
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
 
@@ -17,10 +17,6 @@ if (!isset($_SESSION['username'])) {
     $currentUrl = urlencode($_SERVER['REQUEST_URI']);
     header("Location: index.php?redirect=$currentUrl");
     exit;
-}
-
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
 $currentUserId = $_SESSION['user_id'] ?? null;
@@ -40,7 +36,7 @@ function parse_levels(string $text): array
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
     $action = $_POST['action'] ?? '';
@@ -102,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new Exception(tr('An item needs a label and at least two levels, one per line, e.g. "0 = Normal".'));
                 }
                 mysqli_begin_transaction($con);
-                $pos = (int) $con->query("SELECT COALESCE(MAX(position), 0) + 1 FROM clinical_grid_items WHERE grid_id = $gridId")->fetch_row()[0];
+                $pos = (int) db_value($con, "SELECT COALESCE(MAX(position), 0) + 1 FROM clinical_grid_items WHERE grid_id = ?", 'i', [$gridId]);
                 $stmt = $con->prepare("INSERT INTO clinical_grid_items (grid_id, position, label) VALUES (?, ?, ?)");
                 $stmt->bind_param("iis", $gridId, $pos, $label);
                 $stmt->execute();
@@ -124,7 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } catch (Exception $e) {
         mysqli_rollback($con);
-        $_SESSION['message'] = $e->getMessage();
+        $_SESSION['message'] = error_message($e);
     }
     header("Location: $back");
     exit;

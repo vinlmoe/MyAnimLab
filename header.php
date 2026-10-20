@@ -36,7 +36,7 @@ $query = "SELECT * FROM settings";
 $result = mysqli_query($con, $query);
 
 // Default lab name if the query fails or returns no result
-$labName = "My Vivarium";
+$labName = "MyAnimLab";
 
 // Initialize sensor variables
 $r1_temp = $r1_humi = $r1_illu = $r1_pres = $r2_temp = $r2_humi = $r2_illu = $r2_pres = "";
@@ -88,6 +88,7 @@ if (isset($settings['r2_pres'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <!-- Favicon and icons for different devices -->
+    <link rel="icon" type="image/svg+xml" href="images/logo-mark.svg">
     <link rel="icon" href="./icons/favicon.ico" type="image/x-icon">
     <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32x32.png">
@@ -103,84 +104,14 @@ if (isset($settings['r2_pres'])) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
 
     <!-- Google Font: Poppins -->
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;700&display=swap" rel="stylesheet">
 
-    <style>
-        .header {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            align-items: center;
-            background-color: #343a40;
-            color: white;
-            padding: 1rem;
-            text-align: center;
-            margin: 0;
-        }
-
-        .header .logo-container {
-            padding: 0;
-            margin: 0;
-        }
-
-        .header img.header-logo {
-            width: 300px;
-            height: auto;
-            display: block;
-            margin: 0;
-        }
-
-        .header h2 {
-            margin-left: 15px;
-            margin-bottom: 0;
-            margin-top: 12px;
-            font-size: 3.5rem;
-            white-space: nowrap;
-            font-family: 'Poppins', sans-serif;
-            font-weight: 500;
-        }
-
-        /* Responsive styling for smaller screens */
-        @media (max-width: 576px) {
-            .header h2 {
-                font-size: 1.8rem;
-                margin-bottom: 5px;
-            }
-
-            .header img.header-logo {
-                width: 150px;
-            }
-        }
-
-        /* Styling for navigation container */
-        .nav-container {
-            background-color: #343a40;
-            padding: 0px 0px 20px 0px;
-            text-align: center;
-            margin: 0;
-        }
-
-        .nav .btn {
-            margin: 0 5px;
-        }
-
-        .dropdown-menu {
-            min-width: auto;
-        }
-    </style>
 </head>
 
 <body>
     <!-- Header Section -->
     <?php if ($demo === "yes") include('demo/demo-banner.php'); ?>
-    <div class="header">
-        <div class="logo-container">
-            <a href="home.php">
-                <img src="images/logo1.jpg" alt="Logo" class="header-logo">
-            </a>
-        </div>
-        <h2><?php echo htmlspecialchars($labName); ?></h2>
-    </div>
+    <?php require 'brand_banner.php'; ?>
 
     <!-- Navigation Menu Section -->
     <div class="nav-container">
@@ -225,6 +156,7 @@ if (isset($settings['r2_pres'])) {
                     <li><hr class="dropdown-divider"></li>
                     <li><a class="dropdown-item" href="health_report.php"><i class="fas fa-notes-medical me-1"></i> <?= htmlspecialchars(t('nav.report_health')) ?></a></li>
                     <li><a class="dropdown-item" href="health_registry.php"><i class="fas fa-book-medical me-1"></i> <?= htmlspecialchars(t('nav.health_registry')) ?></a></li>
+                    <li><a class="dropdown-item" href="terrarium_dash.php"><i class="fas fa-frog me-1"></i> <?= trh('Terrariums and populations') ?></a></li>
                     <li><a class="dropdown-item" href="animal_register.php"><i class="fas fa-book me-1"></i> <?= trh('Entry / exit register') ?></a></li>
                     <li><a class="dropdown-item" href="pharmacy_manage.php"><i class="fas fa-pills me-1"></i> <?= trh('Pharmacy, prescriptions and administrations') ?></a></li>
                 </ul>
@@ -255,7 +187,10 @@ if (isset($settings['r2_pres'])) {
                 <ul class="dropdown-menu" aria-labelledby="settingsMenuButton">
                     <li><a class="dropdown-item" href="user_profile.php"><?= htmlspecialchars(t('nav.profile')) ?></a></li>
                     <li><a class="dropdown-item" href="manage_tasks.php"><?= htmlspecialchars(t('nav.tasks')) ?></a></li>
+                    <li><a class="dropdown-item" href="training_book.php"><i class="fas fa-user-graduate me-1"></i> <?= trh('My training record') ?></a></li>
+                    <li><a class="dropdown-item" href="two_factor.php"><i class="fas fa-shield-alt me-1"></i> <?= trh('Two-factor authentication') ?></a></li>
                     <?php if ($showBeaReview) : ?>
+                        <li><a class="dropdown-item" href="training_overview.php"><i class="fas fa-users me-1"></i> <?= trh('Training records of the staff') ?></a></li>
                         <li><a class="dropdown-item" href="experiment_retrospective.php"><i class="fas fa-clipboard-list me-1"></i> <?= trh('BEA retrospective review') ?></a></li>
                         <li><a class="dropdown-item" href="annual_report.php"><i class="fas fa-chart-bar me-1"></i> <?= htmlspecialchars(t('nav.annual_report')) ?></a></li>
                     <?php endif; ?>

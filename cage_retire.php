@@ -12,18 +12,15 @@
  * silently archived the animals.
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
+require_once 'training_lib.php';
 
 if (!isset($_SESSION['username'])) {
     $currentUrl = urlencode($_SERVER['REQUEST_URI']);
     header("Location: index.php?redirect=$currentUrl");
     exit;
-}
-
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
 $currentUserId = $_SESSION['user_id'] ?? null;
@@ -76,7 +73,7 @@ $animals = $animalsStmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $animalsStmt->close();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
 
@@ -91,6 +88,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($reason === '') {
             throw new Exception(tr('Please give the reason for retiring the cage.'));
         }
+        // Killing an animal: a person not competent alone names the supervisor present.
+        $exitReason = tr('Cage {cage} retired: {reason}', ['cage' => $cageId, 'reason' => $reason]);
+        $killReason = $exitReason;
+        if (array_intersect(array_map('strval', $fates), TRAINING_KILLING_EXIT_CODES) && $currentUserId) {
+            $supervisor = training_posted_supervisor($con, (int) $currentUserId, 'euthanasia', (string) ($_POST['act_supervisor'] ?? ''), (string) ($_POST['act_supervisor_other'] ?? ''));
+            if ($supervisor !== null) {
+                $killReason .= ' — ' . tr('under the supervision of {name}', ['name' => $supervisor]);
+            }
+        }
         $moved = $exited = 0;
         foreach ($animals as $a) {
             $aid = (int) $a['id'];
@@ -104,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 move_animal($con, $aid, $to, tr('Cage {cage} retired: {reason}', ['cage' => $cageId, 'reason' => $reason]), $currentUserId, $currentUserName, false);
                 $moved++;
             } elseif (isset(ANIMAL_EXIT_CODES[$fate])) {
-                exit_animal($con, $aid, $fate, $date, tr('Cage {cage} retired: {reason}', ['cage' => $cageId, 'reason' => $reason]), $destinations[$aid] ?? null, $currentUserId, $currentUserName, false);
+                exit_animal($con, $aid, $fate, $date, in_array($fate, TRAINING_KILLING_EXIT_CODES, true) ? $killReason : $exitReason, $destinations[$aid] ?? null, $currentUserId, $currentUserName, false);
                 $exited++;
             } else {
                 throw new Exception(tr('Give a fate to {animal} (move to another cage or an exit code).', ['animal' => $label]));
@@ -120,7 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     } catch (Exception $e) {
         mysqli_rollback($con);
-        $_SESSION['message'] = tr('Cage not retired: {error}', ['error' => $e->getMessage()]);
+        $_SESSION['message'] = tr('Cage not retired: {error}', ['error' => error_message($e)]);
         header("Location: cage_retire.php?id=" . rawurlencode($cageId));
         exit;
     }
@@ -156,6 +162,7 @@ require 'header.php';
         </p>
 
         <?php include('message.php'); ?>
+        <?= training_procedure_banner($con, 'killing') ?>
 
         <form method="POST" id="retireForm">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>">
@@ -251,6 +258,7 @@ require 'header.php';
                 </div>
             </div>
 
+            <?= training_supervisor_field($con, 'Killing', 'euthanasia', true) ?>
             <button type="submit" class="btn btn-danger" onclick="return confirm(<?= htmlspecialchars(trj('Retire this cage and apply the chosen fates?')) ?>);"><?= trh('Retire cage') ?></button>
             <a href="<?= $cage['kind'] === 'breeding' ? 'bc_view.php' : 'hc_view.php'; ?>?id=<?= rawurlencode($cageId); ?>" class="btn btn-secondary"><?= trh('Cancel') ?></a>
         </form>
@@ -266,6 +274,15 @@ require 'header.php';
             cage.required = fate === 'move';
             dest.style.display = fate === 'export' ? '' : 'none';
             dest.required = fate === 'export';
+            syncSupervisor();
+        }
+        // The supervisor is only asked for when an animal is killed.
+        function syncSupervisor() {
+            const box = document.getElementById('supervisorBoxKilling');
+            if (!box) return;
+            const killing = <?= json_encode(TRAINING_KILLING_EXIT_CODES) ?>;
+            box.hidden = ![...document.querySelectorAll('.fate')].some(f => killing.includes(f.value));
+            box.dispatchEvent(new Event('change', { bubbles: true }));
         }
         document.querySelectorAll('.animal-row').forEach(row => {
             row.querySelector('.fate').addEventListener('change', () => syncRow(row));

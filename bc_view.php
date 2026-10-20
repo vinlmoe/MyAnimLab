@@ -10,11 +10,12 @@
  */
 
 // Start a new session or resume the existing session
-session_start();
+require_once 'session_config.php';
 
 // Include the database connection file
 require 'dbcon.php';
 require 'animal_lib.php';
+require_once 'cage_files_lib.php';
 require 'cage_view_parts.php';
 
 // Check if the user is not logged in, redirect them to index.php with the current URL for redirection after login
@@ -53,19 +54,7 @@ if (isset($_GET['id'])) {
     $stmt->execute();
     $result = $stmt->get_result();
 
-    // Fetch files associated with the specified cage ID
-    $query2 = "SELECT * FROM files WHERE cage_id = ?";
-    $stmt2 = $con->prepare($query2);
-    $stmt2->bind_param("s", $id);
-    $stmt2->execute();
-    $files = $stmt2->get_result();
 
-    // Fetch the breeding cage litter records with the specified ID
-    $query3 = "SELECT * FROM litters WHERE `cage_id` = ?";
-    $stmt3 = $con->prepare($query3);
-    $stmt3->bind_param("s", $id);
-    $stmt3->execute();
-    $litters = $stmt3->get_result();
 
     // Check if the breeding cage record exists
     if (mysqli_num_rows($result) === 1) {
@@ -170,9 +159,6 @@ $breedersStmt->bind_param("s", $id);
 $breedersStmt->execute();
 $breeders = $breedersStmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $breedersStmt->close();
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 
 // Include the header file
 require 'header.php';
@@ -189,7 +175,7 @@ require 'header.php';
         function showQrCodePopup(cageId) {
             var qrTitle = <?= trj('QR Code for Cage {cage}') ?>.replace('{cage}', decodeURIComponent(cageId));
             var popup = window.open("", "qr_" + cageId, "width=400,height=400");
-            var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://' + $url + '/cage_scan_route.php?id=' + cageId;
+            var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://' + <?= json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?> + '/cage_scan_route.php?id=' + encodeURIComponent(cageId);
             var htmlContent = `
             <html>
             <head>
@@ -342,7 +328,18 @@ require 'header.php';
                     <?= $cageLife['retired_at'] ? trh('since {date}', ['date' => substr($cageLife['retired_at'], 0, 10)]) : ''; ?>
                     — <?= trh('no daily check expected.') ?>
                 </span>
-                <span class="text-muted small"><?= trh('A retired cage is not put back in service; its animals were moved or left the facility.') ?></span>
+                <?php if (($_SESSION['role'] ?? '') === 'admin' && cage_active_animal_count($con, $breedingcage['cage_id']) > 0) : ?>
+                    <form method="POST" action="cage_restore.php" class="d-flex gap-2 align-items-center" id="restoreCage">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()); ?>">
+                        <input type="hidden" name="id" value="<?= htmlspecialchars($breedingcage['cage_id']); ?>">
+                        <input type="hidden" name="return" value="bc_view.php">
+                        <input type="hidden" name="confirm" value="true">
+                        <input class="form-control form-control-sm" name="reason" required maxlength="255" placeholder="<?= trh('Reason (e.g. exit recorded by mistake)') ?>">
+                        <button class="btn btn-sm btn-outline-primary text-nowrap"><?= trh('Put back in service') ?></button>
+                    </form>
+                <?php else : ?>
+                    <span class="text-muted small"><?= trh('A retired cage is not put back in service; its animals were moved or left the facility.') ?></span>
+                <?php endif; ?>
             </div>
         <?php else : ?>
             <div class="alert <?= $cageTodayChecks ? 'alert-success' : 'alert-warning'; ?> d-flex justify-content-between align-items-center flex-wrap mb-3" id="dailyCheckBanner">
@@ -364,6 +361,7 @@ require 'header.php';
             </div>
         <?php endif; ?>
         <?php render_cage_location($con, $breedingcage['cage_id'], 'bc_view.php?id=' . rawurlencode($breedingcage['cage_id'])); ?>
+        <?php render_current_litters($con, $breedingcage['cage_id']); ?>
         <div class="card">
             <div class="card-header">
                 <h4>Cage d’accouplement <?= htmlspecialchars($breedingcage['cage_id']); ?></h4>
@@ -437,83 +435,9 @@ require 'header.php';
                 <!-- Separator -->
                 <hr class="mt-4 mb-4" style="border-top: 3px solid #000;">
 
-                <!-- Display Files Section -->
-                <div class="card mt-4">
+                <?php render_cage_files($con, $breedingcage['cage_id'], 'bc_view'); ?>
 
-                    <div class="card-header">
-                        <h4><?= trh('Manage Files') ?></h4>
-                    </div>
-
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th><?= trh('File Name') ?></th>
-                                    <th><?= trh('Actions') ?></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php while ($file = $files->fetch_assoc()) : ?>
-                                    <tr>
-                                        <td><?= htmlspecialchars($file['file_name']); ?></td>
-                                        <td><a href="<?= htmlspecialchars($file['file_path']); ?>" download="<?= htmlspecialchars($file['file_name']); ?>" class="btn btn-sm btn-outline-primary"><i class="fas fa-cloud-download-alt"></i></a></td>
-                                    </tr>
-                                <?php endwhile; ?>
-                            </tbody>
-                        </table>
-                    </div>
-
-
-                </div>
-
-                <!-- Litter Details Section -->
-                <div class="card mt-4">
-
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h4 class="mb-0"><?= trh('Litter Details') ?> - <?= htmlspecialchars($id) ?>
-                        </h4>
-                        <a href="litter_manage.php?cage_id=<?= rawurlencode($id); ?>" class="btn btn-success btn-sm" id="manageLitters"><i class="fas fa-baby"></i> <?= trh('Litters: birth → weaning') ?></a>
-                    </div>
-
-                    <?php while ($litter = mysqli_fetch_assoc($litters)) : ?>
-                        <div class="table-wrapper">
-                            <table class="table table-bordered">
-                                <tbody>
-                                    <tr>
-                                        <th><?= trh('DOM') ?></th>
-                                        <td><?= htmlspecialchars($litter['dom'] ?? ''); ?></td>
-                                    </tr>
-                                    <tr>
-                                        <th><?= trh('Litter DOB') ?></th>
-                                        <td><?= htmlspecialchars($litter['litter_dob'] ?? ''); ?>
-                                            <a href="litter_manage.php?litter_id=<?= (int) $litter['id']; ?>" class="ms-2 small"><?= trh((string) ($litter['status'] ?? '')); ?><?= ($litter['status'] ?? '') === 'nursing' ? ' — ' . trh('weaning expected {date}', ['date' => $litter['expected_weaning_date'] ?? '?']) : ''; ?></a></td>
-                                    </tr>
-                                    <tr>
-                                        <th><?= trh('Pups Alive') ?></th>
-                                        <td><?= htmlspecialchars($litter['pups_alive'] ?? ''); ?></td>
-                                    </tr>
-                                    <tr>
-                                        <th><?= trh('Pups Dead') ?></th>
-                                        <td><?= htmlspecialchars($litter['pups_dead'] ?? ''); ?></td>
-                                    </tr>
-                                    <tr>
-                                        <th><?= trh('Pups Male') ?></th>
-                                        <td><?= htmlspecialchars($litter['pups_male'] ?? ''); ?></td>
-                                    </tr>
-                                    <tr>
-                                        <th><?= trh('Pups Female') ?></th>
-                                        <td><?= htmlspecialchars($litter['pups_female'] ?? ''); ?></td>
-                                    </tr>
-                                    <tr>
-                                        <th><?= trh('Remarks') ?></th>
-                                        <td class="remarks-column"><?= htmlspecialchars($litter['remarks'] ?? ''); ?></td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    <?php endwhile; ?>
-
-                </div>
+                <?php render_litter_history($con, $breedingcage['cage_id']); ?>
 
 
                 <div class="card mt-4">

@@ -1,0 +1,41 @@
+# Automated tests on every push and pull request: dependency audit, static
+# analysis (PHPStan), then PHPUnit: unit tests, integration tests and HTTP
+# tests against a throw-away MariaDB database.
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  phpunit:
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, curl, fileinfo, zip, mbstring, dom
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist
+      # Known vulnerabilities in the dependencies fail the build.
+      - run: composer audit --no-interaction
+      # Static analysis (phpstan.neon).
+      - run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
+      - run: vendor/bin/phpunit
+        env:
+          TEST_DB_HOST: 127.0.0.1
+          TEST_DB_PORT: 3306
+          TEST_DB_USER: root
+          TEST_DB_PASSWORD: root
+          TEST_DB_NAME: myanimlab_test

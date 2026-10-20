@@ -9,7 +9,7 @@
  * The script uses PHP sessions for message handling and includes basic input sanitization for security.
  */
 ob_start();
-session_start();
+require_once 'session_config.php';
 
 // Check if the user is logged in
 if (!isset($_SESSION['name'])) {
@@ -18,9 +18,6 @@ if (!isset($_SESSION['name'])) {
 }
 
 // Generate CSRF token if not already set
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 
 require 'header.php';
 require 'dbcon.php';
@@ -41,7 +38,7 @@ function redirectToPage($message)
 // Handle form submission for adding, editing, or deleting reminders
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Validate CSRF token
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!csrf_valid()) {
         die(tr('CSRF token validation failed'));
     }
 
@@ -64,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if ($stmt->execute()) {
             redirectToPage(tr('Reminder added successfully.'));
         } else {
-            redirectToPage(tr('Error: {error}', ['error' => $stmt->error]));
+            redirectToPage(db_error_message($stmt->error));
         }
         $stmt->close();
     } elseif (isset($_POST['edit'])) {
@@ -74,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if ($stmt->execute()) {
             redirectToPage(tr('Reminder updated successfully.'));
         } else {
-            redirectToPage(tr('Error: {error}', ['error' => $stmt->error]));
+            redirectToPage(db_error_message($stmt->error));
         }
         $stmt->close();
     } elseif (isset($_POST['delete'])) {
@@ -84,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if ($stmt->execute()) {
             redirectToPage(tr('Reminder deleted successfully.'));
         } else {
-            redirectToPage(tr('Error: {error}', ['error' => $stmt->error]));
+            redirectToPage(db_error_message($stmt->error));
         }
         $stmt->close();
     }
@@ -396,7 +393,7 @@ ob_end_flush(); // Flush the output buffer
         <h2><?= trh('Manage Reminders') ?></h2>
         <?php if (isset($_SESSION['message'])) : ?>
             <div class="alert alert-info">
-                <?= $_SESSION['message']; ?>
+                <?= htmlspecialchars($_SESSION['message']); ?>
                 <?php unset($_SESSION['message']); ?>
             </div>
         <?php endif; ?>
@@ -684,7 +681,7 @@ ob_end_flush(); // Flush the output buffer
             $('#monthlyOptions').hide();
             $('#titleCounter').text(charactersUsed(0, 100));
             $('#descriptionCounter').text(charactersUsed(0, 500));
-            $('#assigned_by').val('<?= $currentUserName; ?>');
+            $('#assigned_by').val(<?= json_encode((string) $currentUserName, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>);
         }
 
         // Fetch reminder data for editing

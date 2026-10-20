@@ -9,12 +9,15 @@
  * daily follow-up (weight, loss %, each grid item score, total, observations),
  * the endpoint actions raised and how they were resolved, and its exit.
  * ?format=csv exports the follow-up rows (one per animal and day, one column
- * per grid item) for analysis in a spreadsheet.
+ * per grid item) for analysis in a spreadsheet. The experimental acts are
+ * listed too (definition, then per animal), and ?format=acts_csv exports them
+ * (one row per act, animal and planned date, with the values entered).
  */
 
-session_start();
+require_once 'session_config.php';
 require 'dbcon.php';
 require 'animal_lib.php';
+require 'experiment_acts_lib.php';
 
 if (!isset($_SESSION['username'])) {
     $currentUrl = urlencode($_SERVER['REQUEST_URI']);
@@ -42,7 +45,7 @@ if (!$exp) {
 }
 
 $grid = $exp['clinical_grid_id'] ? load_clinical_grid($con, (int) $exp['clinical_grid_id']) : null;
-$thresholds = $con->query("SELECT * FROM protocol_endpoint_thresholds WHERE protocol_id = " . (int) $exp['protocol_id'])->fetch_all(MYSQLI_ASSOC);
+$thresholds = db_rows($con, "SELECT * FROM protocol_endpoint_thresholds WHERE protocol_id = ?", 'i', [(int) $exp['protocol_id']]);
 $obsFields = protocol_observation_fields($con, (int) $exp['protocol_id'], true);
 
 $animals = $con->prepare(
@@ -59,17 +62,19 @@ $animals = $animals->get_result()->fetch_all(MYSQLI_ASSOC);
 $followups = $scores = $actions = [];
 $itemLabels = $grid ? array_column($grid['items'], 'label') : [];
 if ($animals) {
-    $eaIds = implode(',', array_map('intval', array_column($animals, 'id')));
-    foreach ($con->query("SELECT f.*, u.name AS recorded_by_name FROM experiment_followups f LEFT JOIN users u ON u.id = f.recorded_by WHERE f.experiment_animal_id IN ($eaIds) ORDER BY f.observed_at") as $f) {
+    $eaIds = array_map('intval', array_column($animals, 'id'));
+    $eaIn = db_placeholders(count($eaIds));
+    $eaTypes = str_repeat('i', count($eaIds));
+    foreach (db_rows($con, "SELECT f.*, u.name AS recorded_by_name FROM experiment_followups f LEFT JOIN users u ON u.id = f.recorded_by WHERE f.experiment_animal_id IN ($eaIn) ORDER BY f.observed_at", $eaTypes, $eaIds) as $f) {
         $followups[$f['experiment_animal_id']][] = $f;
     }
-    foreach ($con->query("SELECT s.* FROM experiment_followup_scores s JOIN experiment_followups f ON f.id = s.followup_id WHERE f.experiment_animal_id IN ($eaIds) ORDER BY s.id") as $s) {
+    foreach (db_rows($con, "SELECT s.* FROM experiment_followup_scores s JOIN experiment_followups f ON f.id = s.followup_id WHERE f.experiment_animal_id IN ($eaIn) ORDER BY s.id", $eaTypes, $eaIds) as $s) {
         $scores[$s['followup_id']][$s['item_label']] = $s;
         if (!in_array($s['item_label'], $itemLabels, true)) {
             $itemLabels[] = $s['item_label']; // item of an earlier grid version
         }
     }
-    foreach ($con->query("SELECT * FROM endpoint_actions WHERE experiment_animal_id IN ($eaIds) ORDER BY created_at") as $a) {
+    foreach (db_rows($con, "SELECT * FROM endpoint_actions WHERE experiment_animal_id IN ($eaIn) ORDER BY created_at", $eaTypes, $eaIds) as $a) {
         $actions[$a['experiment_animal_id']][] = $a;
     }
 }
@@ -79,7 +84,7 @@ if ($animals) {
 $obsColumns = array_map(fn($f) => $f['label'] . ($f['unit'] ? " ({$f['unit']})" : ''), array_filter($obsFields, fn($f) => $f['active']));
 $obsByFollowup = [];
 if ($animals) {
-    foreach ($con->query("SELECT o.* FROM experiment_followup_observations o JOIN experiment_followups f ON f.id = o.followup_id WHERE f.experiment_animal_id IN ($eaIds) ORDER BY o.id") as $o) {
+    foreach (db_rows($con, "SELECT o.* FROM experiment_followup_observations o JOIN experiment_followups f ON f.id = o.followup_id WHERE f.experiment_animal_id IN ($eaIn) ORDER BY o.id", $eaTypes, $eaIds) as $o) {
         if ($o['field_id'] !== null) {
             $col = $o['label'] . ($o['unit'] ? " ({$o['unit']})" : '');
             $obsByFollowup[$o['followup_id']]['fields'][$col] = $o;
@@ -100,10 +105,57 @@ $obsCell = function ($fid, $col) use ($obsByFollowup) {
     return $o['value_type'] === 'number' ? rtrim(rtrim(number_format((float) $o['value_number'], 4, '.', ''), '0'), '.') : (string) $o['value_text'];
 };
 
+// Experimental acts: definitions, then one row per animal and planned date.
+$stmt = $con->prepare(
+    "SELECT a.*, mp.name AS product_name, mp.default_unit AS product_unit FROM experiment_acts a
+     LEFT JOIN medication_products mp ON mp.id = a.product_id WHERE a.experiment_id = ? ORDER BY a.id"
+);
+$stmt->bind_param('i', $experimentId);
+$stmt->execute();
+$expActs = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+$actFieldsByAct = experiment_act_fields($con, array_column($expActs, 'id'));
+$stmt = $con->prepare(EXPERIMENT_ACT_ROW_SQL . ' WHERE a.experiment_id = ? ORDER BY m.animal_uid, aa.planned_date, a.id');
+$stmt->bind_param('i', $experimentId);
+$stmt->execute();
+$actRows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+$actValues = experiment_act_values($con, array_column($actRows, 'id'));
+$actCorrections = experiment_act_corrections($con, array_column($actRows, 'id'));
+$actsByEnrollment = $actCounts = [];
+foreach ($actRows as $r) {
+    $actsByEnrollment[(int) $r['experiment_animal_id']][] = $r;
+    $actCounts[(int) $r['act_id']][$r['status']] = ($actCounts[(int) $r['act_id']][$r['status']] ?? 0) + 1;
+    $actCounts[(int) $r['act_id']]['dates'][$r['planned_date']] = true;
+}
+$actValuesText = fn(int $id): string => implode('; ', array_map(fn($v) => $v['label'] . ': ' . observation_value($v), $actValues[$id] ?? []));
+$actStatus = experiment_act_statuses();
+
 $lossPct = fn($ea, $f) => ($f['weight_g'] !== null && !empty($ea['baseline_weight_g']))
     ? round(($ea['baseline_weight_g'] - $f['weight_g']) / $ea['baseline_weight_g'] * 100, 1) : null;
 
 log_activity($con, 'export', 'experiment', (string) $experimentId, tr('{format} report', ['format' => $_GET['format'] ?? 'html']), $_SESSION['user_id'] ?? null);
+
+if (($_GET['format'] ?? '') === 'acts_csv') {
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="experiment_' . preg_replace('/[^A-Za-z0-9_-]/', '_', $exp['experiment_number']) . '_acts_' . date('Y-m-d') . '.csv"');
+    $out = fopen('php://output', 'w');
+    fwrite($out, "\xEF\xBB\xBF");
+    fputcsv($out, ['experiment', 'animal', 'cage', 'act_type', 'act', 'substance', 'dose', 'dose_unit', 'route', 'planned_date', 'status', 'done_at', 'done_by', 'supervised_by',
+        'medication', 'lot', 'quantity_used', 'unit', 'values', 'note']);
+    $safe = fn($v) => is_string($v) && preg_match('/^[=+\-@]/', $v) ? "'" . $v : $v;
+    foreach ($actRows as $r) {
+        fputcsv($out, array_map($safe, [
+            $exp['experiment_number'], $r['animal_uid'] ?: $r['mouse_id'], $r['cage_id'], $r['act_type'], $r['label'], $r['substance'],
+            act_number($r['dose_amount']), $r['dose_unit'], $r['route'], $r['planned_date'], $r['status'],
+            $r['status'] === 'planned' ? '' : $r['done_at'], $r['done_by_name'], $r['supervised_by_name'],
+            $r['medication_lot_id'] ? $r['product_name'] : '', $r['lot_number'], act_number($r['quantity_used']), $r['medication_lot_id'] ? $r['product_unit'] : '',
+            $actValuesText((int) $r['id']), $r['note'],
+        ]));
+    }
+    fclose($out);
+    exit;
+}
 
 if (($_GET['format'] ?? '') === 'csv') {
     header('Content-Type: text/csv; charset=utf-8');
@@ -179,6 +231,7 @@ require 'header.php';
             <a href="experiment_manage.php?protocol_id=<?= (int) $exp['protocol_id']; ?>">Expérimentations</a>
             <button type="button" class="btn btn-primary btn-sm ms-3" onclick="window.print()"><i class="fas fa-print"></i> <?= trh('Print / Save as PDF') ?></button>
             <a href="experiment_report.php?experiment_id=<?= $experimentId; ?>&amp;format=csv" class="btn btn-outline-secondary btn-sm"><i class="fas fa-file-csv"></i> <?= trh('Download data (CSV)') ?></a>
+            <?php if ($expActs) : ?><a href="experiment_report.php?experiment_id=<?= $experimentId; ?>&amp;format=acts_csv" class="btn btn-outline-secondary btn-sm"><i class="fas fa-file-csv"></i> <?= trh('Download the acts (CSV)') ?></a><?php endif; ?>
         </div>
 
         <div class="report">
@@ -240,10 +293,31 @@ require 'header.php';
                 <?php if (!$thresholds) : ?><tr><td colspan="3" class="text-muted"><?= trh('No quantified endpoint.') ?></td></tr><?php endif; ?>
             </table>
 
+            <h5><?= trh('Experimental acts') ?></h5>
+            <?php if ($expActs) : ?>
+                <table class="table table-sm table-bordered" id="actDefinition">
+                    <thead class="table-light">
+                        <tr><th><?= trh('Act') ?></th><th><?= trh('Substance, dose, route') ?></th><th><?= trh('Medication of the stock') ?></th><th><?= trh('Information asked') ?></th><th><?= trh('Dates') ?></th><th><?= trh('Status') ?></th></tr>
+                    </thead>
+                    <?php foreach ($expActs as $act) : $c = $actCounts[(int) $act['id']] ?? []; ?>
+                        <tr>
+                            <td><strong><?= htmlspecialchars($act['label']); ?></strong><br><small><?= htmlspecialchars(experiment_act_types()[$act['act_type']] ?? $act['act_type']); ?></small><?php if ($act['instructions']) : ?><br><small class="text-muted"><?= htmlspecialchars($act['instructions']); ?></small><?php endif; ?></td>
+                            <td><?= htmlspecialchars(experiment_act_summary($act) ?: '—'); ?></td>
+                            <td><?= $act['product_id'] ? trh('{product}, {qty} {unit} per animal', ['product' => $act['product_name'], 'qty' => act_number($act['quantity_per_animal']), 'unit' => $act['product_unit']]) : '—'; ?></td>
+                            <td><?= htmlspecialchars(implode(', ', array_map(fn($f) => $f['label'] . ($f['unit'] ? ' (' . $f['unit'] . ')' : '') . ($f['required'] ? ' *' : ''), $actFieldsByAct[(int) $act['id']] ?? [])) ?: '—'); ?></td>
+                            <td><?= htmlspecialchars(implode(', ', array_map(fn($d) => date('d/m/Y', strtotime($d)), array_keys($c['dates'] ?? [])))); ?></td>
+                            <td class="text-nowrap"><?php foreach (['done', 'not_done', 'planned', 'cancelled'] as $st) : if (!empty($c[$st])) : ?><?= htmlspecialchars($actStatus[$st]); ?> : <?= (int) $c[$st]; ?><br><?php endif; endforeach; ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </table>
+            <?php else : ?>
+                <p class="text-muted"><?= trh('No experimental act planned.') ?></p>
+            <?php endif; ?>
+
             <h5><?= trh('Summary') ?></h5>
             <table class="table table-sm table-bordered" id="animalSummary">
                 <thead class="table-light">
-                    <tr><th><?= trh('Animal') ?></th><th><?= trh('Line') ?></th><th><?= trh('Sex') ?></th><th><?= trh('Enrolled') ?></th><th><?= trh('Follow-ups') ?></th><th><?= trh('Max score') ?></th><th><?= trh('Max loss %') ?></th><th><?= trh('Endpoint actions') ?></th><th><?= trh('Outcome') ?></th></tr>
+                    <tr><th><?= trh('Animal') ?></th><th><?= trh('Line') ?></th><th><?= trh('Sex') ?></th><th><?= trh('Enrolled') ?></th><th><?= trh('Follow-ups') ?></th><th><?= trh('Max score') ?></th><th><?= trh('Max loss %') ?></th><th><?= trh('Endpoint actions') ?></th><th><?= trh('Experimental acts done') ?></th><th><?= trh('Outcome') ?></th></tr>
                 </thead>
                 <?php foreach ($animals as $ea) :
                     $fs = $followups[$ea['id']] ?? [];
@@ -259,6 +333,7 @@ require 'header.php';
                         <td><?= $maxScore ?? '-'; ?></td>
                         <td><?= $losses ? max($losses) : '-'; ?></td>
                         <td><?= count($actions[$ea['id']] ?? []); ?></td>
+                        <td><?= count(array_filter($actsByEnrollment[(int) $ea['id']] ?? [], fn($r) => $r['status'] === 'done')); ?><?php $nd = count(array_filter($actsByEnrollment[(int) $ea['id']] ?? [], fn($r) => $r['status'] === 'not_done')); ?><?= $nd ? ' <span class="text-danger">(' . trh('{n} not done', ['n' => $nd]) . ')</span>' : ''; ?></td>
                         <td><?= $ea['status'] === 'active' ? trh('Alive (cage {cage})', ['cage' => $ea['cage_id']]) : htmlspecialchars(exit_label($ea['exit_code'], $ea['status']) . ' — ' . $ea['exit_date']); ?></td>
                     </tr>
                 <?php endforeach; ?>
@@ -312,7 +387,27 @@ require 'header.php';
                                     <td><?= htmlspecialchars($a['created_at']); ?></td>
                                     <td><?= htmlspecialchars(endpoint_required_actions()[$a['required_action']]); ?></td>
                                     <td><?= htmlspecialchars($a['message'] ?? ''); ?></td>
-                                    <td><?= $a['status'] === 'done' ? htmlspecialchars($a['done_at'] . ' — ' . ($a['done_by_name'] ?? '') . ': ' . ($a['done_note'] ?? '')) : '<strong class="text-danger">' . trh('PENDING') . '</strong>'; ?></td>
+                                    <td><?= $a['status'] !== 'pending' ? ($a['status'] === 'withdrawn' ? '<span class="badge bg-secondary">' . trh('Withdrawn') . '</span> ' : '') . htmlspecialchars($a['done_at'] . ' — ' . ($a['done_by_name'] ?? '') . ': ' . ($a['done_note'] ?? '')) : '<strong class="text-danger">' . trh('PENDING') . '</strong>'; ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </table>
+                    <?php endif; ?>
+
+                    <?php if (!empty($actsByEnrollment[(int) $ea['id']])) : ?>
+                        <table class="table table-sm table-bordered acts-table">
+                            <thead class="table-light">
+                                <tr><th><?= trh('Planned') ?></th><th><?= trh('Act') ?></th><th><?= trh('Status') ?></th><th><?= trh('Done on') ?></th><th><?= trh('Medication') ?></th><th><?= trh('Information') ?></th><th><?= trh('By') ?></th></tr>
+                            </thead>
+                            <?php foreach ($actsByEnrollment[(int) $ea['id']] as $r) : ?>
+                                <tr class="<?= $r['status'] === 'not_done' ? 'table-danger' : ($r['status'] === 'cancelled' ? 'text-muted' : ''); ?>">
+                                    <td class="text-nowrap"><?= htmlspecialchars($r['planned_date']); ?></td>
+                                    <td><?= htmlspecialchars($r['label']); ?><?php if ($summary = experiment_act_summary($r)) : ?> <small class="text-muted">(<?= htmlspecialchars($summary); ?>)</small><?php endif; ?></td>
+                                    <td><?= htmlspecialchars($actStatus[$r['status']]); ?></td>
+                                    <td class="text-nowrap"><?= $r['status'] === 'planned' ? '' : htmlspecialchars(substr((string) $r['done_at'], 0, 16)); ?></td>
+                                    <td><?= $r['medication_lot_id'] ? trh('{qty} {unit}, lot {lot}', ['qty' => act_number($r['quantity_used']), 'unit' => $r['product_unit'], 'lot' => $r['lot_number']]) : ''; ?></td>
+                                    <td><?= htmlspecialchars($actValuesText((int) $r['id'])); ?><?= $r['note'] ? ' <em>' . htmlspecialchars($r['note']) . '</em>' : ''; ?>
+                                        <?php foreach ($actCorrections[(int) $r['id']] ?? [] as $c) : ?><div class="small text-warning-emphasis"><i class="fas fa-undo"></i> <?= htmlspecialchars(act_correction_text($c)); ?></div><?php endforeach; ?></td>
+                                    <td><?= htmlspecialchars(act_done_by_text($r)); ?></td>
                                 </tr>
                             <?php endforeach; ?>
                         </table>

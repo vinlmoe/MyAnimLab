@@ -14,11 +14,12 @@ ini_set('display_startup_errors', 0);
 error_reporting(E_ALL);
 
 // Start a new session or resume the existing session
-session_start();
+require_once 'session_config.php';
 
 // Include the database connection file
 require 'dbcon.php';
 require 'config.php'; // Include configuration file for SMTP details
+require 'auth_lib.php'; // Sign-in and two-factor authentication
 require 'vendor/autoload.php'; // Include PHPMailer autoload file
 
 use PHPMailer\PHPMailer\PHPMailer;
@@ -29,7 +30,7 @@ $labQuery = "SELECT name, value FROM settings WHERE name IN ('lab_name', 'url', 
 $labResult = mysqli_query($con, $labQuery);
 
 // Default values if the query fails or returns no result
-$labName = "My Vivarium";
+$labName = "MyAnimLab";
 $url = "";
 $turnstileSecretKey = "";
 $turnstileSiteKey = "";
@@ -178,40 +179,17 @@ if (isset($_POST['login'])) {
                 } else {
                     // Verify password
                     if (password_verify($password, $row['password'])) {
-                        // Set session variables
-                        $_SESSION['name'] = $row['name'];
-                        $_SESSION['username'] = $row['username'];
-                        $_SESSION['role'] = $row['role'];
-                        $_SESSION['position'] = $row['position'];
-                        $_SESSION['user_id'] = $row['id'];
-                        $_SESSION['is_bea_responsible'] = !empty($row['is_bea_responsible']);
-                        $_SESSION['locale'] = in_array($row['preferred_locale'] ?? '', ['fr', 'en'], true)
-                            ? $row['preferred_locale']
-                            : 'fr';
-
-                        // Regenerate session ID to prevent session fixation    
-                        session_regenerate_id(true);
-
-                        // Reset login attempts and unlock the account
-                        $reset_attempts = "UPDATE users SET login_attempts = 0, account_locked = NULL WHERE username=?";
-                        $reset_stmt = mysqli_prepare($con, $reset_attempts);
-                        mysqli_stmt_bind_param($reset_stmt, "s", $username);
-                        mysqli_stmt_execute($reset_stmt);
-
-                        // Redirect to the specified URL or default to home.php
-                        if (isset($_GET['redirect'])) {
-                            $rurl = urldecode($_GET['redirect']);
-                            // SECURITY: Validate redirect URL to prevent open redirect attacks
-                            // Open redirects can be exploited for phishing by redirecting users to malicious sites
-                            // Only allow relative URLs to .php pages within this application
-                            // Reject any URLs containing http:// or https:// (external sites)
-                            if (preg_match('/^[a-zA-Z0-9_\-\.\/\?=&]+\.php/', $rurl) && !preg_match('/^(https?:)?\/\//', $rurl)) {
-                                header("Location: $rurl");
-                                exit;
-                            }
+                        $target = login_redirect_target($_GET['redirect'] ?? null);
+                        // Second factor set up: the code is asked on login_2fa.php
+                        // before the session is opened.
+                        if (!empty($row['totp_enabled']) && !empty($row['totp_secret'])) {
+                            session_regenerate_id(true);
+                            $_SESSION['pending_2fa'] = ['user_id' => (int) $row['id'], 'at' => time(), 'attempts' => 0, 'redirect' => $target];
+                            header('Location: login_2fa.php');
+                            exit;
                         }
-                        // Default redirect if validation fails or no redirect specified
-                        header("Location: home.php");
+                        complete_login($con, $row);
+                        header('Location: ' . (!empty($_SESSION['must_setup_2fa']) ? 'two_factor.php' : $target));
                         exit;
                     } else {
                         // Handle failed login attempts
@@ -250,6 +228,7 @@ mysqli_close($con);
     <title><?php echo htmlspecialchars($labName); ?></title>
 
     <!-- Favicon and Icons -->
+    <link rel="icon" type="image/svg+xml" href="images/logo-mark.svg">
     <link rel="icon" href="icons/favicon.ico" type="image/x-icon">
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32x32.png">
@@ -263,7 +242,7 @@ mysqli_close($con);
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
     <!-- Google Font: Poppins -->
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;700&display=swap" rel="stylesheet">
 
     <!-- Bootstrap and jQuery JS -->
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
@@ -316,51 +295,10 @@ mysqli_close($con);
             margin-top: 50px;
         }
 
-        .header {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            align-items: center;
-            background-color: #343a40;
-            color: white;
-            padding: 1rem;
-            text-align: center;
-            margin: 0;
-        }
 
-        .header .logo-container {
-            padding: 0;
-            margin: 0;
-        }
 
-        .header img.header-logo {
-            width: 300px;
-            height: auto;
-            display: block;
-            margin: 0;
-        }
 
-        .header h2 {
-            margin-left: 15px;
-            margin-bottom: 0;
-            margin-top: 12px;
-            font-size: 3.5rem;
-            white-space: nowrap;
-            font-family: 'Poppins', sans-serif;
-            font-weight: 500;
-        }
 
-        /* Responsive styling for smaller screens */
-        @media (max-width: 576px) {
-            .header h2 {
-                font-size: 1.8rem;
-                margin-bottom: 5px;
-            }
-
-            .header img.header-logo {
-                width: 150px;
-            }
-        }
     </style>
 </head>
 
@@ -368,14 +306,7 @@ mysqli_close($con);
 
     <!-- Header Section -->
     <?php if ($demo === "yes") include('demo/demo-banner.php'); ?>
-    <div class="header">
-        <div class="logo-container">
-            <a href="home.php">
-                <img src="images/logo1.jpg" alt="Logo" class="header-logo">
-            </a>
-        </div>
-        <h2><?php echo htmlspecialchars($labName); ?></h2>
-    </div>
+    <?php require 'brand_banner.php'; ?>
 
     <div class="content">
         <!-- Main Content -->
@@ -385,18 +316,7 @@ mysqli_close($con);
                 <div class="col-md-6">
                     <div id="labCarousel" class="carousel slide" data-ride="carousel">
                         <div class="carousel-inner">
-                            <div class="carousel-item active"> <img class="d-block w-100" src="images/DSC_0536.webp" alt="Image 1"> </div>
-                            <div class="carousel-item"> <img class="d-block w-100" src="images/DSC_0537.webp" alt="Image 2"> </div>
-                            <div class="carousel-item"> <img class="d-block w-100" src="images/DSC_0539.webp" alt="Image 3"> </div>
-                            <div class="carousel-item"> <img class="d-block w-100" src="images/DSC_0540.webp" alt="Image 4"> </div>
-                            <div class="carousel-item"> <img class="d-block w-100" src="images/DSC_0560.webp" alt="Image 7"> </div>
-                            <div class="carousel-item"> <img class="d-block w-100" src="images/DSC_0562.webp" alt="Image 8"> </div>
-                            <div class="carousel-item"> <img class="d-block w-100" src="images/DSC_0586.webp" alt="Image 11"> </div>
-                            <div class="carousel-item"> <img class="d-block w-100" src="images/DSC_0593.webp" alt="Image 12"> </div>
-                            <div class="carousel-item"> <img class="d-block w-100" src="images/DSC_0607.webp" alt="Image 13"> </div>
-                            <div class="carousel-item"> <img class="d-block w-100" src="images/DSC_0623.webp" alt="Image 14"> </div>
-                            <div class="carousel-item"> <img class="d-block w-100" src="images/DSC_0658.webp" alt="Image 15"> </div>
-                            <div class="carousel-item"> <img class="d-block w-100" src="images/DSC_0665.webp" alt="Image 16"> </div>
+                            <div class="carousel-item active"> <img class="d-block w-100" src="images/mouse.webp" alt="Souris"> </div>
                         </div>
                     </div>
                     <?php if ($demo === "yes") include('demo/demo-disclaimer.php'); ?>
@@ -408,6 +328,10 @@ mysqli_close($con);
                         <h3><?= trh('Login') ?></h3>
                         <?php if (!empty($error_message)) { ?>
                             <div class="alert alert-danger"><?= htmlspecialchars($error_message); ?></div>
+                        <?php } ?>
+                        <?php if (isset($_SESSION['message'])) { ?>
+                            <div class="alert alert-warning"><?= htmlspecialchars($_SESSION['message']); ?></div>
+                            <?php unset($_SESSION['message']); ?>
                         <?php } ?>
                         <?php if (isset($_SESSION['error_message'])) { ?>
                             <div class="alert alert-danger">
@@ -442,29 +366,28 @@ mysqli_close($con);
                 </div>
             </div>
 
-            <!-- New Row for Unique Features -->
+            <!-- What the application is for -->
             <div class="row mt-4">
                 <div class="col-md-12">
-                    <h2 class="text-center"><?= trh('Welcome to the {lab}', ['lab' => $labName]); ?></h2>
-                    <p class="text-center italic"><?= trh('Elevate Your Research with IoT-Enhanced Colony Management') ?></p>
+                    <h2 class="text-center"><?= htmlspecialchars($labName); ?></h2>
+                    <p class="text-center italic"><?= trh('Animal facility management: cages, animals, experiments and regulatory traceability') ?></p>
 
-                    <!-- Feature Box 1 -->
                     <div class="col-md-6 mb-6 mx-auto feature-box text-center">
-                        <h3><?= trh('Real-Time Environmental Monitoring') ?></h3>
-                        <p><?= trh('Gain unparalleled insights into the conditions of your vivarium. Our IoT sensors continuously track temperature and humidity levels, ensuring a stable and controlled environment for your research animals.') ?></p>
+                        <h3><?= trh('Daily work') ?></h3>
+                        <p><?= trh('Daily round room by room, cage check by scanning its QR code, litters and weaning, health reports and treatments on prescription.') ?></p>
                     </div>
 
-                    <!-- Feature Box 2 -->
                     <div class="col-md-6 mb-6 mx-auto feature-box text-center">
-                        <h3><?= trh('Effortless Cage and Mouse Tracking') ?></h3>
-                        <p><?= trh('Seamlessly monitor every cage and mouse in your facility. No more manual record-keeping or confusion.') ?></p>
+                        <h3><?= trh('Supervised experiments') ?></h3>
+                        <p><?= trh('Trials linked to their project authorizations, daily clinical follow-up with scoring grids and endpoints, planned acts, and the training record of each person.') ?></p>
                     </div>
 
-                    <!-- Feature Box 3 -->
                     <div class="col-md-6 mb-6 mx-auto feature-box text-center">
-                        <h3><?= trh('Security and Compliance') ?></h3>
-                        <p><?= trh('Rest easy knowing your data is secure and compliant with industry regulations. We prioritize data integrity and confidentiality.') ?></p>
+                        <h3><?= trh('Traceability') ?></h3>
+                        <p><?= trh('Entry and exit register, health register and narcotics register. Each entry records its author and date; a correction needs a reason and keeps the original value.') ?></p>
                     </div>
+
+                    <p class="text-center text-muted small"><?= trh('No account yet? Accounts are created by the administrator of the animal facility.') ?></p>
                 </div>
             </div>
         </div>
