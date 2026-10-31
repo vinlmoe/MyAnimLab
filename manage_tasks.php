@@ -87,8 +87,31 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $title = htmlspecialchars($_POST['title'] ?? '');
     $description = htmlspecialchars($_POST['description'] ?? '');
     // The creator is the signed-in user when the form did not provide one.
+    // A non-admin can never set another user as the creator (the field is
+    // spoofable from the form): their own id is always used (security review
+    // S5). Only an administrator may assign a task on behalf of someone else.
     $assignedBy = htmlspecialchars((string) (($_POST['assigned_by_id'] ?? '') !== '' ? $_POST['assigned_by_id'] : ($_SESSION['user_id'] ?? '')));
-    $assignedTo = htmlspecialchars(implode(',', $_POST['assigned_to'] ?? []));
+    if (!$isAdmin) {
+        $assignedBy = (string) $currentUserId;
+    }
+
+    // Editing or deleting a task is reserved to its creator and to admins
+    // (the list already hides others' tasks, and the row buttons appear only
+    // for the creator or an admin — this enforces the same rule server-side,
+    // security review S5, IDOR).
+    if ((isset($_POST['edit']) || isset($_POST['delete'])) && !$isAdmin) {
+        $targetId = (int) ($_POST['id'] ?? 0);
+        $ownerStmt = $con->prepare("SELECT assigned_by FROM tasks WHERE id = ?");
+        $ownerStmt->bind_param("i", $targetId);
+        $ownerStmt->execute();
+        $ownerStmt->bind_result($taskOwner);
+        $found = $ownerStmt->fetch();
+        $ownerStmt->close();
+        if (!$found || (string) $taskOwner !== (string) $currentUserId) {
+            redirectToPage(tr('You can only modify tasks you created.'));
+        }
+    }
+    $assignedTo = htmlspecialchars(implode(',', (array) ($_POST['assigned_to'] ?? [])));
     $status = htmlspecialchars($_POST['status'] ?? '');
     $completionDate = !empty($_POST['completion_date']) ? htmlspecialchars($_POST['completion_date']) : NULL;
     $cageId = empty($_POST['cage_id']) ? NULL : htmlspecialchars($_POST['cage_id']);

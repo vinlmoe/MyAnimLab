@@ -64,11 +64,15 @@ function exportTableToCSV($con, $tableName)
     foreach ($columns as $column) {
         $headers[] = $column->name;
     }
-    fputcsv($output, $headers);
+    // Neutralise spreadsheet formula injection: a cell whose text starts with
+    // =, +, - or @ is run as a formula by Excel / LibreOffice when the file is
+    // opened, so it is prefixed with an apostrophe (security review S7).
+    $csvSafe = fn($v) => is_string($v) && $v !== '' && preg_match('/^[=+\-@]/', $v) ? "'" . $v : $v;
+    fputcsv($output, array_map($csvSafe, $headers));
 
     // Write data rows to the CSV
     while ($row = $result->fetch_assoc()) {
-        fputcsv($output, $row);
+        fputcsv($output, array_map($csvSafe, $row));
     }
 
     // Close the output stream

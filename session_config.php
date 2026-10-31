@@ -96,6 +96,36 @@ if (PHP_SAPI !== 'cli') {
         $_SESSION['LAST_ACTIVITY'] ??= time();
     }
 
+    // Live account state: a change made by an administrator (role lowered,
+    // account set back to pending, or deleted) must take effect at once, not
+    // only after the idle timeout. The role and status are re-read from the
+    // database on each real page load (security review S6): a disabled or
+    // removed account is signed out immediately, and the session role is
+    // refreshed so a demotion is enforced on the very next request. Passive
+    // requests (the notifications poll) are skipped so the JSON endpoints are
+    // not turned into redirects; the next page load enforces the change.
+    if (isset($_SESSION['user_id']) && !defined('SESSION_PASSIVE_REQUEST')) {
+        $liveStmt = $con->prepare('SELECT role, status, is_bea_responsible FROM users WHERE id = ?');
+        $liveStmt->bind_param('i', $_SESSION['user_id']);
+        $liveStmt->execute();
+        $liveUser = $liveStmt->get_result()->fetch_assoc();
+        $liveStmt->close();
+        if (!$liveUser || $liveUser['status'] !== 'approved') {
+            session_unset();
+            session_destroy();
+            session_start();
+            session_regenerate_id(true);
+            $_SESSION['message'] = tr('Your account is no longer active. Please sign in again or contact an administrator.');
+            if (basename((string) ($_SERVER['SCRIPT_NAME'] ?? '')) !== 'index.php') {
+                header('Location: index.php');
+                exit;
+            }
+        } else {
+            $_SESSION['role'] = $liveUser['role'];
+            $_SESSION['is_bea_responsible'] = !empty($liveUser['is_bea_responsible']);
+        }
+    }
+
     // Two-factor authentication required but not set up yet: nothing else
     // until it is (see auth_lib.php).
     if (!empty($_SESSION['must_setup_2fa'])

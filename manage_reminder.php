@@ -42,10 +42,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         die(tr('CSRF token validation failed'));
     }
 
+    // Editing or deleting a reminder is reserved to its creator and to admins
+    // (security review S5): the buttons appear only for them, and this enforces
+    // the same rule server-side.
+    if ((isset($_POST['edit']) || isset($_POST['delete'])) && !$isAdmin) {
+        $targetId = (int) ($_POST['id'] ?? 0);
+        $ownerStmt = $con->prepare("SELECT assigned_by FROM reminders WHERE id = ?");
+        $ownerStmt->bind_param("i", $targetId);
+        $ownerStmt->execute();
+        $ownerStmt->bind_result($reminderOwner);
+        $found = $ownerStmt->fetch();
+        $ownerStmt->close();
+        if (!$found || (string) $reminderOwner !== (string) $currentUserId) {
+            redirectToPage(tr('You can only modify reminders you created.'));
+        }
+    }
+
     $title = htmlspecialchars($_POST['title']);
     $description = htmlspecialchars($_POST['description']);
     $assignedBy = $currentUserId;
-    $assignedTo = htmlspecialchars(implode(',', $_POST['assigned_to'] ?? []));
+    $assignedTo = htmlspecialchars(implode(',', (array) ($_POST['assigned_to'] ?? [])));
     $recurrenceType = htmlspecialchars($_POST['recurrence_type']);
     $dayOfWeek = !empty($_POST['day_of_week']) ? htmlspecialchars($_POST['day_of_week']) : null;
     $dayOfMonth = !empty($_POST['day_of_month']) ? (int)$_POST['day_of_month'] : null;
@@ -553,7 +569,8 @@ ob_end_flush(); // Flush the output buffer
                                         <i class="fas fa-eye"></i>
                                     </button>
 
-                                    <!-- Existing Edit and Delete buttons -->
+                                    <!-- Edit and Delete only for the creator or an admin (security review S5) -->
+                                    <?php if ($isAdmin || (string) $row['assigned_by'] === (string) $currentUserId) : ?>
                                     <button class="btn btn-warning btn-sm editButton" data-id="<?= $row['id']; ?>">
                                         <i class="fas fa-edit"></i>
                                     </button>
@@ -564,6 +581,7 @@ ob_end_flush(); // Flush the output buffer
                                             <i class="fas fa-trash-alt"></i>
                                         </button>
                                     </form>
+                                    <?php endif; ?>
                                 </div>
                             </td>
                         </tr>
