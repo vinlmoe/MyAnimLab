@@ -30,6 +30,7 @@ require 'header.php'; // Include the header file (also sets $url from the settin
 
 // Fetch user details from the database
 $username = $_SESSION['username'];
+$userId = (int) ($_SESSION['user_id'] ?? 0);
 $query = "SELECT * FROM users WHERE username = ?";
 $stmt = $con->prepare($query);
 $stmt->bind_param("s", $username);
@@ -102,7 +103,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_profile'])) {
         die(tr('CSRF token validation failed'));
     }
 
-    $newUsername = filter_input(INPUT_POST, 'username', FILTER_SANITIZE_EMAIL);
+    $newUsername = trim((string) filter_input(INPUT_POST, 'username', FILTER_SANITIZE_EMAIL));
     $name = filter_input(INPUT_POST, 'name', FILTER_SANITIZE_STRING);
     $initials = filter_input(INPUT_POST, 'initials', FILTER_SANITIZE_STRING);
     $position = filter_input(INPUT_POST, 'position', FILTER_SANITIZE_STRING);
@@ -113,25 +114,40 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_profile'])) {
     // Check if the email address (username) has changed
     $emailChanged = ($newUsername !== $username);
 
+    // Validate the new address and refuse one already used by another account
+    // (the login identifier is unique, migration 041): without this the update
+    // would fail at the database, or — before the constraint — allow a second
+    // account with the same address (security review S2).
+    $emailInvalid = $emailChanged && !filter_var($newUsername, FILTER_VALIDATE_EMAIL);
+    $emailTaken = false;
+    if ($emailChanged && !$emailInvalid) {
+        $dupStmt = $con->prepare("SELECT 1 FROM users WHERE username = ? AND id <> ?");
+        $dupStmt->bind_param("si", $newUsername, $userId);
+        $dupStmt->execute();
+        $emailTaken = (bool) $dupStmt->get_result()->num_rows;
+        $dupStmt->close();
+    }
+
     // Ensure initials are unique
     $uniqueInitials = ensureUniqueInitials($con, $initials, $username);
 
-    if ($uniqueInitials !== $initials) {
+    if ($emailInvalid) {
+        $updateMessage = trh('Please enter a valid e-mail address.');
+    } elseif ($emailTaken) {
+        $updateMessage = trh('This e-mail address is already used by another account.');
+    } elseif ($uniqueInitials !== $initials) {
         $updateMessage = trh('The initials "{initials}" are already in use by another user. Please choose different initials.', ['initials' => $initials]);
     } else {
         // Update user details in the database
+        // Keyed on the account id, not the username, so the update can only
+        // ever touch the current user's own row (security review S2).
         $updateQuery = "UPDATE users SET username = ?, name = ?, position = ?, initials = ?, preferred_locale = ?";
         if ($emailChanged) {
             $updateQuery .= ", email_verified = 0";
         }
-        $updateQuery .= " WHERE username = ?";
+        $updateQuery .= " WHERE id = ?";
         $updateStmt = $con->prepare($updateQuery);
-
-        if ($emailChanged) {
-            $updateStmt->bind_param("ssssss", $newUsername, $name, $position, $uniqueInitials, $preferredLocale, $username);
-        } else {
-            $updateStmt->bind_param("ssssss", $newUsername, $name, $position, $uniqueInitials, $preferredLocale, $username);
-        }
+        $updateStmt->bind_param("sssssi", $newUsername, $name, $position, $uniqueInitials, $preferredLocale, $userId);
 
         if ($updateStmt->execute()) {
             // Update the session username if it was changed

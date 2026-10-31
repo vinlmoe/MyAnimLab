@@ -1,0 +1,310 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{lmodern}
+\usepackage[a4paper,margin=2.3cm]{geometry}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{crit}{HTML}{B00020}
+\definecolor{high}{HTML}{C8500A}
+\definecolor{med}{HTML}{B08800}
+\definecolor{low}{HTML}{4A6FA5}
+\definecolor{ok}{HTML}{2E7D32}
+\definecolor{code}{HTML}{F4F4F4}
+
+\newcommand{\sev}[2]{\textcolor{#1}{\textbf{#2}}}
+\newcommand{\crit}{\sev{crit}{Critique}}
+\newcommand{\hoch}{\sev{high}{Élevée}}
+\newcommand{\med}{\sev{med}{Moyenne}}
+\newcommand{\low}{\sev{low}{Faible}}
+
+\lstset{basicstyle=\ttfamily\footnotesize,backgroundcolor=\color{code},
+  breaklines=true,frame=single,framesep=4pt,rulecolor=\color{gray!40},
+  xleftmargin=2pt,columns=fullflexible,keepspaces=true}
+
+\pagestyle{fancy}\fancyhf{}
+\lhead{\small MyAnimLab --- Tests de charge et de sécurité}
+\rhead{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\titleformat{\section}{\large\bfseries\color{black!80}}{\thesection}{0.6em}{}
+\setlength{\parindent}{0pt}\setlength{\parskip}{0.5ex}
+
+\hypersetup{pdftitle={MyAnimLab -- Rapport de tests de charge et de sécurité},
+  pdfauthor={Tests automatisés}}
+
+\begin{document}
+
+\begin{center}
+  {\LARGE\bfseries MyAnimLab}\\[2pt]
+  {\large Rapport de test de charge et de test de sécurité}\\[6pt]
+  \small Date~: 31 octobre 2026 \quad\textbullet\quad Branche~: \texttt{ccr-e216aacd-7kbcw3}\\
+  \small Version testée~: \texttt{d4e4911} \quad\textbullet\quad PHP 8.3 / MariaDB 10.11 / Apache 2.4 (mod\_php, prefork)
+\end{center}
+
+\vspace{0.5ex}\hrule\vspace{1.5ex}
+
+\section{Résumé}
+
+L'application a été déployée localement (Apache + mod\_php 8.3, MariaDB 10.11,
+4~vCPU, 16~Go) sur une base de démonstration volontairement gonflée à un volume
+réaliste d'animalerie, puis soumise à un test de charge et à un test de
+sécurité combinant analyse statique du code et exploitation dynamique.
+
+\textbf{La base de code est globalement saine~:} requêtes entièrement
+paramétrées (aucune injection SQL trouvée), jetons CSRF sur l'ensemble des
+traitements POST, session durcie, double authentification robuste, jetons de
+réinitialisation solides, téléversements confinés, aucune exécution de code
+dynamique. L'analyse n'a relevé \emph{aucune} faille d'injection SQL, XSS
+stockée exploitable par un utilisateur non privilégié, ni exécution de commande.
+
+Les points à corriger sont~: (1)~un \textbf{défaut de contrôle d'accès} sur la
+pharmacie permettant à un simple utilisateur de modifier le stock de
+médicaments, y compris stupéfiants \emph{(vérifié dynamiquement)}~;
+(2)~l'absence de contrainte d'unicité sur l'identifiant de connexion, ouvrant
+une \textbf{prise de contrôle de compte}~; (3)~un \textbf{bogue fonctionnel}
+(erreur~500) qui casse l'ajout et la modification de médicaments~; (4)~des
+pages qui \textbf{passent mal à l'échelle} avec le volume de données.
+
+\begin{center}\small
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+Sévérité & Critique & Élevée & Moyenne & Faible & \textcolor{ok}{Solide} \\
+\midrule
+Nombre & 1 & 3 & 4 & 6 & (voir §6) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Méthode et environnement}
+
+\begin{itemize}[nosep,leftmargin=1.4em]
+  \item \textbf{Déploiement}~: Apache 2.4 avec \texttt{mod\_php} 8.3 en MPM
+    \texttt{prefork} (\texttt{MaxRequestWorkers}~$=150$), MariaDB 10.11
+    (\texttt{max\_connections}~$=151$), sur la base de démonstration
+    (\texttt{tools/demo\_data.php}).
+  \item \textbf{Volume de données} (injecté pour le test de charge)~:
+    2\,008~cages, 10\,035~animaux, 162\,008~contrôles de cage,
+    200\,000~lignes de journal d'activité.
+  \item \textbf{Outils}~: \texttt{ab} (ApacheBench) et un générateur de charge
+    multi-utilisateurs en Python (sessions authentifiées concurrentes)~;
+    suite de tests du projet (\texttt{phpunit}, 257~tests~: OK)~;
+    \texttt{composer audit} (aucune vulnérabilité de dépendance)~;
+    revue de code et exploitation manuelle.
+\end{itemize}
+
+\section{Test de charge}
+
+\subsection{Latence par page (volume réel, cache chaud, 1 utilisateur)}
+
+\begin{center}\small
+\begin{tabular}{@{}lrr@{}}
+\toprule
+Page & Temps & Taille réponse \\
+\midrule
+\texttt{export\_data.php}      & 3\,142 ms & 2{,}4 Mo \\
+\texttt{animal\_register.php}  &   830 ms & \textbf{8{,}8 Mo} \\
+\texttt{daily\_round.php}      &   438 ms & \textbf{9{,}2 Mo} \\
+\texttt{animal\_search.php}    &   162 ms & 0{,}6 Mo \\
+\texttt{prescription\_manage.php} & 122 ms & 1{,}1 Mo \\
+\texttt{home.php}              &   116 ms & 38 ko \\
+\multicolumn{3}{@{}l}{\footnotesize (médiane des 98 pages~: $\approx$9 ms)} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Débit et montée en charge (ApacheBench)}
+
+\begin{center}\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Page & Débit & p50 & p99 & Erreurs \\
+\midrule
+\texttt{index.php} (anonyme)      & 1\,294 req/s & -- & 183 ms & 0 \\
+\texttt{get\_notifications.php}   & 978 req/s & 43 ms & 194 ms & 0 \\
+\texttt{cage\_dash.php} (c=50)    & 79 req/s & 625 ms & 699 ms & 0 \\
+\texttt{home.php} (c=100)         & 10 req/s & 9\,4 s & 10\,6 s & 0 \\
+\texttt{daily\_round.php} (c=50)  & 3 req/s & 15\,4 s & 16\,4 s & 0 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Charge mixte multi-utilisateurs (profil réaliste, 30~s par palier)~:
+débit soutenu $\approx$75~req/s~; p95 passant de 559~ms (10~utilisateurs) à
+9\,8~s (200~utilisateurs), avec apparition d'erreurs~500 à 200~utilisateurs.
+
+\subsection{Constats}
+
+\begin{description}[leftmargin=0pt,style=unboxed,itemsep=0.6ex]
+  \item[\hoch{} C1 --- Épuisement des connexions MariaDB sous rafale.]
+    À 200~utilisateurs simultanés, \texttt{MaxRequestWorkers} (150) est atteint
+    puis \texttt{max\_connections} MariaDB (151)~; chaque requête PHP ouvre une
+    connexion \texttt{mysqli} sans mutualisation. Le dépassement remonte en
+    \textbf{erreur fatale non interceptée} (\texttt{Too many connections},
+    \texttt{dbcon.php:48}) servie en HTTP~500 au lieu d'une dégradation
+    maîtrisée. \emph{Recommandation}~: aligner \texttt{MaxRequestWorkers} sur
+    \texttt{max\_connections} (le premier strictement inférieur au second),
+    intercepter l'échec de connexion dans \texttt{dbcon.php} pour renvoyer une
+    page 503 propre, et envisager un pool/connexions persistantes.
+  \item[\hoch{} C2 --- Pages volumineuses non paginées.]
+    \texttt{daily\_round.php} et \texttt{animal\_register.php} génèrent
+    $\approx$9~Mo de HTML car elles rendent \emph{tous} les animaux/cages sans
+    pagination~; à 10\,k~animaux leur coût domine (3 à 15~s sous charge).
+    \emph{Recommandation}~: pagination côté serveur et chargement à la demande.
+  \item[\med{} C3 --- Sérialisation par verrou de session.]
+    Les requêtes d'une même session se sérialisent (verrou de fichier de
+    session PHP). Comme chaque page interroge \texttt{get\_notifications.php},
+    un onglet lent (p.~ex. \texttt{daily\_round}) bloque les requêtes
+    concurrentes du même utilisateur. \emph{Recommandation}~: appeler
+    \texttt{session\_write\_close()} tôt sur les pages en lecture seule (comme
+    le fait déjà, correctement, le sondage de notifications).
+\end{description}
+
+\section{Test de sécurité --- vulnérabilités}
+
+\subsection*{\crit{} / \hoch{} S1 --- Pharmacie accessible à tout utilisateur (vérifié)}
+\texttt{pharmacy\_manage.php} ne vérifie que l'ouverture de session
+(\texttt{isset(\$\_SESSION['username'])}), sans contrôle du rôle administrateur,
+alors que le guide réserve ces opérations aux administrateurs.
+\textbf{Exploitation vérifiée}~: un compte de rôle \texttt{user}
+(\texttt{marc.dubois}, id~4) a ajusté le stock d'un lot
+(\texttt{adjustment -1.000}, \texttt{performed\_by=4}, réponse 302). Un
+utilisateur peut aussi réceptionner des lots et, surtout, retirer le marquage
+« stupéfiant » d'un médicament, ce qui le fait \textbf{sortir du registre des
+stupéfiants} --- impact réglementaire direct (BEA).
+\emph{Correctif}~: exiger le rôle \texttt{admin} pour \texttt{add\_product},
+\texttt{update\_product}, \texttt{add\_lot}, \texttt{start\_use} et
+\texttt{adjust\_stock}.
+
+\subsection*{\hoch{} S2 --- Prise de contrôle de compte par identifiant dupliqué (vérifié)}
+La colonne \texttt{users.username} n'a \textbf{aucune contrainte d'unicité}
+(vérifié~: l'insertion d'un second compte avec
+\texttt{claire.martin@demo.fr} est acceptée). Le changement d'adresse dans le
+profil ne vérifie pas non plus l'unicité, et toutes les mises à jour
+sensibles (mot de passe, rôle, statut) sont indexées par \texttt{username} et
+non par \texttt{id}. \textbf{Scénario}~: un utilisateur renomme son adresse en
+celle d'un administrateur, demande une réinitialisation, et le
+\texttt{UPDATE ... WHERE username=?} touche les deux comptes.
+\emph{Correctif}~: \texttt{ALTER TABLE users ADD UNIQUE(username)}~; vérifier
+l'unicité et valider l'adresse (\texttt{FILTER\_VALIDATE\_EMAIL}) au
+changement de profil~; indexer toutes les écritures sur \texttt{id}.
+
+\subsection*{\hoch{} S3 --- Bogue cassant la pharmacie, erreur 500 (vérifié)}
+\texttt{pharmacy\_manage.php} appelle \texttt{parse\_number()}, définie dans
+\texttt{animal\_lib.php}, \textbf{jamais inclus} par cette page. Tout envoi de
+formulaire \texttt{add\_product} ou \texttt{update\_product} provoque
+\texttt{Fatal error: Call to undefined function parse\_number()} (HTTP~500,
+vérifié dans le journal Apache). L'ajout et la modification de médicaments
+sont donc \textbf{inopérants} (la démo ayant été peuplée par SQL direct, le
+défaut n'a pas été exercé). \emph{Correctif}~:
+\texttt{require\_once 'animal\_lib.php';} (ou \texttt{medication\_lib.php}, qui
+en dépend) en tête de \texttt{pharmacy\_manage.php}.
+
+\subsection*{\med{} S4 --- Déverrouillage via « mot de passe oublié » et énumération (vérifié)}
+\texttt{forgot\_password.php} remet \texttt{login\_attempts=0} et
+\texttt{account\_locked=NULL} à chaque demande~: un attaquant non authentifié
+essaie 3~mots de passe, demande une réinitialisation (ce qui déverrouille),
+et recommence indéfiniment. Symétriquement, n'importe qui peut \textbf{bloquer}
+le compte d'autrui (déni de service, 3~échecs/15~min). De plus, les messages
+diffèrent selon l'existence du compte (\emph{vérifié}~: « Aucun utilisateur ne
+correspond » vs « Mot de passe incorrect »), permettant l'énumération.
+\emph{Correctif}~: ne pas toucher aux compteurs de verrouillage dans
+« mot de passe oublié »~; message générique unique~; limitation par IP.
+
+\subsection*{\med{} S5 --- IDOR sur tâches et rappels}
+\texttt{manage\_tasks.php} (édition/suppression) et
+\texttt{manage\_reminder.php} agissent par \texttt{WHERE id=?} sans vérifier la
+propriété~: un utilisateur peut modifier ou supprimer la tâche d'autrui, et le
+champ \texttt{assigned\_by} provient du POST (usurpation d'expéditeur dans les
+notifications). \emph{Correctif}~: filtrer sur propriétaire/assigné/admin et
+toujours fixer \texttt{assigned\_by} depuis la session.
+
+\subsection*{\med{} S6 --- Changements de rôle sans invalidation de session}
+Le rôle est copié en session à la connexion~; une rétrogradation ou
+suppression (\texttt{manage\_users.php}) ne tue pas les sessions actives~: un
+administrateur déchu conserve ses droits jusqu'à expiration (30~min).
+\emph{Correctif}~: relire rôle/statut en base à chaque requête, ou invalider
+les sessions concernées.
+
+\subsection*{\med{} S7 --- Injection de formule dans les exports CSV}
+\texttt{export\_data.php}, \texttt{log\_export.php} et les registres écrivent
+du texte utilisateur sans neutraliser les préfixes \texttt{= + - @}
+(exécution de formule à l'ouverture dans un tableur).
+\emph{Correctif}~: préfixer d'une apostrophe les cellules commençant par ces
+caractères.
+
+\subsection*{\low{} S8 --- Divers (faible)}
+\begin{itemize}[nosep,leftmargin=1.4em]
+  \item En-têtes de sécurité (X-Frame-Options, CSP) absents des pages sans
+    \texttt{header.php}, dont \texttt{index.php} (page de connexion).
+  \item Changement d'adresse de profil sans re-saisie du mot de passe courant.
+  \item Déconnexion en GET sans jeton~; formulaire de connexion sans jeton CSRF
+    (atténué par \texttt{SameSite=Lax}).
+  \item Compte administrateur par défaut amorcé (\texttt{schema.sql})~;
+    bannière d'avertissement seulement.
+  \item \texttt{FILTER\_SANITIZE\_STRING} (déprécié en PHP~8.1) altère les
+    apostrophes stockées.
+  \item URL de souche (admin) non filtrée par schéma~: \texttt{javascript:}
+    possible (XSS stockée réservée à l'administrateur).
+  \item \texttt{demo/*.php} directement accessibles (absents de la liste
+    \texttt{.htaccess})~; inoffensifs mais lèvent des erreurs.
+\end{itemize}
+
+\section{Ce qui est solide}
+\begin{itemize}[nosep,leftmargin=1.4em]
+  \item \textcolor{ok}{\textbf{Injection SQL}}~: aucune. Toutes les requêtes à
+    paramètres utilisateur sont préparées~; les identifiants dynamiques
+    (ORDER BY, LIMIT, colonnes) proviennent de listes blanches ou d'entiers.
+  \item \textcolor{ok}{\textbf{CSRF}}~: \texttt{csrf\_valid()} en tête de
+    $\approx$45~traitements POST~; actions destructrices en POST~+~jeton.
+  \item \textcolor{ok}{\textbf{Contrôle d'accès}} (hors S1/S5/S6)~: pages
+    d'administration et BEA correctement protégées~; points d'API
+    (\texttt{get\_task}, \texttt{get\_notifications}) restreints à
+    l'utilisateur~; scripts cron refusant l'appel non-CLI.
+  \item \textcolor{ok}{\textbf{Téléversements}}~: liste blanche d'extensions +
+    contrôle MIME \texttt{finfo}, noms aléatoires, dossiers interdits par
+    \texttt{.htaccess}, téléchargement confiné par \texttt{realpath}
+    (aucune traversée de chemin). Exposition des fichiers sensibles bloquée
+    (\emph{vérifié}~: \texttt{.env}, \texttt{config.php}, \texttt{database/},
+    \texttt{vendor/} renvoient 403/404).
+  \item \textcolor{ok}{\textbf{Authentification/session}}~: régénération de
+    l'identifiant à la connexion, cookies HttpOnly/SameSite/Secure, mode
+    strict, expiration d'inactivité~; 2FA avec limite de tentatives, fenêtre
+    de 5~min et anti-rejeu~; jetons de réinitialisation
+    \texttt{random\_bytes(32)}, 1~h, usage unique.
+  \item \textcolor{ok}{\textbf{XSS}}~: échappement systématique
+    (\texttt{htmlspecialchars}, \texttt{json\_encode} avec drapeaux HEX).
+  \item \textcolor{ok}{\textbf{Exécution de code}}~: aucun
+    \texttt{exec}/\texttt{system}/\texttt{eval}/\texttt{unserialize}, aucun
+    \texttt{include} à variable~; secrets non versionnés~;
+    \texttt{composer audit} sans vulnérabilité.
+\end{itemize}
+
+\section{Priorités de correction}
+\begin{enumerate}[nosep,leftmargin=1.6em]
+  \item \textbf{S3} (500 pharmacie) --- correctif d'une ligne, remet la
+    fonctionnalité en service.
+  \item \textbf{S1} (rôle pharmacie) et \textbf{S2} (unicité
+    \texttt{username}) --- impact réglementaire et prise de contrôle.
+  \item \textbf{C1} (épuisement connexions) et \textbf{S4} (déverrouillage) ---
+    robustesse et force brute.
+  \item \textbf{C2}, \textbf{S5}--\textbf{S7} --- performance et cloisonnement.
+\end{enumerate}
+
+\vfill
+\footnotesize\textit{Tests menés sur une base de démonstration jetable~; aucune
+donnée réelle n'a été touchée. Les mesures de charge reflètent un déploiement
+mono-serveur non optimisé et donnent des ordres de grandeur, non des garanties
+de capacité en production.}
+
+\end{document}

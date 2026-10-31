@@ -243,9 +243,12 @@ function annual_csv(array $table): string
 {
     $out = fopen('php://temp', 'r+');
     fwrite($out, "\xEF\xBB\xBF");
-    fputcsv($out, $table['headers'], ';');
+    // Neutralise spreadsheet formula injection (security review S7): a cell
+    // starting with =, +, - or @ is prefixed with an apostrophe.
+    $csvSafe = fn($v) => is_string($v) && $v !== '' && preg_match('/^[=+\-@]/', $v) ? "'" . $v : $v;
+    fputcsv($out, array_map($csvSafe, $table['headers']), ';');
     foreach ($table['rows'] as $row) {
-        fputcsv($out, $row, ';');
+        fputcsv($out, array_map($csvSafe, $row), ';');
     }
     rewind($out);
     $csv = stream_get_contents($out);

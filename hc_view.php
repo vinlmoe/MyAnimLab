@@ -614,7 +614,7 @@ require 'header.php';
             document.getElementById('view_strain_notes').innerHTML = notes.replace(/\n/g, '<br>');
             document.getElementById('viewPopupOverlay').style.display = 'block';
             document.getElementById('viewPopupForm').style.display = 'block';
-            document.getElementById('view_strain_url').href = url; // Set the href for the URL link
+            document.getElementById('view_strain_url').href = /^https?:\/\//i.test(url) ? url : '#'; // Only http(s): never a javascript: link (S8)
         }
 
         function closeViewForm() {

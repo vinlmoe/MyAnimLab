@@ -162,6 +162,17 @@ $lineList = $con->query("SELECT id, code, name FROM animal_lines ORDER BY code")
 $params = array_filter(['from' => $from, 'to' => $to, 'movement' => $movement !== 'all' ? $movement : null, 'species' => $species ?: null, 'line_id' => $lineId ?: null]);
 $exportUrl = fn(string $f): string => 'animal_register.php?' . http_build_query($params + ['format' => $f]);
 
+// On-screen pagination of the register table only: the CSV / PDF exports and
+// the summary counts above cover the whole period. Keeps the page from
+// building a multi-megabyte table when the period holds thousands of rows.
+$perPage = 500;
+$totalRows = count($registerRows);
+$pageCount = max(1, (int) ceil($totalRows / $perPage));
+$page = min($pageCount, max(1, (int) ($_GET['page'] ?? 1)));
+$pageStart = ($page - 1) * $perPage;
+$pageLines = array_slice($lines, $pageStart, $perPage, true);
+$pageUrl = fn(int $p): string => 'animal_register.php?' . http_build_query($params + ['page' => $p]);
+
 require 'header.php';
 ?>
 <!doctype html>
@@ -247,13 +258,23 @@ require 'header.php';
             </div>
         <?php endif; ?>
 
+        <?php if ($totalRows > 0) : ?>
+            <p class="small text-muted mb-1"><?= trh('Lines {start}–{end} of {total}', ['start' => $pageStart + 1, 'end' => min($pageStart + $perPage, $totalRows), 'total' => $totalRows]) ?><?php if ($pageCount > 1) : ?> · <?= trh('the CSV and PDF exports cover the whole period') ?><?php endif; ?></p>
+        <?php endif; ?>
+        <?php if ($pageCount > 1) : ?>
+            <nav><ul class="pagination pagination-sm">
+                <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>"><a class="page-link" href="<?= htmlspecialchars($pageUrl(max(1, $page - 1))) ?>">&laquo;</a></li>
+                <li class="page-item disabled"><span class="page-link"><?= trh('Page {n} of {total}', ['n' => $page, 'total' => $pageCount]) ?></span></li>
+                <li class="page-item <?= $page >= $pageCount ? 'disabled' : '' ?>"><a class="page-link" href="<?= htmlspecialchars($pageUrl(min($pageCount, $page + 1))) ?>">&raquo;</a></li>
+            </ul></nav>
+        <?php endif; ?>
         <div class="table-responsive">
             <table class="table table-sm table-bordered align-middle" id="registerTable">
                 <thead class="table-light">
                     <tr><?php foreach ($headers as $h) : ?><th><?= trh($h) ?></th><?php endforeach; ?></tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($lines as $i => $l) : ?>
+                    <?php foreach ($pageLines as $i => $l) : ?>
                         <tr class="<?= $l['kind'] === 'exit' ? 'table-light' : '' ?>">
                             <td class="text-muted small"><?= $i + 1 ?></td>
                             <td class="text-nowrap"><?= htmlspecialchars($l['date']) ?></td>
@@ -272,6 +293,13 @@ require 'header.php';
                 </tbody>
             </table>
         </div>
+        <?php if ($pageCount > 1) : ?>
+            <nav><ul class="pagination pagination-sm">
+                <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>"><a class="page-link" href="<?= htmlspecialchars($pageUrl(max(1, $page - 1))) ?>">&laquo;</a></li>
+                <li class="page-item disabled"><span class="page-link"><?= trh('Page {n} of {total}', ['n' => $page, 'total' => $pageCount]) ?></span></li>
+                <li class="page-item <?= $page >= $pageCount ? 'disabled' : '' ?>"><a class="page-link" href="<?= htmlspecialchars($pageUrl(min($pageCount, $page + 1))) ?>">&raquo;</a></li>
+            </ul></nav>
+        <?php endif; ?>
     </main>
     <?php require 'footer.php'; ?>
 </body>

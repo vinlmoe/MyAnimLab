@@ -8,6 +8,13 @@
  *   db_rows($con, "... WHERE id IN (" . db_placeholders(count($ids)) . ")", str_repeat('i', count($ids)), $ids)
  */
 
+// Minimum length of a password, checked on the server wherever one is set
+// (manage_users.php, reset_password.php) — security review S8. Defined here
+// (loaded through dbcon.php on every page, including the public reset page).
+if (!defined('PASSWORD_MIN_LENGTH')) {
+    define('PASSWORD_MIN_LENGTH', 8);
+}
+
 /** All rows of a prepared query (associative arrays). */
 function db_rows(mysqli $con, string $sql, string $types = '', array $params = []): array
 {

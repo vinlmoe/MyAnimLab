@@ -44,8 +44,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($newName === '' || $newPosition === '' || !filter_var($newEmail, FILTER_VALIDATE_EMAIL)) {
             $_SESSION['userMessage'] = ['danger', tr('Name, position and a valid email are required.')];
-        } elseif (strlen($newPassword) < 8) {
-            $_SESSION['userMessage'] = ['danger', tr('The password must contain at least 8 characters.')];
+        } elseif (strlen($newPassword) < PASSWORD_MIN_LENGTH) {
+            $_SESSION['userMessage'] = ['danger', tr('The password must contain at least {n} characters.', ['n' => PASSWORD_MIN_LENGTH])];
         } else {
             $checkStmt = mysqli_prepare($con, "SELECT id FROM users WHERE username = ?");
             mysqli_stmt_bind_param($checkStmt, "s", $newEmail);
@@ -256,7 +256,7 @@ mysqli_close($con);
                         </div>
                         <div class="col-md-4">
                             <label for="new_password" class="form-label"><?= trh('Initial password') ?></label>
-                            <input type="password" class="form-control" id="new_password" name="new_password" minlength="8" required autocomplete="new-password">
+                            <input type="password" class="form-control" id="new_password" name="new_password" minlength="<?= PASSWORD_MIN_LENGTH ?>" required autocomplete="new-password">
                         </div>
                         <div class="col-md-3">
                             <label for="new_role" class="form-label"><?= trh('Role') ?></label>

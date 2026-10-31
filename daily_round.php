@@ -131,6 +131,13 @@ $roomLabel = fn($r) => $r === '' ? tr('No room assigned') : tr('Room {room}', ['
 
 $shownCages = array_filter($cages, fn($c) => ($room === '' || ($c['room'] ?? '') === ($room === '__none' ? '' : $room))
     && !($hideSeen && !empty($checks[$c['cage_id']])));
+// The round is meant to go room by room. In a large facility, drawing every
+// cage of every room at once builds a very heavy page, so above this many
+// cages the detailed checklist waits until a room is picked (the room cards
+// above stay clickable). A single selected room is always drawn in full.
+$roundCageLimit = 300;
+$tooManyCages = ($room === '' && count($shownCages) > $roundCageLimit);
+$shownForRound = $tooManyCages ? [] : $shownCages;
 $returnUrl = 'daily_round.php?' . http_build_query(['room' => $room, 'hide_seen' => $hideSeen ? 1 : null]);
 
 require 'header.php';
@@ -273,7 +280,7 @@ require 'header.php';
 
             <?php
             $currentRoom = null;
-            foreach ($shownCages as $c) :
+            foreach ($shownForRound as $c) :
                 $r = $c['room'] ?? '';
                 if ($r !== $currentRoom) :
                     if ($currentRoom !== null) echo '</tbody></table></div>';
@@ -347,11 +354,13 @@ require 'header.php';
                             </tr>
                         <?php endforeach; ?>
                         <?php if ($currentRoom !== null) echo '</tbody></table></div>'; ?>
-                        <?php if (!$shownCages) : ?>
+                        <?php if ($tooManyCages) : ?>
+                            <p class="text-muted mt-3"><i class="fas fa-layer-group me-1"></i><?= trh('{count} cages to see. Pick a room above to run its round.', ['count' => count($shownCages)]); ?></p>
+                        <?php elseif (!$shownForRound) : ?>
                             <p class="text-muted mt-3"><?= trh($totalCages ? 'Every cage in this view has been seen.' : 'No active cage.'); ?></p>
                         <?php endif; ?>
 
-                        <?php if ($isToday && $shownCages) : ?>
+                        <?php if ($isToday && $shownForRound) : ?>
                             <div class="card card-body mt-3 sticky-bottom bg-light">
                                 <div class="row g-2 align-items-end">
                                     <div class="col-md-8">

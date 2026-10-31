@@ -15,7 +15,7 @@ Options -Indexes
 </IfModule>
 
 # Folders: answered as if they did not exist.
-RedirectMatch 404 "/(\.git|\.github|vendor|database|docker|docs|lang|setup|storage|tests|tools|uploads)(/|$)"
+RedirectMatch 404 "/(\.git|\.github|vendor|database|demo|docker|docs|lang|setup|storage|tests|tools|uploads)(/|$)"
 
 # Hidden files (.env, .htaccess, .gitignore...), configuration, scripts,
 # documentation and dependency files.

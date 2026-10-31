@@ -23,6 +23,18 @@ use Dotenv\Dotenv;
 require_once __DIR__ . '/i18n.php';
 require_once __DIR__ . '/db_lib.php';
 
+// Baseline security headers on every page. header.php sends the same ones for
+// the signed-in pages; sending them here also covers the public pages that do
+// not include it — the sign-in form, "forgot password", the reset and
+// confirmation pages — which otherwise shipped without clickjacking or
+// MIME-sniffing protection (security review S8). Downloads that send a stricter
+// policy still override these (header() replaces by name).
+if (PHP_SAPI !== 'cli' && !headers_sent()) {
+    header('X-Frame-Options: SAMEORIGIN');
+    header('X-Content-Type-Options: nosniff');
+    header('Referrer-Policy: strict-origin-when-cross-origin');
+}
+
 // Check if the .env file exists in the current directory
 if (file_exists(__DIR__ . '/.env')) {
     // Load the .env file. Immutable: variables already set in the environment
@@ -44,14 +56,30 @@ $dbport = (int) $envValue('DB_PORT', '3306');
 
 $demo = $envValue('DEMO', '');
 
-// Create a new connection to the database using the object-oriented style
-$con = new mysqli($servername, $username, $password, $dbname, $dbport);
+// Create a new connection to the database using the object-oriented style.
+// Since PHP 8.1 mysqli throws on a failed connection, so the attempt is
+// wrapped: on failure (database down, or too many connections under load) the
+// visitor gets a clean "service unavailable" page with a Retry-After hint
+// instead of an uncaught fatal error, and the detail is logged server-side.
+try {
+    $con = new mysqli($servername, $username, $password, $dbname, $dbport);
+} catch (\mysqli_sql_exception $e) {
+    error_log('Connection Failed: ' . $e->getMessage());
+    if (PHP_SAPI !== 'cli' && !headers_sent()) {
+        http_response_code(503);
+        header('Retry-After: 30');
+    }
+    die(tr('The service is temporarily unavailable. Please try again in a few moments.'));
+}
 
-// Check the connection to the database
+// Defensive: some drivers may still report the error on the object.
 if ($con->connect_error) {
-    // Log the error message (for production, avoid displaying detailed errors to users)
     error_log('Connection Failed: ' . $con->connect_error);
-    die(tr('Connection Failed. Please try again later.'));
+    if (PHP_SAPI !== 'cli' && !headers_sent()) {
+        http_response_code(503);
+        header('Retry-After: 30');
+    }
+    die(tr('The service is temporarily unavailable. Please try again in a few moments.'));
 }
 
 // Use the lab's timezone (Manage Lab) for both PHP and MySQL, so "today"
