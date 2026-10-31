@@ -609,6 +609,7 @@ return [
     // manage_users
     'Name, position and a valid email are required.' => 'Le nom, la fonction et une adresse e-mail valide sont obligatoires.',
     'The password must contain at least 8 characters.' => 'Le mot de passe doit contenir au moins 8 caractères.',
+    'The password must contain at least {n} characters.' => 'Le mot de passe doit contenir au moins {n} caractères.',
     'A user with this email already exists.' => 'Un utilisateur avec cette adresse e-mail existe déjà.',
     'User {email} created.' => 'Utilisateur {email} créé.',
     'User creation failed.' => 'La création de l’utilisateur a échoué.',

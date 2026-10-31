@@ -32,8 +32,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
     $newPassword = $_POST['new_password'];
     $confirmPassword = $_POST['confirm_password'];
 
-    // Check if new password and confirm password are the same
-    if ($newPassword === $confirmPassword) {
+    // Enforce the minimum password length on the server, not only in the
+    // browser (security review S8).
+    if (strlen($newPassword) < PASSWORD_MIN_LENGTH) {
+        $resultMessage = trh('The password must contain at least {n} characters.', ['n' => PASSWORD_MIN_LENGTH]);
+    } elseif ($newPassword === $confirmPassword) {
         // Prepare SQL to check if the token exists and is valid
         $query = "SELECT * FROM users WHERE reset_token = ? AND reset_token_expiration >= NOW()";
         $stmt = $con->prepare($query);
@@ -165,7 +168,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
             <!-- New Password Field -->
             <div class="form-group">
                 <label for="new_password"><?= trh('New Password') ?></label>
-                <input type="password" class="form-control" id="new_password" name="new_password" required>
+                <input type="password" class="form-control" id="new_password" name="new_password" minlength="<?= PASSWORD_MIN_LENGTH ?>" required>
             </div>
 
             <!-- Confirm Password Field -->

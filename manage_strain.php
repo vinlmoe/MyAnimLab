@@ -37,12 +37,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         die(tr('CSRF token validation failed'));
     }
 
+    // Keep only an http(s) strain URL; anything else (e.g. a javascript: URL)
+    // is dropped so a stored value can never become a dangerous link when it
+    // is later clicked (security review S8, stored XSS).
+    $safeStrainUrl = fn(string $u): string => preg_match('#^https?://#i', trim($u)) ? trim($u) : '';
+
     if (isset($_POST['add'])) {
         // Add new strain
         $strainId = htmlspecialchars($_POST['strain_id']); // Sanitize input
         $strainName = htmlspecialchars($_POST['strain_name']); // Sanitize input
         $strainAka = htmlspecialchars($_POST['strain_aka']); // Sanitize input
-        $strainUrl = htmlspecialchars($_POST['strain_url']); // Sanitize input
+        $strainUrl = htmlspecialchars($safeStrainUrl($_POST['strain_url'] ?? '')); // Only http(s), sanitized
         $strainRrid = htmlspecialchars($_POST['strain_rrid']); // Sanitize input
         $strainNotes = htmlspecialchars($_POST['strain_notes']); // Sanitize input
 
@@ -71,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $strainId = htmlspecialchars($_POST['strain_id']); // Sanitize input
         $strainName = htmlspecialchars($_POST['strain_name']); // Sanitize input
         $strainAka = htmlspecialchars($_POST['strain_aka']); // Sanitize input
-        $strainUrl = htmlspecialchars($_POST['strain_url']); // Sanitize input
+        $strainUrl = htmlspecialchars($safeStrainUrl($_POST['strain_url'] ?? '')); // Only http(s), sanitized
         $strainRrid = htmlspecialchars($_POST['strain_rrid']); // Sanitize input
         $strainNotes = htmlspecialchars($_POST['strain_notes']); // Sanitize input
         $stmt = $con->prepare("UPDATE strains SET str_name = ?, str_aka = ?, str_url = ?, str_rrid = ?, str_notes = ? WHERE str_id = ?");
@@ -404,7 +409,7 @@ $strainResult = $con->query($strainQuery);
             document.getElementById('view_strain_name').innerText = name;
             document.getElementById('view_strain_aka').innerText = aka;
             document.getElementById('view_strain_url').innerText = url;
-            document.getElementById('view_strain_url').href = url; // Set the href for the URL link
+            document.getElementById('view_strain_url').href = /^https?:\/\//i.test(url) ? url : '#'; // Only http(s): never a javascript: link (S8)
             document.getElementById('view_strain_rrid').innerText = rrid;
             document.getElementById('view_strain_notes').innerHTML = notes.replace(/\n/g, '<br>'); // Replace \n with <br> for display
         }

@@ -28,6 +28,8 @@ require_once __DIR__ . '/dbcon.php';
 const SESSION_TIMEOUT_DEFAULT_MINUTES = 30;
 const SESSION_TIMEOUT_MIN_MINUTES = 5;
 const SESSION_TIMEOUT_MAX_MINUTES = 720;
+// PASSWORD_MIN_LENGTH is defined in db_lib.php (loaded via dbcon.php above),
+// so it is available to the public pages that do not include this file.
 
 // Inactivity allowed before sign-out, in minutes (Manage Lab setting).
 function session_timeout_minutes(mysqli $con): int
@@ -79,6 +81,9 @@ if (session_status() === PHP_SESSION_NONE && PHP_SAPI !== 'cli') {
 }
 
 if (PHP_SAPI !== 'cli') {
+    // Baseline security headers are sent from dbcon.php, which every page
+    // (public ones included) loads — see there (security review S8).
+
     // Sign out after the allowed inactivity.
     if (isset($_SESSION['LAST_ACTIVITY']) && time() - $_SESSION['LAST_ACTIVITY'] > $sessionTimeout) {
         $wasSignedIn = isset($_SESSION['username']);

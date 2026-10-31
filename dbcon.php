@@ -23,6 +23,18 @@ use Dotenv\Dotenv;
 require_once __DIR__ . '/i18n.php';
 require_once __DIR__ . '/db_lib.php';
 
+// Baseline security headers on every page. header.php sends the same ones for
+// the signed-in pages; sending them here also covers the public pages that do
+// not include it — the sign-in form, "forgot password", the reset and
+// confirmation pages — which otherwise shipped without clickjacking or
+// MIME-sniffing protection (security review S8). Downloads that send a stricter
+// policy still override these (header() replaces by name).
+if (PHP_SAPI !== 'cli' && !headers_sent()) {
+    header('X-Frame-Options: SAMEORIGIN');
+    header('X-Content-Type-Options: nosniff');
+    header('Referrer-Policy: strict-origin-when-cross-origin');
+}
+
 // Check if the .env file exists in the current directory
 if (file_exists(__DIR__ . '/.env')) {
     // Load the .env file. Immutable: variables already set in the environment
