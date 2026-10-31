@@ -42,7 +42,9 @@ CREATE TABLE `users` (
   `totp_enabled_at` datetime DEFAULT NULL,
   `totp_last_step` bigint DEFAULT NULL,
   `totp_recovery_codes` text DEFAULT NULL,
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  -- The login identifier (an e-mail address) must be unique (migration 041).
+  UNIQUE KEY `uq_users_username` (`username`)
 );
 
 -- Table for storing cage information
@@ -1461,4 +1463,5 @@ INSERT INTO `schema_migrations` (`version`) VALUES
   ('037_animal_hard_delete_guard.sql'),
   ('038_endpoint_withdrawal_and_comments.sql'),
   ('039_weaning_age_by_species_and_line.sql'),
-  ('040_room_temperatures.sql');
+  ('040_room_temperatures.sql'),
+  ('041_unique_username.sql');

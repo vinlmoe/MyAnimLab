@@ -205,14 +205,17 @@ if (isset($_POST['login'])) {
                             $update_stmt = mysqli_prepare($con, $update_attempts);
                             mysqli_stmt_bind_param($update_stmt, "is", $new_attempts, $username);
                             mysqli_stmt_execute($update_stmt);
-                            $error_message = tr('Invalid password. Please try again.');
+                            // Same wording as the "no such user" case below, so
+                            // the form cannot be used to tell which usernames
+                            // exist (security review S4, account enumeration).
+                            $error_message = tr('Incorrect username or password.');
                         }
                     }
                 }
             }
         }
     } else {
-        $error_message = tr('No user found with that username.');
+        $error_message = tr('Incorrect username or password.');
     }
     mysqli_stmt_close($statement);
 }

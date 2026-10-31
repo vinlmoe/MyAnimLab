@@ -46,12 +46,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset'])) {
             // Fetch user data
             $row = $result->fetch_assoc();
             $username = $row['username'];
+            $uid = (int) $row['id'];
 
-            // Prepare SQL to update the user's password
-            $updateQuery = "UPDATE users SET password = ?, reset_token = NULL, reset_token_expiration = NULL WHERE username = ?";
+            // Prepare SQL to update the user's password. Keyed on the account
+            // id, not the username, so a reset can only ever change the one
+            // account the token belongs to (security review S2).
+            $updateQuery = "UPDATE users SET password = ?, reset_token = NULL, reset_token_expiration = NULL WHERE id = ?";
             $updateStmt = $con->prepare($updateQuery);
             $hashedPassword = password_hash($newPassword, PASSWORD_BCRYPT);
-            $updateStmt->bind_param("ss", $hashedPassword, $username);
+            $updateStmt->bind_param("si", $hashedPassword, $uid);
 
             // Execute the update and set a success or failure message
             if ($updateStmt->execute()) {

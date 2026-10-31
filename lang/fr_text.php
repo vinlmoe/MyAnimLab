@@ -414,6 +414,14 @@ return [
     'Password reset instructions have been sent to your email address.' => 'Les instructions de réinitialisation du mot de passe ont été envoyées à votre adresse e-mail.',
     'Email could not be sent. Error: {error}' => 'L’e-mail n’a pas pu être envoyé. Erreur : {error}',
     'Email address not found in our records. Please try again.' => 'Adresse e-mail introuvable dans nos enregistrements. Veuillez réessayer.',
+    'If an account exists for this address, password reset instructions have been sent to it.' => 'Si un compte existe pour cette adresse, les instructions de réinitialisation du mot de passe y ont été envoyées.',
+    'Incorrect username or password.' => 'Identifiant ou mot de passe incorrect.',
+    'Please enter a valid e-mail address.' => 'Veuillez saisir une adresse e-mail valide.',
+    'This e-mail address is already used by another account.' => 'Cette adresse e-mail est déjà utilisée par un autre compte.',
+    'Lines {start}–{end} of {total}' => 'Lignes {start} à {end} sur {total}',
+    'the CSV and PDF exports cover the whole period' => 'les exports CSV et PDF couvrent toute la période',
+    'Page {n} of {total}' => 'Page {n} sur {total}',
+    '{count} cages to see. Pick a room above to run its round.' => '{count} cages à voir. Choisissez une salle ci-dessus pour faire sa tournée.',
     'Forgot Password' => 'Mot de passe oublié',
     'Fields marked with {asterisk} are required.' => 'Les champs marqués d’un {asterisk} sont obligatoires.',
     'Reset Password' => 'Réinitialiser le mot de passe',
@@ -1570,6 +1578,7 @@ return [
 
     // zz_misc
     'Connection Failed. Please try again later.' => 'Échec de la connexion. Veuillez réessayer plus tard.',
+    'The service is temporarily unavailable. Please try again in a few moments.' => 'Le service est temporairement indisponible. Veuillez réessayer dans quelques instants.',
     'Error sending email' => 'Erreur lors de l’envoi de l’e-mail',
     'Invalid language change request.' => 'Demande de changement de langue invalide.',
 

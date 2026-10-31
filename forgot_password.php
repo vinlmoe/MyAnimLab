@@ -86,13 +86,21 @@ function handlePasswordReset($con, $email, $url) {
     $stmt->execute();
     $result = $stmt->get_result();
 
+    // The same answer is shown whether or not the address is on file, so the
+    // form cannot be used to tell which addresses have an account (security
+    // review S4, account enumeration).
+    $resultMessage = trh('If an account exists for this address, password reset instructions have been sent to it.');
+
     if ($result->num_rows == 1) {
-        // Email exists, generate and save a reset token
+        // Email exists, generate and save a reset token. The lock counters are
+        // deliberately left untouched: a reset request must not clear a login
+        // lockout, otherwise it could be used to defeat the brute-force limit
+        // (security review S4).
         $resetToken = bin2hex(random_bytes(32));
         $expirationTimeUnix = time() + 3600; // 1 hour expiration time
         $expirationTime = date('Y-m-d H:i:s', $expirationTimeUnix);
 
-        $updateQuery = "UPDATE users SET reset_token = ?, reset_token_expiration = ?, login_attempts = 0, account_locked = NULL WHERE username = ?";
+        $updateQuery = "UPDATE users SET reset_token = ?, reset_token_expiration = ? WHERE username = ?";
         $updateStmt = $con->prepare($updateQuery);
         $updateStmt->bind_param("sss", $resetToken, $expirationTime, $email);
         $updateStmt->execute();
@@ -121,12 +129,12 @@ function handlePasswordReset($con, $email, $url) {
             $mail->Body = $message;
 
             $mail->send();
-            $resultMessage = trh('Password reset instructions have been sent to your email address.');
         } catch (Exception $e) {
-            $resultMessage = trh('Email could not be sent. Error: {error}', ['error' => $mail->ErrorInfo]);
+            // Log the delivery error server-side; never reveal it to the
+            // visitor (it would disclose the address exists and leak SMTP
+            // details).
+            error_log('forgot_password: email could not be sent: ' . $mail->ErrorInfo);
         }
-    } else {
-        $resultMessage = trh('Email address not found in our records. Please try again.');
     }
 
     $stmt->close();
